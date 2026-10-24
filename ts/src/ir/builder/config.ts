@@ -4,12 +4,16 @@ import * as complications from "../../complications.ts";
 import type { Span } from "../../diagnostics.ts";
 import type { Data } from "../../edit/yaml.ts";
 import type * as icons from "../../icons.ts";
-import { Color, ColorError } from "../../palette.ts";
+import { Color, ColorError, MIP64_NAMED, MIP_RECOMMENDED, mip64Label, mip64Name } from "../../palette.ts";
 import { quoted, str } from "../../py.ts";
+import { humanise } from "../../vocab.ts";
 import { CONFIG_AXIS_ROLES, ConfigChoice, ConfigColor, ConfigDataSlot, ConfigStyle, StyleEntry } from "../model.ts";
 import { TopLevelBlocks } from "./blocks.ts";
 import { ICON_OVERRIDE_ERROR, NO_ICON_OVERRIDE } from "./glyphs.ts";
 import { lintSuppression, type Node } from "./state.ts";
+
+/** The colours `choices: any` offers, in order. */
+const RECOMMENDED: readonly Color[] = MIP_RECOMMENDED.map((name) => Color.parse(MIP64_NAMED.find(([n]) => n === name)![1]));
 
 /** Builds the `config:` axes. */
 export class ConfigAxes extends TopLevelBlocks {
@@ -237,7 +241,11 @@ export class ConfigAxes extends TopLevelBlocks {
       }
       const rawChoices = spec.get("choices");
       if (rawChoices === "any") {
-        this.config.set(name, ConfigColor.create({ name, default: defaultColor, choices: "any", span, role }));
+        const options = RECOMMENDED.map((color) => ConfigChoice.create({ color, label: mip64Label(color.toString()) ?? null }));
+        if (!options.some((option) => option.color.equals(defaultColor))) {
+          options.unshift(ConfigChoice.create({ color: defaultColor, label: this.colorLabel(spec.get("default"), defaultColor) }));
+        }
+        this.config.set(name, ConfigColor.create({ name, default: defaultColor, choices: "any", options, span, role }));
         continue;
       }
       const choices: ConfigChoice[] = [];
@@ -251,7 +259,7 @@ export class ConfigAxes extends TopLevelBlocks {
             ok = false;
             return;
           }
-          choices.push(ConfigChoice.create({ color, label: this.palette_labels.get(item.slice("color.".length)) ?? null }));
+          choices.push(ConfigChoice.create({ color, label: this.colorLabel(item, color) }));
           return;
         }
         const entry = item as Node;
@@ -264,7 +272,7 @@ export class ConfigAxes extends TopLevelBlocks {
           ok = false;
           return;
         }
-        choices.push(ConfigChoice.create({ color, label: (entry.get("label") ?? null) as string | null }));
+        choices.push(ConfigChoice.create({ color, label: (entry.get("label") as string | undefined) ?? mip64Label(color.toString()) ?? null }));
       });
       if (!ok) {
         this.rejected_config.add(name);
@@ -276,7 +284,23 @@ export class ConfigAxes extends TopLevelBlocks {
         this.rejected_config.add(name);
         continue;
       }
-      this.config.set(name, ConfigColor.create({ name, default: defaultColor, choices, span, role }));
+      this.config.set(name, ConfigColor.create({ name, default: defaultColor, choices, options: choices, span, role }));
     }
+  }
+
+  /**
+   * A colour's name in the wearer's list: a swatch's `label:`, else the
+   * swatch's own name (`deep_orange` is "Deep orange"); the MIP name for a
+   * swatch the editor named after its colour (`azure_radiance`, `cFF8000`)
+   * and for a literal colour, when it is one of the 64; else none.
+   */
+  private colorLabel(raw: Data | undefined, color: Color): string | null {
+    const mip = mip64Label(color.toString()) ?? null;
+    if (typeof raw !== "string" || !raw.startsWith("color.")) return mip;
+    const name = raw.slice("color.".length);
+    const label = this.palette_labels.get(name);
+    if (label !== undefined) return label;
+    const bare = name.replace(/_\d+$/, "");
+    return bare === mip64Name(color.toString()) || /^c[0-9A-Fa-f]{6}$/.test(bare) ? mip : humanise(name);
   }
 }

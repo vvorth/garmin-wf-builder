@@ -264,12 +264,13 @@ export class ConfigColor {
   default!: Color;
   /** `"any"`, or the explicit picklist the editor offers. */
   choices: "any" | ConfigChoice[] = "any";
+  /** What the wearer is offered, in order: the explicit list, or for `any` the recommended MIP colours (`MIP_RECOMMENDED`), the default first when it is not one of them. */
+  options: ConfigChoice[] = [];
   span: Span | null = null;
   role = "";
 
   static create(init: Partial<ConfigColor>): ConfigColor { return make(ConfigColor, init); }
 
-  get allowAny(): boolean { return this.choices === "any"; }
   get axis(): ConfigAxis { return CONFIG_AXES.get(this.name)!; }
   get field(): string { return configField(this.name); }
 }

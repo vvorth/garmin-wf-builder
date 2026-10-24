@@ -101,11 +101,37 @@ export const MIP64_NAMED: readonly (readonly [string, string, string])[] = [
 ];
 
 const MIP64_BY_VALUE = new Map(MIP64_NAMED.map(([name, hex]) => [hex, name]));
+const MIP64_LABELS = new Map(MIP64_NAMED.map(([name, , label]) => [name, label]));
 
 /** The MIP name of a `#RRGGBB` value, or `undefined` when the colour is not one of the 64. */
 export function mip64Name(value: string): string | undefined {
   return MIP64_BY_VALUE.get(value.toUpperCase());
 }
+
+/** The MIP label of a `#RRGGBB` value ("Azure Radiance"), or `undefined` when the colour is not one of the 64. */
+export function mip64Label(value: string): string | undefined {
+  const name = mip64Name(value);
+  return name === undefined ? undefined : MIP64_LABELS.get(name);
+}
+
+/**
+ * The 27 of the 64 that look good on a MIP panel, by name, in the editor
+ * picker's order: the six hue families, then the grays. A `choices: any`
+ * colour setting offers exactly these. Left out: the pastels (`FF` with
+ * `AA`, off-white on the panel), the muted mixes (`AA` with `55`, gray),
+ * the dark colours (nothing above `55`, dim copies of brighter ones), the
+ * browns and olives, and one of every pair that looks alike -- modelled
+ * from a measured MIP panel in docs/research/37-mip-colour-appearance.md.
+ */
+export const MIP_RECOMMENDED: readonly string[] = [
+  "sunset_orange", "razzmatazz", "red", "international_orange",
+  "texas_rose", "web_orange", "yellow",
+  "conifer", "green", "malachite",
+  "medium_aquamarine", "aqua", "azure_radiance", "pigment_green",
+  "neon_blue", "navy_blue", "blue", "electric_indigo",
+  "medium_purple", "pink_flamingo", "electric_violet", "magenta_fuchsia", "indigo",
+  "white", "silver_chalice", "emperor", "black",
+];
 
 export class ColorError extends Error {}
 

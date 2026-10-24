@@ -2,7 +2,8 @@
 // preview's snapping, which must agree with the lint's "nearest" exactly.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mip64Name, MIP64_NAMED } from "../src/palette.ts";
+import { mip64Label, mip64Name, MIP64_NAMED, MIP_RECOMMENDED } from "../src/palette.ts";
+import { mipFamilies } from "../app/values.ts";
 import { BLACK, Color, ColorError, hasPaletteRule, MIP64_LEVELS, WHITE } from "../src/palette.ts";
 import { quantise } from "../src/preview.ts";
 import { commentText, controlCharacter, stringLiteral } from "../src/mcsource.ts";
@@ -54,6 +55,15 @@ test("the named MIP table is the 64", () => {
   assert.equal(MIP64_NAMED.length, 64);
   assert.equal(new Set(MIP64_NAMED.map(([, v]) => v)).size, 64);
   for (const [name, value] of MIP64_NAMED) assert.equal(mip64Name(value), name);
+  assert.equal(mip64Label("#00aaff"), "Azure Radiance");
+  assert.equal(mip64Label("#FF8000"), undefined);
+});
+
+test("the recommended set is 27 of the 64, once each, in the picker's order", () => {
+  assert.equal(MIP_RECOMMENDED.length, 27);
+  assert.equal(new Set(MIP_RECOMMENDED).size, 27);
+  const picker = mipFamilies(MIP64_NAMED.map(([name, value, label]) => ({ name, value, label })))!.flatMap((f) => f.rows.flat()).filter((c) => c !== null).map((c) => c.name);
+  assert.deepEqual(picker.filter((name) => MIP_RECOMMENDED.includes(name)), MIP_RECOMMENDED);
 });
 
 const HEAD = `format: 2

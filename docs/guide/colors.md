@@ -141,7 +141,9 @@ nothing on its own: it surfaces only when this swatch is used from a
 [Configuration](configuration.md#configuration)), where it becomes the same `<color
 label="@Strings...">` and generated `<string>` an inline `label:` on a
 `config:` choice already produces. A long-form entry with no `label:` behaves
-exactly like the short form.
+exactly like the short form: a swatch without one is still named on the
+watch, after the swatch itself or by its MIP name
+([Configuration](configuration.md#a-colour-settings-list-and-the-names-on-it)).
 
 ## Colour schemes
 

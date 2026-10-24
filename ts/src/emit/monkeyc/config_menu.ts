@@ -12,6 +12,7 @@ import type { ConfigDataSlot, Face } from "../../ir/model.ts";
 import { configField, pascal } from "../../ir/naming.ts";
 import { commentText, stringLiteral } from "../../mcsource.ts";
 import type { Color } from "../../palette.ts";
+import { humanise } from "../../vocab.ts";
 import { Writer } from "../writer.ts";
 import { XMLNS, XSD } from "../xml.ts";
 import { header, type SourceFile } from "./common.ts";
@@ -55,11 +56,6 @@ export class MenuAxis {
   }
 }
 
-/** `left_register` to `Left register`: a label for a name with none. */
-export function humanise(name: string): string {
-  const text = name.replaceAll("_", " ").trim();
-  return text.slice(0, 1).toUpperCase() + text.slice(1);
-}
 
 /** Every axis the menu offers: Styles, the two colours, then each data slot. */
 export function menuAxes(face: Face): MenuAxis[] {
@@ -70,13 +66,7 @@ export function menuAxes(face: Face): MenuAxis[] {
     axes.push(new MenuAxis(axes.length, "style", "style", "Style", labels, [], style.index(style.default)));
   }
   for (const [name, entry] of face.config) {
-    let options: [string, Color][];
-    if (entry.choices === "any") {
-      options = [...face.palette].map(([p, c]): [string, Color] => [face.palette_labels.get(p) || humanise(p), c]);
-      if (options.every(([, c]) => !c.equals(entry.default))) options.unshift(["Default", entry.default]);
-    } else {
-      options = entry.choices.map((c): [string, Color] => [c.label || String(c.color), c.color]);
-    }
+    const options = entry.options.map((c): [string, Color] => [c.label || String(c.color), c.color]);
     const defaultIndex = options.findIndex(([, c]) => c.equals(entry.default));
     axes.push(new MenuAxis(axes.length, "color", name, humanise(name.replaceAll("color", "colour")),
       options.map(([label]) => label), options.map(([, c]) => c), defaultIndex));

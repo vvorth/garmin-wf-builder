@@ -621,7 +621,10 @@ it is what the wearer's list shows, or the order the face is drawn in.
   form](colors.md#long-form-a-label-for-the-on-device-editor)): typed, the
   colour is written in the long form (`dim: { value: "#AAAAAA", label: Dim
   grey }`); emptied, it goes back to the bare colour (`dim: "#AAAAAA"`).
-  **+ Colour** adds one; **×** deletes one, refused while
+  **+ Colour** adds one; **+ All 64** adds every one of [the 64 MIP
+  colours](mip-palette.md) the face does not have yet, each under its name
+  with its label, in the picker's order, as one change (one **Undo**);
+  **×** deletes one, refused while
   something uses it; **Remove unused** deletes every colour nothing
   uses, except `bg`, `accent`, `text` and `fg`, which the launcher icon
   reads. A ⚠ marks a colour a target's screen would dither
@@ -634,13 +637,15 @@ it is what the wearer's list shows, or the order the face is drawn in.
   watch shows them, each as its swatch with its label, **↑ ↓** and **×**
   (the default cannot be taken off the list, nor its last colour).
   **+ add** offers another through the picker: one of the face's colours
-  is listed by name (`color.<name>`), any other as itself (`{color:
-  "#FFFFAA"}`); one already listed is not added again. The editor always
+  is listed by name (`color.<name>`), one of the 64 as itself with its
+  name (`{color: "#FFFFAA", label: Shalimar}`), any other as itself
+  (`{color: "#FF8000"}`); one already listed is not added again. The editor always
   writes that list, so adding a colour to the palette never changes what
   the wearer is offered. A setting written `choices: any` is shown, not
-  edited: on a fēnix 8 it opens the watch's own colour picker, and on a
-  watch without one (fr955) it lists every colour in the palette. **Make
-  it a list** replaces it with the face's colours that no target dithers.
+  edited: the wearer picks from [the recommended 27](mip-palette.md#the-recommended-27),
+  by name, on a fēnix 8 and on a watch without its editor (fr955) alike.
+  **Make it a list** replaces it with the face's colours that no target
+  dithers.
 - **Colour schemes** ([colour schemes](colors.md#colour-schemes)): colours that
   follow the style the wearer picks. Each change below is one change, with
   one **Undo**, because a scheme is written in several places at once.
@@ -756,7 +761,8 @@ digit) is marked and not sent.
 
 ### The colour picker
 
-A colour's chip opens three groups:
+A colour's chip opens three groups, below the chip, or above it when the
+window has more room there (near the bottom of a long list, say):
 
 - **This face**: its colours, then its roles where the key takes one (a
   role follows the wearer's style or pick).

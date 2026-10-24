@@ -4,7 +4,7 @@
 
 import type { ComponentChildren, JSX, VNode } from "preact";
 import { html } from "htm/preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { Args } from "../src/studio/protocol.ts";
 import { isIdentifier } from "./values.ts";
 import { objectUrl } from "./api.ts";
@@ -49,12 +49,17 @@ export interface PopoverProps {
 
 // A button that opens `children` below it, in the browser's top layer
 // (`popover="auto"`): a click outside or Escape closes it, and opening one
-// closes any other, natively. Placed under its button when it opens, and
-// closed when anything behind it scrolls, since it does not move with it.
-// `children` may be a function of `close`, for an item that closes the
-// popover once chosen. `align`: "left" or "right" edge, plus "up" to open
-// above the button; `buttonClass` and `bodyClass` style the two halves.
+// closes any other, natively. Placed by its button once its content has
+// rendered, and again whenever the content changes size: on the side
+// `align` asks for, or the other when that side has too little room and
+// the other more, never past the window's edges (taller than the room, it
+// scrolls). Closed when anything behind it scrolls, since it does not move
+// with it. `children` may be a function of `close`, for an item that
+// closes the popover once chosen. `align`: "left" or "right" edge, plus
+// "up" to open above the button; `buttonClass` and `bodyClass` style the
+// two halves.
 let popovers = 0;
+const MARGIN = 8;
 export function Popover({ label, title, className = "", buttonClass = "", bodyClass = "", align = "left", children, onOpen }: PopoverProps): VNode {
   const [open, setOpen] = useState(false);
   const id = useRef<string | null>(null);
@@ -62,19 +67,33 @@ export function Popover({ label, title, className = "", buttonClass = "", bodyCl
   const button = useRef<HTMLButtonElement | null>(null), body = useRef<HTMLDivElement | null>(null);
   const place = (): void => {
     if (!button.current || !body.current) return;
-    const r = button.current.getBoundingClientRect(), s = body.current.style;
-    const up = align.includes("up"), right = align.includes("right");
+    const r = button.current.getBoundingClientRect(), el = body.current, s = el.style;
+    s.maxHeight = "";
+    const height = el.offsetHeight, width = el.offsetWidth;
+    const below = innerHeight - r.bottom - 4 - MARGIN, above = r.top - 4 - MARGIN;
+    const up = align.includes("up") ? !(above < height && below > above) : below < height && above > below;
     s.top = up ? "auto" : `${r.bottom + 4}px`;
     s.bottom = up ? `${innerHeight - r.top + 4}px` : "auto";
-    s.left = right ? "auto" : `${r.left}px`;
-    s.right = right ? `${innerWidth - r.right}px` : "auto";
+    if (height > (up ? above : below)) s.maxHeight = `${Math.max(up ? above : below, 0)}px`;
+    // the edge `align` names, moved in as far as the window needs
+    const left = align.includes("right") ? r.right - width : r.left;
+    s.left = `${Math.max(MARGIN, Math.min(left, innerWidth - width - MARGIN))}px`;
+    s.right = "auto";
   };
   const onToggle = (e: JSX.TargetedToggleEvent<HTMLDivElement>): void => {
     const now = e.newState === "open";
-    if (now) { place(); if (onOpen) onOpen(); }
+    if (now && onOpen) onOpen();
     setOpen(now);
   };
   const close = (): void => { if (body.current && typeof body.current.hidePopover === "function") body.current.hidePopover(); };
+  useLayoutEffect(() => {
+    if (!open || !body.current) return;
+    place();
+    if (typeof ResizeObserver !== "function") return;
+    const resized = new ResizeObserver(place);
+    resized.observe(body.current);
+    return () => resized.disconnect();
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const scrolled = (e: Event): void => { if (body.current && !body.current.contains(e.target as Node | null)) close(); };

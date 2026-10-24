@@ -10,11 +10,43 @@ in that page's order. It calls both `#00FF00` and `#005500` *Green*, so
 the darker one is `dark_green` here.
 
 To start a face with the whole palette already in it, run
-`wfb new -t palette` ([Getting started](getting-started.md)). The editor's
-colour picker offers the same 64 by name, and adds the one you pick to the
-face ([the editor](studio.md#the-colour-picker)). The table itself is
+`wfb new -t palette` ([Getting started](getting-started.md)), or press
+**+ All 64** in the editor's Colours section. The editor's colour picker
+offers the same 64 by name, and adds the one you pick to the face
+([the editor](studio.md#the-colour-picker)). The table itself is
 `MIP64_NAMED` in `ts/src/palette.ts`; this page and the template are checked
 against it.
+
+## The recommended 27
+
+Not all 64 look good on the watch. A MIP screen reflects light rather
+than emitting it, so every colour is paler than on a monitor, and the
+middle steps (`55`, `AA`) are lighter than a monitor draws them. Four
+kinds are left out of the recommended set:
+
+- **pastels** (one channel `FF`, the dimmest `AA`) look off-white;
+- **muted mixes** (one channel `AA`, the dimmest `55`) look gray;
+- **dark colours** (no channel above `55`) are dim copies of brighter ones;
+- **dark orange, yellow and yellow-green** (`rust`, `citrus`,
+  `kelly_green`) look brown or olive.
+
+Of the rest, one of each group that looks alike stays. This is the list a
+colour setting's [`choices: any`](configuration.md#a-colour-settings-list-and-the-names-on-it)
+offers the wearer, in this order:
+
+| Family | Colours |
+|---|---|
+| Red | `sunset_orange` `#FF5555`, `razzmatazz` `#FF0055`, `red` `#FF0000`, `international_orange` `#FF5500` |
+| Yellow | `texas_rose` `#FFAA55`, `web_orange` `#FFAA00`, `yellow` `#FFFF00` |
+| Green | `conifer` `#AAFF55`, `green` `#00FF00`, `malachite` `#00FF55` |
+| Cyan | `medium_aquamarine` `#55FFAA`, `aqua` `#00FFFF`, `azure_radiance` `#00AAFF`, `pigment_green` `#00AA55` |
+| Blue | `neon_blue` `#5555FF`, `navy_blue` `#0055FF`, `blue` `#0000FF`, `electric_indigo` `#5500FF` |
+| Magenta | `medium_purple` `#AA55FF`, `pink_flamingo` `#FF55FF`, `electric_violet` `#AA00FF`, `magenta_fuchsia` `#FF00FF`, `indigo` `#5500AA` |
+| Gray | `white` `#FFFFFF`, `silver_chalice` `#AAAAAA`, `emperor` `#555555`, `black` `#000000` |
+
+The list is `MIP_RECOMMENDED` in `ts/src/palette.ts`. How a screen shows
+colour, and why each colour was left out, is in
+[`docs/limitations.md`](../limitations.md).
 
 ## Copy into a face
 

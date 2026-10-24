@@ -7,7 +7,7 @@
 import { html } from "htm/preact";
 import { useEffect, useState, useRef } from "preact/hooks";
 import type { JSX, VNode } from "preact";
-import { afterRemovingSchemes, colorName, newStyleEntry, parseHex, toHex } from "./values.ts";
+import { afterRemovingSchemes, colorName, mipFamilies, newStyleEntry, parseHex, toHex } from "./values.ts";
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.ts";
 import { ask } from "./dialogs.ts";
 import { HelpDialog } from "./help.ts";
@@ -336,7 +336,8 @@ interface AxisRowProps {
 // explicit list, so adding a colour to the palette never changes what the
 // wearer is offered. The list shows inline, in the wearer's order: each
 // choice as its swatch with ↑ ↓ ×, and "+ add" picking another (a face's
-// colour as `color.<name>`, any other as an inline `{color}`). The default
+// colour as `color.<name>`, one of the 64 as an inline `{color, label}`
+// carrying its MIP name, any other as an inline `{color}`). The default
 // cannot be removed, nor the last choice. `choices: any` is shown, with the
 // way to a list.
 function AxisRow({ axis, entry, palette, ctx, onEdit }: AxisRowProps): VNode {
@@ -357,7 +358,8 @@ function AxisRow({ axis, entry, palette, ctx, onEdit }: AxisRowProps): VNode {
   const offered: string[] = list ? list.map(spelled).filter((c): c is string => c !== null) : palette.map((p) => `color.${p.name}`);
   const add = (v: string): void => {
     if (!list) return;
-    const value: Value = colorName(v) ? v : { color: v };
+    const mip = (ctx.vocab.mip || []).find((m) => m.value === v.toUpperCase());
+    const value: Value = colorName(v) ? v : mip ? { color: mip.value, label: mip.label } : { color: v };
     if (list.some((c) => spelled(c) === spelled(value))) return;
     onEdit({ op: "insert_item", path: choices, at: list.length, value });
   };
@@ -391,8 +393,8 @@ function AxisRow({ axis, entry, palette, ctx, onEdit }: AxisRowProps): VNode {
         <li class="axis-add"><${ColorPop} ctx=${ctx} roles=${false} label="+ add" title="offer another colour: one of the face's, or any other as it is"
           onPick=${add} /></li>
       </ol>`
-      : html`<div class="note">choices: any. On a fēnix 8 the watch's own colour picker; on a watch
-          without it (fr955), every colour in the palette, which grows as colours are added.
+      : html`<div class="note">choices: any. The wearer picks from the 27 MIP colours that look
+          good on the watch, by name, on a fēnix 8 and on a watch without its editor (fr955) alike.
           <button onClick=${() => onEdit({ op: "set", path: choices, value: [...new Set([entry.default, ...legal.map((p) => `color.${p.name}`)])] })}>Make it a list</button></div>`}
   </div>`;
 }
@@ -613,6 +615,10 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, on
 
   const ctx: FaceCtx = { globals: g, vocab };
   const unused = palette.filter((p) => !p.used_by.length && !p.launcher);
+  // the 64 the palette does not hold yet, in the picker's order (by family)
+  const held = new Set(palette.map((p) => { const v = parseHex(p.value); return v ? toHex(v) : null; }));
+  const mip = vocab.mip || [];
+  const missing = (mipFamilies(mip)?.flatMap((f) => f.rows.flat()) ?? mip).filter((m) => m !== null && !held.has(m.value)).map((m) => m!.value);
   // who uses a colour: an element id selects it, anything else is a path
   const users = (list: string[]) => list.map((u, i) => html`${i ? ", " : ""}${u.includes(".") ? html`<code>${u}</code>`
     : html`<a href="#" onClick=${(e: LinkClick) => { e.preventDefault(); onSelect(u); }}>${u}</a>`}`);
@@ -651,6 +657,8 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, on
         </li>`)}</ul>
       <div class="row">
         <${ColorPop} ctx=${ctx} faceGroup=${false} label="+ Colour" title="add one of the 64, or your own" onPick=${(v: string) => onEdit({ op: "add_swatch", value: v })} />
+        <button disabled=${!missing.length} onClick=${() => onEdit({ op: "add_swatches", values: missing })}
+          title=${missing.length ? `add the ${missing.length} of the 64 MIP colours this face lacks, each under its name` : "every one of the 64 is in the palette"}>+ All 64</button>
         <button disabled=${!unused.length} title=${unused.length ? `remove ${unused.map((p) => p.name).join(", ")}` : "every colour is in use"}
           onClick=${() => ask(`Remove ${unused.map((p) => p.name).join(", ")}?`, "Remove").then((yes: boolean) => { if (yes) onEdit({ op: "remove_unused" }); })}>Remove unused</button>
       </div>

@@ -237,6 +237,7 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
   },
   use_color: (doc, index, op) => colors.useColor(index, doc.editPath(index, op), String(op["value"] ?? "")),
   add_swatch: (_, index, op) => colors.addSwatch(index, String(op["value"] ?? ""))[0],
+  add_swatches: (_, index, op) => colors.addSwatches(index, ((op["values"] ?? []) as unknown[]).map(String)),
   set_swatch: (_, index, op) => colors.setSwatch(index, String(op["name"] ?? ""), String(op["value"] ?? "")),
   remove_unused: (_, index) => colors.removeUnused(index),
   make_switchable: (_, index, op) => schemes.makeSwitchable(index, ((op["names"] ?? []) as unknown[]).map(String), text(op, "scheme")),

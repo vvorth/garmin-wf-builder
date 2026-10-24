@@ -86,7 +86,7 @@ theme:
 config:
   accent_color:
     default: "#FF8000"
-    choices: any                       # the editor's own full colour picker
+    choices: any                       # the 27 MIP colours that look good, by name
   data_color:
     default: color.aqua                # a palette swatch, or a literal hex
     choices:                           # or an explicit list
@@ -623,6 +623,34 @@ redraw once a second while it is awake, but on a fēnix 8 the second hand
 still stands still while a slot or one of its choices is pulsing (see
 [Limitations](../limitations.md)). Nothing in the YAML changes this.
 
+### A colour setting's list, and the names on it
+
+`accent_color:` and `data_color:` offer the wearer a list of colours, in
+order, each with a name. The fēnix 8 editor and the settings menu below
+show the same list.
+
+- **`choices: any`** offers [the recommended 27](mip-palette.md#the-recommended-27):
+  the colours of the 64 a MIP screen shows that look good on it, none of
+  them like another one on the list, by their MIP names, in the editor
+  picker's order (red to magenta, then white to black). A `default:` that
+  is not one of them is listed first. The watch's own colour list
+  (`allowAny`) is not used: its names and colours are the firmware's,
+  which the build can neither name nor order.
+- **An explicit list** offers exactly its colours, in its order.
+
+Each colour is named by the first of these it has:
+
+1. its `label:` (the swatch's [long form](colors.md#long-form-a-label-for-the-on-device-editor),
+   or an inline `{color, label}`);
+2. its swatch's name, humanised (`color.deep_orange` is "Deep orange");
+3. its MIP name, when it is one of [the 64](mip-palette.md), for a swatch
+   the editor named after its colour (`color.azure_radiance` is "Azure
+   Radiance") or a colour written inline (`{color: "#FFFF00"}` is
+   "Yellow").
+
+A colour with none of these, an inline colour outside the 64 say, has no
+name in the native editor and shows its hex in the menu.
+
 ### The settings menu, on a watch without the native editor
 
 The build generates it whenever some target lacks the native editor but has
@@ -636,7 +664,7 @@ option applies it at once.
 | Axis | The options listed |
 |---|---|
 | `style:` | every entry, by its label (else its scheme's label, else its name) |
-| `accent_color:`/`data_color:` | the `choices:` list, by palette label or hex; for `choices: any`, every `palette:` entry, plus the default first if it is not one of them |
+| `accent_color:`/`data_color:` | the [colour list](#a-colour-settings-list-and-the-names-on-it), by name: the `choices:` list, or for `choices: any` the recommended 27, the default first if it is not one of them |
 | a `slots:` entry | its `choices:` types; for `choices: any`, every complication type the device's API level has. Empty, and left out, on a device without `Toybox.Complications` |
 
 Which editor runs is decided on the watch, with the same `Application has

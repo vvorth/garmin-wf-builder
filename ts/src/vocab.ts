@@ -12,3 +12,9 @@ export function absent(element: { absent?: string | null; placeholder?: string; 
   if (policy === "fallback") return `absent: {value: ${element.fallback?.shown ?? "..."}}`;
   return `absent: ${policy}`;
 }
+
+/** `left_register` to `Left register`: a label for a name with none. */
+export function humanise(name: string): string {
+  const text = name.replaceAll("_", " ").trim();
+  return text.slice(0, 1).toUpperCase() + text.slice(1);
+}

@@ -1,0 +1,590 @@
+# The 64 MIP colours on a watch: research 37's probe face (gen-face.py writes it).
+# A black dot marks a colour the recommended set leaves out.
+format: 2
+face:
+  id: 7d3e9a41-2b6c-4f80-9e15-c4a2d8b06f37
+  name: MIP 64
+  version: 1.0.0
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+resources:
+  palette:
+    white: "#FFFFFF"
+    shalimar: "#FFFFAA"
+    laser_lemon: "#FFFF55"
+    yellow: "#FFFF00"
+    lavender_rose: "#FFAAFF"
+    sundown: "#FFAAAA"
+    texas_rose: "#FFAA55"
+    web_orange: "#FFAA00"
+    pink_flamingo: "#FF55FF"
+    brilliant_rose: "#FF55AA"
+    sunset_orange: "#FF5555"
+    international_orange: "#FF5500"
+    magenta_fuchsia: "#FF00FF"
+    hollywood_cerise: "#FF00AA"
+    razzmatazz: "#FF0055"
+    red: "#FF0000"
+    pale_turquoise: "#AAFFFF"
+    mint_green: "#AAFFAA"
+    conifer: "#AAFF55"
+    spring_bud: "#AAFF00"
+    perano: "#AAAAFF"
+    silver_chalice: "#AAAAAA"
+    olive_green: "#AAAA55"
+    citrus: "#AAAA00"
+    medium_purple: "#AA55FF"
+    violet_blue: "#AA55AA"
+    apple_blossom: "#AA5555"
+    rust: "#AA5500"
+    electric_violet: "#AA00FF"
+    dark_magenta: "#AA00AA"
+    jazzberry_jam: "#AA0055"
+    bright_red: "#AA0000"
+    baby_blue: "#55FFFF"
+    medium_aquamarine: "#55FFAA"
+    screamin_green: "#55FF55"
+    bright_green: "#55FF00"
+    cornflower_blue: "#55AAFF"
+    cadet_blue: "#55AAAA"
+    fruit_salad: "#55AA55"
+    kelly_green: "#55AA00"
+    neon_blue: "#5555FF"
+    rich_blue: "#5555AA"
+    emperor: "#555555"
+    verdun_green: "#555500"
+    electric_indigo: "#5500FF"
+    indigo: "#5500AA"
+    tyrian_purple: "#550055"
+    maroon: "#550000"
+    aqua: "#00FFFF"
+    medium_green: "#00FFAA"
+    malachite: "#00FF55"
+    green: "#00FF00"
+    azure_radiance: "#00AAFF"
+    persian_green: "#00AAAA"
+    pigment_green: "#00AA55"
+    japanese_laurel: "#00AA00"
+    navy_blue: "#0055FF"
+    cobalt: "#0055AA"
+    mosque: "#005555"
+    dark_green: "#005500"
+    blue: "#0000FF"
+    midnight_blue: "#0000AA"
+    navy: "#000055"
+    black: "#000000"
+elements:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.black
+  grid:
+    type: group
+    lint: { allow: [contrast], reason: "every colour is shown on black on purpose, the dark ones too" }
+    children:
+      s_white:
+        type: rectangle
+        at: { anchor: center, dx: -77px, dy: -77px }
+        size: { width: 19px, height: 19px }
+        color: color.white
+      s_shalimar:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: -77px }
+        size: { width: 19px, height: 19px }
+        color: color.shalimar
+      x_shalimar:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: -77px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_laser_lemon:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: -77px }
+        size: { width: 19px, height: 19px }
+        color: color.laser_lemon
+      x_laser_lemon:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: -77px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_yellow:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: -77px }
+        size: { width: 19px, height: 19px }
+        color: color.yellow
+      s_lavender_rose:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: -77px }
+        size: { width: 19px, height: 19px }
+        color: color.lavender_rose
+      x_lavender_rose:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: -77px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_sundown:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: -77px }
+        size: { width: 19px, height: 19px }
+        color: color.sundown
+      x_sundown:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: -77px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_texas_rose:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: -77px }
+        size: { width: 19px, height: 19px }
+        color: color.texas_rose
+      s_web_orange:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: -77px }
+        size: { width: 19px, height: 19px }
+        color: color.web_orange
+      s_pink_flamingo:
+        type: rectangle
+        at: { anchor: center, dx: -77px, dy: -55px }
+        size: { width: 19px, height: 19px }
+        color: color.pink_flamingo
+      s_brilliant_rose:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: -55px }
+        size: { width: 19px, height: 19px }
+        color: color.brilliant_rose
+      x_brilliant_rose:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: -55px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_sunset_orange:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: -55px }
+        size: { width: 19px, height: 19px }
+        color: color.sunset_orange
+      s_international_orange:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: -55px }
+        size: { width: 19px, height: 19px }
+        color: color.international_orange
+      s_magenta_fuchsia:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: -55px }
+        size: { width: 19px, height: 19px }
+        color: color.magenta_fuchsia
+      s_hollywood_cerise:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: -55px }
+        size: { width: 19px, height: 19px }
+        color: color.hollywood_cerise
+      x_hollywood_cerise:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: -55px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_razzmatazz:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: -55px }
+        size: { width: 19px, height: 19px }
+        color: color.razzmatazz
+      s_red:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: -55px }
+        size: { width: 19px, height: 19px }
+        color: color.red
+      s_pale_turquoise:
+        type: rectangle
+        at: { anchor: center, dx: -77px, dy: -33px }
+        size: { width: 19px, height: 19px }
+        color: color.pale_turquoise
+      x_pale_turquoise:
+        type: rectangle
+        at: { anchor: center, dx: -77px, dy: -33px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_mint_green:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: -33px }
+        size: { width: 19px, height: 19px }
+        color: color.mint_green
+      x_mint_green:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: -33px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_conifer:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: -33px }
+        size: { width: 19px, height: 19px }
+        color: color.conifer
+      s_spring_bud:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: -33px }
+        size: { width: 19px, height: 19px }
+        color: color.spring_bud
+      x_spring_bud:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: -33px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_perano:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: -33px }
+        size: { width: 19px, height: 19px }
+        color: color.perano
+      x_perano:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: -33px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_silver_chalice:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: -33px }
+        size: { width: 19px, height: 19px }
+        color: color.silver_chalice
+      s_olive_green:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: -33px }
+        size: { width: 19px, height: 19px }
+        color: color.olive_green
+      x_olive_green:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: -33px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_citrus:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: -33px }
+        size: { width: 19px, height: 19px }
+        color: color.citrus
+      x_citrus:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: -33px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_medium_purple:
+        type: rectangle
+        at: { anchor: center, dx: -77px, dy: -11px }
+        size: { width: 19px, height: 19px }
+        color: color.medium_purple
+      s_violet_blue:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: -11px }
+        size: { width: 19px, height: 19px }
+        color: color.violet_blue
+      x_violet_blue:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: -11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_apple_blossom:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: -11px }
+        size: { width: 19px, height: 19px }
+        color: color.apple_blossom
+      x_apple_blossom:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: -11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_rust:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: -11px }
+        size: { width: 19px, height: 19px }
+        color: color.rust
+      x_rust:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: -11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_electric_violet:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: -11px }
+        size: { width: 19px, height: 19px }
+        color: color.electric_violet
+      s_dark_magenta:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: -11px }
+        size: { width: 19px, height: 19px }
+        color: color.dark_magenta
+      x_dark_magenta:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: -11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_jazzberry_jam:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: -11px }
+        size: { width: 19px, height: 19px }
+        color: color.jazzberry_jam
+      x_jazzberry_jam:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: -11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_bright_red:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: -11px }
+        size: { width: 19px, height: 19px }
+        color: color.bright_red
+      x_bright_red:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: -11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_baby_blue:
+        type: rectangle
+        at: { anchor: center, dx: -77px, dy: 11px }
+        size: { width: 19px, height: 19px }
+        color: color.baby_blue
+      x_baby_blue:
+        type: rectangle
+        at: { anchor: center, dx: -77px, dy: 11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_medium_aquamarine:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: 11px }
+        size: { width: 19px, height: 19px }
+        color: color.medium_aquamarine
+      s_screamin_green:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: 11px }
+        size: { width: 19px, height: 19px }
+        color: color.screamin_green
+      x_screamin_green:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: 11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_bright_green:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: 11px }
+        size: { width: 19px, height: 19px }
+        color: color.bright_green
+      x_bright_green:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: 11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_cornflower_blue:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: 11px }
+        size: { width: 19px, height: 19px }
+        color: color.cornflower_blue
+      x_cornflower_blue:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: 11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_cadet_blue:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: 11px }
+        size: { width: 19px, height: 19px }
+        color: color.cadet_blue
+      x_cadet_blue:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: 11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_fruit_salad:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: 11px }
+        size: { width: 19px, height: 19px }
+        color: color.fruit_salad
+      x_fruit_salad:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: 11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_kelly_green:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: 11px }
+        size: { width: 19px, height: 19px }
+        color: color.kelly_green
+      x_kelly_green:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: 11px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_neon_blue:
+        type: rectangle
+        at: { anchor: center, dx: -77px, dy: 33px }
+        size: { width: 19px, height: 19px }
+        color: color.neon_blue
+      s_rich_blue:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: 33px }
+        size: { width: 19px, height: 19px }
+        color: color.rich_blue
+      x_rich_blue:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: 33px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_emperor:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: 33px }
+        size: { width: 19px, height: 19px }
+        color: color.emperor
+      s_verdun_green:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: 33px }
+        size: { width: 19px, height: 19px }
+        color: color.verdun_green
+      x_verdun_green:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: 33px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_electric_indigo:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: 33px }
+        size: { width: 19px, height: 19px }
+        color: color.electric_indigo
+      s_indigo:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: 33px }
+        size: { width: 19px, height: 19px }
+        color: color.indigo
+      s_tyrian_purple:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: 33px }
+        size: { width: 19px, height: 19px }
+        color: color.tyrian_purple
+      x_tyrian_purple:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: 33px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_maroon:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: 33px }
+        size: { width: 19px, height: 19px }
+        color: color.maroon
+      x_maroon:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: 33px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_aqua:
+        type: rectangle
+        at: { anchor: center, dx: -77px, dy: 55px }
+        size: { width: 19px, height: 19px }
+        color: color.aqua
+      s_medium_green:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: 55px }
+        size: { width: 19px, height: 19px }
+        color: color.medium_green
+      x_medium_green:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: 55px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_malachite:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: 55px }
+        size: { width: 19px, height: 19px }
+        color: color.malachite
+      s_green:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: 55px }
+        size: { width: 19px, height: 19px }
+        color: color.green
+      s_azure_radiance:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: 55px }
+        size: { width: 19px, height: 19px }
+        color: color.azure_radiance
+      s_persian_green:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: 55px }
+        size: { width: 19px, height: 19px }
+        color: color.persian_green
+      x_persian_green:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: 55px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_pigment_green:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: 55px }
+        size: { width: 19px, height: 19px }
+        color: color.pigment_green
+      s_japanese_laurel:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: 55px }
+        size: { width: 19px, height: 19px }
+        color: color.japanese_laurel
+      x_japanese_laurel:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: 55px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_navy_blue:
+        type: rectangle
+        at: { anchor: center, dx: -77px, dy: 77px }
+        size: { width: 19px, height: 19px }
+        color: color.navy_blue
+      s_cobalt:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: 77px }
+        size: { width: 19px, height: 19px }
+        color: color.cobalt
+      x_cobalt:
+        type: rectangle
+        at: { anchor: center, dx: -55px, dy: 77px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_mosque:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: 77px }
+        size: { width: 19px, height: 19px }
+        color: color.mosque
+      x_mosque:
+        type: rectangle
+        at: { anchor: center, dx: -33px, dy: 77px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_dark_green:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: 77px }
+        size: { width: 19px, height: 19px }
+        color: color.dark_green
+      x_dark_green:
+        type: rectangle
+        at: { anchor: center, dx: -11px, dy: 77px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_blue:
+        type: rectangle
+        at: { anchor: center, dx: 11px, dy: 77px }
+        size: { width: 19px, height: 19px }
+        color: color.blue
+      s_midnight_blue:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: 77px }
+        size: { width: 19px, height: 19px }
+        color: color.midnight_blue
+      x_midnight_blue:
+        type: rectangle
+        at: { anchor: center, dx: 33px, dy: 77px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_navy:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: 77px }
+        size: { width: 19px, height: 19px }
+        color: color.navy
+      x_navy:
+        type: rectangle
+        at: { anchor: center, dx: 55px, dy: 77px }
+        size: { width: 6px, height: 6px }
+        color: color.black
+      s_black:
+        type: rectangle
+        at: { anchor: center, dx: 77px, dy: 77px }
+        size: { width: 19px, height: 19px }
+        color: color.black

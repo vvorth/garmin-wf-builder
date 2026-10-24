@@ -101,6 +101,7 @@ jobs:
             # test/availability.test.ts
             # test/barrel.test.ts
             # test/cli.test.ts
+            # test/config-colors.test.ts
             # test/curved-slot.test.ts
             # test/data-prefix.test.ts
             # test/devices.test.ts

@@ -1081,3 +1081,23 @@ then `defaults:`).
 - **`mask:` and `lint:`** sit in `defaults: {aod:}` only; the top-level
   `aod:` key is removed. The restyling keys are not accepted in
   `defaults:`, since their meaning differs per kind.
+
+## Amendment (2026-10-24): `choices: any` is the recommended MIP colours
+
+A colour axis's `choices: any` compiled to `allowAny="true"`, Garmin's own
+colour list on the native editor, and to every palette swatch in the
+generated menu. The two editors offered different lists, and the native one
+was the firmware's: on a fēnix 8 it showed unreadable names and colours
+the face could not apply, and the compiler can neither name nor order it.
+
+`any` now means the 27 of the 64 MIP colours that look good on a
+reflective panel (`docs/research/37-mip-colour-appearance.md`), by their
+MIP names, in the editor picker's order. It compiles to an explicit
+labelled `<color>` list on the native editor and to the same list in the
+menu. A default that is not one of them is listed first, by its swatch's
+name. `allowAny` is no longer emitted for a colour axis; a data slot's
+`choices: any` is unchanged. A listed colour with no `label:` is named too:
+by its swatch's own name, or by its MIP name when it is one of the 64 and
+the swatch is named after it (or the colour is written inline). Measured:
+`examples/features/config/` grew from 4,767 B to 5,994 B on all three
+targets (SDK 9.2.0), the 27 names and colours in the settings menu.

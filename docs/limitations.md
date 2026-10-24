@@ -473,6 +473,22 @@ the preview says it is guessing. These panels have no `setAntiAlias`, so no
 soft edge arises there. 8- and 14-colour panels (12 face-capable devices,
 none installed) have no known rule, and are reported "not checked".
 
+**Of the 64, some look alike and some look poor on the watch.** A MIP panel
+reflects ambient light. Each subpixel makes its four levels from two bits
+over areas weighted 2:1, so the levels are steps of reflected light (0, ⅓,
+⅔, all), not a monitor's gamma steps, and a 64-colour MIP module measures a
+gamut of about 8% of NTSC at a 25:1 contrast. Modelled from that module's
+datasheet, `55` and `AA` read much lighter than a monitor draws them, a
+pastel (`FF` with `AA`) reads as a tinted white, a muted mix (`AA` with
+`55`) as gray, a colour with no channel above `55` as a dim copy of a
+brighter one, and a dark orange, yellow or yellow-green as brown or olive,
+the colours people like least. Many pairs one step apart, `FF0000` and
+`AA0000` for one, are hard to tell apart. The recommended 27 that
+`choices: any` offers (`docs/guide/mip-palette.md`) leave all of these out
+(`docs/research/37-mip-colour-appearance.md`). Garmin's own panel's gamut
+and steps are unpublished, so the list is **unverified** on a watch (§4,
+"Data, config and the AOD heat map").
+
 ### On-device configuration: four axes, four configurations, and a menu on fr955
 
 The native watch-face editor is **API 5.1.0, fēnix 8 and newer**, and exposes
@@ -499,8 +515,10 @@ and does not mean here.
 from a generated settings menu instead, opened from its Watch Face menu
 (`AppBase.getSettingsView`; `docs/guide/configuration.md`, "The settings
 menu"). What that cannot give it: the four saved configurations (a menu choice
-is one value for the whole face) and, for `choices: any`, a free colour picker
-(the menu lists the palette). A watch with neither editor nor menu
+is one value for the whole face). `choices: any` on a colour axis is the same
+list of 27 named MIP colours on both editors (`docs/guide/configuration.md`):
+the fēnix 8 editor's own colour list (`allowAny`) is not used, because the
+compiler can neither name nor order what the firmware offers there. A watch with neither editor nor menu
 (`fenix5`/`fenix5x`) keeps every `config:` entry's declared `default:`
 forever, and the suppressible `config-unsupported` warning says so at build
 time rather than leaving it to be discovered on the wrist.
@@ -1255,6 +1273,15 @@ pair), and how often a reading that changes width (a heart rate) makes the
 watch load a different step's font.
 
 ### Data, config and the AOD heat map
+
+**The recommended 27 MIP colours are a model's choice, not a watch's.** The
+list `choices: any` offers comes from a model of a measured MIP module, not
+of Garmin's panel (§1, "64 colours, and everything else dithers"). The one
+assumption that matters is the steps: if Garmin's panel stepped like a
+monitor, a `55` would look nearly as dark as a `00`, and pairs such as
+`green`/`malachite` and `red`/`razzmatazz` would look alike.
+`docs/research/probes/mip-colour-appearance/face.yaml` draws all 64 on a
+watch, a dot on each colour the list leaves out, to check it by eye.
 
 **Every source is a plain per-frame read; there are no refresh tiers or TTL
 caches.** Every value comes from a Garmin API that caches on its own side

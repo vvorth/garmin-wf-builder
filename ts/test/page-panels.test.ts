@@ -31,6 +31,31 @@ test("every Face-tab section offers an unintrusive link to its guide chapter", a
   ]);
 });
 
+test("+ All 64 adds the ones the palette lacks, in the picker's order, and is off once all are there", async () => {
+  const button = `const all = () => find((e) => e.localName === "button" && e.textContent === "+ All 64")[0];`;
+  const printed = await render(summary(instantiate("minimal", "T")), `
+      await openSection("Colours");
+      ${button}
+      out([all().disabled === true || "disabled" in all().attributes, all().attributes.title]);
+      await click(all());
+      out(edits);
+    `);
+  assert.deepEqual(printed[0], [false, "add the 61 of the 64 MIP colours this face lacks, each under its name"]);
+  const [op] = printed[1];
+  assert.equal(op.op, "add_swatches");
+  // the minimal face holds black, white and #AAAAAA; the rest come family by family, red's first
+  assert.equal(op.values.length, 61);
+  assert.deepEqual(op.values.slice(0, 4), ["#FF55AA", "#FFAAAA", "#FF5555", "#FF0055"]);
+  assert.ok(!op.values.includes("#FFFFFF") && !op.values.includes("#000000") && !op.values.includes("#AAAAAA"));
+  const full = instantiate("palette", "T");
+  const off = await render(summary(full), `
+      await openSection("Colours");
+      ${button}
+      out([all().disabled === true || "disabled" in all().attributes, all().attributes.title]);
+    `);
+  assert.deepEqual(off[0], [true, "every one of the 64 is in the palette"]);
+});
+
 test("add a colour and an accent setting", async () => {
   const text = summary(instantiate("minimal", "T"));
   const printed = await render(text, "\n      await openSection(\"Colours\");\n      const add = find((e) => cls(e).includes(\"chip-button\") && e.textContent === \"+ Colour\")[0];\n      await click(add);\n      const grid = find((e) => cls(e).includes(\"swatch\") && cls(e.parentNode).startsWith(\"pop-family\"));\n      await click(grid.find((e) => e.attributes[\"aria-label\"] === \"Red\"));\n      await openSection(\"Colour settings\");\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"+ Accent colour\")[0]);\n      out(edits);\n    ");
@@ -52,7 +77,7 @@ test("an axis lists its choices inline, each with up, down and remove, adds one 
       out(rows().map((r) => [off(button(r, "remove")), off(button(r, "move") /* up */)]));
       await click(button(rows()[1], "remove"));
       await click(rows()[2].all((b) => b.localName === "button" && (b.attributes["aria-label"] || "").endsWith(" up"))[0]);
-      // + add: a face's colour as its reference, any other inline; one already listed is not added twice
+      // + add: a face's colour as its reference, one of the 64 inline with its name; one already listed is not added twice
       const add = find((e) => cls(e).includes("chip-button") && e.textContent === "+ add")[0];
       await click(add);
       await click(find((e) => cls(e).includes("swatch") && cls(e.parentNode) === "pop-swatches")[0]);   // bg
@@ -70,10 +95,10 @@ test("an axis lists its choices inline, each with up, down and remove, adds one 
     { op: "remove_item", path: choices, at: 1 },
     { op: "move_item", path: choices, from: 2, to: 1 },
     { op: "insert_item", path: choices, at: 3, value: "color.bg" },
-    { op: "insert_item", path: choices, at: 3, value: { color: "#FFFFAA" } },
+    { op: "insert_item", path: choices, at: 3, value: { color: "#FFFFAA", label: "Shalimar" } },
   ]);
   const any_ = summary((base + "\nconfig:\n  accent_color:\n    default: color.text\n    choices: any\n"));
-  printed = await render(any_, "\n      await openSection(\"Colour settings\");\n      out(root.textContent.includes(\"every colour in the palette\"));\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"Make it a list\")[0]);\n      out(edits);\n    ");
+  printed = await render(any_, "\n      await openSection(\"Colour settings\");\n      out(root.textContent.includes(\"27 MIP colours that look\"));\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"Make it a list\")[0]);\n      out(edits);\n    ");
   assert.equal(printed[0], true);
   assert.deepEqual(printed[1], [{"op": "set", "path": ["config", "accent_color", "choices"], "value": ["color.text", "color.bg", "color.dim"]}]);
 });

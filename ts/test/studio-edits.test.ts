@@ -138,6 +138,22 @@ test("remove unused keeps what the launcher icon reads", async () => {
   assert.throws(() => edit(doc, { op: "remove_unused" }), /every colour in the palette is in use/);
 });
 
+test("all 64 at once: the ones missing, in the order given, each named and labelled, as one undo step", async () => {
+  const doc = make(await newStudio());
+  const before = Object.keys(palette(doc));
+  const total = doc.history()["total"] as number;
+  // white is held already as text, under the author's own name
+  edit(doc, { op: "add_swatches", values: ["#FF0000", "#FFFFFF", "#00aaff", "#123456"] });
+  const after = palette(doc);
+  assert.deepEqual(Object.keys(after), [...before, "red", "azure_radiance", "c123456"]);
+  assert.deepEqual(after.red, { value: "#FF0000", label: "Red" });
+  assert.deepEqual(after.azure_radiance, { value: "#00AAFF", label: "Azure Radiance" });
+  assert.equal(after.c123456, "#123456");
+  assert.equal(doc.history()["total"], total + 1);
+  assert.equal((doc.history()["states"] as any[])[0].label, "add 3 colours");
+  assert.throws(() => edit(doc, { op: "add_swatches", values: ["#FF0000", "#00AAFF"] }), /every one of these colours is in the palette already/);
+});
+
 test("a colour already held is not added twice", async () => {
   const doc = make(await newStudio());
   assert.throws(() => edit(doc, { op: "add_swatch", value: "#000000" }), /already, as bg/);

@@ -113,6 +113,38 @@ h.test("Colours: rename, recolour, add, remove unused, and a used colour's delet
   assert.deepEqual(s.errors, []);
 });
 
+h.test("Colours: + All 64 fills the palette, named, in one undo step; a picker opened at the bottom stays on screen", async (s) => {
+  await s.openExample("features/shapes");
+  await s.waitFace();
+  await s.waitIdle();
+  const base = await s.doc();
+  await s.faceSection("Colours");
+  const all = s.page.locator(".face-section-body button", { hasText: "+ All 64" });
+  await all.click();
+  const doc = await written(s, base);
+  // five swatches before, every one among the 64: 59 more, each under its name and label
+  assert.equal(await s.page.locator(".face-section-body .swatch-row").count(), 64);
+  assert.match(doc.text, /^    brilliant_rose: \{ value: "#FF55AA", label: Brilliant Rose \}$/m);
+  assert.doesNotMatch(doc.text, /^    (white|black|silver_chalice|international_orange|azure_radiance):/m);
+  assert.equal(await all.isDisabled(), true);
+  assert.equal(doc.history.undo, "add 59 colours");
+
+  // the last row's picker, at the bottom of the window, opens above its chip, whole
+  const last = s.page.locator(".face-section-body .swatch-row").last().locator("button.chip-button");
+  await last.scrollIntoViewIfNeeded();
+  const chip = (await last.boundingBox())!;
+  await last.click();
+  const pop = s.page.locator(".popover-body.pop:popover-open");
+  await pop.locator(".pop-families").waitFor();
+  const box = (await pop.boundingBox())!;
+  const view = s.page.viewportSize()!;
+  assert.ok(box.y >= 0 && box.y + box.height <= view.height, `the picker runs off the window: ${JSON.stringify(box)} in ${view.height}`);
+  assert.ok(box.y + box.height <= chip.y, `the picker covers its chip: ${JSON.stringify(box)}, chip at ${chip.y}`);
+  await s.page.keyboard.press("Escape");
+  await undoTo(s, base, "+ All 64");
+  assert.deepEqual(s.errors, []);
+});
+
 h.test("Colour settings: an accent setting added, its choices, default and role, and ×; choices: any made a list", async (s) => {
   // a face with no accent swatch, since the setting binds the role `accent`
   await s.openExample("features/styles");

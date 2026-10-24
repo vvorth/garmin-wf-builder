@@ -195,6 +195,20 @@ export function addSwatch(index: SpanIndex, value: string): [Patch, string] {
   return [patch(added.text, added.expected, `add the colour ${name}`), name];
 }
 
+/** Add each of `values` the palette does not hold yet, in order, under the editor's name for it: one patch. */
+export function addSwatches(index: SpanIndex, values: readonly string[]): Patch {
+  let result: Patch | undefined;
+  const added: string[] = [];
+  for (const value of values) {
+    const [name, add] = swatchFor(result === undefined ? index : new SpanIndex(result.text), value);
+    if (add === undefined) continue;
+    result = result === undefined ? add : chain(result, () => add);
+    added.push(name);
+  }
+  if (result === undefined) throw new Refused("every one of these colours is in the palette already");
+  return patch(result.text, result.expected, added.length === 1 ? `add the colour ${added[0]}` : `add ${added.length} colours`);
+}
+
 /** Change a swatch's value; every `color.<name>` follows. An automatic swatch is renamed to match its new value. */
 export function setSwatch(index: SpanIndex, name: string, value: string): Patch {
   const held = swatches(index).get(name);

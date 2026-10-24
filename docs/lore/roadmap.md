@@ -59,12 +59,18 @@ or AOD-related has been observed on a watch or in the simulator.
   `short:` keeps to seven characters; a weather slot's icon follows the
   condition, and a notification count's empties at zero (`READING` in `ts/src/complications.ts`, generated `SlotText.mc`,
   `runtime-lib/WfbReading.mc`). `docs/guide/configuration.md`.
+- **The recommended MIP colours** — 27 of the 64 that look good on a MIP
+  panel (`MIP_RECOMMENDED`, `ts/src/palette.ts`): what a colour axis's
+  `choices: any` offers on the native editor and the menu alike, by name,
+  instead of `allowAny`; an unlabelled listed colour is named after its
+  swatch or by its MIP name (`docs/guide/mip-palette.md`,
+  `docs/guide/configuration.md`).
 - **The `config:` settings menu** — on a watch without the native editor
   but with `getSettingsView` (fr955), the `config:` axes as one list per
   axis (`ts/src/emit/monkeyc/config_menu.ts`), a data slot titled by its
   optional `label:`; stored as `Application.Properties`
-  indices; `choices: any` offers the palette or every complication type
-  the device has (per-device `Layout` arrays). `config-unsupported` fires
+  indices; `choices: any` offers the recommended 27 MIP colours or every
+  complication type the device has (per-device `Layout` arrays). `config-unsupported` fires
   only with neither (`fenix5`/`fenix5x`). The mechanism was seen working on
   `fr955`; the `config:` menu itself not yet. `docs/guide/configuration.md`.
 - **Per-device API gating** — manifest floor 3.1.0, a device below it is a
@@ -172,7 +178,8 @@ or AOD-related has been observed on a watch or in the simulator.
   renamed there too (nothing else names it, so only its one YAML key
   changes; refused on a face-wide duplicate), targets, colours (a
   picker over the face's colours, the 64 named MIP colours and custom
-  ones, each picked colour a named swatch, `ts/src/edit/colors.ts`), the
+  ones, each picked colour a named swatch, `ts/src/edit/colors.ts`;
+  **+ All 64** adds the ones missing in one change), the
   accent and data colour settings as explicit lists, schemes (made,
   added, renamed and removed with their roles and styles as one patch
   each, `ts/src/edit/schemes.ts`; a colour bound to a role names it and

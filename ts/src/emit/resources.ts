@@ -261,12 +261,8 @@ export function configResource(face: Face): string {
   }
   for (const [name, axis] of face.config) {
     const tag = axis.axis.resource_tag;
-    if (axis.choices === "any") {
-      lines.push(`        <${tag} allowAny="true"/>`);
-      continue;
-    }
     lines.push(`        <${tag}>`);
-    axis.choices.forEach((option, index) => {
+    axis.options.forEach((option, index) => {
       let attrs = "";
       if (option.color.equals(axis.default)) attrs += ' default="true"';
       if (option.label !== null) attrs += ` label="@Strings.${configLabelId(name, index)}"`;
@@ -289,8 +285,7 @@ export function configLabelStrings(face: Face): [string, string][] {
     });
   }
   for (const [name, axis] of face.config) {
-    if (axis.choices === "any") continue;
-    axis.choices.forEach((option, index) => {
+    axis.options.forEach((option, index) => {
       if (option.label !== null) out.push([configLabelId(name, index), option.label]);
     });
   }

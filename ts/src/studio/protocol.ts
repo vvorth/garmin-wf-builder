@@ -952,6 +952,8 @@ export type EditOp =
   | ({ op: "rename"; path: Path; to: string; prefix?: string } & ElementTarget)
   | ({ op: "use_color"; path: Path; value: string } & ElementTarget)
   | { op: "add_swatch"; value: string }
+  /** Every one of `values` the palette lacks, in order, each under the editor's name for it. */
+  | { op: "add_swatches"; values: string[] }
   | { op: "set_swatch"; name: string; value: string }
   | { op: "remove_unused" }
   | { op: "make_switchable"; names: string[]; scheme: string }

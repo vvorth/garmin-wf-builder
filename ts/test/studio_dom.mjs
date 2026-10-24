@@ -48,7 +48,9 @@ class Element extends Node {
   togglePopover() { if (this.popoverOpen) this.hidePopover(); else this.showPopover(); }
   showPopover() { if (!this.popoverOpen) { this.popoverOpen = true; this.dispatch("toggle", { newState: "open" }); } }
   hidePopover() { if (this.popoverOpen) { this.popoverOpen = false; this.dispatch("toggle", { newState: "closed" }); } }
-  getBoundingClientRect() { return { left: 0, top: 0, width: 0, height: 0 }; }
+  getBoundingClientRect() { return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }; }
+  get offsetWidth() { return 0; }
+  get offsetHeight() { return 0; }
   // Enough CSS to cover the app's own selectors: a comma list of
   // descendant chains (space-separated), each step a tag name, `.class`es
   // and `[attr]`/`[attr="value"]`, any of which may be omitted.
@@ -90,6 +92,7 @@ export function install() {
   };
   globalThis.document = document;
   globalThis.addEventListener = () => {}; globalThis.removeEventListener = () => {};
+  globalThis.innerWidth = 1280; globalThis.innerHeight = 800;
   globalThis.requestAnimationFrame = (f) => setTimeout(f, 0);
   globalThis.cancelAnimationFrame = (t) => clearTimeout(t);
   return document;
