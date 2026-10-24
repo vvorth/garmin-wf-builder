@@ -18,6 +18,7 @@ element set to opt into.
 | Key | Where | Values | Default | Meaning |
 |---|---|---|---|---|
 | `sleep_update:` | any element | `true` \| `false` | `false` | [also redraw every second while a MIP screen sleeps](#sleep-updates) |
+| `system.awake` | any expression (`visible:`, a colour, …) | boolean | — | [`true` while awake, `false` while asleep](#hide-it-while-asleep-systemawake) |
 | `on_hold:` | any element | a complication name (`wfb complications`) or `auto` | — | [touch-and-hold target](#interactivity-on_hold) |
 
 ## Sleep updates
@@ -52,6 +53,39 @@ so read it and act on it rather than assuming a green build means a safe
 one. A `weather.*` or
 `complication.*` read every second while asleep is the case its own message
 names as the one to look at first.
+
+## Hide it while asleep: `system.awake`
+
+A digital seconds readout drawn once a minute while the watch sleeps shows
+one frozen second. To hide it asleep instead, the way `seconds: awake`
+hides an [analog second hand](analog-hands.md), make it visible only while
+the watch is awake:
+
+```yaml
+seconds:
+  type: text
+  text: "{time.second:02d}"
+  font: FONT_SMALL
+  at: { anchor: center, dy: 30%r }
+  color: color.dim
+  visible: system.awake
+```
+
+`system.awake` is a boolean [data source](data.md#data-binding): `true`
+while the watch is awake, `false` from the moment it goes to sleep
+(`onEnterSleep`) until it wakes (`onExitSleep`). It is never absent. It
+works in any expression, not only `visible:`: `color: "system.awake ?
+color.accent : color.dim"` dims a colour asleep instead.
+
+- It is `false` in an AMOLED target's [always-on frame](always-on-display.md)
+  too, so an element with `visible: system.awake` stays dark there, whatever
+  its `aod: {visible:}` says.
+- With `sleep_update: true` the element is drawn every second asleep, but
+  reads `system.awake` as `false` all the same.
+- It cannot be read inside `static:`, which is drawn once.
+- `wfb preview --asleep` and `--aod` draw a frame with it `false`, and the
+  editor's asleep and always-on frames do too; `--sample
+  system.awake=false` sets it for any frame.
 
 ## Interactivity: `on_hold:`
 

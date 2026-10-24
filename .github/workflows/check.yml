@@ -99,6 +99,7 @@ jobs:
             # set), which the fixture device cannot stand in for.
             # test/aod.test.ts
             # test/availability.test.ts
+            # test/awake.test.ts
             # test/barrel.test.ts
             # test/cli.test.ts
             # test/config-colors.test.ts

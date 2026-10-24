@@ -186,7 +186,9 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
   const face = resolved.face;
   const plan = new ReadPlan(resolved, guards);
   const graphs = resolved.items.filter((p): p is PlacedGraph => p instanceof PlacedGraph);
-  const needsSleepingField = resolved.items.some((p) => p instanceof PlacedHands && p.second !== null && p.element.seconds === "awake");
+  const readsAwake = resolved.face.requirements().readers.has("awake");
+  const needsSleepingField = readsAwake
+    || resolved.items.some((p) => p instanceof PlacedHands && p.second !== null && p.element.seconds === "awake");
   const w = new Writer();
   w.doc(`${face.name}.\n`
     + "\n"
@@ -215,9 +217,13 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
     if (face.hasConfig) emitEditTickerFields(w);
     if (needsSleepingField) {
       w.doc("Whether the watch is currently asleep.  Set by onEnterSleep/onExitSleep below.\n\n"
-        + "An awake-only second hand ('seconds: awake') reads it, so its own draw\n"
-        + "method skips the second hand while asleep instead of drawing it frozen at\n"
-        + "whatever second the once-a-minute sleeping update landed on.");
+        + (readsAwake
+          ? "'system.awake' reads it (and an awake-only second hand, 'seconds: awake'),\n"
+            + "so what is drawn only awake is skipped while asleep instead of drawn frozen\n"
+            + "at whatever second the once-a-minute sleeping update landed on."
+          : "An awake-only second hand ('seconds: awake') reads it, so its own draw\n"
+            + "method skips the second hand while asleep instead of drawing it frozen at\n"
+            + "whatever second the once-a-minute sleeping update landed on."));
       w.line("private var _sleeping as Boolean = false;");
       w.blank();
     }
@@ -252,7 +258,7 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
     emitOnUpdate(w, resolved, plan, aod.on, statics, aaDefault, guards, slots.length > 0, rings, prof);
     if (prof !== null) emitProfileOverlay(w, prof);
     if (hasPartialUpdate(resolved, guards)) emitOnPartialUpdate(w, resolved, plan, aaDefault, rings);
-    emitSleepHooks(w, resolved, needsSleepingField, aod.on, guards, aodOnly);
+    emitSleepHooks(w, resolved, needsSleepingField, readsAwake, aod.on, guards, aodOnly);
     if (face.hasConfig) emitEditTicker(w, slots.length > 0);
     if (plan.complicationReaders().length > 0) emitComplicationCallback(w);
     for (const graph of graphs) emitGraphRebuild(w, graph, guards);
@@ -899,7 +905,7 @@ function emitOnPartialUpdate(w: Writer, resolved: ResolvedFace, plan: ReadPlan, 
   w.blank();
 }
 
-function emitSleepHooks(w: Writer, resolved: ResolvedFace, needsSleeping: boolean, aod: boolean, guards: Guards, aodOnly: string[]): void {
+function emitSleepHooks(w: Writer, resolved: ResolvedFace, needsSleeping: boolean, readsAwake: boolean, aod: boolean, guards: Guards, aodOnly: string[]): void {
   const editable = resolved.face.hasConfig;
   w.doc("Awake: full-power updates resume.");
   w.block("function onExitSleep() as Void", () => {
@@ -915,6 +921,7 @@ function emitSleepHooks(w: Writer, resolved: ResolvedFace, needsSleeping: boolea
   w.blank();
   let doc: string;
   if (aod) doc = "Asleep: the next onUpdate draws the resolved 'aod:' set instead of\n'active', if this device requires burn-in protection.";
+  else if (readsAwake) doc = "Asleep: the next onUpdate reads 'system.awake' as false.";
   else if (needsSleeping) doc = "Asleep: the next onUpdate hides the awake-only second hand.";
   else doc = "Asleep: the next onUpdate draws the low-power layout.";
   w.doc(doc);

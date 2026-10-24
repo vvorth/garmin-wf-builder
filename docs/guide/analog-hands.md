@@ -259,7 +259,10 @@ second hand therefore gets its own `_sleeping` field, set by
 (!_sleeping)` inside the element's draw method — the hour and minute hands
 are unaffected, and a design with no `awake` second hand generates no
 `_sleeping` field at all. An AMOLED sleep frame is `aod:`'s own `_aod`
-field instead — see [Always-on display](always-on-display.md).
+field instead — see [Always-on display](always-on-display.md). A digital
+seconds readout hides the same way with `visible: system.awake`
+([Hide it while asleep](modes-and-interaction.md#hide-it-while-asleep-systemawake)),
+which reads the same field.
 
 **`sleep_update: true` on a `type: hands` element is an error.** The hour
 and minute hands never need it (they change once a minute, and the sleeping

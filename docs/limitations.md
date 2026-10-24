@@ -1274,6 +1274,12 @@ watch load a different step's font.
 
 ### Data, config and the AOD heat map
 
+**`system.awake` is checked by a build and the preview, not on a watch.** It
+reads the same `_sleeping` field `seconds: awake` does, set in
+`onEnterSleep`/`onExitSleep`; a face reading it builds warning-free on the
+three targets and an AMOLED one (`ts/test/awake.test.ts`), but no watch has
+been seen hiding an element by it yet.
+
 **The recommended 27 MIP colours are a model's choice, not a watch's.** The
 list `choices: any` offers comes from a model of a measured MIP module, not
 of Garmin's panel (§1, "64 colours, and everything else dithers"). The one

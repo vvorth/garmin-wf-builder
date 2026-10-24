@@ -59,6 +59,10 @@ or AOD-related has been observed on a watch or in the simulator.
   `short:` keeps to seven characters; a weather slot's icon follows the
   condition, and a notification count's empties at zero (`READING` in `ts/src/complications.ts`, generated `SlotText.mc`,
   `runtime-lib/WfbReading.mc`). `docs/guide/configuration.md`.
+- **`system.awake`** — a boolean source, `false` while the watch sleeps
+  (the view's `_sleeping`, the flag `seconds: awake` reads), so `visible:
+  system.awake` hides a digital seconds readout asleep; `wfb preview
+  --asleep`/`--aod` read it as false (`docs/guide/modes-and-interaction.md`).
 - **The recommended MIP colours** — 27 of the 64 that look good on a MIP
   panel (`MIP_RECOMMENDED`, `ts/src/palette.ts`): what a colour axis's
   `choices: any` offers on the native editor and the menu alike, by name,

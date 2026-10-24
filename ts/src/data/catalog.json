@@ -36,6 +36,16 @@
    "requires_module": null,
    "complication_type": null
   },
+  "awake": {
+   "name": "awake",
+   "call": "!_sleeping",
+   "monkeyc_type": "Lang.Boolean",
+   "module": "Toybox.Lang",
+   "nullable": false,
+   "requires": [],
+   "requires_module": null,
+   "complication_type": null
+  },
   "date": {
    "name": "date",
    "call": "Gregorian.info(Time.now(), Time.FORMAT_MEDIUM)",
@@ -953,6 +963,25 @@
    "quantity": null,
    "doc": "the device is charging",
    "source_ref": "Toybox/System/Stats.html",
+   "array_index": null,
+   "intermediate": null,
+   "cast": null,
+   "to_float": false,
+   "count": false,
+   "launch_complication": null
+  },
+  "system.awake": {
+   "path": "system.awake",
+   "type": "boolean",
+   "reader": "awake",
+   "field_name": null,
+   "nullable": false,
+   "permissions": [],
+   "requires": [],
+   "unit": null,
+   "quantity": null,
+   "doc": "the watch is awake: false while it sleeps, in a MIP face's once-a-minute frame and an AMOLED always-on frame",
+   "source_ref": "Toybox/WatchUi/WatchFace.html",
    "array_index": null,
    "intermediate": null,
    "cast": null,

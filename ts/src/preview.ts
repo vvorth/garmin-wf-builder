@@ -53,7 +53,7 @@ export interface PreviewOptions {
   time: [number, number, number] | null;
   /** `[year, month, day]` overriding the sample date. */
   date: [number, number, number] | null;
-  /** Hide every `awake`-only second hand. */
+  /** A sleeping frame: hide every `awake`-only second hand, and read `system.awake` as false. */
   asleep: boolean;
   /** Render the AMOLED always-on frame. */
   aod: boolean;
@@ -113,6 +113,7 @@ export function sampleValues(resolved: ResolvedFace, options: PreviewOptions, en
     values.set("time.second", second);
   }
   if (options.date !== null) for (const [k, v] of dateValues(...options.date)) values.set(k, v);
+  if (options.asleep || options.aod) values.set("system.awake", false);
   if (options.sample !== null) for (const [k, v] of options.sample) values.set(k, v);
   const setDefault = (key: string, value: ExprValue): void => {
     if (!values.has(key)) values.set(key, value);

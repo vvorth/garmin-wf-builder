@@ -30,6 +30,8 @@ export const SAMPLE: ReadonlyMap<string, ExprValue> = new Map<string, ExprValue>
   ["system.battery", new WholeFloat(68)],
   ["system.battery_in_days", new WholeFloat(9)],
   ["system.charging", false],
+  // false in an asleep or always-on frame (`sampleValues`)
+  ["system.awake", true],
   ["activity.steps", 8432],
   ["activity.step_goal", 10000],
   ["activity.calories", 1840],
