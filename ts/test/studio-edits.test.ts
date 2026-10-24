@@ -154,6 +154,25 @@ test("all 64 at once: the ones missing, in the order given, each named and label
   assert.throws(() => edit(doc, { op: "add_swatches", values: ["#FF0000", "#00AAFF"] }), /every one of these colours is in the palette already/);
 });
 
+test("a slot's choices written once as &rim and repeated as *rim: the slot card edits keep the file valid", async () => {
+  const text = minimal().replace("elements:\n", "config:\n  slots:\n"
+    + "    top: { default: steps, choices: &rim [steps, heart_rate, calories] }\n"
+    + "    bottom: { default: calories, choices: *rim }\nelements:\n");
+  const slots = (doc: Document): any => dataOf(doc).config.slots;
+  // the anchored list: every slot repeating it follows
+  let doc = make(await newStudio(), text);
+  edit(doc, { op: "set", path: ["config", "slots", "top", "choices"], value: ["steps", "heart_rate", "calories", "battery"] });
+  assert.deepEqual(slots(doc).bottom.choices, ["steps", "heart_rate", "calories", "battery"]);
+  assert.match(doc.text, /choices: &rim \[steps, heart_rate, calories, battery\]/);
+  assert.match(doc.text, /choices: \*rim/);
+  // a slot repeating it: written out, and only it changes
+  doc = make(await newStudio(), text);
+  edit(doc, { op: "set", path: ["config", "slots", "bottom", "choices"], value: ["calories", "battery"] });
+  assert.deepEqual(slots(doc).top.choices, ["steps", "heart_rate", "calories"]);
+  assert.deepEqual(slots(doc).bottom.choices, ["calories", "battery"]);
+  assert.doesNotMatch(doc.text, /\*rim/);
+});
+
 test("a colour already held is not added twice", async () => {
   const doc = make(await newStudio());
   assert.throws(() => edit(doc, { op: "add_swatch", value: "#000000" }), /already, as bg/);

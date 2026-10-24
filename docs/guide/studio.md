@@ -8,6 +8,13 @@ YAML, in your own units and spelling, so the file you download is the
 same kind of design file you would write by hand, with your comments and
 layout kept.
 
+A value written once with a YAML anchor and repeated by alias
+(`choices: &rim [...]`, then `choices: *rim`) stays shared. Editing the
+anchored value changes every alias with it, and the `&rim` stays. Editing
+where a `*rim` stands writes that one out as its own value first, so
+only it changes. Removing the anchored value is refused while an alias
+still repeats it.
+
 **Build…** compiles the face for one watch and downloads its `.prg`, ready
 to copy to the watch; **Download** saves the face itself.
 

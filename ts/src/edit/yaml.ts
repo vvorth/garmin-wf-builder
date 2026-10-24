@@ -319,29 +319,41 @@ export class Timestamp {
 export type DataKey = string | number | boolean | null;
 export type Data = null | boolean | number | WholeFloat | string | Timestamp | Data[] | Map<DataKey, Data>;
 
-/** The plain data ruamel's safe constructor builds from `node`. */
-export function construct(node: YamlNode | null): Data {
+/**
+ * The plain data ruamel's safe constructor builds from `node`. With
+ * `shared`, a collection reached twice (an `&anchor` and its `*alias`es)
+ * is one object, as the file says it is, so a change through one path is
+ * seen at every other.
+ */
+export function construct(node: YamlNode | null, shared?: Map<YamlNode, Data>): Data {
   if (node === null) return null;
-  if (node.kind === "sequence") return node.items.map(construct);
-  if (node.kind === "mapping") {
-    flattenMapping(node);
-    const out = new Map<DataKey, Data>();
-    if (node.merge !== undefined) {
-      // The merged pairs first, then every pair (merged and own) again, unchecked: an own key wins, in the merged key's place.
-      for (const [k, v] of node.merge) out.set(mappingKey(k), construct(v));
-      const again = new Map<DataKey, Data>();
-      for (const [k, v] of node.pairs) again.set(mappingKey(k), construct(v));
-      for (const [k, v] of again) out.set(k, v);
-      return out;
-    }
-    for (const [k, v] of node.pairs) {
-      const key = mappingKey(k);
-      if (out.has(key)) throw new YamlError(`found duplicate key "${String(key)}"`, k.start.line + 1, k.start.column + 1);
-      out.set(key, construct(v));
-    }
+  if (node.kind === "scalar") return scalarValue(node);
+  const known = shared?.get(node);
+  if (known !== undefined) return known;
+  const build = (n: YamlNode): Data => construct(n, shared);
+  if (node.kind === "sequence") {
+    const out: Data[] = [];
+    shared?.set(node, out);
+    for (const item of node.items) out.push(build(item));
     return out;
   }
-  return scalarValue(node);
+  flattenMapping(node);
+  const out = new Map<DataKey, Data>();
+  shared?.set(node, out);
+  if (node.merge !== undefined) {
+    // The merged pairs first, then every pair (merged and own) again, unchecked: an own key wins, in the merged key's place.
+    for (const [k, v] of node.merge) out.set(mappingKey(k), build(v));
+    const again = new Map<DataKey, Data>();
+    for (const [k, v] of node.pairs) again.set(mappingKey(k), build(v));
+    for (const [k, v] of again) out.set(k, v);
+    return out;
+  }
+  for (const [k, v] of node.pairs) {
+    const key = mappingKey(k);
+    if (out.has(key)) throw new YamlError(`found duplicate key "${String(key)}"`, k.start.line + 1, k.start.column + 1);
+    out.set(key, build(v));
+  }
+  return out;
 }
 
 const MERGE_TAG = TAG + "merge";

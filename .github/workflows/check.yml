@@ -75,6 +75,7 @@ jobs:
             test/data.test.ts
             test/doc-citations.test.ts
             test/draw.test.ts
+            test/edit-anchors.test.ts
             test/emit.test.ts
             test/expr.test.ts
             test/fixture-device.test.ts

@@ -100,6 +100,8 @@ export class SpanIndex {
   private readonly byPosition = new Map<string, Entry>();
   /** The entry whose value is a given node, by node identity. */
   private readonly holders = new Map<YamlNode, Entry>();
+  /** Every path a node is reached at, in document order: more than one for an `&anchor` its `*alias`es repeat. */
+  private readonly reached = new Map<YamlNode, Path[]>();
 
   constructor(text: string) {
     this.text = text;
@@ -110,6 +112,56 @@ export class SpanIndex {
       this.byPosition.set(`${e.key.start.line + 1}:${e.key.start.column + 1}`, e);
       this.holders.set(e.value, e);
     }
+    if (this.root !== null) {
+      for (const [node, path] of nodes(this.root, [])) {
+        const paths = this.reached.get(node);
+        if (paths) paths.push(path); else this.reached.set(node, [path]);
+      }
+    }
+  }
+
+  // -- anchors and aliases ----------------------------------------------------
+
+  /** Every path `node` is reached at, in document order: its own, then each `*alias` of it. */
+  occurrences(node: YamlNode): Path[] {
+    return [...(this.reached.get(node) ?? [])];
+  }
+
+  /** The name `node` is anchored under (`&rim`), or `undefined`. */
+  anchorOf(node: YamlNode): string | undefined {
+    return ANCHOR.exec(this.text.slice(node.start.index, node.start.index + 256))?.[1];
+  }
+
+  /** Each `&anchor` inside `path` (or at it) with the paths outside it that repeat it as an `*alias`. */
+  aliasesOutside(path: Path): [string, Path[]][] {
+    const inside = (p: Path): boolean => p.length >= path.length && path.every((s, i) => p[i] === s);
+    const out: [string, Path[]][] = [];
+    for (const [node, paths] of this.reached) {
+      if (paths.length < 2 || !inside(paths[0]!)) continue;
+      const name = this.anchorOf(node);
+      const outside = paths.slice(1).filter((p) => !inside(p));
+      if (name !== undefined && outside.length > 0) out.push([name, outside]);
+    }
+    return out;
+  }
+
+  /**
+   * Where `path` holds an `*alias` rather than the value itself: the alias's
+   * name and its token's span. `start` is -1 for an alias that is a list
+   * item, which the editor does not rewrite.
+   */
+  aliasAt(path: Path): { name: string; start: number; end: number } | undefined {
+    for (const [node, paths] of this.reached) {
+      if (paths.length < 2 || pathKey(paths[0]!) === pathKey(path) || !paths.some((p) => pathKey(p) === pathKey(path))) continue;
+      const name = this.anchorOf(node);
+      if (name === undefined) return undefined;
+      const entry = this.get(path);
+      if (entry === undefined) return { name, start: -1, end: -1 };
+      const token = `*${name}`;
+      const start = this.text.indexOf(token, entry.key.end.index);
+      return start < 0 ? undefined : { name, start, end: start + token.length };
+    }
+    return undefined;
   }
 
   // -- lookup ---------------------------------------------------------------
@@ -219,6 +271,19 @@ export function dotted(path: Path): string {
 /** A path as a map key: steps keep their type, so `["0"]` and `[0]` differ. */
 export function pathKey(path: Path): string {
   return JSON.stringify(path);
+}
+
+/** An anchor at the start of a node's text, as ruamel marks an anchored node: `&rim`. */
+const ANCHOR = /^&([^\s,[\]{}]+)/;
+
+/** Every node under `node` with the path it is reached at, `node` first; an alias's subtree again under the alias. */
+function* nodes(node: YamlNode, path: Step[]): Generator<[YamlNode, Path]> {
+  yield [node, path];
+  if (node.kind === "mapping") {
+    for (const [k, v] of node.pairs) if (k.kind === "scalar") yield* nodes(v, [...path, k.value]);
+  } else if (node.kind === "sequence") {
+    for (let i = 0; i < node.items.length; i++) yield* nodes(node.items[i]!, [...path, i]);
+  }
 }
 
 function* entries(node: YamlNode, path: Step[]): Generator<Entry> {

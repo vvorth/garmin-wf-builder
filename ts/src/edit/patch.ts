@@ -30,7 +30,7 @@ import {
   sameData, SpanIndex, type Step,
 } from "./spans.ts";
 import {
-  type Data, type DataKey, type MappingNode, WholeFloat, type ScalarNode, type SequenceNode, Timestamp, type YamlNode,
+  construct, type Data, type DataKey, type MappingNode, WholeFloat, type ScalarNode, type SequenceNode, Timestamp, type YamlNode,
 } from "./yaml.ts";
 
 /** A patched text and the data it must parse to. */
@@ -158,8 +158,14 @@ export function dataAt(data: Data, path: Path): Data {
   return data;
 }
 
+/**
+ * A fresh copy of `index`'s data to edit into a patch's expected data. A
+ * collection the file writes once and repeats by `*alias` is one object in
+ * it, so editing the `&anchor`'s value expects every alias to follow, as
+ * the text will.
+ */
 export function withData(index: SpanIndex): Data {
-  return deepCopy(index.data);
+  return index.root === null ? deepCopy(index.data) : construct(index.root, new Map());
 }
 
 function nested(rest: Path, value: Data): Data {
@@ -293,7 +299,10 @@ function setValueOn(index: SpanIndex, path: Path, value: Data, block = false): P
   if (node !== undefined) {
     const empty = node.kind === "scalar" && node.value === "" && node.style === null;
     if (entry === undefined && empty) throw new Refused(`${dotted(path)} is an empty item; edit it in the text`);
-    setChild(dataAt(expected, path.slice(0, -1)), path[path.length - 1]!, value);
+    // every *alias of this value is this value: each reads the new one too
+    for (const at of [path, ...index.occurrences(node).filter((p) => pathKey(p) !== pathKey(path))]) {
+      setChild(dataAt(expected, at.slice(0, -1)), at[at.length - 1]!, value);
+    }
     let replacement: string;
     if (node.kind === "scalar" && !(value instanceof Map) && !Array.isArray(value)) {
       replacement = scalar(value, quoteStyle(node));
@@ -305,6 +314,12 @@ function setValueOn(index: SpanIndex, path: Path, value: Data, block = false): P
       throw new Refused(`${dotted(path)} is a block item: remove it and insert the new one`);
     }
     let start = node.start.index, end = node.end.index;
+    // an anchored value keeps its `&name`, so the aliases of it still find it
+    const anchor = index.anchorOf(node);
+    if (anchor !== undefined) {
+      start += anchor.length + 1;
+      replacement = " " + replacement;
+    }
     if (entry !== undefined && empty) {
       if (block && !entry.isFlow && (value instanceof Map || Array.isArray(value)) && truthy(value)) {
         // an empty value (`key:`) under a block mapping takes block lines after the key's own line
@@ -378,9 +393,10 @@ function replaceBlock(index: SpanIndex, entry: Entry, value: Data): string {
     const start = lineEnd(text, entry.key.start.index);
     return text.slice(0, start) + blockText(value, indent) + text.slice(end);
   }
-  // an empty or differently shaped value: on the key's line, in flow style
+  // an empty or differently shaped value: on the key's line, in flow style, still under its anchor
   const colon = indexOf(text, ":", entry.key.end.index) + 1;
-  return text.slice(0, colon) + " " + flow(value) + "\n" + text.slice(end);
+  const anchor = index.anchorOf(node);
+  return text.slice(0, colon) + " " + (anchor !== undefined ? `&${anchor} ` : "") + flow(value) + "\n" + text.slice(end);
 }
 
 function renameKeyOn(index: SpanIndex, path: Path, renamed: string): Patch {
@@ -856,7 +872,37 @@ export function endedPatch(index: SpanIndex, op: (index: SpanIndex) => Patch): P
  * `block`, when that mapping is a block mapping).
  */
 export function setValue(index: SpanIndex, path: Path, value: Data, { block = false } = {}): Patch {
-  return endedPatch(index, (i) => setValueOn(i, path, value, block));
+  return endedPatch(index, (i) => unaliased(i, path, (j) => setValueOn(j, path, value, block)));
+}
+
+/**
+ * `op` on `path`, once each `*alias` on the way to it is written out as
+ * the value it stands for, so the edit changes that key alone. An edit to
+ * the `&anchor`'s own value is left to change every alias of it, as the
+ * file says it should.
+ */
+function unaliased(index: SpanIndex, path: Path, op: (index: SpanIndex) => Patch): Patch {
+  for (let depth = 1; depth <= path.length; depth++) {
+    const at = path.slice(0, depth);
+    const alias = index.aliasAt(at);
+    if (alias === undefined) continue;
+    if (alias.start < 0) throw new Refused(`${dotted(at)} is *${alias.name}, the value of &${alias.name}; edit it in the text`);
+    const value = dataAt(index.data, at);
+    const expected = withData(index);
+    setChild(dataAt(expected, at.slice(0, -1)), at[at.length - 1]!, deepCopy(value));
+    const written = patch(index.text.slice(0, alias.start) + flow(value) + index.text.slice(alias.end), expected,
+      `write out ${dotted(at)} (was *${alias.name})`);
+    return chain(written, (i) => unaliased(i, path, op));
+  }
+  return op(index);
+}
+
+/** Refused when removing `path` would remove an `&anchor` an `*alias` outside it still names. */
+function keepsAnchors(index: SpanIndex, path: Path): void {
+  const users = index.aliasesOutside(path);
+  if (users.length === 0) return;
+  const [name, at] = users[0]!;
+  throw new Refused(`${dotted(path)} holds &${name}, which ${at.map(dotted).join(", ")} ${at.length === 1 ? "repeats" : "repeat"} as *${name}; change ${at.length === 1 ? "it" : "them"} first, or edit the text`);
 }
 
 /**
@@ -871,6 +917,7 @@ export function setScalars(index: SpanIndex, values: [Path, Data][]): Patch | un
   for (const [path, value] of values) {
     const entry = index.get(path);
     if (entry === undefined || value instanceof Map || Array.isArray(value)) return undefined;
+    if (path.some((_, i) => index.aliasAt(path.slice(0, i + 1)) !== undefined) || index.occurrences(entry.value).length > 1) return undefined;
     const node = entry.value;
     if (node.kind !== "scalar" || (node.value === "" && node.style === null)) return undefined;
     setChild(dataAt(expected, path.slice(0, -1)), path[path.length - 1]!, value);
@@ -885,7 +932,8 @@ export function setScalars(index: SpanIndex, values: [Path, Data][]): Patch | un
 
 /** Remove the key at `path`. The last entry of a mapping, flow or block, takes its mapping's key with it, and so on upward. */
 export function remove(index: SpanIndex, path: Path): Patch {
-  return endedPatch(index, (i) => removeOn(i, path));
+  keepsAnchors(index, path);
+  return endedPatch(index, (i) => unaliased(i, path, (j) => removeOn(j, path)));
 }
 
 /**
@@ -898,7 +946,7 @@ export function remove(index: SpanIndex, path: Path): Patch {
  * or, with `block` under a block mapping, as block lines.
  */
 export function insertItem(index: SpanIndex, path: Path, at: number, value: Data, { block = false } = {}): Patch {
-  return endedPatch(index, (i) => insertItemOn(i, path, at, value, block));
+  return endedPatch(index, (i) => unaliased(i, path, (j) => insertItemOn(j, path, at, value, block)));
 }
 
 /**
@@ -907,12 +955,13 @@ export function insertItem(index: SpanIndex, path: Path, at: number, value: Data
  * on upward, as `remove` does); a flow list is left as `[]`.
  */
 export function removeItem(index: SpanIndex, path: Path, at: number): Patch {
-  return endedPatch(index, (i) => removeItemOn(i, path, at));
+  keepsAnchors(index, [...path, at]);
+  return endedPatch(index, (i) => unaliased(i, path, (j) => removeItemOn(j, path, at)));
 }
 
 /** Move item `from` of the list at `path` to position `to`, a block item with its own comment lines. */
 export function moveItem(index: SpanIndex, path: Path, from: number, to: number): Patch {
-  return endedPatch(index, (i) => moveItemOn(i, path, from, to));
+  return endedPatch(index, (i) => unaliased(i, path, (j) => moveItemOn(j, path, from, to)));
 }
 
 /** Delete an element with its leading comment lines. A block's only element takes the block's key with it. */
