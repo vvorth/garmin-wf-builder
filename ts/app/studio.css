@@ -398,7 +398,10 @@ input[type="range"].wide { width: 100%; }
 .slot-group .pop-title { margin-top: 4px; }
 .slot-type { display: flex; gap: 4px; align-items: center; font-size: 12px; padding: 1px 0; }
 .slot-type.off .label { color: var(--dim); }
-.slot-type .label { flex: 1; min-width: 0; }
+.slot-type .label { min-width: 0; }
+.slot-type .caps { flex: 1; display: flex; gap: 2px; padding-left: 2px; }
+.slot-type .cap { font-size: 13px; color: var(--dim); opacity: 0.6; cursor: help; }
+.slot-type .cap.warn { color: var(--warning); opacity: 0.5; }
 .slot-type .chip-button { padding: 0 4px; }
 .slot-type .chip-button > span:last-child { display: none; }
 button.star { padding: 0 3px; border: none; background: none; color: var(--dim); }

@@ -660,6 +660,19 @@ export interface ComplicationType {
   icon: string | null;
   /** A sample reading, formatted, or `null`. */
   sample: string | null;
+  /** What a slot showing it can do beyond its reading, in this order, each with the words a hover shows. */
+  capabilities: Capability[];
+}
+
+/**
+ * One thing a slot's pick supports: `graph` a graph on the slot plots its
+ * history, `dynamic_icon` its icon changes with the reading, `gauge` a gauge
+ * on the slot fills against its own scale, `long_text` its reading can run
+ * long (a warning, where the others are features).
+ */
+export interface Capability {
+  kind: "graph" | "dynamic_icon" | "gauge" | "long_text";
+  detail: string;
 }
 
 /** One data source as the pickers describe it: its type, its unit and quantity (or `null`), what it is, and whether it can be absent. */

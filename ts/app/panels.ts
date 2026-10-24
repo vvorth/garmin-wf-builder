@@ -15,7 +15,7 @@ import { ColorPop, Commit, Form, Glyph, IconPop, Quantity } from "./form.ts";
 import type { FaceCtx, FaceSectionKey, OnEdit, OnFaceSection, OnReveal, OnSelect, WidgetCtx } from "./form.ts";
 import type { IconSpelling,
   Axes, EditOp, HandSet, Inspect, PaletteEntry, Path, Schemes as SchemesInfo, Scope,
-  SlotChoice, SlotEntry, StructureOp, Styles as StylesInfo, Summary, TreeNode, Value, Vocabulary,
+  Capability, ComplicationType, SlotChoice, SlotEntry, StructureOp, Styles as StylesInfo, Summary, TreeNode, Value, Vocabulary,
 } from "../src/studio/protocol.ts";
 
 // -- the callbacks, the context and the controls the panels share ------------------------------
@@ -124,6 +124,20 @@ export interface SlotCardProps {
   onSelect?: OnSelect | undefined;
 }
 
+/** The glyph each capability shows as (Material Design, in the icon font): a graph, a toggle, a gauge, a warning. */
+const CAPABILITY_GLYPH: Readonly<Record<Capability["kind"], number>> = {
+  graph: 0xf0128, // nf-md-chart_bar
+  dynamic_icon: 0xf0521, // nf-md-toggle_switch
+  gauge: 0xf029a, // nf-md-gauge
+  long_text: 0xf002a, // nf-md-alert_outline
+};
+
+/** What a type supports beyond its reading, as dim glyphs, each explained on hover. */
+function Capabilities({ type }: { type: ComplicationType }): VNode {
+  return html`<span class="caps">${(type.capabilities || []).map((c) => html`<span
+    class=${"glyph cap" + (c.kind === "long_text" ? " warn" : "")} title=${c.detail} aria-label=${c.detail}>${String.fromCodePoint(CAPABILITY_GLYPH[c.kind])}</span>`)}</span>`;
+}
+
 // One `config: slots:` entry, the same card in the Face tab and above a
 // selected element drawing it: what the slot shows until the wearer picks
 // (the star), what the wearer may pick (a checklist by group, or every
@@ -175,6 +189,7 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
           ${!any && choice ? html`<${IconPop} value=${choice.icon} placeholder=${t.icon} vocab=${vocab} allowNone
               onPick=${(v: IconSpelling | null) => setIcon(t.name, v)} />` : html`<${Glyph} name=${t.icon} vocab=${vocab} />`}
           <span class="label">${t.label}</span>
+          <${Capabilities} type=${t} />
           <span class="dim mono">${t.sample || ""}</span>
         </div>`; })}
     </div>`)}</div>

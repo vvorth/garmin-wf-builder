@@ -309,10 +309,17 @@ test("every complication type has a name for people and a group", () => {
   assert.equal(complications.label("floors_climbed"), "Floors climbed");
 });
 
-test("the vocabulary offers each type with its icon and sample", () => {
+test("the vocabulary offers each type with its icon, sample and capabilities", () => {
   const types = Object.fromEntries((vocabulary()["complication_types"] as any[]).map((t) => [t.name, t]));
   assert.equal(Object.keys(types).length, 42);
-  assert.deepEqual(types["heart_rate"], { name: "heart_rate", label: "Heart rate", category: "health", icon: "heart", sample: "72" });
+  assert.deepEqual(types["heart_rate"], { name: "heart_rate", label: "Heart rate", category: "health", icon: "heart", sample: "72", capabilities: [
+    { kind: "graph", detail: "graph: a graph on this slot plots the last 4 hours, binned" },
+    { kind: "gauge", detail: "progress: a gauge on this slot fills across the wearer's heart-rate zones" },
+  ] });
+  assert.deepEqual(types["notification_count"].capabilities.map((c: { kind: string }) => c.kind), ["dynamic_icon"]);
+  assert.deepEqual(types["current_weather"].capabilities.map((c: { kind: string }) => c.kind), ["dynamic_icon", "long_text"]);
+  assert.deepEqual(types["sunrise"].capabilities, [{ kind: "gauge", detail: "progress: a gauge on this slot fills across one day" }]);
+  assert.deepEqual(types["date"].capabilities, []);
   assert.equal(types["wheelchair_pushes"].sample, null);
   assert.equal((vocabulary()["icon_glyphs"] as any).heart, 0xF05F6);
 });

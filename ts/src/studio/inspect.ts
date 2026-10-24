@@ -52,7 +52,7 @@ import * as series from "../series.ts";
 import { schema } from "../validate.ts";
 import { jsonDumps, plain } from "./json.ts";
 import type {
-  Axes, AxisEntry, ComplicationType, DeviceInfo, EditContext, Effective, Field, FieldKind, FormatCode, Globals, HandSet, IconSpelling, Inspect, LayoutEntry,
+  Axes, AxisEntry, Capability, ComplicationType, DeviceInfo, EditContext, Effective, Field, FieldKind, FormatCode, Globals, HandSet, IconSpelling, Inspect, LayoutEntry,
   OverrideSummary, PartsSummary, RuleFamily, SlotEntry, StyleEntry, UnreadableDevice, Value, Widget, Words,
 } from "./protocol.ts";
 
@@ -699,7 +699,41 @@ function complicationType(name: string): ComplicationType {
     name, label: complications.label(name), category: complications.category(name),
     icon: icons.COMPLICATION_ICON.get(name) ?? null,
     sample: sample !== undefined && sample !== null ? complications.formatReading(name, sample) : null,
+    capabilities: capabilities(name),
   };
+}
+
+/** The readings whose text the device supplies or names at length: they can outrun a slot. */
+const LONG_READINGS: ReadonlySet<string> = new Set(["condition", "high_low", "training_status"]);
+
+/** What a slot showing type `name` supports beyond its reading, each said as a hover says it. */
+export function capabilities(name: string): Capability[] {
+  const out: Capability[] = [];
+  const graph = series.SLOT_SERIES.get(name);
+  if (graph !== undefined) out.push({ kind: "graph", detail: `graph: a graph on this slot plots ${graph.span}` });
+  if (complications.ICON_CONDITION.has(name)) {
+    out.push({ kind: "dynamic_icon", detail: "dynamic icon: it follows the weather condition" });
+  } else if (complications.ICON_WHEN_ZERO.has(name)) {
+    out.push({ kind: "dynamic_icon", detail: "dynamic icon: it empties when there is nothing to count" });
+  }
+  const scale = complications.SCALE.get(name);
+  if (scale !== undefined) {
+    const across = scale.kind === "goal" ? "from 0 to the watch's own goal"
+      : scale.kind === "heart_rate_zones" ? "across the wearer's heart-rate zones"
+        : scale.kind === "vo2max" ? "across the wearer's VO2 max rating row, from Poor to Superior"
+          : scale.maximum === 86400 ? "across one day" : `from ${scale.minimum} to ${scale.maximum}`;
+    out.push({ kind: "gauge", detail: `progress: a gauge on this slot fills ${across}` });
+  }
+  const reading = complications.READING.get(name);
+  if (reading !== undefined && LONG_READINGS.has(reading)) {
+    const detail = reading === "training_status"
+      ? "long text: the device's own words (\"Unproductive\"); 'short: true' shortens the ones it knows (\"Unprod\")"
+      : `long text: up to ${complications.widestReading(name, false, false).length} characters `
+        + `(\"${complications.widestReading(name, false, false)}\"); 'short: true' keeps it to `
+        + `\"${complications.widestReading(name, false, true)}\"`;
+    out.push({ kind: "long_text", detail });
+  }
+  return out;
 }
 
 /** strftime-style codes as written after a placeholder's colon (`%H`, `%-M`), each with what it draws. */

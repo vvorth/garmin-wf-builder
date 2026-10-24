@@ -714,6 +714,16 @@ it is what the wearer's list shows, or the order the face is drawn in.
     it; that type joins the list). **the wearer may pick any type** hands
     the wearer the watch's own picker, Garmin's later types included;
     unticking it brings your list back.
+  - Small dim marks after a type's name say what a slot showing it can
+    do beyond its reading, each explained when the pointer rests on it:
+    a bar chart, a [graph on the slot](progress-and-graphs.md#graphs-on-a-slot)
+    plots its history (and over what span); a toggle, its icon changes
+    with the reading (a weather type's follows the condition, the
+    notification count's empties at zero); a gauge, a
+    [gauge on the slot](progress-and-graphs.md#gauges-on-a-slot) fills
+    against its own scale (and which); a warning triangle, its reading can
+    run long (a weather condition's name, a training status), where
+    `short: true` helps.
   - A ticked type's icon button picks its icon for this slot: any
     catalogue icon, `none`, or a codepoint (`U+F1340`); **×** goes back to
     the type's own. **order** lists the ticked types as the wearer's list

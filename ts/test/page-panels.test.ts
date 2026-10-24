@@ -141,6 +141,20 @@ test("a slot card ticks stars and opens to every type", async () => {
   assert.deepEqual(printed[1], [{"op": "set", "path": [...top, ...["choices"]], "value": ["steps", "intensity_minutes", "battery", "body_battery", "stress"]}, {"op": "set", "path": [...top, ...["choices"]], "value": ["steps", "floors_climbed", "intensity_minutes", "battery", "body_battery", "stress", "calories"]}, {"op": "set", "path": [...top, ...["default"]], "value": "calories"}, {"op": "set", "path": [...top, ...["choices"]], "value": "any"}]);
 });
 
+test("a slot card marks what each type supports, dimly, explained on hover", async () => {
+  const text = summary(repoText("examples/features/slot-gauge/face.yaml"));
+  const printed = await render(text, "\n      await openSection(\"Slots\");\n      const card = find((e) => cls(e) === \"slot-card\")[0];\n      const row = (label) => card.all((e) => [\"slot-type\", \"slot-type off\"].includes(cls(e))\n                                       && e.all((s) => cls(s) === \"label\" && s.textContent === label).length > 0)[0];\n      const caps = (label) => row(label).all((e) => cls(e).startsWith(\"glyph cap\")).map((e) => [cls(e), e.textContent.codePointAt(0).toString(16), e.attributes.title]);\n      out([\"Steps\", \"Current weather\", \"Training status\", \"Date\"].map(caps));\n    ");
+  const [steps, weather, training, date] = printed[0];
+  assert.deepEqual(steps, [
+    ["glyph cap", "f0128", "graph: a graph on this slot plots the last 7 days"],
+    ["glyph cap", "f029a", "progress: a gauge on this slot fills from 0 to the watch's own goal"],
+  ]);
+  assert.deepEqual(weather.map((c: string[]) => [c[0], c[1]]), [["glyph cap", "f0521"], ["glyph cap warn", "f002a"]]);
+  assert.match(weather[1][2], /^long text: up to 26 characters \("Cloudy chance of rain snow"\)/);
+  assert.deepEqual(training.map((c: string[]) => c[1]), ["f002a"]);
+  assert.deepEqual(date, [], "the date supports nothing beyond its reading");
+});
+
 test("a new slot asks what it shows first", async () => {
   const text = summary(instantiate("minimal", "T"));
   const printed = await render(text, "\n      await openSection(\"Slots\");\n      const select = find((e) => e.localName === \"select\" && e.textContent.startsWith(\"a new slot\"))[0];\n      select.value = \"heart_rate\"; select.dispatch(\"change\"); await settle();\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"+ Slot\")[0]);\n      await typeName(find((e) => cls(e).startsWith(\"inline-name\"))[0].attributes.value);\n      out(edits);\n    ");
