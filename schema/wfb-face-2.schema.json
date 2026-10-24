@@ -2829,6 +2829,11 @@
           "type": "boolean",
           "default": false
         },
+        "prefix": {
+          "description": "Write a short tag for the picked type, and a space, before the reading: HR (heart rate), STEPS, ALT (altitude), BARO (sea-level pressure), BATT (battery), BODY (Body Battery), CAL (calories), FLRS (floors climbed), INT MIN (intensity minutes), NOTIF (notifications), RISE (sunrise), SET (sunset), VO2 (VO2 max, run or bike), NOW (current temperature), BIKE and RUN (weekly distances). Any other type writes its reading alone. Not beside 'label:', which writes the device's own label in the same place. Default false.",
+          "type": "boolean",
+          "default": false
+        },
         "short": {
           "description": "Keep the reading to 7 characters where a rule can: a weather condition's short name ('Mo clr'), a training status's ('Maint'), '26/17' for 'H 26 / L 17', and a unit dropped when it would pass 7. Other text the watch supplies (a date, a calendar event) is never cut. Default false: full names.",
           "type": "boolean",

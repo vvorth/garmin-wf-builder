@@ -153,6 +153,19 @@ export function slotReadingTypes(face: Face): string[] {
   return sortedNames(names);
 }
 
+/** The types a `prefix: true` element's slot can show that have a tag, or `null` with no such element. */
+function prefixedTypes(face: Face): string[] | null {
+  const elements = dataElements(face).filter((element) => element.prefix);
+  if (elements.length === 0) return null;
+  const names = new Set<string>();
+  for (const element of elements) {
+    const slot = face.config_data.get(element.slot);
+    if (slot === undefined) continue;
+    for (const name of slot.choices === "any" ? complications.TYPES.keys() : slot.choices) if (complications.PREFIX.has(name)) names.add(name);
+  }
+  return sortedNames(names);
+}
+
 /** The `short:` values of the drawn slots that can show a `kind` reading. */
 function wordedVariants(face: Face, kind: string): Set<boolean> {
   const variants = new Set<boolean>();
@@ -266,6 +279,28 @@ export function emitSlotText(face: Face): SourceFile {
       w.line('        unit ? WfbReading.unitSuffix(c.unit) : "", short);');
     });
     w.blank();
+    const tagged = prefixedTypes(face);
+    if (tagged !== null) {
+      w.doc("What `prefix: true` writes before type `t`'s reading, or null for none,\ngenerated from the complication table's prefixes (ts/src/complications.ts).");
+      w.block("function prefix(t as Complications.Type) as String?", () => {
+        const groups = new Map<string, string[]>();
+        for (const name of tagged) {
+          const tag = complications.PREFIX.get(name)!;
+          if (!groups.has(tag)) groups.set(tag, []);
+          groups.get(tag)!.push(name);
+        }
+        if (groups.size > 0) {
+          w.block("switch (t)", () => {
+            for (const [tag, members] of groups) {
+              for (const name of members.slice(0, -1)) w.line(`case ${constant.get(name)}:`);
+              w.line(`case ${constant.get(members[members.length - 1]!)}: return "${tag}";`);
+            }
+          });
+        }
+        w.line("return null;");
+      });
+      w.blank();
+    }
     if (conditions.has(true)) emitConditionTable(w, "conditionShort", true);
     if (conditions.has(false)) emitConditionTable(w, "conditionName", false);
     if (training.has(true)) {

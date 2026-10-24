@@ -531,7 +531,7 @@ export function slotText(op: SlotText, values: Values): string {
   };
   const reading = complications.formatReading(op.type_name, op.sample, null, { unit: op.unit, short: op.short, settings });
   if (reading === null) return op.absent === "placeholder" ? op.placeholder || "" : "";
-  return op.label_sample + reading;
+  return op.label_sample + op.prefix_sample + reading;
 }
 
 /** `max: auto`'s scale on the host: the type's own for the sample wearer, or `null`. */

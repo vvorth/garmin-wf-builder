@@ -30,6 +30,7 @@ with neither (`fenix5`/`fenix5x`) shows the compiled-in defaults.
 | `icon: {position:, gap:, color:}` | `data` | `left`/`right`/`top`/`bottom`; px/`%r`; colour | `left`; `4px`; = `color:` | icon placement, gap and colour |
 | `label:` | `data` | `none`/`short`/`long` | `none` | `Complication.shortLabel`/`.longLabel` before the reading |
 | `unit:` / `short:` | `data` | boolean | `false` | the reading's own unit (`%`, `hPa`, `km`, `/km`, ...); 7-character forms |
+| `prefix:` | `data` | boolean | `false` | the pick's tag before the reading (`HR 72`, `STEPS 8432`); not beside `label:` |
 | `absent:` | `data` | `hide` / `{text: "--"}` | `hide` | blanks only the reading; the icon still draws |
 | `on_hold:` | `data` | `auto` only | — | resolves to the wearer's current pick, on every hold |
 
@@ -351,6 +352,34 @@ Instead:
   (`doc/Toybox/Weather.html`), in English whatever the watch's language.
 * **`label:`** (`none` default, `short`, `long`) draws `Complication.
   shortLabel`/`.longLabel` before the reading, when the device supplies one.
+* **`prefix:`** (`false` default) writes a short tag for the picked type,
+  and a space, before the reading -- this compiler's own, the same on every
+  watch, where `label:` is whatever the device supplies, so the two are
+  not accepted together. `unit:` is the reading's suffix; `prefix:` is its
+  name:
+
+  | Types | Tag |
+  |---|---|
+  | heart rate | `HR 72` |
+  | steps | `STEPS 8432` |
+  | altitude | `ALT 511` |
+  | sea-level pressure | `BARO 1017` |
+  | battery | `BATT 68` |
+  | Body Battery | `BODY 62` |
+  | calories | `CAL 1840` |
+  | floors climbed | `FLRS 7` |
+  | intensity minutes | `INT MIN 145` |
+  | notifications | `NOTIF 3` |
+  | sunrise, sunset | `RISE 06:15`, `SET 18:12` |
+  | VO2 max (run, bike) | `VO2 49` |
+  | current temperature | `NOW 24°` |
+  | weekly bike / run distance | `BIKE 23.4`, `RUN 23.4` |
+
+  Every other type draws its reading alone. The tags are `PREFIX` in
+  `ts/src/complications.ts`; the generated `SlotText.prefix` holds a case
+  only for the tagged types the design's prefixed slots can show. The
+  lint box and a baked font's glyphs count the widest tagged reading, and
+  a curved reading curves the tag with it.
 * **`absent:`** is `hide` (default) or `{text: "--"}`, drawn instead --
   and unlike every other element, `hide` blanks only the
   *reading*, leaving the icon drawn: the icon says which metric the slot is
@@ -479,7 +508,7 @@ turns the reading about `at:` by `angle:`, and `style: radial` runs it
 round a circle centred on `at:`, starting at `angle:` (12 o'clock = 0,
 clockwise), `radius:` out. `align:` says which end of the run sits at
 `angle:`; a radial `align: bottom` puts the baseline on the circle, and an
-angled one is an error. The `label:`, `unit:` and `short:` text is one
+angled one is an error. The `label:`, `prefix:`, `unit:` and `short:` text is one
 string, drawn curved as a whole.
 
 * `font:` must be a `face:` font: `drawAngledText`/`drawRadialText` refuse
@@ -747,7 +776,7 @@ list): the Watch Face menu entry appears and a change applies at once. The
 
 **A `data` element's geometry is sized from its readings alone.** The
 estimate is the widest reading any of its choices can draw under its
-`unit:`/`short:` (`widestReading` in `ts/src/complications.ts`): a clock is `88:88`,
+`unit:`/`short:`, after its tag under `prefix:` (`widestReading` in `ts/src/complications.ts`): a clock is `88:88`,
 a race prediction `8:88:88`, a weather condition its longest name -- so
 `choices: any` in full names is honestly wider than the screen ("Cloudy
 chance of rain snow"), and the `off-screen` lint says so; `short: true`

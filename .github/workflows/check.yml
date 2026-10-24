@@ -102,6 +102,7 @@ jobs:
             # test/barrel.test.ts
             # test/cli.test.ts
             # test/curved-slot.test.ts
+            # test/data-prefix.test.ts
             # test/devices.test.ts
             # test/diagnostics.test.ts
             # test/edit.test.ts

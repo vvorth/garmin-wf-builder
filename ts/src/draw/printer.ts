@@ -236,6 +236,10 @@ function printSlotText(w: Writer, op: SlotText): void {
         w.line(`var label = pulled.${op.label === "short" ? "shortLabel" : "longLabel"};`);
         w.block("if (label != null)", () => w.line('text = label + " ";'));
       }
+      if (op.prefix) {
+        w.line(`var tag = ${op.module}.prefix(chosenId.getType());`);
+        w.block("if (tag != null)", () => w.line('text = tag + " ";'));
+      }
       w.line("text += reading;");
     });
   });

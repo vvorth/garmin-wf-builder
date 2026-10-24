@@ -368,10 +368,15 @@ export const SlotIcon = (font: string, key: string, method: string, guarded: boo
 export interface IconStep { t: "IconStep"; field: string; key: string; steps: string; index: Num }
 export const IconStep = (field: string, key: string, steps: string, index: Num): IconStep => ({ t: "IconStep", field, key, steps, index });
 
-/** A data element's reading, its label in front, or under `absent:` its placeholder or nothing. */
+/**
+ * A data element's reading, its label or (with `prefix`) its type's tag in
+ * front, or under `absent:` its placeholder or nothing. On the host,
+ * `label_sample` stands in for the label and `prefix_sample` is the tag
+ * the pick shown writes, with its space.
+ */
 export interface SlotText {
   t: "SlotText"; module: string; guarded: boolean; unit: boolean; short: boolean; label: string | null; absent: string | null;
-  placeholder: string | null; type_name: string; sample: unknown; label_sample: string;
+  placeholder: string | null; type_name: string; sample: unknown; label_sample: string; prefix: boolean; prefix_sample: string;
 }
 export const SlotText = (fields: Omit<SlotText, "t">): SlotText => ({ t: "SlotText", ...fields });
 

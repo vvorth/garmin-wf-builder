@@ -612,6 +612,25 @@
   "last_golf_round_score": "text",
   "sleep_score": "count"
  },
+ "prefix": {
+  "heart_rate": "HR",
+  "steps": "STEPS",
+  "altitude": "ALT",
+  "sea_level_pressure": "BARO",
+  "battery": "BATT",
+  "body_battery": "BODY",
+  "calories": "CAL",
+  "floors_climbed": "FLRS",
+  "intensity_minutes": "INT MIN",
+  "notification_count": "NOTIF",
+  "sunrise": "RISE",
+  "sunset": "SET",
+  "vo2max_run": "VO2",
+  "vo2max_bike": "VO2",
+  "current_temperature": "NOW",
+  "weekly_bike_distance": "BIKE",
+  "weekly_run_distance": "RUN"
+ },
  "count_unit": {
   "heart_rate": "bpm",
   "respiration_rate": "brpm"

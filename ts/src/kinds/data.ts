@@ -78,6 +78,12 @@ function checkRadialPair(b: Builder, node: Node, icon: Node, element: DataElemen
   }
 }
 
+/** `reading` as a data element writes it for type `name`: after its tag and a space, with `prefix: true` and a tag. */
+export function prefixed(element: DataElement, name: string, reading: string): string {
+  const tag = element.prefix ? complications.PREFIX.get(name) : undefined;
+  return tag !== undefined ? `${tag} ${reading}` : reading;
+}
+
 /** The types this slot can show that the build knows a rule for. */
 function slotChoices(face: Face, element: DataElement): string[] {
   const slot = face.config_data.get(element.slot);
@@ -90,7 +96,7 @@ function slotChoices(face: Face, element: DataElement): string[] {
 function dataWidest(r: Resolver, element: DataElement, font: LayoutFont): string {
   let widest = "";
   for (const name of slotChoices(r.face, element)) {
-    const candidate = complications.widestReading(name, element.unit, element.short);
+    const candidate = prefixed(element, name, complications.widestReading(name, element.unit, element.short));
     if (!widest || font.width(candidate) > font.width(widest)) widest = candidate;
   }
   if (element.absent === "placeholder" && element.placeholder) widest = longer(widest, element.placeholder);
@@ -105,6 +111,7 @@ function textGlyphs(element: DataElement, face: Face): Set<string> {
   const glyphs = new Set<string>();
   for (const name of slotChoices(face, element)) {
     for (const c of complications.readingGlyphs(name, element.unit, element.short)) glyphs.add(c);
+    if (element.prefix) for (const c of prefixed(element, name, "")) glyphs.add(c);
     if (["text", "training_status", "high_low"].includes(complications.READING.get(name)!)) for (const c of COMPLICATION_TEXT_ALPHABET) glyphs.add(c);
   }
   if (element.placeholder) for (const c of element.placeholder) glyphs.add(c);
@@ -545,6 +552,7 @@ class DataKind extends ElementKind<DataElement> {
       icon_upright: icon.get("upright") === true,
       label: (node.get("label") ?? "none") as string,
       unit: truthy(node.get("unit") ?? false),
+      prefix: truthy(node.get("prefix") ?? false),
       short: truthy(node.get("short") ?? false),
       absent: absence.absent || "hide",
       placeholder: absence.placeholder,
@@ -557,6 +565,13 @@ class DataKind extends ElementKind<DataElement> {
     if (node.has("curve")) {
       element.curve = b.buildCurve(node, element.id, { verticalAlign: element.vertical_align, fontOk, fontIsVector, fontNote });
       if (element.curve !== null && element.icon_size !== null) checkRadialPair(b, node, icon, element);
+    }
+    if (element.prefix && element.label !== "none") {
+      b.bag.error("complication-slot", `${element.id}: 'prefix:' and 'label:' both write before the reading -- use one`,
+        b.doc.span(node, "prefix"), {
+          notes: ["'prefix: true' writes this compiler's own tag for the pick (HR, STEPS, ALT, ...); "
+            + "'label:' writes the one the device supplies (docs/guide/configuration.md, \"The Data axis\")"],
+        });
     }
     if (icon.has("upright") && !node.has("curve")) {
       b.bag.error("complication-slot", `${element.id}: 'icon: {upright:}' applies only beside 'curve:'`, b.doc.span(icon, "upright"), {
@@ -656,6 +671,7 @@ class DataKind extends ElementKind<DataElement> {
       module: SLOT_TEXT_MODULE, guarded, unit: element.unit, short: element.short, label: element.label, absent: element.absent,
       placeholder: element.placeholder, type_name: ctype.name, sample,
       label_sample: ({ short: "Now ", long: "Current " } as Record<string, string>)[element.label ?? ""] ?? "",
+      prefix: element.prefix, prefix_sample: prefixed(element, shown, ""),
     }));
     const textPaint = AodRestyled(element, "color");
     const hasOverride = aod.on && element.aod !== null && element.aod.icon_color !== null;

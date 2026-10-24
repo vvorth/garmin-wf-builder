@@ -10,7 +10,8 @@
 #   and floors as the last 7 days from zero, the current temperature as the
 #   next 12 hours' forecast. `history_value` is the same slot's reading, so
 #   the bars and the number always agree, and holding either opens the
-#   pick's glance.
+#   pick's glance. Its `prefix: true` names what the bars are: `HR 72`,
+#   `STEPS 8432`, `NOW 21°`.
 # * `trend` (the current temperature by default) is a line over
 #   `choices: any`: every pick with a history plots, and any other (Body
 #   Battery, the date, the weather, ...) hides the line while the reading
@@ -114,6 +115,7 @@ elements:
     at: { anchor: center, dy: 30% }
     font: FONT_XTINY
     icon: { size: 10%r, gap: 1%r, color: color.accent }
+    prefix: true
     color: color.fg
     absent: { text: "--" }
     on_hold: auto

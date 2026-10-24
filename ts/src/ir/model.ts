@@ -848,6 +848,8 @@ export class DataElement extends Element {
   icon_upright = false;
   label = "none";
   unit = false;
+  /** `prefix: true`: the picked type's tag (`complications.PREFIX`) and a space before the reading. */
+  prefix = false;
   short = false;
   absent = "hide";
   placeholder: string | null = null;

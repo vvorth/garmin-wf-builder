@@ -53,6 +53,8 @@ export const ICON_CONDITION: ReadonlyMap<string, string | null> = new Map([
 /** A count type whose icon empties at zero: the catalogue name drawn when the pulled count is 0. */
 export const ICON_WHEN_ZERO: ReadonlyMap<string, string> = new Map([["notification_count", "notification_none"]]);
 export const COUNT_UNIT: ReadonlyMap<string, string> = new Map(Object.entries(data.count_unit));
+/** What a `data` element's `prefix: true` writes before a type's reading; a type missing here has none. */
+export const PREFIX: ReadonlyMap<string, string> = new Map(Object.entries(data.prefix));
 export const WORDED: ReadonlySet<string> = new Set(data.worded);
 export const WEATHER_CONDITION_TEXT: ReadonlyMap<number, readonly [string, string]> =
   new Map(Object.entries(data.weather_condition_text as unknown as Record<string, [string, string]>).map(([k, v]) => [Number(k), v]));
