@@ -61,15 +61,18 @@ module WfbReading {
         if (unit instanceof Lang.String) {
             return unit;
         }
-        switch (unit) {
-            case Complications.UNIT_DISTANCE: return "m";
-            case Complications.UNIT_ELEVATION: return "m";
-            case Complications.UNIT_HEIGHT: return "m";
-            case Complications.UNIT_SPEED: return "m/s";
-            case Complications.UNIT_TEMPERATURE: return "°C";
-            case Complications.UNIT_WEIGHT: return "g";
-            default: return "";
+        // monkeyc 9.3.0 rejects the module's constants below its API level without this check
+        if (Toybox has :Complications) {
+            switch (unit) {
+                case Complications.UNIT_DISTANCE: return "m";
+                case Complications.UNIT_ELEVATION: return "m";
+                case Complications.UNIT_HEIGHT: return "m";
+                case Complications.UNIT_SPEED: return "m/s";
+                case Complications.UNIT_TEMPERATURE: return "°C";
+                case Complications.UNIT_WEIGHT: return "g";
+            }
         }
+        return "";
     }
 
     //! Nearest whole number, halves away from zero.

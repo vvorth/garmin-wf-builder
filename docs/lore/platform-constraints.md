@@ -81,22 +81,41 @@ These are the findings that shaped every decision. Full detail and citations in
    face's tap behaviour is modelled on native firmware this API does not
    expose.
 
-6d. **`monkeyc` does not gate on the device's symbol table -- so nothing
-   catches an absent symbol at build time.** It resolves names against the
-   **SDK-wide** API and checks arity, types and permissions; per-device
-   availability it does not check at all. Proof with a clean control
-   (`docs/research/probes/device-symbol-gate/`):
-   `UserProfile.getFunctionalThresholdPower` is present in
-   `fenix8solar47mm.api.debug.xml`, **absent from `fr955.api.debug.xml`**, and
-   builds warning-free for `fr955` under `-l 3` -- while a typo in the same
-   build is `Undefined symbol`. Two consequences, pulling opposite ways:
-   **one shared generated view may reference an API only some targets have**,
-   guarded at runtime, with no per-device source split (this is what makes
-   on-device config a single view); and **the compiler will never tell you**
-   when a binding cannot work on a target -- only `Device.has_symbol` and a
-   lint will. Every existing use of `has_symbol` stays correct: it answers
-   *what exists on the wrist*, which is the question that was always being
-   asked.
+6d. **`monkeyc` checks API *levels*, not the device's symbol table -- and
+   since SDK 9.3.0 it refuses a too-new symbol unless a `has` check encloses
+   it.** Two facts, one per question:
+
+   - **Symbol table: never checked.** `monkeyc` resolves names against the
+     **SDK-wide** API; a device whose `api.debug.xml` lacks a symbol still
+     compiles it (`docs/research/probes/device-symbol-gate/`:
+     `UserProfile.getFunctionalThresholdPower`, absent from `fr955`, builds
+     for it). So only `Device.hasSymbol` and a lint say whether a binding can
+     work on a target, and `fr955` -- which lacks `WatchFaceConfig.getSettings`
+     in its own table -- still compiles the editor code.
+   - **API level: checked since SDK 9.3.0.** A symbol whose documented
+     `Since:` level (the SDK's Toybox docs) is above a device's API level
+     (`compiler.json`) is an error, `Value '$.Toybox.System.DISPLAY_MODE_OFF'
+     is not supported for device 'venu'`, **unless a `has` check naming the
+     symbol, or a module or class enclosing it, lexically encloses the use**
+     (`docs/research/probes/sdk93-has-guards/`, measured on 9.3.0; 9.2.0
+     accepts every form). Accepted: `if (Toybox has :Complications) {...}`
+     (it covers every member, even a constant newer than the module, such as
+     `COMPLICATION_TYPE_SLEEP_SCORE` on `fr955`), the same check as a ternary
+     condition or an earlier `&&` operand, `System has :DISPLAY_MODE_OFF`,
+     `WatchUi.WatchFaceDelegate has :setSelectedComplication`, and an
+     instance check (`box has :addRectangle`). Refused: a check on a sibling
+     (`System has :getDisplayMode` does not cover `DISPLAY_MODE_OFF`), a
+     check on an unrelated module, an early return on the negated check, a
+     helper called only from inside a check, `self has :method`, and,
+     unreliably, a check kept in a local first.
+
+   **One shared generated view stays possible**: a runtime guard is still
+   all a target-only API needs, as long as it is written where the compiler
+   can see it. The generator writes every such check inline at the use,
+   per build only where some target's level predates the symbol
+   (`computeGuards` in `ts/src/availability.ts`, its `SINCE` table and the
+   complication types' own `since`), and the hand-written barrel carries
+   its checks unconditionally.
 
 6e. **Modules and class *fields* are per-device too, not just functions, and
    the manifest floor cannot express any of it.** Discovered adding `fenix6`

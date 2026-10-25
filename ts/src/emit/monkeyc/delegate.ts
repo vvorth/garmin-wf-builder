@@ -13,7 +13,14 @@ import {
   CONFIG_LAYOUT_METHOD, constPrefix, type EditorSlot, editorSlots, gatedHolds, header, HOLDS_SHOWN, holdTargets, maskLiteral, type SourceFile,
 } from "./common.ts";
 
-function emitOnWatchFaceConfigEdited(w: Writer, hasSlots = false): void {
+/**
+ * Where some target predates the native editor (`guards.editor_level`), its
+ * code names each editor symbol inside a `has` check on that symbol's own
+ * module or class: monkeyc 9.3.0 rejects it on such a target otherwise,
+ * though the platform never calls this code there.
+ */
+function emitOnWatchFaceConfigEdited(w: Writer, hasSlots: boolean, guards: Guards): void {
+  const level = guards.editor_level;
   w.doc("The wearer changed something in the native editor.  Re-read the whole\n"
     + "settings snapshot and hand it to the view -- the same `applyConfig` the\n"
     + "first onLayout read already uses, so there is exactly one place that\n"
@@ -25,12 +32,15 @@ function emitOnWatchFaceConfigEdited(w: Writer, hasSlots = false): void {
     if (hasSlots) {
       w.comment("a null :type is the end of editing; any other type means no slot");
       w.comment("is being animated -- either way, stop skipping the last one");
-      w.block("if (options[:type] != WatchUi.WATCH_FACE_CONFIG_TYPE_COMPLICATION)", () => w.line("_view.setPulsing(0);"));
+      w.block(level ? "if (!((WatchUi has :WATCH_FACE_CONFIG_TYPE_COMPLICATION) && options[:type] == WatchUi.WATCH_FACE_CONFIG_TYPE_COMPLICATION))"
+        : "if (options[:type] != WatchUi.WATCH_FACE_CONFIG_TYPE_COMPLICATION)", () => w.line("_view.setPulsing(0);"));
     }
-    w.line("var id = options[:configId] as WatchFaceConfig.Id?;");
-    w.block("if (id != null)", () => {
-      w.line("var settings = WatchFaceConfig.getSettings(id);");
-      w.block("if (settings != null)", () => w.line("_view.applyConfig(settings);"));
+    w.blockIf(level ? "if (Application has :WatchFaceConfig)" : null, () => {
+      w.line("var id = options[:configId] as WatchFaceConfig.Id?;");
+      w.block("if (id != null)", () => {
+        w.line("var settings = WatchFaceConfig.getSettings(id);");
+        w.block("if (settings != null)", () => w.line("_view.applyConfig(settings);"));
+      });
     });
   });
   w.blank();
@@ -89,10 +99,10 @@ export function emitDelegate(resolved: ResolvedFace, guards: Guards = NO_GUARDS)
       if (needsView) w.line("_view = view;");
     });
     w.blank();
-    if (hasConfig) emitOnWatchFaceConfigEdited(w, slots.length > 0);
+    if (hasConfig) emitOnWatchFaceConfigEdited(w, slots.length > 0, guards);
     if (slots.length > 0) {
-      emitOnTap(w, slots);
-      emitGetComplicationDrawable(w);
+      emitOnTap(w, slots, guards);
+      emitGetComplicationDrawable(w, guards);
     }
     w.doc("A touch and hold -- the only gesture a live watch face receives.\n"
       + "\n"
@@ -127,7 +137,7 @@ export function emitDelegate(resolved: ResolvedFace, guards: Guards = NO_GUARDS)
           w.block(condition, () => {
             if (guards.complications) {
               w.line(`var id = _view.${dataHoldMethod(element.id)}();`);
-              emitExitTo(w, "id", "id != null");
+              emitExitTo(w, "id", "(Toybox has :Complications) && id != null");
             } else {
               emitExitTo(w, `_view.${dataHoldMethod(element.id)}()`);
             }
@@ -145,7 +155,7 @@ export function emitDelegate(resolved: ResolvedFace, guards: Guards = NO_GUARDS)
   return { path: `source/${face.entry}Delegate.mc`, text: w.render() };
 }
 
-function emitOnTap(w: Writer, slots: readonly EditorSlot[]): void {
+function emitOnTap(w: Writer, slots: readonly EditorSlot[], guards: Guards): void {
   w.doc("Only fires inside the on-device config editor (research 07 1a) -- tells\n"
     + "it which slot was pointed at, exactly the SDK sample's own\n"
     + "ConfigurationWatchFaceDelegate.onTap: the smallest slot box holding the\n"
@@ -171,23 +181,27 @@ function emitOnTap(w: Writer, slots: readonly EditorSlot[]): void {
     }
     w.blank();
     w.block("if (chosen == 0)", () => w.line("return false;"));
-    w.line("setSelectedComplication(chosen);");
+    w.blockIf(guards.editor_level ? "if (WatchUi.WatchFaceDelegate has :setSelectedComplication)" : null,
+      () => w.line("setSelectedComplication(chosen);"));
     w.line("return true;");
   });
   w.blank();
 }
 
-function emitGetComplicationDrawable(w: Writer): void {
+function emitGetComplicationDrawable(w: Writer, guards: Guards): void {
   w.doc("Only fires inside the on-device config editor: hands back a Drawable the\n"
     + "system animates while the wearer picks a new value for one slot.\n"
     + "\n"
     + "Seen on a fenix8solar47mm: the highlight animates over the slot and\n"
     + "previews each choice.  A watch with no editor never calls this.");
   w.block("function getComplicationDrawable(complication as ComplicationRef)\n        as Drawable or WatchUi.ComplicationDrawableRef or Null", () => {
-    w.line("var unique = complication.uniqueIdentifier;");
-    w.block("if (unique == null)", () => w.line("return null;"));
-    w.line("_view.setPulsing(unique);");
-    w.line("return _view.drawableFor(unique);");
+    w.blockIf(guards.editor_level ? "if (Application has :WatchFaceConfig)" : null, () => {
+      w.line("var unique = complication.uniqueIdentifier;");
+      w.block("if (unique == null)", () => w.line("return null;"));
+      w.line("_view.setPulsing(unique);");
+      w.line("return _view.drawableFor(unique);");
+    });
+    if (guards.editor_level) w.line("return null;");
   });
   w.blank();
 }

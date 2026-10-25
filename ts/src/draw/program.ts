@@ -344,9 +344,9 @@ export const LetSlotPick = (field: string, module: string, guarded: boolean, sam
   ({ t: "LetSlotPick", field, module, guarded, sample, scale });
 
 /** `max: auto`'s scale. */
-export interface LetAutoScale { t: "LetAutoScale"; reader: string; module: string; constant: string; type_name: string; value: Expression }
-export const LetAutoScale = (reader: string, module: string, constant: string, typeName: string, value: Expression): LetAutoScale =>
-  ({ t: "LetAutoScale", reader, module, constant, type_name: typeName, value });
+export interface LetAutoScale { t: "LetAutoScale"; reader: string; module: string; constant: string; type_name: string; value: Expression; guarded: boolean }
+export const LetAutoScale = (reader: string, module: string, constant: string, typeName: string, value: Expression, guarded = false): LetAutoScale =>
+  ({ t: "LetAutoScale", reader, module, constant, type_name: typeName, value, guarded });
 
 export interface Return { t: "Return" }
 export const Return = (): Return => ({ t: "Return" });

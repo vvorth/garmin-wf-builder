@@ -127,6 +127,15 @@ Jungle/manifest/compiler-flag findings are in `docs/lore/codegen.md`.
   api-gating/`, 2026-09-15). UNVERIFIED at runtime on real hardware that
   lacks the module — the SDK docs' idiom, not observed (no simulator in
   this container).
+- **Since SDK 9.3.0 a symbol newer than the device's API level needs an
+  enclosing `has` check naming it or its module or class**
+  (`docs/lore/platform-constraints.md`, 6d; the forms, case by case, in
+  `docs/research/probes/sdk93-has-guards/`). Write the check at the use:
+  `if (Toybox has :Complications) {...}`, `(System has :DISPLAY_MODE_OFF) &&
+  ...`, a ternary's condition. A check kept in a local, an early return on
+  its negation, a check in the caller and `self has :method` are not seen.
+  A barrel function needs its own check even when every caller has one.
+  Types (`as Complications.Id`) are not checked.
 - **`%` truncates, and refuses a Float** (`docs/research/probes/math-parity/`,
   2026-09-24). `monkeyc`'s own constant folder turns `-7 % 3` into `-1` and
   `7 % -3` into `1`, so the remainder takes the dividend's sign, unlike

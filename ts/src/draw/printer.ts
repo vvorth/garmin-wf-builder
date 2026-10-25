@@ -107,7 +107,7 @@ function printOp(w: Writer, op: Op, aod: AodStyle): void {
       break;
     case "SlotSeriesRebuild":
       w.line(`var chosenId = ${op.field};`);
-      w.line(op.guarded ? "var chosenType = (chosenId != null) ? chosenId.getType() : null;" : "var chosenType = chosenId.getType();");
+      w.line(op.guarded ? "var chosenType = ((Toybox has :Complications) && chosenId != null) ? chosenId.getType() : null;" : "var chosenType = chosenId.getType();");
       w.line("var graphMinute = System.getClockTime().min;");
       w.block(`if (graphMinute != ${op.built} || chosenType != ${op.type_field})`, () => {
         w.line(`${op.built} = graphMinute;`);
@@ -140,7 +140,7 @@ function printOp(w: Writer, op: Op, aod: AodStyle): void {
       w.comment("the icon is chosen from the wearer's picked *type*, so it still shows");
       w.comment("even on a frame the reading itself could not be pulled -- a name,");
       w.comment("then IconGlyphs.glyph turns it into the actual character");
-      w.line(op.guarded ? `var iconName = (chosenId != null) ? ${op.method}(chosenId.getType(), pulled) : null;`
+      w.line(op.guarded ? `var iconName = ((Toybox has :Complications) && chosenId != null) ? ${op.method}(chosenId.getType(), pulled) : null;`
         : `var iconName = ${op.method}(chosenId.getType(), pulled);`);
       w.line("var iconGlyph = (iconName != null) ? IconGlyphs.glyph(iconName) : null;");
       w.blank();
@@ -159,7 +159,7 @@ function printOp(w: Writer, op: Op, aod: AodStyle): void {
     case "LetSlotPick":
       w.line(`var chosenId = ${op.field};`);
       if (op.guarded) {
-        w.line("var chosenType = (chosenId != null) ? chosenId.getType() : null;");
+        w.line("var chosenType = ((Toybox has :Complications) && chosenId != null) ? chosenId.getType() : null;");
         w.line("var pulled = (chosenId != null) ? WfbComplications.valueOf(chosenId) : null;");
       } else {
         w.line("var chosenType = chosenId.getType();");
@@ -168,7 +168,7 @@ function printOp(w: Writer, op: Op, aod: AodStyle): void {
       w.line(`var scale = (chosenType != null && pulled != null) ? ${op.module}.scale(chosenType, pulled) : null;`);
       break;
     case "LetAutoScale":
-      w.line(`var scale = (${op.reader} != null) ? ${op.module}.scale(Complications.${op.constant}, ${op.reader}) : null;`);
+      w.line(`var scale = (${op.guarded ? "(Toybox has :Complications) && " : ""}${op.reader} != null) ? ${op.module}.scale(Complications.${op.constant}, ${op.reader}) : null;`);
       break;
     case "VisibleGuard": {
       const e = op.expr;
@@ -227,8 +227,7 @@ function printSlotText(w: Writer, op: SlotText): void {
   };
   w.line('var text = "";');
   const unit = op.unit ? "true" : "false", short = op.short ? "true" : "false";
-  w.block(op.guarded ? "if (pulled == null || chosenId == null)" : "if (pulled == null)", absent);
-  w.block("else", () => {
+  const present = (): void => {
     w.line(`var reading = ${op.module}.reading(chosenId.getType(), pulled, ${unit}, ${short});`);
     w.block("if (reading == null)", absent);
     w.block("else", () => {
@@ -242,7 +241,15 @@ function printSlotText(w: Writer, op: SlotText): void {
       }
       w.line("text += reading;");
     });
-  });
+  };
+  if (op.guarded) {
+    // the module check encloses the reading, so monkeyc 9.3.0 accepts the Complications calls in it
+    w.block("if ((Toybox has :Complications) && pulled != null && chosenId != null)", present);
+    w.block("else", absent);
+  } else {
+    w.block("if (pulled == null)", absent);
+    w.block("else", present);
+  }
   w.blank();
 }
 

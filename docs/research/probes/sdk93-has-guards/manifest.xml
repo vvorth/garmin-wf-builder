@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<iq:manifest version="3" xmlns:iq="http://www.garmin.com/xml/connectiq">
+    <iq:application id="7b3e9c712f844b6d9e107c8a2d4f61b9" type="watchface" name="@Strings.AppName"
+                    entry="ProbeApp" launcherIcon="@Drawables.LauncherIcon" minApiLevel="3.1.0">
+        <iq:products>
+            <iq:product id="venu"/>
+            <iq:product id="venusq2"/>
+            <iq:product id="fr955"/>
+            <iq:product id="fenix8solar47mm"/>
+        </iq:products>
+        <iq:permissions>
+            <iq:uses-permission id="ComplicationSubscriber"/>
+        </iq:permissions>
+        <iq:languages><iq:language>eng</iq:language></iq:languages>
+        <iq:barrels/>
+    </iq:application>
+</iq:manifest>

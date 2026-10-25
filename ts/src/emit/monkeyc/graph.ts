@@ -68,7 +68,8 @@ function emitSlotGraphRebuild(w: Writer, element: Graph, guards: Guards): void {
   w.doc(`Recompute \`${element.id}\`'s series for type \`t\`, picked in slot ${quoted(element.slot)}.`);
   w.block(`private function ${graphRebuildMethod(element.id)}(t as Complications.Type or Null) as Void`, () => {
     for (const pick of element.slot_picks) {
-      w.block(`if (t == Complications.${complications.TYPES.get(pick.pick.type)!.constant})`, () => {
+      const picked = `t == Complications.${complications.TYPES.get(pick.pick.type)!.constant}`;
+      w.block(guards.complications ? `if ((Toybox has :Complications) && ${picked})` : `if (${picked})`, () => {
         w.comment(`${complications.label(pick.pick.type)}: ${pick.pick.span}`);
         emitSlotPick(w, element, pick, guards);
         w.line("return;");
@@ -131,7 +132,8 @@ function emitArrayAcquire(w: Writer, src: SeriesDef, n: number, guards: Guards):
   w.line(guarded ? `var raw = (Toybox has :${module}) ? ${info.call} : null;` : `var raw = ${info.call};`);
   w.line(`var out = new [${n}] as Array<Float?>;`);
   w.block(`for (var i = 0; i < ${n}; i += 1)`, () => w.line("out[i] = null;"));
-  w.blockIf(info.arrayNullable || guarded ? "if (raw != null)" : null, () => {
+  // the module check encloses the samples' fields too, which monkeyc 9.3.0 wants on a target without the module
+  w.blockIf(guarded ? `if ((Toybox has :${module}) && raw != null)` : info.arrayNullable ? "if (raw != null)" : null, () => {
     w.line(`var count = WfbSeries.min(${n}, raw.size());`);
     w.block("for (var i = 0; i < count; i += 1)", () => {
       if (info.newestFirst) {

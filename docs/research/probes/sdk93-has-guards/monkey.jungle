@@ -1,0 +1,7 @@
+project.manifest = manifest.xml
+project.typecheck = strict
+project.optimization = 3z
+base.sourcePath = source
+# X1: a method annotated (:editor) is compiled out where the editor is absent
+venu.excludeAnnotations = editor
+venusq2.excludeAnnotations = editor

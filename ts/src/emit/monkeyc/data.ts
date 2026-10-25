@@ -44,7 +44,8 @@ export function emitPulsingField(w: WriterType): void {
 }
 
 /** `setPulsing`/`drawSlot`/`drawableFor`, and one `drawSlot<Name>` per slot. */
-export function emitDataEditorMethods(w: WriterType, resolved: ResolvedFace, plan: ReadPlan, slots: readonly EditorSlot[]): void {
+export function emitDataEditorMethods(w: WriterType, resolved: ResolvedFace, plan: ReadPlan, slots: readonly EditorSlot[],
+  guards: Guards = NO_GUARDS): void {
   const face = resolved.face;
   const placedById = new Map(resolved.items.map((p) => [p.id, p]));
   w.doc("The native editor is telling this view which slot it is about to animate,\nor, with 0, that none is being animated any more.\n\n"
@@ -99,14 +100,23 @@ export function emitDataEditorMethods(w: WriterType, resolved: ResolvedFace, pla
       }
     });
     w.block("if (drawable == null)", () => w.line("return null;"));
-    w.line("return new WatchUi.ComplicationDrawableRef(");
-    w.line("    { :drawable => drawable, :boundingBox => drawable.boundingBox() });");
+    if (guards.editor_level) {
+      // a target older than the native editor needs these inside checks for monkeyc 9.3.0
+      w.line("var box = drawable.boundingBox();");
+      w.block("if ((WatchUi has :ComplicationDrawableRef) && box != null)", () => {
+        w.line("return new WatchUi.ComplicationDrawableRef({ :drawable => drawable, :boundingBox => box });");
+      });
+      w.line("return null;");
+    } else {
+      w.line("return new WatchUi.ComplicationDrawableRef(");
+      w.line("    { :drawable => drawable, :boundingBox => drawable.boundingBox() });");
+    }
   });
   w.blank();
 }
 
 /** `source/<Face>SlotDrawable.mc`: the stand-in the native editor animates, drawing through the view. */
-export function emitSlotDrawable(face: Face): SourceFile {
+export function emitSlotDrawable(face: Face, guards: Guards = NO_GUARDS): SourceFile {
   const w = new Writer();
   w.doc(header(face)).blank();
   w.lines("import Toybox.Graphics;", "import Toybox.Lang;", "import Toybox.WatchUi;").blank();
@@ -126,14 +136,27 @@ export function emitSlotDrawable(face: Face): SourceFile {
       w.line("_unique = unique;");
     });
     w.blank();
-    w.block("function boundingBox() as Graphics.BoundingBox", () => {
-      w.line("var box = new Graphics.BoundingBox();");
-      w.line("box.addRectangle(locX.toNumber(), locY.toNumber(), width.toNumber(), height.toNumber());");
-      w.line("return box;");
-    });
+    if (guards.editor_level) {
+      // a target older than the native editor needs the class inside a check for monkeyc 9.3.0
+      w.block("function boundingBox() as Graphics.BoundingBox?", () => {
+        w.block("if (Graphics has :BoundingBox)", () => {
+          w.line("var box = new Graphics.BoundingBox();");
+          w.line("box.addRectangle(locX.toNumber(), locY.toNumber(), width.toNumber(), height.toNumber());");
+          w.line("return box;");
+        });
+        w.line("return null;");
+      });
+    } else {
+      w.block("function boundingBox() as Graphics.BoundingBox", () => {
+        w.line("var box = new Graphics.BoundingBox();");
+        w.line("box.addRectangle(locX.toNumber(), locY.toNumber(), width.toNumber(), height.toNumber());");
+        w.line("return box;");
+      });
+    }
     w.blank();
     w.block("function draw(dc as Dc) as Void", () => {
-      w.block("if (!isVisible)", () => w.line("return;"));
+      // isVisible dates from API 3.3.0: an older target needs it inside a check for monkeyc 9.3.0
+      w.block(guards.drawable_visible_level ? "if ((WatchUi.Drawable has :isVisible) && !isVisible)" : "if (!isVisible)", () => w.line("return;"));
       w.line("_view.drawSlot(dc, _unique);");
     });
   });
@@ -219,7 +242,9 @@ function emitConditionTable(w: WriterType, method: string, short: boolean): void
 }
 
 /** `source/SlotText.mc`: a data element's reading as the text it draws, one rule per type. */
-export function emitSlotText(face: Face): SourceFile {
+export function emitSlotText(face: Face, guards: Guards = NO_GUARDS): SourceFile {
+  // A target without the module, or older than a type named below, needs every use inside a check of its own.
+  const moduleCheck = guards.complications ? "if (Toybox has :Complications)" : null;
   const names = slotReadingTypes(face);
   const kinds = new Map(names.map((name) => [name, complications.READING.get(name)!]));
   const constant = new Map(names.map((name) => [name, `Complications.${complications.TYPES.get(name)!.constant}`]));
@@ -232,51 +257,54 @@ export function emitSlotText(face: Face): SourceFile {
   w.block(`module ${SLOT_TEXT_MODULE}`, () => {
     w.doc("The pulled complication `c`, of type `t`, as display text, or null when\nit has no reading.  `unit` and `short` are the element's own keys.");
     w.block("function reading(t as Complications.Type, c as Complications.Complication,\n                     unit as Boolean, short as Boolean) as String?", () => {
-      w.line("var value = c.value;");
-      w.block("if (value == null)", () => w.line("return null;"));
-      w.block("if (value instanceof Lang.String)", () => {
-        const stringCases = new Map<string, string>();
-        for (const name of names) {
-          const shortened = ({ training_status: "trainingShort(value)", high_low: "WfbReading.highLowShort(value)" } as Record<string, string>)[kinds.get(name)!];
-          const variants = wordedVariants(face, kinds.get(name)!);
-          if (shortened !== undefined && variants.has(true)) stringCases.set(name, variantExpression(variants, shortened, "value"));
-        }
-        if (stringCases.size > 0) {
+      w.blockIf(moduleCheck, () => {
+        w.line("var value = c.value;");
+        w.block("if (value == null)", () => w.line("return null;"));
+        w.block("if (value instanceof Lang.String)", () => {
+          const stringCases = new Map<string, string>();
+          for (const name of names) {
+            const shortened = ({ training_status: "trainingShort(value)", high_low: "WfbReading.highLowShort(value)" } as Record<string, string>)[kinds.get(name)!];
+            const variants = wordedVariants(face, kinds.get(name)!);
+            if (shortened !== undefined && variants.has(true)) stringCases.set(name, variantExpression(variants, shortened, "value"));
+          }
+          if (stringCases.size > 0) {
+            w.block("switch (t)", () => {
+              for (const [name, expression] of stringCases) w.line(`case ${constant.get(name)}: return ${expression};`);
+            });
+          }
+          w.line("return value;");
+        });
+        if (names.some((n) => READS_SETTINGS.has(kinds.get(n)!))) w.line("var settings = System.getDeviceSettings();");
+        const numeric = names.filter((n) => !(complications.WORDED.has(kinds.get(n)!) && kinds.get(n) !== "condition"));
+        if (numeric.length > 0) {
+          const groups = new Map<string, string[]>();
+          for (const name of numeric) {
+            const kind = kinds.get(name)!;
+            let expression: string;
+            if (kind === "count") {
+              const suffix = complications.COUNT_UNIT.get(name) ?? "";
+              expression = !suffix ? "WfbReading.count(value, c.unit, short)"
+                : `WfbReading.suffixed(WfbReading.count(value, c.unit, short), unit ? "${suffix}" : "", short)`;
+            } else if (kind === "condition") {
+              expression = variantExpression(conditions, "conditionShort(value.toNumber())", "conditionName(value.toNumber())");
+            } else {
+              expression = NUMERIC_READING[kind]!;
+            }
+            if (!groups.has(expression)) groups.set(expression, []);
+            groups.get(expression)!.push(name);
+          }
           w.block("switch (t)", () => {
-            for (const [name, expression] of stringCases) w.line(`case ${constant.get(name)}: return ${expression};`);
+            for (const [expression, members] of groups) {
+              for (const name of members.slice(0, -1)) w.line(`case ${constant.get(name)}:`);
+              w.line(`case ${constant.get(members[members.length - 1]!)}: return ${expression};`);
+            }
           });
         }
-        w.line("return value;");
+        w.comment("no rule of its own: an app's complication, under choices: any");
+        w.line("return WfbReading.suffixed(WfbReading.formatValue(value),");
+        w.line('        unit ? WfbReading.unitSuffix(c.unit) : "", short);');
       });
-      if (names.some((n) => READS_SETTINGS.has(kinds.get(n)!))) w.line("var settings = System.getDeviceSettings();");
-      const numeric = names.filter((n) => !(complications.WORDED.has(kinds.get(n)!) && kinds.get(n) !== "condition"));
-      if (numeric.length > 0) {
-        const groups = new Map<string, string[]>();
-        for (const name of numeric) {
-          const kind = kinds.get(name)!;
-          let expression: string;
-          if (kind === "count") {
-            const suffix = complications.COUNT_UNIT.get(name) ?? "";
-            expression = !suffix ? "WfbReading.count(value, c.unit, short)"
-              : `WfbReading.suffixed(WfbReading.count(value, c.unit, short), unit ? "${suffix}" : "", short)`;
-          } else if (kind === "condition") {
-            expression = variantExpression(conditions, "conditionShort(value.toNumber())", "conditionName(value.toNumber())");
-          } else {
-            expression = NUMERIC_READING[kind]!;
-          }
-          if (!groups.has(expression)) groups.set(expression, []);
-          groups.get(expression)!.push(name);
-        }
-        w.block("switch (t)", () => {
-          for (const [expression, members] of groups) {
-            for (const name of members.slice(0, -1)) w.line(`case ${constant.get(name)}:`);
-            w.line(`case ${constant.get(members[members.length - 1]!)}: return ${expression};`);
-          }
-        });
-      }
-      w.comment("no rule of its own: an app's complication, under choices: any");
-      w.line("return WfbReading.suffixed(WfbReading.formatValue(value),");
-      w.line('        unit ? WfbReading.unitSuffix(c.unit) : "", short);');
+      if (moduleCheck !== null) w.line("return null;");
     });
     w.blank();
     const tagged = prefixedTypes(face);
@@ -290,12 +318,12 @@ export function emitSlotText(face: Face): SourceFile {
           groups.get(tag)!.push(name);
         }
         if (groups.size > 0) {
-          w.block("switch (t)", () => {
+          w.blockIf(moduleCheck, () => w.block("switch (t)", () => {
             for (const [tag, members] of groups) {
               for (const name of members.slice(0, -1)) w.line(`case ${constant.get(name)}:`);
               w.line(`case ${constant.get(members[members.length - 1]!)}: return "${tag}";`);
             }
-          });
+          }));
         }
         w.line("return null;");
       });
@@ -331,7 +359,7 @@ export function emitDataHoldMethod(w: WriterType, elementId: string, slot: strin
 const CONDITION_READER: ReadonlyMap<string, string> = new Map([["weather.condition", "current"], ["weather.condition_today", "today"]]);
 
 /** `iconFor<Id>(t)`: slot `slotName`'s picked type to its icon's catalogue name, for element `elementId`. */
-export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elementId: string, slotName: string): void {
+export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elementId: string, slotName: string, guards: Guards = NO_GUARDS): void {
   const slot = resolved.face.config_data.get(slotName)!;
   const mapped = slot.icons;
   const names = slot.choices !== "any" ? slot.choices : sortedNames(mapped.keys());
@@ -343,28 +371,32 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
     + "A weather type's icon follows the pulled condition when there is one,\n"
     + "and a count's empties when the pulled count is 0.");
   w.block(`private function ${dataIconMethod(elementId)}(t as Complications.Type,\n            pulled as Complications.Complication?) as String?`, () => {
-    if (zero.size > 0 || [...follows].some((name) => complications.ICON_CONDITION.get(name) === null)) w.line("var value = (pulled != null) ? pulled.value : null;");
-    w.block("switch (t)", () => {
-      for (const name of names) {
-        const icon = mapped.get(name);
-        if (icon === undefined) continue;
-        const ctype = complications.TYPES.get(name)!;
-        const source = complications.ICON_CONDITION.get(name);
-        if (follows.has(name) && source !== null && source !== undefined) {
-          // A temperature carries no condition: read the one it follows beside it.
-          const reader = CONDITION_READER.get(source);
-          if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${source}`);
-          w.line(`case Complications.${ctype.constant}: return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");`);
-        } else if (zero.has(name)) {
-          w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number && value == 0) ? "${complications.ICON_WHEN_ZERO.get(name)}" : "${icon.key}";`);
-        } else if (follows.has(name)) {
-          w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? WfbWeather.chooseIcon(value) : "${icon.key}";`);
-        } else {
-          w.line(`case Complications.${ctype.constant}: return "${icon.key}";`);
+    // a target without the module, or older than a type below, needs the switch inside a check of its own
+    w.blockIf(guards.complications ? "if (Toybox has :Complications)" : null, () => {
+      if (zero.size > 0 || [...follows].some((name) => complications.ICON_CONDITION.get(name) === null)) w.line("var value = (pulled != null) ? pulled.value : null;");
+      w.block("switch (t)", () => {
+        for (const name of names) {
+          const icon = mapped.get(name);
+          if (icon === undefined) continue;
+          const ctype = complications.TYPES.get(name)!;
+          const source = complications.ICON_CONDITION.get(name);
+          if (follows.has(name) && source !== null && source !== undefined) {
+            // A temperature carries no condition: read the one it follows beside it.
+            const reader = CONDITION_READER.get(source);
+            if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${source}`);
+            w.line(`case Complications.${ctype.constant}: return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");`);
+          } else if (zero.has(name)) {
+            w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number && value == 0) ? "${complications.ICON_WHEN_ZERO.get(name)}" : "${icon.key}";`);
+          } else if (follows.has(name)) {
+            w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? WfbWeather.chooseIcon(value) : "${icon.key}";`);
+          } else {
+            w.line(`case Complications.${ctype.constant}: return "${icon.key}";`);
+          }
         }
-      }
-      w.line("default: return null;");
+        w.line("default: return null;");
+      });
     });
+    if (guards.complications) w.line("return null;");
   });
   w.blank();
 }

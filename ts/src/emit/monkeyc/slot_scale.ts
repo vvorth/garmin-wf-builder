@@ -1,5 +1,6 @@
 // `source/SlotScale.mc`: a gauge's automatic scale for the complication
 // type it shows.
+import { type Guards, NO_GUARDS } from "../../availability.ts";
 import * as complications from "../../complications.ts";
 import { type Face, Gauge } from "../../ir/model.ts";
 import { floatRepr } from "../../py.ts";
@@ -22,8 +23,13 @@ function vo2maxEnds(): number[] {
   return ends;
 }
 
-/** The module's source: a case for each of `names` with a scale, and with `apps`, one for an app's complication. */
-export function slotScaleText(names: Iterable<string>, apps: boolean, headerText: string): string {
+/**
+ * The module's source: a case for each of `names` with a scale, and with
+ * `apps`, one for an app's complication; `guarded` puts the switch inside a
+ * `Toybox has :Complications`, for a target without the module or older than
+ * a type it names.
+ */
+export function slotScaleText(names: Iterable<string>, apps: boolean, headerText: string, guarded = false): string {
   const scaled = [...new Set(names)].sort().filter((name) => complications.SCALE.has(name));
   const byKind = new Map<string, string[]>();
   for (const name of scaled) {
@@ -47,42 +53,42 @@ export function slotScaleText(names: Iterable<string>, apps: boolean, headerText
     w.doc("`[minimum, maximum]` for the pulled complication `c`, of type `t`, or\nnull when it has no scale.");
     w.block("function scale(t as Complications.Type, c as Complications.Complication)\n        as Array<Numeric>?", () => {
       if (byKind.has("goal")) w.line("var info = ActivityMonitor.getInfo();");
-      w.block("switch (t)", () => {
-        const fixed = new Map<string, [number, number, string[]]>();
-        for (const name of byKind.get("fixed") ?? []) {
-          const scale = complications.SCALE.get(name)!;
-          const key = `${scale.minimum}\0${scale.maximum}`;
-          if (!fixed.has(key)) fixed.set(key, [scale.minimum, scale.maximum, []]);
-          fixed.get(key)![2].push(name);
-        }
-        for (const [low, high, group] of fixed.values()) {
-          for (const name of group) w.line(caseOf(name));
-          w.line(`    return [${figure(low)}, ${figure(high)}] as Array<Numeric>;`);
-        }
-        for (const name of byKind.get("goal") ?? []) {
-          const field = complications.SCALE.get(name)!.goal;
-          w.line(caseOf(name));
-          w.line(`    return WfbScale.upTo((info has :${field}) ? info.${field} : null);`);
-        }
-        for (const name of byKind.get("heart_rate_zones") ?? []) {
-          w.line(caseOf(name));
-          w.line("    return WfbProfileScale.heartRate();");
-        }
-        for (const name of byKind.get("vo2max") ?? []) w.line(caseOf(name));
-        if (byKind.has("vo2max")) w.line("    return WfbProfileScale.vo2max(VO2MAX_ENDS, c);");
-        if (apps) {
-          w.line("case Complications.COMPLICATION_TYPE_INVALID:");
-          w.line("    return WfbScale.ranges(c);");
-        }
-      });
+      w.blockIf(guarded ? "if (Toybox has :Complications)" : null, () => w.block("switch (t)", () => {
+          const fixed = new Map<string, [number, number, string[]]>();
+          for (const name of byKind.get("fixed") ?? []) {
+            const scale = complications.SCALE.get(name)!;
+            const key = `${scale.minimum}\0${scale.maximum}`;
+            if (!fixed.has(key)) fixed.set(key, [scale.minimum, scale.maximum, []]);
+            fixed.get(key)![2].push(name);
+          }
+          for (const [low, high, group] of fixed.values()) {
+            for (const name of group) w.line(caseOf(name));
+            w.line(`    return [${figure(low)}, ${figure(high)}] as Array<Numeric>;`);
+          }
+          for (const name of byKind.get("goal") ?? []) {
+            const field = complications.SCALE.get(name)!.goal;
+            w.line(caseOf(name));
+            w.line(`    return WfbScale.upTo((info has :${field}) ? info.${field} : null);`);
+          }
+          for (const name of byKind.get("heart_rate_zones") ?? []) {
+            w.line(caseOf(name));
+            w.line("    return WfbProfileScale.heartRate();");
+          }
+          for (const name of byKind.get("vo2max") ?? []) w.line(caseOf(name));
+          if (byKind.has("vo2max")) w.line("    return WfbProfileScale.vo2max(VO2MAX_ENDS, c);");
+          if (apps) {
+            w.line("case Complications.COMPLICATION_TYPE_INVALID:");
+            w.line("    return WfbScale.ranges(c);");
+          }
+      }));
       w.line("return null;");
     });
   });
   return w.render();
 }
 
-export function emitSlotScale(face: Face, names: Iterable<string>, apps: boolean): SourceFile {
-  return { path: `source/${SLOT_SCALE_MODULE}.mc`, text: slotScaleText(names, apps, header(face)) };
+export function emitSlotScale(face: Face, names: Iterable<string>, apps: boolean, guards: Guards = NO_GUARDS): SourceFile {
+  return { path: `source/${SLOT_SCALE_MODULE}.mc`, text: slotScaleText(names, apps, header(face), guards.complications) };
 }
 
 /** Every gauge drawing a declared `config: slots:` slot, in draw order. */

@@ -39,13 +39,21 @@ import Toybox.System;
 //! exception leave the device in the exact same state (never subscribed,
 //! every pull still returns null), so there is nothing a `false` branch would
 //! do differently.
+//!
+//! Every use of the module sits inside its own `Toybox has :Complications`,
+//! though the generated code only calls in here behind one: SDK 9.3.0's
+//! `monkeyc` rejects a symbol newer than a device's API level unless a `has`
+//! check naming it, or its module, encloses the use itself
+//! (docs/lore/platform-constraints.md, 6d).
 module WfbComplications {
 
     function subscribe(id as Complications.Id) as Void {
-        try {
-            Complications.subscribeToUpdates(id);
-        } catch (ex instanceof Complications.ComplicationNotFoundException) {
-            System.println("wfb: complication not available on this device: " + ex.getErrorMessage());
+        if (Toybox has :Complications) {
+            try {
+                Complications.subscribeToUpdates(id);
+            } catch (ex instanceof Complications.ComplicationNotFoundException) {
+                System.println("wfb: complication not available on this device: " + ex.getErrorMessage());
+            }
         }
     }
 
@@ -58,11 +66,14 @@ module WfbComplications {
     //! type reads as `null` instead of taking the face down -- the caller
     //! treats that the same as any other absent nullable source.
     function valueOf(id as Complications.Id) as Complications.Complication? {
-        try {
-            return Complications.getComplication(id);
-        } catch (ex instanceof Complications.ComplicationNotFoundException) {
-            return null;
+        if (Toybox has :Complications) {
+            try {
+                return Complications.getComplication(id);
+            } catch (ex instanceof Complications.ComplicationNotFoundException) {
+                return null;
+            }
         }
+        return null;
     }
 
     //! A count-type complication's value, as the count itself.  A device may
@@ -73,12 +84,15 @@ module WfbComplications {
     //! precision reads one low for some counts (16,001 is the first); rounding
     //! recovers every count to 199,999.  Anything else is returned as it came.
     function count(c as Complications.Complication) as Number? {
-        var value = c.value;
-        var unit = c.unit;
-        if (value != null && !(value instanceof Lang.String) && !(value instanceof Lang.Number)
-                && unit instanceof Lang.String && unit.equals("K")) {
-            return ((value as Numeric).toFloat() * 1000 + 0.5).toNumber();
+        if (Toybox has :Complications) {
+            var value = c.value;
+            var unit = c.unit;
+            if (value != null && !(value instanceof Lang.String) && !(value instanceof Lang.Number)
+                    && unit instanceof Lang.String && unit.equals("K")) {
+                return ((value as Numeric).toFloat() * 1000 + 0.5).toNumber();
+            }
+            return value as Number?;
         }
-        return value as Number?;
+        return null;
     }
 }

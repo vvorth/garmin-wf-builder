@@ -22,16 +22,20 @@ module WfbScale {
     //! while it has no numeric reading.  A count the device scaled to
     //! thousands (the String unit "K") is multiplied back first.
     function fraction(c as Complications.Complication, scale as Array<Numeric>) as Float? {
-        var value = c.value;
-        if (value == null || value instanceof Lang.String) {
-            return null;
+        // monkeyc 9.3.0 rejects the module's members below its API level without this check
+        if (Toybox has :Complications) {
+            var value = c.value;
+            if (value == null || value instanceof Lang.String) {
+                return null;
+            }
+            var reading = value.toFloat();
+            var unit = c.unit;
+            if (!(value instanceof Lang.Number) && unit instanceof Lang.String && unit.equals("K")) {
+                reading = reading * 1000;
+            }
+            return share(reading, scale);
         }
-        var reading = value.toFloat();
-        var unit = c.unit;
-        if (!(value instanceof Lang.Number) && unit instanceof Lang.String && unit.equals("K")) {
-            reading = reading * 1000;
-        }
-        return share(reading, scale);
+        return null;
     }
 
     //! How full a gauge on `scale` is for a reading already in the scale's
@@ -48,14 +52,17 @@ module WfbScale {
     //! An app complication's own `ranges`, first value to last.  Garmin's
     //! native types leave `ranges` null.
     function ranges(c as Complications.Complication) as Array<Numeric>? {
-        var r = c.ranges;
-        if (r == null || r.size() < 2) {
-            return null;
+        if (Toybox has :Complications) {
+            var r = c.ranges;
+            if (r == null || r.size() < 2) {
+                return null;
+            }
+            var last = r[r.size() - 1];
+            if (r[0] >= last) {
+                return null;
+            }
+            return [r[0], last] as Array<Numeric>;
         }
-        var last = r[r.size() - 1];
-        if (r[0] >= last) {
-            return null;
-        }
-        return [r[0], last] as Array<Numeric>;
+        return null;
     }
 }

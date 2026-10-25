@@ -105,11 +105,11 @@ export function generate(face: Face, devices: Device[], read: FontReader,
   const needsIconGlyphs = [...project.resolved.values()].some((r) => kinds.placedTextRuns(r.items, face).some(([, run]) => run.glyph_table !== null));
   if (needsIconGlyphs) project.sources.push(emitIconGlyphs(face));
   project.sources.push(checkShared(project, (r) => emitView(r, guards, profile)));
-  if (editorSlots(face).length > 0) project.sources.push(emitSlotDrawable(face));
-  if (dataElements(face).length > 0) project.sources.push(emitSlotText(face));
+  if (editorSlots(face).length > 0) project.sources.push(emitSlotDrawable(face, guards));
+  if (dataElements(face).length > 0) project.sources.push(emitSlotText(face, guards));
   if (slotScale.slotGauges(face).length > 0 || slotScale.autoScaleGauges(face).length > 0) {
     const [names, apps] = slotScale.slotScaleTypes(face);
-    project.sources.push(slotScale.emitSlotScale(face, names, apps));
+    project.sources.push(slotScale.emitSlotScale(face, names, apps, guards));
   }
   if (needsDelegate(face)) project.sources.push(checkShared(project, (r) => emitDelegate(r, guards)));
   if (guards.config_menu) project.sources.push(configMenu.emitDelegates(face));

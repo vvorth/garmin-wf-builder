@@ -1,13 +1,17 @@
 // What a design's catalogue bindings and features need from a target
-// device, checked against that device's own symbol table, never an API
-// level.
+// device, checked against that device's own symbol table -- and, for what
+// `monkeyc` itself rejects, against its API level: since SDK 9.3.0 the
+// compiler refuses a symbol documented newer than a device's API level
+// unless a `has` check naming it (or a module or class enclosing it)
+// encloses the use (docs/lore/platform-constraints.md, 6d).
 //
 // Codegen needs the aggregate over a build's targets (`computeGuards`: which
 // guards the one shared view must carry); the lint needs the per-element,
 // per-device detail (`sourceUnavailable`, `readerUnavailable`). A binding a
 // target lacks reads as absent there, like every nullable source.
 import { CATALOG, READERS, type Source } from "./catalog.ts";
-import { Device, DeviceError } from "./devices/device.ts";
+import * as complications from "./complications.ts";
+import { compareVersions, Device, DeviceError } from "./devices/device.ts";
 import { CONFIG_SYMBOL, type Element, type Face, type FontSpec, Graph, overrideKeyFor } from "./ir/model.ts";
 import * as kinds from "./kinds/index.ts";
 import { ACQUISITION } from "./series.ts";
@@ -112,6 +116,49 @@ export function usesComplications(face: Face): boolean {
     || face.walk().some((element) => element.on_hold !== null);
 }
 
+/** The API levels (`Since:` in the SDK's Toybox docs) of what the generated code guards by level. */
+export const SINCE = {
+  /** `Toybox.Complications`, the module itself. */
+  complications: "4.2.0",
+  /** The native editor: `Application.WatchFaceConfig`, `WatchFaceDelegate.setSelectedComplication`, `WatchUi.ComplicationDrawableRef`, `Graphics.BoundingBox.addRectangle`. */
+  editor: "5.1.0",
+  /** `Graphics.ResourceReference`, whose `get` a buffered bitmap's reference inherits. */
+  resource_reference: "4.0.0",
+  /** `WatchUi.Drawable.isVisible`. */
+  drawable_visible: "3.3.0",
+} as const;
+
+/** Every complication type the generated code can name: each slot's choices (all of them under `choices: any`), bound types and hold targets. */
+export function complicationTypesNamed(face: Face): Set<string> {
+  const out = new Set<string>();
+  for (const slot of face.config_data.values()) for (const name of slot.choices === "any" ? complications.TYPES.keys() : slot.choices) out.add(name);
+  const byConstant = new Map([...complications.TYPES.values()].map((t) => [t.constant, t.name]));
+  for (const path of designPaths(face)) {
+    const source = CATALOG.get(path);
+    const constant = source !== undefined ? READERS.get(source.reader)?.complication_type : null;
+    const type = constant ? byConstant.get(constant) : undefined;
+    if (type !== undefined) out.add(type);
+    if (source?.launch_complication && complications.TYPES.get(source.launch_complication) !== undefined) out.add(source.launch_complication);
+  }
+  for (const element of face.walk()) if (element.on_hold !== null && complications.TYPES.get(element.on_hold) !== undefined) out.add(element.on_hold);
+  return out;
+}
+
+/** The newest API level among what the generated code names from `Toybox.Complications`. */
+function complicationsSince(face: Face): string {
+  let since: string = SINCE.complications;
+  for (const name of complicationTypesNamed(face)) {
+    const type = complications.TYPES.get(name);
+    if (type !== undefined && compareVersions(type.since, since) > 0) since = type.since;
+  }
+  return since;
+}
+
+/** Some device in `devices` has an API level below `since`. */
+function predates(devices: readonly Device[], since: string): boolean {
+  return devices.some((d) => compareVersions(d.apiLevel, since) < 0);
+}
+
 /** Every bare `Toybox` module the shared code can guard with `Toybox has :<Module>`. */
 export function modulesUsed(face: Face): Set<string> {
   const modules = new Set<string>();
@@ -135,7 +182,12 @@ export function modulesUsed(face: Face): Set<string> {
 
 /** What the one generated view/delegate, shared across every target, must guard against. */
 export interface Guards {
-  /** Some target lacks `Toybox.Complications`, which the design uses. */
+  /**
+   * Some target lacks `Toybox.Complications`, which the design uses, or its
+   * API level predates a complication type the code names: a
+   * `Toybox has :Complications` check then encloses every use, which
+   * `monkeyc` accepts for any member of the module.
+   */
   complications: boolean;
   /** Bare field names the design reads that some target lacks. */
   fields: ReadonlySet<string>;
@@ -153,6 +205,12 @@ export interface Guards {
   partial_update_unsupported: boolean;
   /** `config:` and some target has the settings menu but no native editor. */
   config_menu: boolean;
+  /** `config:` and some target's API level predates the native editor (`SINCE.editor`): its code carries `has` checks. */
+  editor_level: boolean;
+  /** Some target predates `Graphics.ResourceReference` (`SINCE.resource_reference`). */
+  resource_reference_level: boolean;
+  /** Some target predates `WatchUi.Drawable.isVisible` (`SINCE.drawable_visible`). */
+  drawable_visible_level: boolean;
   /** Elements in the subscreen window, when some target has none. */
   subscreen_hidden: ReadonlySet<string>;
   /** Elements some target hides with `overrides: visible: false`, their subtrees included. */
@@ -162,8 +220,8 @@ export interface Guards {
 /** The "nothing is missing" `Guards`. */
 export const NO_GUARDS: Guards = {
   complications: false, fields: new Set(), vector_fonts: new Set(), amoled_target: false, burn_in_field_guarded: false,
-  display_mode_guarded: false, modules: new Set(), partial_update_unsupported: false, config_menu: false, subscreen_hidden: new Set(),
-  override_hidden: new Set(),
+  display_mode_guarded: false, modules: new Set(), partial_update_unsupported: false, config_menu: false, editor_level: false,
+  resource_reference_level: false, drawable_visible_level: false, subscreen_hidden: new Set(), override_hidden: new Set(),
 };
 
 /** Every element laid out in the subscreen window: each top-level `anchor: subscreen` element and its subtree. */
@@ -212,6 +270,7 @@ function has(device: Device, symbol: string): boolean {
 /** The `Guards` the shared generated code needs for `face`, across every device in a build. */
 export function computeGuards(face: Face, devices: readonly Device[]): Guards {
   const missingModules = new Set([...modulesUsed(face)].filter((m) => devices.some((d) => !d.hasModule(m))));
+  if (usesComplications(face) && predates(devices, complicationsSince(face))) missingModules.add("Complications");
   const missingFields = new Set([...designFields(face)].filter((f) => devices.some((d) => !d.hasField(f))));
   const unavailableVectorFonts = new Set([...vectorFontsUsed(face)]
     .filter(([, spec]) => devices.some((d) => vectorFontFace(spec, d) === "")).map(([name]) => name));
@@ -226,6 +285,9 @@ export function computeGuards(face: Face, devices: readonly Device[]): Guards {
     modules: missingModules,
     partial_update_unsupported: !devices.some((d) => d.supportsPartialUpdate),
     config_menu: face.hasConfig && devices.some((d) => !has(d, CONFIG_SYMBOL) && has(d, SETTINGS_MENU_SYMBOL)),
+    editor_level: face.hasConfig && predates(devices, SINCE.editor),
+    resource_reference_level: predates(devices, SINCE.resource_reference),
+    drawable_visible_level: predates(devices, SINCE.drawable_visible),
     subscreen_hidden: devices.some((d) => d.subscreen === null) ? subscreenElementIds(face) : new Set(),
     override_hidden: overrideHiddenIds(face, devices),
   };

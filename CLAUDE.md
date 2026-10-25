@@ -167,9 +167,11 @@ re-litigate these without new evidence.**
    - **6c.** **A live face gets one gesture: touch and hold (`onPress`).** No
      tap, swipe or keys. `ClickEvent.getCoordinates()` is the only way to
      multiplex it.
-   - **6d.** **`monkeyc` checks the SDK-wide API, not the device's.** A shared
-     view may use target-only APIs guarded at runtime, and nothing but
-     `has_symbol` plus a lint catches an absent symbol.
+   - **6d.** **`monkeyc` checks API levels, not the device's symbol table.**
+     Since SDK 9.3.0 a symbol newer than a device's API level must sit inside
+     an inline `has` check naming it or its module; a shared view may still
+     use target-only APIs, and nothing but `has_symbol` plus a lint catches a
+     symbol the device's own table lacks.
    - **6e.** Modules and fields vary per device too; the shared manifest
      floor stays 3.1.0 and newer APIs are `has`-guarded per device
      (`ts/src/availability.ts`). A device below 3.1.0 is a friendly build

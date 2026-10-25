@@ -247,7 +247,7 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
     }
     emitInitialize(w, face, guards);
     if (aaDefault !== null) emitAntialiasHelper(w);
-    if (face.hasConfig) emitApplyConfig(w, face, statics);
+    if (face.hasConfig) emitApplyConfig(w, face, statics, guards);
     if (guards.config_menu) {
       configMenu.emitViewMethods(w, face, face.entry, {
         repaint: statics !== null ? REPAINT_STATIC_METHOD : null, resolveStyle: RESOLVE_STYLE_METHOD, complicationsGuarded: guards.complications,
@@ -263,14 +263,14 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
     if (plan.complicationReaders().length > 0) emitComplicationCallback(w);
     for (const graph of graphs) emitGraphRebuild(w, graph, guards);
     for (const placed of resolved.items) {
-      if (placed instanceof PlacedData && placed.icon_font_key !== null) emitDataIconMethod(w, resolved, placed.id, placed.element.slot);
+      if (placed instanceof PlacedData && placed.icon_font_key !== null) emitDataIconMethod(w, resolved, placed.id, placed.element.slot, guards);
       if (placed instanceof PlacedIcon && placed.element.slot !== null && resolved.fonts.has(placed.font_key)) {
-        emitDataIconMethod(w, resolved, placed.id, placed.element.slot);
+        emitDataIconMethod(w, resolved, placed.id, placed.element.slot, guards);
       }
       const followed = holdSlot(placed.element);
       if (followed !== null) emitDataHoldMethod(w, placed.id, followed, guards);
     }
-    if (slots.length > 0) emitDataEditorMethods(w, resolved, plan, slots);
+    if (slots.length > 0) emitDataEditorMethods(w, resolved, plan, slots, guards);
     if (statics !== null) emitStaticMethods(w, face, statics, aaDefault, face.hasConfig, guards.config_menu, plan, rings);
     for (const placed of resolved.items) {
       if (placed.kind === "group") continue;
@@ -306,9 +306,11 @@ function emitStaticField(w: Writer, statics: StaticPlan | null): void {
   w.blank();
 }
 
-function emitStaticAllocation(w: Writer): void {
+function emitStaticAllocation(w: Writer, guards: Guards): void {
   w.comment("the static content, painted once into a buffer in the graphics pool");
-  w.block("if (Graphics has :createBufferedBitmap)", () => {
+  // get() is ResourceReference's: a target older than the class needs a check naming it for monkeyc 9.3.0
+  w.block(guards.resource_reference_level ? "if ((Graphics has :createBufferedBitmap) && (Graphics has :ResourceReference))"
+    : "if (Graphics has :createBufferedBitmap)", () => {
     w.line(`${STATIC_FIELD} = Graphics.createBufferedBitmap({`);
     w.line("    :width => dc.getWidth(),");
     w.line("    :height => dc.getHeight()");
@@ -433,54 +435,57 @@ function emitConfigFields(w: Writer, face: Face, guards: Guards): void {
   w.blank();
 }
 
-function emitApplyConfig(w: Writer, face: Face, statics: StaticPlan | null): void {
+function emitApplyConfig(w: Writer, face: Face, statics: StaticPlan | null, guards: Guards): void {
   w.doc("Apply one WatchFaceConfig.Settings snapshot.\n"
     + "\n"
     + "Every field is nullable twice over, so a missing value simply leaves the\n"
     + "existing (defaulted) field alone rather than being treated as an error.");
   w.block("function applyConfig(settings as WatchFaceConfig.Settings) as Void", () => {
-    if (face.config_style !== null) {
-      const styleLocal = localName("config_style");
-      w.line(`var ${styleLocal} = settings.styleId;`);
-      w.block(`if (${styleLocal} != null && ${styleLocal} >= 0 && ${styleLocal} < ${face.config_style.entries.length})`, () => {
-        w.line(`${RESOLVE_STYLE_METHOD}(${styleLocal});`);
-      });
-    }
-    for (const [name, entry] of face.config) {
-      const local = localName(`config_${name}`);
-      w.line(`var ${local} = settings.${entry.axis.settings_field};`);
-      w.block(`if (${local} != null)`, () => {
-        const valueLocal = `${local}Value`;
-        w.line(`var ${valueLocal} = ${local}.color;`);
-        w.block(`if (${valueLocal} != null)`, () => w.line(`${entry.field} = ${valueLocal} as Number;`));
-      });
-    }
-    if (face.config_data.size > 0) {
-      const ids = configDataIds(face);
-      w.blank();
-      w.comment("config: slots: -- each ComplicationRef names the slot it belongs");
-      w.comment("to by 'uniqueIdentifier', matching the <complication id=...> below");
-      w.line("var slots = settings.complicationSettings;");
-      w.block("if (slots != null)", () => {
-        w.block("for (var i = 0; i < slots.size(); i += 1)", () => {
-          w.line("var ref = slots[i];");
-          w.line("var unique = ref.uniqueIdentifier;");
-          w.line("var picked = ref.complicationId;");
-          w.block("if (unique == null || picked == null)", () => w.line("continue;"));
-          for (const [name, slotId] of ids) {
-            const slot = face.config_data.get(name)!;
-            w.block(`if (unique == ${slotId})`, () => w.line(`${slot.field} = picked;`));
-          }
+    // a target older than the native editor needs its members inside a check for monkeyc 9.3.0
+    w.blockIf(guards.editor_level ? "if (Application has :WatchFaceConfig)" : null, () => {
+      if (face.config_style !== null) {
+        const styleLocal = localName("config_style");
+        w.line(`var ${styleLocal} = settings.styleId;`);
+        w.block(`if (${styleLocal} != null && ${styleLocal} >= 0 && ${styleLocal} < ${face.config_style.entries.length})`, () => {
+          w.line(`${RESOLVE_STYLE_METHOD}(${styleLocal});`);
         });
-      });
-    }
-    if (statics !== null) {
-      w.blank();
-      w.comment("a config colour may be painted into the static buffer -- repaint");
-      w.comment("it now so a wearer's change shows without waiting for onLayout");
-      w.line(`${REPAINT_STATIC_METHOD}();`);
-    }
-    w.line("WatchUi.requestUpdate();");
+      }
+      for (const [name, entry] of face.config) {
+        const local = localName(`config_${name}`);
+        w.line(`var ${local} = settings.${entry.axis.settings_field};`);
+        w.block(`if (${local} != null)`, () => {
+          const valueLocal = `${local}Value`;
+          w.line(`var ${valueLocal} = ${local}.color;`);
+          w.block(`if (${valueLocal} != null)`, () => w.line(`${entry.field} = ${valueLocal} as Number;`));
+        });
+      }
+      if (face.config_data.size > 0) {
+        const ids = configDataIds(face);
+        w.blank();
+        w.comment("config: slots: -- each ComplicationRef names the slot it belongs");
+        w.comment("to by 'uniqueIdentifier', matching the <complication id=...> below");
+        w.line("var slots = settings.complicationSettings;");
+        w.block("if (slots != null)", () => {
+          w.block("for (var i = 0; i < slots.size(); i += 1)", () => {
+            w.line("var ref = slots[i];");
+            w.line("var unique = ref.uniqueIdentifier;");
+            w.line("var picked = ref.complicationId;");
+            w.block("if (unique == null || picked == null)", () => w.line("continue;"));
+            for (const [name, slotId] of ids) {
+              const slot = face.config_data.get(name)!;
+              w.block(`if (unique == ${slotId})`, () => w.line(`${slot.field} = picked;`));
+            }
+          });
+        });
+      }
+      if (statics !== null) {
+        w.blank();
+        w.comment("a config colour may be painted into the static buffer -- repaint");
+        w.comment("it now so a wearer's change shows without waiting for onLayout");
+        w.line(`${REPAINT_STATIC_METHOD}();`);
+      }
+      w.line("WatchUi.requestUpdate();");
+    });
   });
   w.blank();
   if (face.config_style !== null) emitResolveStyle(w, face);
@@ -572,7 +577,7 @@ function emitOnLayout(w: Writer, resolved: ResolvedFace, plan: ReadPlan, statics
       }
       if (statics !== null) {
         w.blank();
-        emitStaticAllocation(w);
+        emitStaticAllocation(w, guards);
       }
     });
     w.blank();
@@ -604,7 +609,7 @@ function emitOnLayout(w: Writer, resolved: ResolvedFace, plan: ReadPlan, statics
     }
     if (statics !== null) {
       if (loaded.length > 0 || event.length > 0 || hasConfig) w.blank();
-      emitStaticAllocation(w);
+      emitStaticAllocation(w, guards);
     }
   });
   w.blank();
@@ -758,17 +763,16 @@ function emitFrameReads(w: Writer, plan: ReadPlan, items: readonly Placed[], pre
     return out;
   };
   const shared = plan.readersFor(drawn(items.filter((p) => p.element.layout === null)), aod);
-  let declared: ReadonlySet<string> = new Set();
   if (shared.length > 0) {
     w.comment(comment);
-    declared = plan.emitPulls(w, shared);
+    plan.emitPulls(w, shared);
     w.blank();
   }
   return (run) => {
     const own = plan.readersFor(drawn(run), aod).filter((r) => !shared.includes(r));
     if (own.length > 0) {
       w.comment("data only this layout draws with");
-      plan.emitPulls(w, own, declared);
+      plan.emitPulls(w, own);
       w.blank();
     }
   };
@@ -840,7 +844,8 @@ function emitAodBody(w: Writer, resolved: ResolvedFace, plan: ReadPlan, guards: 
   w.comment("research 11 §6 F: the panel is unlit, so there is nothing to draw --");
   w.comment("not even the black clear below, which an off panel could not show anyway");
   let condition = "System.getDisplayMode() == System.DISPLAY_MODE_OFF";
-  if (guards.display_mode_guarded) condition = `(System has :getDisplayMode) && (${condition})`;
+  // The constant gets its own check too: monkeyc 9.3.0 rejects it on a device without it otherwise.
+  if (guards.display_mode_guarded) condition = `(System has :getDisplayMode) && (System has :DISPLAY_MODE_OFF) && (${condition})`;
   w.block(`if (${condition})`, () => w.line("return;"));
   w.blank();
   w.comment("AOD starts from black: Dc keeps its contents between frames,");

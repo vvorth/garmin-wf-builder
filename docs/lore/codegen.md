@@ -172,8 +172,9 @@ These cost real time to discover; do not rediscover them.
   `guards` parameter to a module-level `_NO_GUARDS` constant so every
   pre-existing caller (every test, any single-device caller) is unaffected.
   Guards are emitted at: `onLayout`'s complication subscribe/register loop,
-  every module-gated reader pull `ReadPlan` writes (one
-  `has<Module>` local per module per frame, not per reader), a forecast
+  every module-gated reader pull `ReadPlan` writes (the check written in
+  each read, `(Toybox has :M) ? call : null`: `monkeyc` 9.3.0 does not see a
+  check kept in a local, constraint 6d), a forecast
   graph's acquisition (`ts/src/emit/monkeyc/graph.ts`), `on_hold:`'s
   `Complications.exitTo` (both the fixed-type and `data`
   `auto` forms), and a `config: data:` slot's `Complications.Id` field. Two
@@ -190,6 +191,23 @@ These cost real time to discover; do not rediscover them.
   consumers: `compute_guards`'s aggregate for codegen, and per-element
   `source_unavailable`/`reader_unavailable` for a lint pass to point at the
   exact YAML line) and `docs/research/probes/api-gating/` for the evidence.
+- **Guards by API level, for `monkeyc` 9.3.0 (constraint 6d).** Besides
+  what a target's symbol table lacks, `computeGuards` turns a guard on when a
+  target's API level predates what the code names: `complications` (and
+  `Complications` in `modules`) also when a level is below the newest
+  `since` among the complication types the face can name
+  (`complicationTypesNamed`: every slot choice, all of them under `choices:
+  any`, bound types and hold targets -- `sleep_score` is 6.0.2, so a `choices:
+  any` slot guards on `fr955`), and `editor_level`,
+  `resource_reference_level`, `drawable_visible_level` from the `SINCE`
+  table in `ts/src/availability.ts`. Each guard is written at the use, never
+  kept in a local: a frame's reads are `(Toybox has :M) ? call : null`, and
+  every function switching on complication types (`SlotText`, `SlotScale`,
+  a slot's icon method, a slot graph's rebuild) puts its body inside
+  `if (Toybox has :Complications)`. A face whose targets all reach every
+  level generates the same view, delegate and modules as before. The barrel (`WfbComplications`,
+  `WfbReading`, `WfbScale`, `WfbProfileScale`, `WfbConditions`) checks
+  unconditionally, since it is one file for every build.
 - **One view and one delegate for every target, and a check that they
   really are shared.** `ts/src/build.ts` resolves each
   target once (`resolve_all`), and `generate(..., resolved=...)`

@@ -29,9 +29,12 @@ module WfbProfileScale {
     //! can read one year high until the birthday.  Null too while `c` reads
     //! 0, which is how a watch reports no VO2 max recorded.
     function vo2max(ends as Array<Float>, c as Complications.Complication) as Array<Numeric>? {
-        var value = c.value;
-        if (value instanceof Lang.Number && value == 0) {
-            return null;
+        // monkeyc 9.3.0 rejects the module's members below its API level without this check
+        if (Toybox has :Complications) {
+            var value = c.value;
+            if (value instanceof Lang.Number && value == 0) {
+                return null;
+            }
         }
         var profile = UserProfile.getProfile();
         var gender = profile.gender;
