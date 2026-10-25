@@ -57,7 +57,8 @@ or AOD-related has been observed on a watch or in the simulator.
   following the watch's units and clock; `unit:` adds each type's unit,
   `prefix:` its tag in front (`HR 72`, `PREFIX` in `ts/src/complications.ts`) and
   `short:` keeps to seven characters; a weather slot's icon follows the
-  condition, and a notification count's empties at zero (`READING` in `ts/src/complications.ts`, generated `SlotText.mc`,
+  condition, a notification count's empties at zero and a solar input's
+  fills with the reading (`READING` in `ts/src/complications.ts`, generated `SlotText.mc`,
   `runtime-lib/WfbReading.mc`). `docs/guide/configuration.md`.
 - **`system.awake`** — a boolean source, `false` while the watch sleeps
   (the view's `_sleeping`, the flag `seconds: awake` reads), so `visible:

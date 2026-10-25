@@ -282,6 +282,10 @@ Glyphs and data are not:
   weather has no sample value, so the readout beside it shows `--°`. On the
   watch, the icon follows the forecast and is hidden when there is no
   weather data.
+- **An `icon: {for:}` level icon draws its plain icon**, the sun for
+  `complication.solar_input`: the source has no sample value. `--sample
+  solar_input=40` draws the step for 40. A slot showing the metric draws
+  the step for the type's own sample reading.
 - **Graphs always draw a synthetic curve**, even for a series whose other
   readings are absent (the forecast).
 

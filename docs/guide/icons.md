@@ -14,7 +14,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 |---|---|---|---|
 | `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) |
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
-| `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow` | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
+| `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow`, or `complication.solar_input` | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `slot:` (instead of `icon:`) | a `config: slots:` name | — | [A slot's icon: `slot:`](#a-slots-icon-slot) — the icon of the wearer's pick |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
 | `rotate:` | `Angle`, clockwise | `0deg` (upright) | [A turned icon: `rotate:`](#a-turned-icon-rotate) |
@@ -54,7 +54,8 @@ screenshot shows the weather icon.
 - **Any other glyph:** find it on the
   [Nerd Fonts cheat sheet](https://www.nerdfonts.com/cheat-sheet), then write
   its code as `icon: {codepoint: "U+XXXX"}`. The build checks that the font has it.
-- **`icon: {for:}`** picks the weather glyph on the watch at runtime.
+- **`icon: {for:}`** picks the glyph on the watch at runtime: the weather
+  condition's, or a [level icon](#a-level-icon) that fills with its reading.
 
 ### `icon`
 
@@ -237,9 +238,10 @@ weather_now:
   color: color.text
 ```
 
-This currently accepts only a bare `weather.condition*` source (see `wfb
-sources`) — not an expression over one (`weather.condition + 1` is rejected;
-the lookup needs the raw `Weather.CONDITION_*` value). The generated code
+It accepts a bare `weather.condition*` source (see `wfb sources`) or a
+[level icon's](#a-level-icon) source — not an expression over one
+(`weather.condition + 1` is rejected; the lookup needs the raw
+`Weather.CONDITION_*` value or the raw 0-100 reading). The generated code
 resolves the glyph in two steps, mirroring `ts/src/icons.ts` exactly: `WfbWeather.
 chooseIcon()` (a hand-written barrel function) turns the
 condition into a catalogue *name*, and `IconGlyphs.glyph()` — generated fresh
@@ -257,6 +259,42 @@ does not draw — the same `hide`-by-default behaviour any other nullable
 binding with `absent: hide` has, deliberately: a placeholder
 "unknown" glyph on first launch, before Weather has ever synced, would read
 as a real (if odd) forecast rather than as "not ready yet".
+
+#### A level icon
+
+Some metrics have an icon that fills with the reading, a value from 0 to
+100. `icon: {for:}` on one of their sources draws the step the reading
+falls in, and so does a [slot](#a-slots-icon-slot) showing that metric
+(and a `type: data` element's icon on it):
+
+| Metric | Source | Slot type | Steps |
+|---|---|---|---|
+| Solar input | `complication.solar_input` | `solar_input` | `solar_level_0`…`solar_level_8`: an empty circle, then one more eighth filled per step (Material Design `circle_outline`, `circle_slice_1`…`8`) |
+
+```yaml
+solar:
+  type: icon
+  icon: {for: complication.solar_input}
+  size: 18%r
+  color: color.accent
+```
+
+* **The steps are equal bands of 0-100**, the reading truncated into one:
+  solar's nine bands are 11.1 wide, so 0-11 is the empty circle, 12-22 one
+  eighth, and 89-100 the full circle.
+* **Without a reading the metric's plain icon draws** (`solar`, the sun),
+  as a slot's icon does: it still says which metric this is. On a frame
+  that has one, the step replaces it.
+* **Every step is the same size.** Each step's glyph has the same ink box,
+  so the icon only fills, never jumps, and the font holds every step and
+  the plain icon, baked at `size:`.
+* **A slot choice with an authored `icon:` keeps it**, as a weather or a
+  notification count choice does.
+* `IconGlyphs.<metric>Level()`, generated beside `IconGlyphs.glyph()`,
+  turns the reading into the step's catalogue name on the watch; the
+  preview draws the same step from the sample reading.
+* The steps are catalogue names too, so `icon: solar_level_4` draws one
+  step on its own.
 
 ### Your own icon font
 

@@ -623,7 +623,11 @@ still true of the shipped feature:
   pulled condition, `current_temperature` the current one and
   `high_low_temperature` today's forecast one, read beside the reading
   (`Weather.getCurrentConditions()`, `getDailyForecast()[0]`). With no
-  condition it falls back to the type's own catalogue icon. Every native type has a catalogue icon
+  condition it falls back to the type's own catalogue icon. A level
+  type's icon (`ICON_LEVEL` in `ts/src/complications.ts`: `solar_input`)
+  fills with the pulled 0-100 reading, a step per equal band
+  (`IconGlyphs.<metric>Level`, generated), and is the plain icon without
+  one. Every native type has a catalogue icon
   (`COMPLICATION_ICON` in `ts/src/icons.ts` covers all 42), an
   author can override any choice's icon per-design (`choices:`'s
   mapping form `{type:, icon:}`, with a name, `{codepoint: "U+XXXX"}` or `none`), and

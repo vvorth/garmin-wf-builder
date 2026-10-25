@@ -6,7 +6,7 @@ import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
 import { type Element, type Face, HOLD_AUTO, IconElement } from "../ir/model.ts";
 import { configDataIds, configField, dataIconMethod } from "../ir/naming.ts";
-import { resolveSlotReference, slotIconFontKey, slotIconRun, slotReferenceGlyph, slotSample, slotSampleGlyph } from "./data.ts";
+import { comparePoints, resolveSlotReference, slotIconFontKey, slotIconRun, slotReferenceGlyph, slotSample, slotSampleGlyph } from "./data.ts";
 import * as icons from "../icons.ts";
 import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
 import { quoted, str } from "../py.ts";
@@ -32,6 +32,23 @@ function buildGlyphIcon(b: Builder, node: Node, spec: Node, common: Common, plac
   return IconElement.create({ ...common, icon: raw.toUpperCase(), codepoint: character, ...placement });
 }
 
+/** What `icon: {for:}` accepts: a weather condition, or a level icon's source. */
+function forSources(): string[] {
+  return [...catalog.WEATHER_CONDITION_SOURCES, ...icons.LEVEL_SOURCES.keys()].sort();
+}
+
+/** A dynamic icon's font tag: one font per glyph set, shared by every element of a size. */
+function dynamicTag(element: IconElement): string {
+  const level = element.level;
+  return level !== null ? `level_${level.name}` : icons.DYNAMIC_WEATHER_TAG;
+}
+
+/** The glyph a dynamic icon's font is measured by. */
+function dynamicReference(element: IconElement): string {
+  const level = element.level;
+  return level !== null ? icons.CATALOG.get(level.steps[0]!)!.codepoint : icons.WEATHER_BAKE_REFERENCE_GLYPH;
+}
+
 class IconKind extends ElementKind<IconElement> {
   readonly name = "icon";
   readonly irClass = IconElement;
@@ -48,8 +65,8 @@ class IconKind extends ElementKind<IconElement> {
       measureCodepoint = slotReferenceGlyph(r.face.config_data.get(element.slot)) ?? icons.FALLBACK_CODEPOINT;
     } else if (element.isDynamic) {
       // The real glyph is chosen on the device; every glyph fits a `size:` square, so measure one.
-      key = icons.fontKey(element.size, icons.DYNAMIC_WEATHER_TAG, element.resolved_antialias, element.turn);
-      measureCodepoint = icons.WEATHER_BAKE_REFERENCE_GLYPH;
+      key = icons.fontKey(element.size, dynamicTag(element), element.resolved_antialias, element.turn);
+      measureCodepoint = dynamicReference(element);
     } else {
       key = icons.fontKey(element.size, element.codepoint, element.resolved_antialias, element.turn);
       measureCodepoint = element.codepoint;
@@ -71,7 +88,14 @@ class IconKind extends ElementKind<IconElement> {
       return run !== null ? [run] : [];
     }
     let glyphKey: string, glyphs: string, reference: string, table: Map<string, string> | null = null;
-    if (element.isDynamic) {
+    const level = element.level;
+    if (level !== null) {
+      // The step follows the reading, so the font holds every step and the plain icon.
+      table = icons.levelGlyphTable(level);
+      glyphKey = dynamicTag(element);
+      glyphs = [...new Set(table.values())].sort(comparePoints).join("");
+      reference = dynamicReference(element);
+    } else if (element.isDynamic) {
       // The glyph is chosen on the device, so the font holds every one it could be.
       glyphKey = icons.DYNAMIC_WEATHER_TAG;
       glyphs = icons.WEATHER_GLYPH_SET;
@@ -83,6 +107,7 @@ class IconKind extends ElementKind<IconElement> {
     const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias, element.turn);
     return [new TextRun(element.id, key, {
       span: element.span, icon: new IconFont(element.size, glyphs, reference, element.resolved_antialias, element.turn), glyph_table: table,
+      levels: level !== null ? [level.name] : [],
     })];
   }
 
@@ -97,8 +122,8 @@ class IconKind extends ElementKind<IconElement> {
           "'icon:' names a glyph from the built-in catalogue (run `wfb sources` for the list)",
           "or is {codepoint: \"U+XXXX\"}, any codepoint in the icon font -- for "
           + "the ~10,000 glyphs the catalogue does not name",
-          "or is {for: <expression>}, choosing one at runtime from a "
-          + "bound value -- see WEATHER_CONDITION_SOURCES in ts/src/catalog.ts for what it accepts"],
+          "or is {for: <source>}, choosing one at runtime from a bound value: "
+          + `one of ${forSources().join(", ")}`],
       });
     }
     const size = b.bakedSizeLength(node, "size", { code: "icon", label: "icon size", note: ICON_SIZE_NOTE });
@@ -109,13 +134,12 @@ class IconKind extends ElementKind<IconElement> {
     if (dynamic !== null) {
       let valueFor = b.expression(dynamic, "for");
       if (valueFor !== null && (valueFor.ast === null || valueFor.ast.kind !== "ref" || valueFor.sources.length !== 1
-        || !catalog.WEATHER_CONDITION_SOURCES.has(valueFor.sources[0]!))) {
-        b.bag.error("icon", "icon: {for:} must be exactly one of: "
-          + `${[...catalog.WEATHER_CONDITION_SOURCES].sort().join(", ")} -- not ${quoted(valueFor.shown)}`,
-        b.doc.span(dynamic, "for") ?? b.doc.span(node, "icon"), {
-          notes: ["arithmetic or a conditional would break the condition-to-glyph "
-            + "lookup, which needs the raw Weather.CONDITION_* value"],
-        });
+        || !forSources().includes(valueFor.sources[0]!))) {
+        b.bag.error("icon", `icon: {for:} must be exactly one of: ${forSources().join(", ")} -- not ${quoted(valueFor.shown)}`,
+          b.doc.span(dynamic, "for") ?? b.doc.span(node, "icon"), {
+            notes: ["the glyph lookup needs the raw reading: a weather condition's Weather.CONDITION_* value, "
+              + "or a 0-100 level, so arithmetic or a conditional is refused"],
+          });
         valueFor = null;
       }
       return IconElement.create({ ...common, icon: null, codepoint: icons.FALLBACK_CODEPOINT, value_for: valueFor, ...placement });
@@ -196,8 +220,11 @@ class IconKind extends ElementKind<IconElement> {
     const ops: Op[] = [LoadFont("font", `_${fontField(p.font_key)}`, { note: "the icon font resource failed to load" }), Blank()];
     let glyph: Str;
     if (element.value_for !== null) {
-      ops.push(Comment(`${quoted(element.value_for.text)} -> a name (WfbWeather) -> a glyph (IconGlyphs)`));
-      glyph = IconChoice(element.value_for);
+      const level = element.level;
+      ops.push(Comment(level !== null
+        ? `${quoted(element.value_for.text)} -> a step, '${level.plain}' without a reading (IconGlyphs)`
+        : `${quoted(element.value_for.text)} -> a name (WfbWeather) -> a glyph (IconGlyphs)`));
+      glyph = IconChoice(element.value_for, level !== null ? level.name : null);
     } else {
       ops.push(Comment(quoted(element.icon)));
       glyph = StrLit(element.codepoint);
@@ -223,6 +250,11 @@ class IconKind extends ElementKind<IconElement> {
     return [[`${prefix}_CX`, p.center[0], note], [`${prefix}_CY`, p.center[1], note]];
   }
 
+  /** A level icon draws its plain glyph while the reading is absent. */
+  override drawsWhileAbsent(element: IconElement): boolean {
+    return element.level !== null;
+  }
+
   override ringDraws(element: IconElement, face: Face): number {
     return bakedRing(element, face, 1) !== null ? 1 : super.ringDraws(element, face);
   }
@@ -230,7 +262,9 @@ class IconKind extends ElementKind<IconElement> {
   override describe(placed: Placed): string {
     const element = (placed as PlacedIcon).element;
     if (element.slot !== null) return `the icon of slot ${quoted(element.slot)}'s pick`;
-    if (element.value_for !== null) return `an icon chosen at runtime from ${quoted(element.value_for.text)}`;
+    if (element.value_for !== null) {
+      return element.level !== null ? `an icon filling with ${quoted(element.value_for.text)}` : `an icon chosen at runtime from ${quoted(element.value_for.text)}`;
+    }
     return `the ${quoted(element.icon)} icon`;
   }
 }

@@ -8,7 +8,8 @@
 // the browser receives it from the server.
 import data from "./data/icons.json" with { type: "json" };
 import type { Device } from "./devices/device.ts";
-import { formatG } from "./py.ts";
+import { WholeFloat } from "./edit/yaml.ts";
+import { formatG, num } from "./py.ts";
 import { type Length, pixelSize } from "./units.ts";
 
 export interface Icon { name: string; codepoint: string; description: string }
@@ -246,3 +247,42 @@ export const WEATHER_BAKE_REFERENCE_GLYPH: string = CATALOG.get("weather_rainy")
 
 /** Each complication type with a catalogue icon of its own. */
 export const COMPLICATION_ICON: ReadonlyMap<string, string> = new Map(Object.entries(data.complication_icon));
+
+/**
+ * An icon that fills with a 0-100 reading: `steps[i]` stands for the i-th of
+ * `steps.length` equal bands, and `plain` is drawn while there is no reading.
+ * The watch picks the step with `IconGlyphs.<name>Level`, generated from this.
+ */
+export interface LevelIcon {
+  readonly name: string;
+  readonly plain: string;
+  readonly steps: readonly string[];
+}
+
+export const LEVEL_ICONS: ReadonlyMap<string, LevelIcon> = new Map([
+  ["solar", { name: "solar", plain: "solar", steps: Array.from({ length: 9 }, (_, i) => `solar_level_${i}`) }],
+]);
+
+/** The source each level icon follows on a plain `icon: {for:}`. */
+export const LEVEL_SOURCES: ReadonlyMap<string, string> = new Map([["complication.solar_input", "solar"]]);
+
+/** The band a 0-100 reading falls in, of `bands` equal ones: truncated, as the watch's `toNumber()` truncates, then clamped. */
+export function levelBand(value: number, bands: number): number {
+  return Math.min(bands - 1, Math.max(0, Math.trunc((value * bands) / 100)));
+}
+
+/** The catalogue name `level` draws for `reading`: its plain icon without a number. */
+export function levelIconName(level: LevelIcon, reading: unknown): string {
+  if (typeof reading !== "number" && !(reading instanceof WholeFloat)) return level.plain;
+  return level.steps[levelBand(num(reading), level.steps.length)]!;
+}
+
+/** The name of the generated `IconGlyphs` function choosing `level`'s step. */
+export function levelFunction(level: LevelIcon): string {
+  return `${level.name}Level`;
+}
+
+/** Every glyph `level` can draw, its plain one included: catalogue name to glyph. */
+export function levelGlyphTable(level: LevelIcon): Map<string, string> {
+  return new Map([level.plain, ...level.steps].map((name) => [name, CATALOG.get(name)!.codepoint]));
+}

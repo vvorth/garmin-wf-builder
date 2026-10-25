@@ -715,6 +715,8 @@ export function capabilities(name: string): Capability[] {
     out.push({ kind: "dynamic_icon", detail: "dynamic icon: it follows the weather condition" });
   } else if (complications.ICON_WHEN_ZERO.has(name)) {
     out.push({ kind: "dynamic_icon", detail: "dynamic icon: it empties when there is nothing to count" });
+  } else if (complications.ICON_LEVEL.has(name)) {
+    out.push({ kind: "dynamic_icon", detail: "dynamic icon: it fills with the reading" });
   }
   const scale = complications.SCALE.get(name);
   if (scale !== undefined) {

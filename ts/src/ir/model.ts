@@ -347,6 +347,11 @@ export class ConfigDataSlot {
     return new Set([...this.icons.keys()].filter((name) => complications.ICON_WHEN_ZERO.has(name) && !this.icon_overrides.has(name)));
   }
 
+  /** The types whose icon fills with the reading (`complications.ICON_LEVEL`): every one left on its catalogue icon. */
+  get levelIcons(): Set<string> {
+    return new Set([...this.icons.keys()].filter((name) => complications.ICON_LEVEL.has(name) && !this.icon_overrides.has(name)));
+  }
+
   /** Complication type to icon, for every choice that ends up with one. */
   get icons(): Map<string, icons.SlotIcon> {
     if (this.choices === "any") {
@@ -805,6 +810,7 @@ export class Gauge extends Element {
 }
 
 export class IconElement extends Element {
+  static override readonly VALUE_ROLES: ReadonlySet<string> = new Set([ROLE_VALUE]);
   icon: string | null = "steps";
   codepoint = "?";
   value_for: Expression | null = null;
@@ -824,6 +830,13 @@ export class IconElement extends Element {
 
   get isDynamic(): boolean {
     return this.value_for !== null;
+  }
+
+  /** The level icon `icon: {for:}` follows (`icons.LEVEL_SOURCES`), or `null` for a weather condition. */
+  get level(): icons.LevelIcon | null {
+    const source = this.value_for?.sources[0];
+    const name = source !== undefined ? icons.LEVEL_SOURCES.get(source) : undefined;
+    return name !== undefined ? icons.LEVEL_ICONS.get(name)! : null;
   }
 
   protected override ownRoles(): [string, Expression][] {

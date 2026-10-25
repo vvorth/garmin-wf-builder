@@ -160,8 +160,9 @@ export interface AodStr { t: "AodStr"; asleep: Str; awake: Str }
 export const AodStr = (asleep: Str, awake: Str): AodStr => ({ t: "AodStr", asleep, awake });
 
 /** A dynamic weather icon's glyph. */
-export interface IconChoice { t: "IconChoice"; value: Expression }
-export const IconChoice = (value: Expression): IconChoice => ({ t: "IconChoice", value });
+/** A dynamic icon's glyph: a weather condition's (`level` null), or a level icon's step for a 0-100 reading. */
+export interface IconChoice { t: "IconChoice"; value: Expression; level: string | null }
+export const IconChoice = (value: Expression, level: string | null = null): IconChoice => ({ t: "IconChoice", value, level });
 
 /** A pattern text part's string: `printed` on the watch, the copy's own on the host. */
 export interface PerCopy { t: "PerCopy"; printed: Str; texts: string[]; var: string }
