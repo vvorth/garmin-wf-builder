@@ -1,0 +1,3 @@
+[submodule "examples/other"]
+	path = examples/other
+	url = https://github.com/vvorth/wfb-watchfaces.git
