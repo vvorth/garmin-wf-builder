@@ -133,12 +133,18 @@ function suffixed(number: string, suffix: string, short: boolean): string {
 /** `WfbReading.count`: whole, or thousands with one decimal from 10,000 (`short:`, from 1,000). */
 function count(value: unknown, deviceUnit: unknown, short = false): string {
   if (isFloatValue(value)) {
-    if (deviceUnit === "K") return `${formatFixed(num(value as number), 1)}K`;
+    if (deviceUnit === "K") return thousands(rounded(num(value as number) * 1000));
     return formatValue(value) + (typeof deviceUnit === "string" ? deviceUnit : "");
   }
   const whole = Math.trunc(num(value as number));
-  if (Math.abs(whole) >= (short ? 1000 : 10000)) return `${formatFixed(whole / 1000.0, 1)}K`;
+  if (Math.abs(whole) >= (short ? 1000 : 10000)) return thousands(whole);
   return String(whole);
+}
+
+/** `WfbReading.thousands`: one decimal, the tenth cut rather than rounded (7,960 is `7.9K`). */
+function thousands(whole: number): string {
+  const tenths = Math.trunc(Math.abs(whole) / 100);
+  return `${whole < 0 ? "-" : ""}${Math.trunc(tenths / 10)}.${tenths % 10}K`;
 }
 
 const two = (n: number): string => String(n).padStart(2, "0");

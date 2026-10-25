@@ -86,24 +86,33 @@ module WfbReading {
 
     //! A count.  The device may already have scaled it to thousands (seen in
     //! the simulator: steps past 10,000 arrive as the Float 12.879 with the
-    //! unit "K"), so a String unit on a Float is kept; a whole count of
-    //! 10,000 or more is scaled here the same way, and with `short` (the
-    //! element's `short: true`) from 1,000.  Thousands always carry one
-    //! decimal, "10.0K" as well as "12.9K", so the reading keeps its shape
-    //! as the count grows.
+    //! unit "K"); that is multiplied back to the whole count, rounded as
+    //! `WfbComplications.count` does.  A whole count of 10,000 or more, and
+    //! with `short` (the element's `short: true`) from 1,000, is drawn in
+    //! thousands.  Thousands always carry one decimal, "10.0K" as well as
+    //! "12.9K", so the reading keeps its shape as the count grows.
     function count(value as Numeric, unit as Complications.Unit or Lang.String or Null, short as Boolean) as String {
         if (value instanceof Lang.Float || value instanceof Lang.Double) {
             if (unit instanceof Lang.String && unit.equals("K")) {
-                return value.format("%.1f") + "K";
+                return thousands(rounded(value.toDouble() * 1000));
             }
             return decimalText(value.toDouble()) + ((unit instanceof Lang.String) ? unit : "");
         }
         var whole = value.toNumber();
         var from = short ? 1000 : 10000;
         if (whole >= from || whole <= -from) {
-            return (whole.toDouble() / 1000.0d).format("%.1f") + "K";
+            return thousands(whole);
         }
         return whole.toString();
+    }
+
+    //! A count in thousands with one decimal, the tenth cut rather than
+    //! rounded: 7,960 steps is "7.9K", never "8.0K", which would read as a
+    //! goal of 8,000 met.  Integer arithmetic, so no Float can read low.
+    function thousands(whole as Number) as String {
+        var sign = (whole < 0) ? "-" : "";
+        var tenths = ((whole < 0) ? -whole : whole) / 100;
+        return sign + (tenths / 10) + "." + (tenths % 10) + "K";
     }
 
     //! Seconds since local midnight as the clock the wearer reads: "06:15"

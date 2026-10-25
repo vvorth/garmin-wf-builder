@@ -656,7 +656,9 @@ still true of the shipped feature:
   binding reads the full count (`WfbComplications.count` multiplies a
   `"K"` value back, rounding: truncating would read one low for 1,384
   counts from 10,000 to 199,999, research 24 §5), and a slot draws any
-  count from 10,000 up as thousands with one decimal (`10.0K`).
+  count from 10,000 up as thousands with one decimal (`10.0K`), the tenth
+  cut rather than rounded (`WfbReading.thousands`), so 7,960 steps under
+  `short:` is `7.9K`, not a goal of 8,000 met.
   **Measured** (`--build-stats`, fenix8solar47mm): `examples/features/
   complications/` 2,700 B → 2,861 B and `examples/features/slots/`
   16,436 B → 16,631 B for the helper and the one-decimal rule. The weather
