@@ -4,14 +4,14 @@
 //
 //     YAML -> schema -> IR -> per-device resolve -> lint -> generate -> monkeyc
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { cpus, homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { load, resolveAll, selectDevices, slug } from "./build.ts";
+import { dirname, join, relative, resolve } from "node:path";
+import { faceCapableDevices, load, resolveAll, selectDevices, slug } from "./build.ts";
 
 export { slug };
 import type { Device, DeviceDatabase } from "./devices/device.ts";
-import { DEVICE_REFERENCE } from "./devices/node.ts";
+import { DEVICE_REFERENCE, REPO_ROOT } from "./devices/node.ts";
 import type { Bag } from "./diagnostics.ts";
 import { type GeneratedProject, generate } from "./emit/project.ts";
 import { bakeFonts, type FontReader } from "./emit/resources.ts";
@@ -171,16 +171,23 @@ export function writeProject(project: GeneratedProject, root: string, clean = tr
   return written;
 }
 
-/** Build `path` into `output`. `jobs` is how many `monkeyc`s run at once. */
-export async function build(given: string, { output, bag, devicesOnly = null, db, toolchain = null, compilePrg = true, clean = true, profile = null, trace = false, jobs = null, read = readFontFile }: {
-  output: string; bag: Bag; devicesOnly?: string[] | null; db: DeviceDatabase; toolchain?: Toolchain | null; compilePrg?: boolean;
-  clean?: boolean; profile?: number | null; trace?: boolean; jobs?: number | null; read?: FontReader;
-}): Promise<BuildResult | null> {
-  const started = performance.now();
-  const path = pathStr(given);
+/** A design generated and written to disk, ready for `monkeyc`. */
+interface Prepared {
+  face: Face;
+  devices: Device[];
+  project: GeneratedProject;
+  buildDir: string;
+}
+
+/** Load, select, resolve, lint and generate `path`, then write the project under `output`; `null` with the reason in `bag`. */
+function prepare(path: string, { output, bag, devicesOnly, db, clean, profile = null, trace = false, read, noteUnlisted = true, appId = null }: {
+  output: string; bag: Bag; devicesOnly: string[] | null; db: DeviceDatabase; clean: boolean; profile?: number | null; trace?: boolean;
+  read: FontReader; noteUnlisted?: boolean; appId?: string | null;
+}): Prepared | null {
   const face = loadDesign(path, bag);
   if (face === null) return null;
-  const devices = selectDevices(face, db, bag, devicesOnly);
+  if (appId !== null) face.uuid = appId;
+  const devices = selectDevices(face, db, bag, devicesOnly, noteUnlisted);
   if (devices.length === 0 || !bag.ok()) return null;
   const [resolved] = resolveAll(face, devices, bag, (f, device) => bakeFonts(f, device, read));
   if (!bag.ok()) return null;
@@ -215,6 +222,18 @@ export async function build(given: string, { output, bag, devicesOnly = null, db
     });
     return null;
   }
+  return { face, devices, project, buildDir };
+}
+
+/** Build `path` into `output`. `jobs` is how many `monkeyc`s run at once. */
+export async function build(given: string, { output, bag, devicesOnly = null, db, toolchain = null, compilePrg = true, clean = true, profile = null, trace = false, jobs = null, read = readFontFile }: {
+  output: string; bag: Bag; devicesOnly?: string[] | null; db: DeviceDatabase; toolchain?: Toolchain | null; compilePrg?: boolean;
+  clean?: boolean; profile?: number | null; trace?: boolean; jobs?: number | null; read?: FontReader;
+}): Promise<BuildResult | null> {
+  const started = performance.now();
+  const prepared = prepare(pathStr(given), { output, bag, devicesOnly, db, clean, profile, trace, read });
+  if (prepared === null) return null;
+  const { face, devices, project, buildDir } = prepared;
   const result: BuildResult = {
     face, project, devices, output_dir: buildDir, products: new Map(), memory: new Map(), duration: 0, sdk_version: null,
   };
@@ -230,6 +249,163 @@ export async function build(given: string, { output, bag, devicesOnly = null, db
       writeBuildInfo(result);
     }
   }
+  result.duration = (performance.now() - started) / 1000;
+  return result;
+}
+
+/** Written into the export directory beside the `.iq`: what built it, and what the Store's upload form asks for. */
+export const EXPORT_INFO = "export-info.json";
+
+/** Seconds `monkeyc -e` may take per device before it is stopped: it compiles every product in one run. */
+export const EXPORT_TIMEOUT_PER_DEVICE = 30;
+
+/** A v4 UUID as `uuid()` writes one: version nibble 4, variant 8 to b. */
+const RANDOM_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export interface ExportResult {
+  face: Face;
+  devices: Device[];
+  output_dir: string;
+  /** The `.iq`, or `null` when `monkeyc` did not write one. */
+  iq: string | null;
+  manifest: string;
+  memory: Map<string, MemoryStats>;
+  duration: number;
+  sdk_version: string | null;
+}
+
+/**
+ * Every `Build Stats:` block of a `monkeyc` run, keyed by its `Device:`
+ * line. `-e` compiles once per part number, so a device with several
+ * prints the same block several times; the first is kept.
+ */
+export function statsByDevice(text: string): Map<string, string> {
+  const blocks = new Map<string, string>();
+  for (const block of text.split(/^\s*Build Stats:\s*$/m).slice(1)) {
+    const device = /^\s*Device:\s*(\S+)/m.exec(block)?.[1];
+    if (device !== undefined && !blocks.has(device)) blocks.set(device, block);
+  }
+  return blocks;
+}
+
+/**
+ * The Store keys an app by its UUID for its whole life, and refuses a second
+ * app with one already registered (a beta app included). An id another face
+ * in `known` uses, or one no generator would write, is likely copied or
+ * typed by hand: warn before it is registered for good.
+ */
+export function checkAppId(face: Face, bag: Bag, known: ReadonlyMap<string, string>): void {
+  const id = face.uuid.toLowerCase();
+  const other = known.get(id);
+  if (other !== undefined && resolve(other) !== resolve(face.source_path)) {
+    bag.warning("app-id", `face: id: ${face.uuid} is also the id of ${other}`, null, {
+      notes: [
+        "the Connect IQ Store registers an app by this id for good and refuses another app with the same one",
+        "give this face its own: `wfb new` writes a fresh id, or use any UUID generator; --id overrides it for one export",
+      ],
+    });
+  } else if (!RANDOM_UUID_RE.test(face.uuid)) {
+    bag.warning("app-id", `face: id: ${face.uuid} does not look randomly generated`, null, {
+      notes: [
+        "the Connect IQ Store registers an app by this id for good, across every developer, so a hand-typed one may already be taken",
+        "`wfb new` writes a random version 4 UUID; --id overrides it for one export",
+      ],
+    });
+  }
+}
+
+/** `face: id:` of every example face, keyed by the id in lower case. */
+export function exampleAppIds(root: string = join(REPO_ROOT, "examples")): Map<string, string> {
+  const ids = new Map<string, string>();
+  if (!existsSync(root)) return ids;
+  for (const entry of readdirSync(root, { recursive: true, encoding: "utf8" })) {
+    if (!entry.endsWith(".yaml")) continue;
+    const path = join(root, entry);
+    const id = /^\s+id:\s*["']?([0-9a-fA-F-]{36})["']?\s*$/m.exec(readFileSync(path, "utf8"))?.[1];
+    if (id !== undefined) ids.set(id.toLowerCase(), relative(process.cwd(), path) || path);
+  }
+  return ids;
+}
+
+/** A face version as a file-name part: anything but letters, digits, '.', '_' and '-' becomes '-'. */
+function versionPart(version: string): string {
+  return version.replace(/[^0-9A-Za-z._-]+/g, "-") || "0";
+}
+
+/**
+ * Package `path` for the Connect IQ Store: one release-built, signed `.iq`
+ * holding a `.prg` for every device in the manifest, which `monkeyc -e`
+ * compiles in one run. `allDevices` exports every installed device that can
+ * run the face instead of `devicesOnly` or the design's `targets:`.
+ */
+export async function exportApp(given: string, { output, bag, devicesOnly = null, allDevices = false, appId = null, db, toolchain = null, read = readFontFile, known = exampleAppIds() }: {
+  output: string; bag: Bag; devicesOnly?: string[] | null; allDevices?: boolean; appId?: string | null; db: DeviceDatabase;
+  toolchain?: Toolchain | null; read?: FontReader; known?: ReadonlyMap<string, string>;
+}): Promise<ExportResult | null> {
+  const started = performance.now();
+  const tools = toolchain ?? Toolchain.discover();
+  if (tools === null) {
+    bag.error("toolchain", "no Connect IQ SDK found, and an export needs monkeyc", null, { notes: ["set CIQ_SDK, or run ./tools/setup-env.sh"] });
+    return null;
+  }
+  if (!existsSync(tools.key)) {
+    bag.error("toolchain", `no developer key at ${tools.key}`, null, { notes: ["pass --key, set WFB_KEY, or run ./tools/setup-env.sh to generate one"] });
+    return null;
+  }
+  const only = allDevices ? faceCapableDevices(db) : devicesOnly;
+  const prepared = prepare(pathStr(given), { output, bag, devicesOnly: only, db, clean: true, read, noteUnlisted: !allDevices, appId });
+  if (prepared === null) return null;
+  const { face, devices, buildDir } = prepared;
+  checkAppId(face, bag, known);
+  const result: ExportResult = {
+    face, devices, output_dir: buildDir, iq: null, manifest: join(buildDir, "manifest.xml"), memory: new Map(), duration: 0,
+    sdk_version: checkSdk(tools, bag),
+  };
+  const name = `${slug(face.name)}-${versionPart(face.version)}.iq`;
+  const work = join(buildDir, WORK_DIR);
+  const staged = join(work, name);
+  mkdirSync(work, { recursive: true });
+  try {
+    // -r strips debug information, as a release should; the jungle carries typecheck and optimization levels.
+    const command = [tools.monkeyc, "-f", "monkey.jungle", "-e", "-r", "-o", staged, "-y", tools.key, "-w", "--no-gen-styles", "--build-stats", "0"];
+    const timeout = Math.max(MONKEYC_TIMEOUT, EXPORT_TIMEOUT_PER_DEVICE * devices.length);
+    const run = await runProcess(command, buildDir, timeout);
+    if (run.timedOut) {
+      bag.error("monkeyc", `monkeyc -e took longer than ${timeout} s and was stopped`);
+      return result;
+    }
+    const text = stripNoise(run.stdout + run.stderr);
+    const lines = text.split(/\r\n|\r|\n/);
+    for (const line of lines) {
+      const stripped = line.trim();
+      if (stripped.startsWith("ERROR:")) bag.error("monkeyc", stripped.slice("ERROR:".length).trim());
+      else if (stripped.startsWith("WARNING:")) bag.warning("monkeyc", stripped.slice("WARNING:".length).trim());
+    }
+    if (run.code !== 0 || !existsSync(staged)) {
+      const rest = lines.filter((line) => line.trim() && !/^\s*(ERROR|WARNING):/.test(line));
+      bag.error("monkeyc", "export failed", null, { notes: rest.slice(-6) });
+      return result;
+    }
+    const stats = statsByDevice(text);
+    for (const device of devices) {
+      const block = stats.get(device.id);
+      const measured = block === undefined ? null : checkMemory(device, block, bag);
+      if (measured !== null) result.memory.set(device.id, measured);
+      else bag.warning("memory", `${device.id}: monkeyc printed no build stats this export could read, so it was not checked against the watch-face memory limit`);
+    }
+    result.iq = join(buildDir, name);
+    renameSync(staged, result.iq);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+  writeFileSync(join(buildDir, EXPORT_INFO), JSON.stringify({
+    sdk: result.sdk_version,
+    device_reference_sdk: referenceSdkVersion(),
+    app_id: face.uuid,
+    version: face.version,
+    iq: name,
+    devices: devices.map((d) => d.id),
+  }, null, 2) + "\n");
   result.duration = (performance.now() - started) / 1000;
   return result;
 }

@@ -36,6 +36,7 @@ authoritative for a command's own flags. One line each, taken from `wfb
 | Command | What it does |
 |---|---|
 | `build` | validate, generate and compile a design into a sideloadable .prg |
+| `export` | package a design as a signed .iq for the Connect IQ Store |
 | `validate` | validate a design without generating or compiling anything |
 | `preview` | render the design to a PNG on the host, with no simulator |
 | `simulate` | launch the Connect IQ simulator and push a built face to it |
@@ -54,6 +55,7 @@ authoritative for a command's own flags. One line each, taken from `wfb
 wfb new       "My Face" [-t TEMPLATE] [--list]   # start from a known-good template
 wfb studio    [-p PORT]            # the editor, on http://127.0.0.1:8765/
 wfb build     design.yaml [-d DEVICE] [-o DIR] [-j N] [--no-compile] [--profile [REPS]] [--trace]
+wfb export    design.yaml [-d DEVICE | --all-devices] [--id UUID] [-o DIR]  # one signed .iq for the Store
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
 wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [--sample NAME=VALUE] [-q] [-o -]  # render to PNG; no simulator
 wfb simulate  design.yaml [-d DEVICE] [-f] [--trace] [--screenshot PNG]  # run it in the simulator
@@ -152,6 +154,47 @@ wfb preview my-face.yaml --watch   # leave this running while you edit
 uses, so the two cannot disagree about position — which is what makes it a useful
 check and not a second implementation. A visual GUI builder is not built; if it is,
 it will be a thin client over the preview.
+
+## Exporting for the Connect IQ Store
+
+A sideload is one `.prg` per watch. The Connect IQ Store takes one `.iq`
+instead: a signed package holding a `.prg` for every watch the face
+supports, with the manifest inside it.
+
+```sh
+wfb export my-face.yaml                    # the design's targets
+wfb export my-face.yaml -d fr965 -d venu3  # these watches instead
+wfb export my-face.yaml --all-devices      # every installed watch that can run it
+```
+
+It runs the same checks and generation as `wfb build`, then one release
+compile for every device (debug information stripped), and writes
+`dist/<name>/<name>-<version>.iq` beside the generated project and its
+`manifest.xml`. It prints each device's memory against its limit, the
+largest share on the summary line. Upload the `.iq` on Garmin's developer
+dashboard, where you add the description and screenshots.
+
+- **Which watches.** The manifest lists exactly the devices exported:
+  `targets:` by default, the ones `-d` names (any installed device), or
+  every installed device that can run a watch face with `--all-devices`.
+  Each one is resolved and linted, and the compile stops at the first
+  device that fails, so a design that does not build on one watch fails the
+  export. Leave that watch out with `-d`, or fix the design for it.
+- **The app id is permanent.** The Store knows your face by `face: id:`
+  for as long as it is listed, and refuses a second app with an id it has
+  already registered. Keep the id; never copy it from another face. An id
+  another example uses, or one that does not look randomly generated,
+  draws an `app-id` warning. A Store beta app needs its own id: `--id
+  UUID` exports under another one without editing the design.
+- **Keep your developer key.** Every update must be signed with the same
+  key as the first upload (`--key`, default `~/ciq/developer_key.der`). A
+  lost key means publishing the face again as a new app.
+- **The version is typed in, not packaged.** A Connect IQ manifest has no
+  version field. The upload form asks for one; `face: version:` (default
+  `1.0.0`) names the file and is printed for you to copy.
+
+`export-info.json` beside the `.iq` records the SDK, the app id, the
+version and the devices.
 
 ## Profiling
 

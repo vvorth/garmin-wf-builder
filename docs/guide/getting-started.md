@@ -162,6 +162,9 @@ each other. `wfb new` generates a fresh one for you.
 To update the face, copy a new build over the old file. To remove it, delete
 the file.
 
+To publish the face on the Connect IQ Store instead, `wfb export` packages it
+as one `.iq` ([Exporting for the Store](preview-and-cli.md#exporting-for-the-connect-iq-store)).
+
 **What the build produces** (in `build/<name>/`):
 
 | Output | What it is |

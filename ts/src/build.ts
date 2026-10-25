@@ -35,9 +35,9 @@ export const BASE_API_LEVEL = "3.1.0";
 /**
  * The devices to resolve and build for: `only` (`-d`) when given, the
  * design's `targets:` otherwise. `only` may name any installed device; one
- * the design does not list draws a note.
+ * the design does not list draws a note unless `noteUnlisted` is false.
  */
-export function selectDevices(face: Face, db: DeviceDatabase, bag: Bag, only: readonly string[] | null = null): Device[] {
+export function selectDevices(face: Face, db: DeviceDatabase, bag: Bag, only: readonly string[] | null = null, noteUnlisted = true): Device[] {
   const wanted = only !== null && only.length > 0 ? [...new Set(only)] : [...face.targets];
   bag.devices = wanted;
   const devices: Device[] = [];
@@ -61,7 +61,7 @@ export function selectDevices(face: Face, db: DeviceDatabase, bag: Bag, only: re
       });
       continue;
     }
-    if (!face.targets.includes(deviceId)) {
+    if (noteUnlisted && !face.targets.includes(deviceId)) {
       bag.note("target", `${deviceId} is not one of this design's targets; using it anyway because -d asked for it`, null, {
         notes: ["targets: " + face.targets.join(", ")],
       });
@@ -70,6 +70,19 @@ export function selectDevices(face: Face, db: DeviceDatabase, bag: Bag, only: re
   }
   lint.checkOverrideSelectors(face, db.ids(), devices, bag);
   return devices;
+}
+
+/** Every installed device a generated face can run on: a watch face at or above the API floor. */
+export function faceCapableDevices(db: DeviceDatabase): string[] {
+  return db.ids().filter((id) => {
+    try {
+      const device = db.get(id);
+      return device.supportsWatchface && compareVersions(device.apiLevel, BASE_API_LEVEL) >= 0;
+    } catch (error) {
+      if (error instanceof DeviceError) return false;
+      throw error;
+    }
+  });
 }
 
 /** How a build gets a device's baked fonts: the bake itself, or (for parity) fonts baked elsewhere. */

@@ -100,6 +100,53 @@ glitch.
   and moves the `.prg` and `.prg.debug.xml` up afterwards; that is what
   lets the devices compile in parallel. The `.prg` then embeds that path
   (the size finding above), which `--build-stats` does not see.
+- **`--build-stats 0` changed layout in SDK 9.3.0.** Through 9.2.0 it
+  grouped by section (`Data:` / `Foreground: N bytes`, then `Code:` /
+  `Foreground: N bytes`); 9.3.0 groups by segment under a `Device:` line
+  (`Foreground:` / `Code: N bytes` / `Data: N bytes`, then `Extended
+  Code:`). Its `Total: … of 786432 available` is not the watch-face limit.
+  `checkMemory` in `ts/src/lint.ts` reads both layouts; before it did, every
+  9.3.0 build warned that its memory went unchecked. The slow suite now
+  fails if any build leaves a device unmeasured.
+- **SDK 9.3.0 checks symbols per device, `has` guard or not** (checked
+  2026-10-25, unresolved). Builds that are warning-free on 9.2.0 fail with
+  `Value '$.Toybox.System.DISPLAY_MODE_OFF' is not supported for device
+  'venu'` and the same for `Complications.COMPLICATION_TYPE_SLEEP_SCORE` on
+  `fr955` and `WatchFaceConfig` on `venusq2`, each behind the runtime
+  guard constraint 6d relies on. `--Eno-invalid-symbol` does not lift it.
+  The slow suite fails on 9.3.0 for this reason, and the goldens differ
+  on 9.3.0's device reference (`fenix947mm` gains a page). `SDK_VERSION=9.2.0
+  ./tools/setup-env.sh` installs the release they were frozen on.
+- **`monkeyc -e` (`--package-app`) is the Store export** (SDK 9.3.0,
+  checked 2026-10-25), and `wfb export` runs it with `-r`:
+  - one run compiles **once per part number** listed for each manifest
+    product (a device with two part numbers builds twice), printing a
+    `Build Stats:` block per build, each naming its `Device:`;
+  - it **stops at the first device that fails to compile**, so one bad
+    device fails the whole export;
+  - a device with no real part number is dropped with `WARNING: Device '…'
+    is being ignored by the package tool` (`IqPackager.removeSimProducts`
+    in `bin/monkeybrains.jar`);
+  - like a `.prg` build, it writes `gen/`, `internal-mir/` and
+    `external-mir/` beside the `-o` file, so `wfb export` stages it under
+    `.monkeyc/` too;
+  - the `.iq` is a **7z archive**: `manifest.xml` (monkeyc's rewrite of
+    ours, adding `apiVersion` and, per part number, `partNumber`,
+    `filename`, `minFirmwareVersion`, `connectIqVersion` and RSA-4096
+    signatures), `manifest.sig2`, `dev_key.pub`, and `<part
+    number>/<name>.prg` with its `debug.xml` per part number (the
+    `debug.xml` is packaged even with `-r`).
+
+  The manifest has **no app version**: the bundled
+  `com/garmin/monkeybrains/manifest/manifest.xsd` gives `iq:application`
+  only `entry`, `id`, `launcherIcon`, `name`, `type` and `minSdkVersion`
+  (`minApiLevel` is read too), so the Store's upload form takes the version.
+  The Store registers an app by its `id` for good and refuses a second app
+  with one already registered, a beta app included (forum thread
+  `forums.garmin.com/developer/connect-iq/f/connect-iq-web-store/437376`,
+  fetched 2026-10-25); `wfb export --id` exists for that. Garmin's own
+  steps (`doc/docs/Core_Topics/Publishing_to_the_Store.html`): list every
+  product in the manifest, export the `.iq`, upload it.
 - **`$CIQ_SDK/bin/monkeyc` is a bash script that runs `java` as its child,
   not by `exec`** (SDK 9.2.0, checked 2026-10-04). `subprocess.run`'s
   timeout kills only the script, so a hung build used to leave its JVM

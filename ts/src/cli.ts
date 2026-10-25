@@ -23,7 +23,7 @@ import type { ResolvedFace } from "./layout.ts";
 import type { MemoryStats } from "./lint.ts";
 import { ICON_FONT, installAssets, readFontFile, SCHEMA } from "./node.ts";
 import {
-  BUILD_INFO, build as runBuild, type BuildResult, loadDesign, MAX_DEFAULT_JOBS, methodCodeSizes, pathStr,
+  BUILD_INFO, build as runBuild, type BuildResult, EXPORT_INFO, exportApp, loadDesign, MAX_DEFAULT_JOBS, methodCodeSizes, pathStr,
   referenceSdkVersion, slug, Toolchain,
 } from "./node_build.ts";
 import { formatFixed, quoted } from "./py.ts";
@@ -34,6 +34,7 @@ import { fill, wrap } from "./textwrap.ts";
 import { VERSION } from "./version.ts";
 
 const DEFAULT_OUTPUT = "build";
+const DEFAULT_EXPORT_OUTPUT = "dist";
 const DEFAULT_PROFILE_REPS = 10;
 
 // -- output --
@@ -128,6 +129,12 @@ const FLOAT: Convert = (text) => {
   if (!text.trim() || Number.isNaN(value)) throw new Error(`invalid float value: ${quoted(text)}`);
   return value;
 };
+const APP_ID: Convert = (text) => {
+  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(text)) {
+    throw new UsageError(`invalid UUID value: ${quoted(text)}`);
+  }
+  return text;
+};
 const POSITIVE_INT: Convert = (text) => {
   if (!/^\d+$/.test(text) || Number(text) < 1) throw new Error(`'${text}' is not a whole number of at least 1`);
   return Number(text);
@@ -185,6 +192,15 @@ const COMMAND_LIST: readonly Command[] = [
     { flags: ["-j", "--jobs"], type: POSITIVE_INT, metavar: "N", help: `compile up to N devices at once (default: one per device, at most one per CPU and at most ${MAX_DEFAULT_JOBS})` },
     { flags: ["--sdk"], help: "Connect IQ SDK root (default: $CIQ_SDK)" },
     { flags: ["--key"], help: "developer key .der (default: ~/ciq/developer_key.der)" },
+    DEVICES_DIR,
+  ], [DESIGN]),
+  command("export", exportCommand, [
+    VERBOSE, deviceOption("export"),
+    { flags: ["--all-devices"], kind: "flag", help: "export every installed device that can run a watch face at the 3.1.0 API floor, instead of the design's targets" },
+    { flags: ["--id"], type: APP_ID, metavar: "UUID", help: "the app id to export under instead of face: id: -- a Store beta app needs its own" },
+    { flags: ["-o", "--output"], default: DEFAULT_EXPORT_OUTPUT, help: `export directory (default: ${DEFAULT_EXPORT_OUTPUT})` },
+    { flags: ["--sdk"], help: "Connect IQ SDK root (default: $CIQ_SDK)" },
+    { flags: ["--key"], help: "developer key .der (default: ~/ciq/developer_key.der); every update of a Store app must be signed with the same key" },
     DEVICES_DIR,
   ], [DESIGN]),
   command("validate", validateCommand, [VERBOSE, deviceOption("check"), DEVICES_DIR], [DESIGN]),
@@ -431,6 +447,46 @@ async function buildCommand(args: Namespace): Promise<number> {
   if (result.sdk_version !== null) out(`${status("sdk", color)}        Connect IQ ${result.sdk_version}, recorded in ${BUILD_INFO}`);
   if (args["profile"] && result.products.size > 0) printProfileReport(result, args["profile"] as number);
   verdict(bag, process.stdout, "succeeded", ["bold", "green"], "\nbuild ", ` in ${formatFixed(result.duration, 1)}s`);
+  return 0;
+}
+
+async function exportCommand(args: Namespace): Promise<number> {
+  const devicesOnly = (args["devices"] as string[] | null) ?? null;
+  if (args["all_devices"] && devicesOnly !== null) {
+    error("--all-devices and -d/--device are mutually exclusive");
+    return 1;
+  }
+  const bag = new Bag();
+  const result = await exportApp(args["design"] as string, {
+    output: args["output"] as string, bag, devicesOnly, allDevices: Boolean(args["all_devices"]), appId: (args["id"] as string | null) ?? null,
+    db: discoverDb(args["devices_dir"] as string | null),
+    toolchain: Toolchain.discover(args["sdk"] as string | null, args["key"] as string | null),
+  });
+  const verboseFlag = Boolean(args["verbose"]);
+  let shown = bag;
+  if (result !== null && !verboseFlag) {
+    // The "memory" line gives the largest share; -v lists every device's note.
+    shown = bag.only((d: Diagnostic) => !(d.code === "memory" && d.severity === "note" && result.memory.has(d.message.split(":", 1)[0]!)));
+  }
+  printBag(shown, verboseFlag);
+  if (result === null || result.iq === null || !bag.ok()) {
+    verdict(bag, process.stderr, "failed", ["bold", "red"], "\nexport ");
+    return 1;
+  }
+  const color = term.shouldColor(process.stdout);
+  out();
+  out(`${status("generated", color)}  ${result.output_dir}`);
+  out(`${status("exported", color)}   ${basename(result.iq)}  (${result.devices.length} device${result.devices.length === 1 ? "" : "s"}: ${result.devices.map((d) => d.id).join(", ")})`);
+  const largest = [...result.memory].sort(([, a], [, b]) => b.total / b.limit - a.total / a.limit)[0];
+  if (largest !== undefined) {
+    const [deviceId, stats] = largest;
+    out(`${status("memory", color)}     ${grouped(stats.total)} B / ${grouped(stats.limit)} B (${memoryShare(100.0 * stats.total / stats.limit, color)}) on ${deviceId}, the largest share`);
+  }
+  out(`${status("manifest", color)}   ${result.manifest}  (the copy inside the .iq adds each part number and signature)`);
+  out(`${status("app id", color)}     ${result.face.uuid}`);
+  out(`${status("version", color)}    ${result.face.version}  (the Store's upload form asks for it; face: version: sets it)`);
+  if (result.sdk_version !== null) out(`${status("sdk", color)}        Connect IQ ${result.sdk_version}, recorded in ${EXPORT_INFO}`);
+  verdict(bag, process.stdout, "succeeded", ["bold", "green"], "\nexport ", ` in ${formatFixed(result.duration, 1)}s`);
   return 0;
 }
 

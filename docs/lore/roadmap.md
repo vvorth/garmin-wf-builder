@@ -160,6 +160,11 @@ or AOD-related has been observed on a watch or in the simulator.
   and code size, `ts/src/emit/monkeyc/profile.ts`) and `--trace` (a
   `System.println` opening every lifecycle and config-editor callback,
   `ts/src/emit/monkeyc/trace.ts`). `docs/guide/preview-and-cli.md`.
+- **Store export** — `wfb export` packages one release-built, signed
+  `.iq` for the Connect IQ Store with `monkeyc -e -r` (`exportApp` in
+  `ts/src/node_build.ts`): the design's targets, `-d`, or `--all-devices`;
+  `--id` for a beta app; an app id another example uses, or one that is
+  not a random v4 UUID, warns. `docs/guide/preview-and-cli.md`.
 - **Preview in the watch** — `wfb preview --skin` sets the render into
   the simulator skin the device files ship, at its `display.location`
   (`frameInSkin` in `ts/src/preview.ts`); a device without a skin renders the bare
@@ -261,8 +266,8 @@ built.
 3. Ticks drawn by a `style: scale` gauge itself (a radial `pattern`
    does them today).
 4. `units:` on an expression or a `data` element.
-5. **Phone-side settings and `wfb package`.** Phone editing needs a Store
-   install, which needs `wfb package` (research 17 §2); wearer settings
+5. **Phone-side settings.** Phone editing needs a Store install
+   (`wfb export` makes the `.iq`; research 17 §2); wearer settings
    beyond `config:` were decided against, and there is no `.SET` writer
    (ADR 0006 tenth and eleventh amendments). Do not revisit it without
    asking the user.
@@ -279,7 +284,7 @@ built.
    integration"). The rest of the fast suite, the browser suite and the
    slow suite (`npm test`, `npm run test:browser`, `npm run test:slow` in
    `ts/`) run by hand.
-10. `wfb install`, `package`.
+10. `wfb install`.
 11. A `pattern`'s or `data` element's own `aod: {font: ...}` override,
     any `font:` override naming a `face:` (vector) font, and
     `aod: {filled: ...}` on `type: polygon` (every other override key and

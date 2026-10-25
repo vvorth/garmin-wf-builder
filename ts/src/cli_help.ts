@@ -35,6 +35,28 @@ draws a note and needs no edit to the design.
 The devices compile in parallel, each \`monkeyc\` in its own directory;
 \`-j/--jobs N\` caps how many run at once (\`-j 1\` compiles one at a
 time). Diagnostics are reported in device order either way.`,
+  export: `package a design as a signed .iq for the Connect IQ Store
+
+Runs the same pipeline as \`wfb build\`, then \`monkeyc -e -r\`: one
+release build (debug information stripped) holding a .prg for every
+device in the manifest, signed with your developer key. Upload the .iq
+on the Connect IQ developer dashboard; the manifest travels inside it.
+The .iq is \`<output>/<face>/<face>-<version>.iq\`, beside the generated
+project and its manifest.xml.
+
+The devices are the design's \`targets:\` unless \`-d/--device\` names
+others (repeatable, any installed device) or \`--all-devices\` asks for
+every installed device that can run a watch face at the 3.1.0 API floor.
+Every device still resolves and lints, so a design that fails on one
+fails the export: drop it with \`-d\`, or fix the design.
+
+The Store keys an app by \`face: id:\` for good, and every update must be
+signed with the same developer key: keep both. An id another example
+uses, or one that does not look randomly generated, draws a warning.
+\`--id UUID\` exports under another id without editing the design, as a
+Store beta app needs. The manifest has no version field; the Store's
+upload form asks for one, and \`face: version:\` names the file and is
+printed to copy from.`,
   validate: `validate a design without generating or compiling anything
 
 The cheapest, fastest feedback loop: schema and semantic checks plus a

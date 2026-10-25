@@ -1395,7 +1395,15 @@ export function checkPatternStep(resolved: ResolvedFace, bag: Bag): void {
 
 // -- memory (measured, post-build) --
 
-const STATS_RE = /Data:\s*\n\s*Foreground:\s*(?<data>\d+) bytes[\s\S]*?Code:\s*\n\s*Foreground:\s*(?<code>\d+) bytes/;
+/**
+ * `--build-stats 0`'s foreground figures. Through SDK 9.2.0 it groups by
+ * section (`Data:` then `Foreground: N bytes`); from 9.3.0 by segment
+ * (`Foreground:` then `Code: N bytes` and `Data: N bytes`).
+ */
+const STATS_RES = [
+  /Data:\s*\n\s*Foreground:\s*(?<data>\d+) bytes[\s\S]*?Code:\s*\n\s*Foreground:\s*(?<code>\d+) bytes/,
+  /Foreground:\s*\n\s*Code:\s*(?<code>\d+) bytes\s*\n\s*Data:\s*(?<data>\d+) bytes/,
+];
 const PRG_RE = /Total PRG Size:\s*(?<prg>\d+) bytes/;
 
 /** One device's `monkeyc --build-stats` figures, in bytes. */
@@ -1403,7 +1411,7 @@ export interface MemoryStats { data: number; code: number; total: number; limit:
 
 /** `monkeyc --build-stats` against the device's watch-face limit: measured, not estimated. */
 export function checkMemory(device: Device, buildOutput: string, bag: Bag): MemoryStats | null {
-  const stats = STATS_RE.exec(buildOutput);
+  const stats = STATS_RES.map((re) => re.exec(buildOutput)).find((m) => m !== null) ?? null;
   if (stats === null) return null;
   const data = Number(stats.groups!["data"]), code = Number(stats.groups!["code"]);
   const total = data + code;

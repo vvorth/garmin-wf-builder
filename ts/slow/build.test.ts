@@ -11,7 +11,7 @@ import { test } from "node:test";
 import { gunzipSync } from "node:zlib";
 import { REPO_ROOT } from "../src/devices/node.ts";
 import { Bag } from "../src/diagnostics.ts";
-import { build, loadDesign, Toolchain } from "../src/node_build.ts";
+import { build, exportApp, loadDesign, Toolchain } from "../src/node_build.ts";
 import { db, exampleDesigns } from "../tools/goldens.ts";
 
 const toolchain = Toolchain.discover();
@@ -48,6 +48,7 @@ async function check(path: string): Promise<void> {
   assert.deepEqual(compiler.map((d) => `${d.severity}: ${d.message}`), [], path);
   assert.ok(result !== null);
   assert.deepEqual([...result.products.keys()].sort(), result.devices.map((d) => d.id).sort(), path);
+  assert.deepEqual([...result.memory.keys()].sort(), result.devices.map((d) => d.id).sort(), `${path}: every device's memory measured`);
 }
 
 test("the toolchain is installed", () => {
@@ -63,4 +64,15 @@ test("every example and fixture builds with nothing from monkeyc", async () => {
     if (design.includes("/dashboard/")) continue; // the user's playground
     await check(join(REPO_ROOT, design));
   }
+});
+
+test("an export is one 7z .iq, every target's memory measured, with nothing from monkeyc", async () => {
+  const bag = new Bag();
+  const path = join(REPO_ROOT, "examples", "features", "graph", "face.yaml");
+  const result = await exportApp(path, { output: join(work, "export"), bag, db, toolchain, known: new Map() });
+  assert.deepEqual(bag.items.filter((d) => d.code === "monkeyc" || d.severity === "error").map((d) => `${d.severity}: ${d.message}`), []);
+  assert.ok(result !== null && result.iq !== null);
+  assert.match(result.iq, /feature-graph-1\.0\.0\.iq$/);
+  assert.deepEqual([...readFileSync(result.iq).subarray(0, 6)], [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]);
+  assert.deepEqual([...result.memory.keys()].sort(), result.devices.map((d) => d.id).sort());
 });
