@@ -108,15 +108,18 @@ glitch.
   `checkMemory` in `ts/src/lint.ts` reads both layouts; before it did, every
   9.3.0 build warned that its memory went unchecked. The slow suite now
   fails if any build leaves a device unmeasured.
-- **SDK 9.3.0 checks symbols per device, `has` guard or not** (checked
-  2026-10-25, unresolved). Builds that are warning-free on 9.2.0 fail with
-  `Value '$.Toybox.System.DISPLAY_MODE_OFF' is not supported for device
-  'venu'` and the same for `Complications.COMPLICATION_TYPE_SLEEP_SCORE` on
-  `fr955` and `WatchFaceConfig` on `venusq2`, each behind the runtime
-  guard constraint 6d relies on. `--Eno-invalid-symbol` does not lift it.
-  The slow suite fails on 9.3.0 for this reason, and the goldens differ
-  on 9.3.0's device reference (`fenix947mm` gains a page). `SDK_VERSION=9.2.0
-  ./tools/setup-env.sh` installs the release they were frozen on.
+- **SDK 9.3.0 checks a symbol against the device's API level** (checked
+  2026-10-25): `Value '$.Toybox.System.DISPLAY_MODE_OFF' is not supported
+  for device 'venu'` unless a `has` check naming it or its module encloses
+  the use; `--Eno-invalid-symbol` does not lift it. The generator writes
+  every guard that way (constraint 6d), and every example builds with
+  nothing from `monkeyc` on 9.3.0 and on 9.2.0.
+- **The goldens follow the device reference**, so an SDK whose reference
+  adds or changes a device page moves them: 9.3.0's gives `fenix947mm` a
+  page, changing its `Layout.mc` in every example. They are made with the
+  reference of the SDK `tools/setup-env.sh` installs (9.3.0 now) and the
+  vendored device files; regenerate after either changes
+  (`node ts/tools/goldens.ts`).
 - **`monkeyc -e` (`--package-app`) is the Store export** (SDK 9.3.0,
   checked 2026-10-25), and `wfb export` runs it with `-r`:
   - one run compiles **once per part number** listed for each manifest
