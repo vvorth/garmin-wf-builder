@@ -1,11 +1,12 @@
 // A slot drawn round the dial: a turned icon (`rotate:`), and its pieces.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Tiles, toJson } from "../src/draw/jsonform.ts";
+import { rasterise, Tiles, toJson } from "../src/draw/jsonform.ts";
 import { CATALOG, stepKey } from "../src/icons.ts";
 import { slotSampleGlyph } from "../src/kinds/data.ts";
 import { type PlacedData, type PlacedIcon, type PlacedText, radialSpacingRadius } from "../src/layout.ts";
 import { frameItems, newRenderer, previewOptions, render, sampleValues } from "../src/preview.ts";
+import { image as rasterImage } from "../src/raster/pillow.ts";
 import { checked, divergences, errors, face, generated, method, MINIMAL, resolved, view } from "./designs.ts";
 
 const icon = (extra: string): string => `${MINIMAL}
@@ -97,6 +98,36 @@ test("a temperature pick's icon follows a weather condition, read beside it", ()
   assert.match(icon, /CURRENT_TEMPERATURE: return WfbConditions.iconOr\(WfbConditions.current\(\), "temperature"\);/);
   assert.match(icon, /HIGH_LOW_TEMPERATURE: return WfbConditions.iconOr\(WfbConditions.today\(\), "temperature_range"\);/);
   assert.match(icon, /FORECAST_WEATHER_2DAY: return \(value instanceof Lang.Number\) \? WfbWeather.chooseIcon\(value\) : "weather";/);
+});
+
+test("a pick's glyph is justified by its own advance, not the reference glyph's", () => {
+  // The thermometer measures the slot's box; the sample rain cloud drawn for the pick is wider.
+  for (const align of ["center", "left", "right"]) {
+    const text = slotIcon(`    align: ${align}`).replace("default: steps", "default: current_temperature")
+      .replace("choices: [steps,", "choices: [steps, current_temperature,");
+    const r = resolved(text);
+    const p = r.items.find((item) => item.id === "glyph") as PlacedIcon;
+    const font = r.fonts.get(p.font_key)!;
+    const options = previewOptions({ scale: 1, picks: [["left", "current_temperature"]] });
+    const shown = slotSampleGlyph(r.face.config_data.get("left")!, "current_temperature", null)!;
+    const g = font.glyphs.get(shown)!;
+    assert.ok(g.xadvance - font.measure(p.codepoint)[0] >= 4, "the drawn glyph is wider than the reference");
+    // drawText justified on the anchor: the cell's left edge, then the glyph's own offset.
+    const cx = p.anchor_point[0];
+    const left = (align === "left" ? cx : align === "right" ? cx - g.xadvance : cx - Math.floor(g.xadvance / 2)) + g.xoffset;
+    const inkLeft = (frame: { width: number; height: number; data: Uint8ClampedArray }): number => {
+      let x0 = frame.width;
+      for (let i = 0; i < frame.width * frame.height; i++) if (frame.data[i * 4]! > 128) x0 = Math.min(x0, i % frame.width);
+      return x0;
+    };
+    const preview = inkLeft(render(r, options));
+    assert.ok(Math.abs(preview - left) <= 1, `${align}: the preview's ink at ${preview}; drawText puts it at ${left}`);
+    // The studio's canvas paints the same glyph through its own JSON ops.
+    const renderer = newRenderer(r, options, sampleValues(r, options, null), [0, 0, 0]);
+    const tiles = new Tiles(), image = rasterImage(r.device.width, r.device.height);
+    rasterise(toJson(renderer, frameItems(r, options, null).find((item) => item.id === "glyph")!, tiles)[0], tiles, image, 1);
+    assert.equal(inkLeft(image), preview, `${align}: the studio canvas agrees with the preview`);
+  }
 });
 
 test("a notification count pick's icon empties at zero, unless the author chose one", () => {

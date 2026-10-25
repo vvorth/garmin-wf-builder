@@ -437,7 +437,8 @@ export class Evaluator {
   private glyph(op: Glyph): void {
     const text = this.string(op.glyph);
     if (text === null || op.font.baked === null) return;
-    pasteGlyph(this.renderer, op.font.baked, text, op.box.x + this.n(op.x) - op.origin[0], op.box.y + this.n(op.y) - op.origin[1], this.color);
+    pasteGlyph(this.renderer, op.font.baked, text, op.box.x + this.n(op.x) - op.origin[0], op.box.y + this.n(op.y) - op.origin[1],
+      op.box.width, op.justify, this.color);
   }
 }
 
@@ -456,13 +457,21 @@ export function bakedGlyph(font: BakedFont | null | undefined, char: string | nu
   return font.glyphs.get(char) ?? null;
 }
 
-/** `char`'s tile from the baked sheet `fontKey`, its box's top-left at device `(x, y)`. */
-export function pasteGlyph(renderer: Renderer, fontKey: string, char: string, x: number, y: number, color: RGB): void {
+/**
+ * `char`'s tile from the baked sheet `fontKey`, justified within a box whose
+ * top-left is device `(x, y)` and whose width is `boxWidth`. The box is measured
+ * by one reference glyph, but a runtime-chosen glyph (a slot's pick, a weather
+ * condition) can be wider or narrower: `drawText` justifies each by its own advance.
+ */
+export function pasteGlyph(renderer: Renderer, fontKey: string, char: string, x: number, y: number, boxWidth: number,
+  justify: readonly string[], color: RGB): void {
   const font = renderer.resolved.fonts.get(fontKey);
   const glyph = bakedGlyph(font, char);
   if (glyph === null || font === undefined || font.sheet === null) return;
+  const align = justifyAlign(justify);
+  const shift = align === "left" ? 0 : align === "right" ? boxWidth - glyph.xadvance : Math.floor(boxWidth / 2) - Math.floor(glyph.xadvance / 2);
   const s = renderer.scale;
-  renderer.pasteGlyph(font.sheet, glyph, x * s, y * s, color);
+  renderer.pasteGlyph(font.sheet, glyph, (x + shift) * s, y * s, color);
 }
 
 /** What one `Part` call draws, as plain `Dc` ops over device numbers: the barrel's own transform. */
