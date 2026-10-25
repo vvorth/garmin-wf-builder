@@ -36,7 +36,7 @@ can't: why each key exists, and what the watch does with it.
 | [Elements: common keys and groups](guide/elements.md) | The element types, and the keys they share: `visible:`, `static:`, `antialias:`, `min_1px:`, plus `group` |
 | [Text](guide/text.md) | `text`: the `text:` template, formats, absent readings, and rotated or radial text with `curve:` |
 | [Shapes](guide/shapes.md) | Rectangles, circles, ellipses, arcs, polygons, lines |
-| [Icons](guide/icons.md) | Named icons, any Nerd Fonts glyph, weather icons chosen at runtime (`icon: {for:}`) |
+| [Icons](guide/icons.md) | Named icons, any Nerd Fonts glyph, weather and level icons chosen at runtime (`icon: {for:}`) |
 | [Gauges and graphs](guide/progress-and-graphs.md) | `gauge` (bar, arc, segments, scale, needle) and `graph` (history series: line, area, bars) |
 | [Analog hands](guide/analog-hands.md) | `hand_sets:`, part types, the `hands` element, second-hand behaviour |
 | [Patterns](guide/patterns.md) | Radial and linear repeats: ticks, numerals, skipping, text parts |

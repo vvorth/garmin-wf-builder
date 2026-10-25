@@ -2,6 +2,7 @@
 // its hold and icon helpers; its drawing is the data kind's `lower`..
 import { type Guards, NO_GUARDS } from "../../availability.ts";
 import * as complications from "../../complications.ts";
+import * as icons from "../../icons.ts";
 import type { Face } from "../../ir/model.ts";
 import { configField, dataHoldMethod, dataIconMethod, elementMethodName } from "../../ir/naming.ts";
 import type { ResolvedFace } from "../../layout.ts";
@@ -365,15 +366,17 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
   const names = slot.choices !== "any" ? slot.choices : sortedNames(mapped.keys());
   const follows = slot.conditionIcons;
   const zero = slot.zeroIcons;
+  const level = slot.levelIcons;
   w.blank();
   w.doc(`\`${elementId}\`'s icon, chosen from the wearer's picked type -- not from\n`
     + "the reading, so it still shows on a frame the reading could not be pulled.\n"
     + "A weather type's icon follows the pulled condition when there is one,\n"
-    + "and a count's empties when the pulled count is 0.");
+    + "a count's empties when the pulled count is 0, and a level type's\n"
+    + "fills with the pulled reading.");
   w.block(`private function ${dataIconMethod(elementId)}(t as Complications.Type,\n            pulled as Complications.Complication?) as String?`, () => {
     // a target without the module, or older than a type below, needs the switch inside a check of its own
     w.blockIf(guards.complications ? "if (Toybox has :Complications)" : null, () => {
-      if (zero.size > 0 || [...follows].some((name) => complications.ICON_CONDITION.get(name) === null)) w.line("var value = (pulled != null) ? pulled.value : null;");
+      if (zero.size > 0 || level.size > 0 || [...follows].some((name) => complications.ICON_CONDITION.get(name) === null)) w.line("var value = (pulled != null) ? pulled.value : null;");
       w.block("switch (t)", () => {
         for (const name of names) {
           const icon = mapped.get(name);
@@ -387,6 +390,9 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
             w.line(`case Complications.${ctype.constant}: return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");`);
           } else if (zero.has(name)) {
             w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number && value == 0) ? "${complications.ICON_WHEN_ZERO.get(name)}" : "${icon.key}";`);
+          } else if (level.has(name)) {
+            const fn = icons.levelFunction(icons.LEVEL_ICONS.get(complications.ICON_LEVEL.get(name)!)!);
+            w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? IconGlyphs.${fn}(value) : "${icon.key}";`);
           } else if (follows.has(name)) {
             w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? WfbWeather.chooseIcon(value) : "${icon.key}";`);
           } else {

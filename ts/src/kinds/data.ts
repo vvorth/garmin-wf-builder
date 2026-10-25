@@ -132,7 +132,7 @@ export function slotIconFontKey(slotName: string, size: Length | null, antialias
   return icons.fontKey(size, `slot_${slotName}`, antialias, turn);
 }
 
-/** The sample frame's icon for `shown`: its catalogue glyph, a weather type's for the sample condition it follows, or a count's empty one at 0. */
+/** The sample frame's icon for `shown`: its catalogue glyph, a weather type's for the sample condition it follows, a count's empty one at 0, or a level type's step. */
 export function slotSampleGlyph(slot: ConfigDataSlot, shown: string, sample: unknown): string | null {
   const icon = slot.icons.get(shown);
   if (icon === undefined) return null;
@@ -142,6 +142,7 @@ export function slotSampleGlyph(slot: ConfigDataSlot, shown: string, sample: unk
     return icons.CATALOG.get(icons.GARMIN_WEATHER_CONDITION_ICON.get(condition) ?? "weather_unknown")!.codepoint;
   }
   if (slot.zeroIcons.has(shown) && sample === 0) return icons.CATALOG.get(complications.ICON_WHEN_ZERO.get(shown)!)!.codepoint;
+  if (slot.levelIcons.has(shown)) return icons.CATALOG.get(icons.levelIconName(icons.LEVEL_ICONS.get(complications.ICON_LEVEL.get(shown)!)!, sample))!.codepoint;
   return icon.codepoint;
 }
 
@@ -220,9 +221,17 @@ export function slotIconRun(label: string, face: Face, slotName: string, size: L
     codepoints.add(icons.CATALOG.get(name)!.codepoint);
     table.set(name, icons.CATALOG.get(name)!.codepoint);
   }
+  const levels = [...new Set([...slot.levelIcons].map((shown) => complications.ICON_LEVEL.get(shown)!))].sort();
+  for (const level of levels) {
+    // A level type's icon fills with the reading, so the font needs every step.
+    for (const [name, glyph] of icons.levelGlyphTable(icons.LEVEL_ICONS.get(level)!)) {
+      codepoints.add(glyph);
+      table.set(name, glyph);
+    }
+  }
   const glyphs = [...codepoints].sort(comparePoints).join("");
   return new TextRun(label, key ?? slotIconFontKey(slotName, size, antialias, turn as number), {
-    span, icon: new IconFont(size, glyphs, reference, antialias, turn), glyph_table: table,
+    span, icon: new IconFont(size, glyphs, reference, antialias, turn), glyph_table: table, levels,
   });
 }
 

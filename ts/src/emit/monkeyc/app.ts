@@ -132,8 +132,39 @@ export function emitIconGlyphs(face: Face, viaChar: ReadonlySet<string> = new Se
         w.line(`default: return "${icons.FALLBACK_CODEPOINT}";`);
       });
     });
+    for (const name of iconLevels(face)) emitLevelFunction(w, icons.LEVEL_ICONS.get(name)!);
   });
   return { path: "source/IconGlyphs.mc", text: w.render() };
+}
+
+/**
+ * `<name>Level(value)`: a 0-100 reading to the catalogue name of its step, the
+ * plain icon without one. Each name is a literal, never built from the band:
+ * `IconGlyphs.glyph` switches on it, and the SDK does not say whether a
+ * `switch` compares strings by value.
+ */
+function emitLevelFunction(w: Writer, level: icons.LevelIcon): void {
+  const bands = level.steps.length;
+  w.blank();
+  w.doc(`The '${level.name}' icon for a 0-100 reading: ${bands} equal bands, the\n`
+    + `reading truncated to one ('${level.steps[0]}' below 100/${bands}, 100 the top),\n`
+    + `and '${level.plain}' without a reading.`);
+  w.block(`function ${icons.levelFunction(level)}(value as Lang.Numeric or Null) as String`, () => {
+    w.block("if (value == null)", () => w.line(`return "${level.plain}";`));
+    w.line(`var band = (value * ${bands} / 100).toNumber();`);
+    w.block("if (band <= 0)", () => w.line(`return "${level.steps[0]}";`));
+    w.block("switch (band)", () => {
+      level.steps.slice(1, -1).forEach((name, i) => w.line(`case ${i + 1}: return "${name}";`));
+      w.line(`default: return "${level.steps[bands - 1]}";`);
+    });
+  });
+}
+
+/** Every level icon whose step the watch chooses in this design. */
+export function iconLevels(face: Face): string[] {
+  const names = new Set<string>();
+  for (const [, run] of kinds.faceTextRuns(face)) for (const name of run.levels) names.add(name);
+  return [...names].sort();
 }
 
 /** Python's `sorted()` of strings. */

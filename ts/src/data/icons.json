@@ -40,6 +40,31 @@
    "codepoint": "",
    "description": "a horizontal battery, three quarters full (Font Awesome nf-fa-battery_3 -- lying down, where Material Design's batteries stand upright)"
   },
+  "battery_level_0": {
+   "name": "battery_level_0",
+   "codepoint": "",
+   "description": "an empty battery: battery charge in band 1 of 5 (Font Awesome nf-fa-battery_empty)"
+  },
+  "battery_level_1": {
+   "name": "battery_level_1",
+   "codepoint": "",
+   "description": "a battery a quarter full: battery charge in band 2 of 5 (Font Awesome nf-fa-battery_quarter)"
+  },
+  "battery_level_2": {
+   "name": "battery_level_2",
+   "codepoint": "",
+   "description": "a battery half full: battery charge in band 3 of 5 (Font Awesome nf-fa-battery_half)"
+  },
+  "battery_level_3": {
+   "name": "battery_level_3",
+   "codepoint": "",
+   "description": "a battery three quarters full: battery charge in band 4 of 5 (Font Awesome nf-fa-battery_three_quarters)"
+  },
+  "battery_level_4": {
+   "name": "battery_level_4",
+   "codepoint": "",
+   "description": "a full battery: battery charge in band 5 of 5 (Font Awesome nf-fa-battery_full)"
+  },
   "floors": {
    "name": "floors",
    "codepoint": "󰓍",
@@ -164,6 +189,51 @@
    "name": "solar",
    "codepoint": "󰖨",
    "description": "a bright sun, for solar input (Material Design md-white_balance_sunny)"
+  },
+  "solar_level_0": {
+   "name": "solar_level_0",
+   "codepoint": "󰝦",
+   "description": "an empty circle: solar input in band 1 of 9 (Material Design md-circle_outline)"
+  },
+  "solar_level_1": {
+   "name": "solar_level_1",
+   "codepoint": "󰪞",
+   "description": "a circle one eighth filled: solar input in band 2 of 9 (Material Design md-circle_slice_1)"
+  },
+  "solar_level_2": {
+   "name": "solar_level_2",
+   "codepoint": "󰪟",
+   "description": "a circle two eighths filled: solar input in band 3 of 9 (Material Design md-circle_slice_2)"
+  },
+  "solar_level_3": {
+   "name": "solar_level_3",
+   "codepoint": "󰪠",
+   "description": "a circle three eighths filled: solar input in band 4 of 9 (Material Design md-circle_slice_3)"
+  },
+  "solar_level_4": {
+   "name": "solar_level_4",
+   "codepoint": "󰪡",
+   "description": "a half-filled circle: solar input in band 5 of 9 (Material Design md-circle_slice_4)"
+  },
+  "solar_level_5": {
+   "name": "solar_level_5",
+   "codepoint": "󰪢",
+   "description": "a circle five eighths filled: solar input in band 6 of 9 (Material Design md-circle_slice_5)"
+  },
+  "solar_level_6": {
+   "name": "solar_level_6",
+   "codepoint": "󰪣",
+   "description": "a circle six eighths filled: solar input in band 7 of 9 (Material Design md-circle_slice_6)"
+  },
+  "solar_level_7": {
+   "name": "solar_level_7",
+   "codepoint": "󰪤",
+   "description": "a circle seven eighths filled: solar input in band 8 of 9 (Material Design md-circle_slice_7)"
+  },
+  "solar_level_8": {
+   "name": "solar_level_8",
+   "codepoint": "󰪥",
+   "description": "a filled circle: solar input in band 9 of 9 (Material Design md-circle_slice_8)"
   },
   "wheelchair": {
    "name": "wheelchair",

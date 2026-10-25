@@ -93,9 +93,11 @@ elements:
     absent: {text: "--"}
 
   # -- solar input: also only reachable through Complications -----------------
+  # A level icon: a circle that fills with the reading in nine steps, and the
+  # plain sun while there is none (docs/guide/icons.md, "A level icon").
   solar_icon:
     type: icon
-    icon: weather_sunny
+    icon: { for: complication.solar_input }
     at: { anchor: center, dx: 26%, dy: -1% }
     size: 12%r
     color: color.accent

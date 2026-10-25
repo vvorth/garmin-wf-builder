@@ -120,6 +120,7 @@ jobs:
             # test/hold.test.ts
             # test/layout.test.ts
             # test/level-guards.test.ts
+            # test/level-icons.test.ts
             # test/overrides.test.ts
             # test/page-accept.test.ts
             # test/page-panels.test.ts

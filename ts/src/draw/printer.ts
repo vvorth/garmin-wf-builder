@@ -1,6 +1,7 @@
 // Backend 1: a draw program as the Monkey C body of `draw<Id>`. It writes through the emitter's own `Writer`, so
 // wrapping and spacing come out as the rest of the view's.
 import * as formatting from "../formatting.ts";
+import * as icons from "../icons.ts";
 import { localName } from "../ir/naming.ts";
 import { stringLiteral } from "../mcsource.ts";
 import { AodStyle, glyphYExpr, HOLDS_SHOWN, maskLiteral, mcColor, mcFloat, NO_AOD, plus, shifted } from "../emit/monkeyc/common.ts";
@@ -56,7 +57,11 @@ export function strCode(s: Str, aod: AodStyle = NO_AOD): string {
     case "StrLit": return stringLiteral(s.text);
     case "Reading": return formatting.emit(s.spec, s.value.code, s.value.value.type, { unitCode: s.unit !== null ? s.unit.code : null });
     case "Concat": return s.parts.map((part) => strCode(part, aod)).join(" + ");
-    case "IconChoice": return `IconGlyphs.glyph(WfbWeather.chooseIcon(${localName(s.value.sources[0]!)}))`;
+    case "IconChoice": {
+      const local = localName(s.value.sources[0]!);
+      if (s.level !== null) return `IconGlyphs.glyph(IconGlyphs.${icons.levelFunction(icons.LEVEL_ICONS.get(s.level)!)}(${local}))`;
+      return `IconGlyphs.glyph(WfbWeather.chooseIcon(${local}))`;
+    }
     case "PerCopy": return strCode(s.printed, aod);
     case "Local": return s.name;
   }
