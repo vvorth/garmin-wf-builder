@@ -2590,7 +2590,7 @@
           "description": "A 'config: slots:' name, instead of 'icon:': the glyph is the icon of whatever the wearer picked for that slot, chosen on the watch from the picked type (a weather type's from the pulled condition), with the slot's per-choice 'icon:' overrides. 'on_hold:' then accepts 'auto' only, which opens the pick's glance."
         },
         "icon": {
-          "description": "Which glyph: a name from the built-in icon catalogue (`wfb sources` lists them), {codepoint: 'U+XXXX'} for any glyph in the vendored icon font the catalogue does not name, or {for: <source>} to choose the glyph at runtime from a bound value: a weather.condition* source, or a level icon's source (complication.solar_input), whose icon fills with its 0-100 reading. A bitmap-font glyph, drawn with drawText.",
+          "description": "Which glyph: a name from the built-in icon catalogue (`wfb sources` lists them), {codepoint: 'U+XXXX'} for any glyph in the vendored icon font the catalogue does not name, or {for: <source>} to choose the glyph at runtime from a bound value: a weather.condition* source, or a level icon's source (system.battery, complication.battery, complication.solar_input), whose icon fills with its 0-100 reading. A bitmap-font glyph, drawn with drawText.",
           "oneOf": [
             {
               "type": "string",
@@ -2619,7 +2619,7 @@
               "properties": {
                 "for": {
                   "type": "string",
-                  "description": "A bare source: weather.condition, weather.condition_today or weather.condition_tomorrow (the condition's weather icon, hidden without data), or complication.solar_input (a step that fills with the 0-100 reading, the plain icon without one). Not an expression over one."
+                  "description": "A bare source: weather.condition, weather.condition_today or weather.condition_tomorrow (the condition's weather icon, hidden without data), or system.battery, complication.battery or complication.solar_input (a step that fills with the 0-100 reading, the plain icon without one). Not an expression over one."
                 }
               }
             }

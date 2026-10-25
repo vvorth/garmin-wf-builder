@@ -1,6 +1,7 @@
 // Level icons: an icon that fills with a 0-100 reading, on a slot and on `icon: {for:}`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { WholeFloat } from "../src/edit/yaml.ts";
 import { CATALOG, LEVEL_ICONS, levelBand, levelIconName } from "../src/icons.ts";
 import { slotSampleGlyph } from "../src/kinds/data.ts";
 import { previewOptions, render } from "../src/preview.ts";
@@ -87,8 +88,48 @@ test("icon: {for: complication.solar_input} fills with the reading and draws the
   assert.ok(none.includes("1"), "the plain sun is drawn");
 });
 
+test("a battery's five bands are 20 wide: 0-19 empty, 80-100 full", () => {
+  const battery = LEVEL_ICONS.get("battery")!;
+  assert.deepEqual([0, 19, 20, 39, 40, 79, 80, 100].map((v) => levelIconName(battery, v)),
+    ["battery_level_0", "battery_level_0", "battery_level_1", "battery_level_1", "battery_level_2", "battery_level_3", "battery_level_4", "battery_level_4"]);
+  assert.equal(levelIconName(battery, new WholeFloat(68)), "battery_level_3", "system.battery is a Float");
+  assert.equal(levelIconName(battery, null), "battery");
+  assert.equal(glyph("battery_level_0"), "\u{F244}");
+  assert.equal(glyph("battery_level_4"), "\u{F240}");
+});
+
+test("a battery pick's icon fills with the charge", () => {
+  const text = slotted("[steps, battery]");
+  const slot = face(text).config_data.get("left")!;
+  assert.equal(slotSampleGlyph(slot, "battery", 19), glyph("battery_level_0"));
+  assert.equal(slotSampleGlyph(slot, "battery", 20), glyph("battery_level_1"));
+  assert.equal(slotSampleGlyph(slot, "battery", null), glyph("battery"));
+  assert.match(method(view(text), "iconForGlyph"),
+    /COMPLICATION_TYPE_BATTERY: return \(value instanceof Lang.Number\) \? IconGlyphs.batteryLevel\(value\) : "battery";/);
+  assert.match(generated(text).get("source/IconGlyphs.mc")!, /var band = \(value \* 5 \/ 100\)\.toNumber\(\);/);
+});
+
+test("icon: {for: system.battery} and {for: complication.battery} share one font and fill with the charge", () => {
+  const text = `${fixed("system.battery")}
+  other:
+    type: icon
+    icon: {for: complication.battery}
+    size: 20%r
+    at: {anchor: center, dy: 30%}
+    color: color.fg
+`;
+  assert.deepEqual(errors(text), []);
+  const v = view(text);
+  assert.match(method(v, "drawGlyph"), /IconGlyphs.glyph\(IconGlyphs.batteryLevel\(systemBattery\)\)/);
+  assert.match(method(v, "drawOther"), /IconGlyphs.glyph\(IconGlyphs.batteryLevel\(complicationBattery\)\)/);
+  const r = resolved(text);
+  const keys = r.items.filter((p) => p.id === "glyph" || p.id === "other").map((p) => (p as unknown as { font_key: string }).font_key);
+  assert.equal(new Set(keys).size, 1, keys.join(", "));
+  assert.notEqual(lit(fixed("system.battery"), [["system.battery", 19]]), lit(fixed("system.battery"), [["system.battery", 20]]));
+});
+
 test("icon: {for:} still refuses arithmetic over a level source", () => {
   const found = errors(fixed("complication.solar_input / 2"));
   assert.equal(found.length, 1);
-  assert.match(found[0]!.message, /complication.solar_input, weather.condition/);
+  assert.match(found[0]!.message, /complication.battery, complication.solar_input, system.battery, weather.condition,/);
 });

@@ -260,11 +260,14 @@ export interface LevelIcon {
 }
 
 export const LEVEL_ICONS: ReadonlyMap<string, LevelIcon> = new Map([
+  ["battery", { name: "battery", plain: "battery", steps: Array.from({ length: 5 }, (_, i) => `battery_level_${i}`) }],
   ["solar", { name: "solar", plain: "solar", steps: Array.from({ length: 9 }, (_, i) => `solar_level_${i}`) }],
 ]);
 
 /** The source each level icon follows on a plain `icon: {for:}`. */
-export const LEVEL_SOURCES: ReadonlyMap<string, string> = new Map([["complication.solar_input", "solar"]]);
+export const LEVEL_SOURCES: ReadonlyMap<string, string> = new Map([
+  ["complication.battery", "battery"], ["complication.solar_input", "solar"], ["system.battery", "battery"],
+]);
 
 /** The band a 0-100 reading falls in, of `bands` equal ones: truncated, as the watch's `toNumber()` truncates, then clamped. */
 export function levelBand(value: number, bands: number): number {

@@ -405,9 +405,10 @@ Instead:
   (an outlined bubble) when the pulled count is 0, `notification` (a
   filled one) otherwise and when nothing could be pulled. An authored
   `icon:` on that choice keeps it.
-  **A `solar_input` icon fills with the reading**: one of nine steps, an
-  empty circle up to a full one, by the band of 0-100 the pulled reading
-  falls in, and the plain sun when nothing could be pulled
+  **A `battery` or `solar_input` icon fills with the reading**: one of
+  five battery steps, empty up to full, or nine solar ones, an empty
+  circle up to a full one, by the band of 0-100 the pulled reading falls
+  in, and the plain icon when nothing could be pulled
   ([A level icon](icons.md#a-level-icon)); the slot's icon font then
   carries every step. An authored `icon:` on that choice keeps it.
   **All 42 native complication types have a catalogue icon** -- an author can still suppress one explicitly

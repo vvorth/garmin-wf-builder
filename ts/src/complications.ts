@@ -53,7 +53,7 @@ export const ICON_CONDITION: ReadonlyMap<string, string | null> = new Map([
 /** A count type whose icon empties at zero: the catalogue name drawn when the pulled count is 0. */
 export const ICON_WHEN_ZERO: ReadonlyMap<string, string> = new Map([["notification_count", "notification_none"]]);
 /** A type whose icon fills with its 0-100 reading: the `icons.LEVEL_ICONS` entry it follows. */
-export const ICON_LEVEL: ReadonlyMap<string, string> = new Map([["solar_input", "solar"]]);
+export const ICON_LEVEL: ReadonlyMap<string, string> = new Map([["battery", "battery"], ["solar_input", "solar"]]);
 export const COUNT_UNIT: ReadonlyMap<string, string> = new Map(Object.entries(data.count_unit));
 /** What a `data` element's `prefix: true` writes before a type's reading; a type missing here has none. */
 export const PREFIX: ReadonlyMap<string, string> = new Map(Object.entries(data.prefix));

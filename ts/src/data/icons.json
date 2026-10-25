@@ -40,6 +40,31 @@
    "codepoint": "",
    "description": "a horizontal battery, three quarters full (Font Awesome nf-fa-battery_3 -- lying down, where Material Design's batteries stand upright)"
   },
+  "battery_level_0": {
+   "name": "battery_level_0",
+   "codepoint": "",
+   "description": "an empty battery: battery charge in band 1 of 5 (Font Awesome nf-fa-battery_empty)"
+  },
+  "battery_level_1": {
+   "name": "battery_level_1",
+   "codepoint": "",
+   "description": "a battery a quarter full: battery charge in band 2 of 5 (Font Awesome nf-fa-battery_quarter)"
+  },
+  "battery_level_2": {
+   "name": "battery_level_2",
+   "codepoint": "",
+   "description": "a battery half full: battery charge in band 3 of 5 (Font Awesome nf-fa-battery_half)"
+  },
+  "battery_level_3": {
+   "name": "battery_level_3",
+   "codepoint": "",
+   "description": "a battery three quarters full: battery charge in band 4 of 5 (Font Awesome nf-fa-battery_three_quarters)"
+  },
+  "battery_level_4": {
+   "name": "battery_level_4",
+   "codepoint": "",
+   "description": "a full battery: battery charge in band 5 of 5 (Font Awesome nf-fa-battery_full)"
+  },
   "floors": {
    "name": "floors",
    "codepoint": "󰓍",

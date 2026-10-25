@@ -14,7 +14,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 |---|---|---|---|
 | `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) |
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
-| `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow`, or `complication.solar_input` | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
+| `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow`, or a level icon's source (`system.battery`, `complication.battery`, `complication.solar_input`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `slot:` (instead of `icon:`) | a `config: slots:` name | — | [A slot's icon: `slot:`](#a-slots-icon-slot) — the icon of the wearer's pick |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
 | `rotate:` | `Angle`, clockwise | `0deg` (upright) | [A turned icon: `rotate:`](#a-turned-icon-rotate) |
@@ -269,6 +269,7 @@ falls in, and so does a [slot](#a-slots-icon-slot) showing that metric
 
 | Metric | Source | Slot type | Steps |
 |---|---|---|---|
+| Battery | `system.battery`, `complication.battery` | `battery` | `battery_level_0`…`battery_level_4`: an empty battery, then a quarter more per step (Font Awesome `battery_empty`, `_quarter`, `_half`, `_three_quarters`, `_full`) |
 | Solar input | `complication.solar_input` | `solar_input` | `solar_level_0`…`solar_level_8`: an empty circle, then one more eighth filled per step (Material Design `circle_outline`, `circle_slice_1`…`8`) |
 
 ```yaml
@@ -280,9 +281,12 @@ solar:
 ```
 
 * **The steps are equal bands of 0-100**, the reading truncated into one:
-  solar's nine bands are 11.1 wide, so 0-11 is the empty circle, 12-22 one
-  eighth, and 89-100 the full circle.
-* **Without a reading the metric's plain icon draws** (`solar`, the sun),
+  a battery's five bands are 20 wide, so 0-19% is the empty battery,
+  20-39% a quarter and 80-100% the full one; solar's nine are 11.1 wide,
+  so 0-11 is the empty circle, 12-22 one eighth, and 89-100 the full
+  circle.
+* **Without a reading the metric's plain icon draws** (`battery`, the
+  three-quarter battery; `solar`, the sun),
   as a slot's icon does: it still says which metric this is. On a frame
   that has one, the step replaces it.
 * **Every step is the same size.** Each step's glyph has the same ink box,
@@ -295,6 +299,8 @@ solar:
   preview draws the same step from the sample reading.
 * The steps are catalogue names too, so `icon: solar_level_4` draws one
   step on its own.
+* `system.battery` is always there, so its icon is always a step; the two
+  battery sources share one font at a size.
 
 ### Your own icon font
 
