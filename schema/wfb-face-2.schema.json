@@ -2831,7 +2831,7 @@
           "default": false
         },
         "prefix": {
-          "description": "Write a short tag for the picked type, and a space, before the reading: HR (heart rate), STEPS, ALT (altitude), BARO (sea-level pressure), BATT (battery), BODY (Body Battery), CAL (calories), FLRS (floors climbed), INT MIN (intensity minutes), NOTIF (notifications), RISE (sunrise), SET (sunset), VO2 (VO2 max, run or bike), NOW (current temperature), BIKE and RUN (weekly distances). Any other type writes its reading alone. Not beside 'label:', which writes the device's own label in the same place. Default false.",
+          "description": "Write a short tag for the picked type, and a space, before the reading: HR (heart rate), STEPS, ALT (altitude), BARO (sea-level pressure), BATT (battery), BODY (Body Battery), CAL (calories), FLRS (floors climbed), INT MIN (intensity minutes), NOTIF (notifications), RISE (sunrise), SET (sunset), VO2 (VO2 max, run or bike), NOW (current temperature), BIKE and RUN (weekly distances), 5K, 10K, 21K and 42K (race predictor times and paces), RECOV (recovery time), STRESS, SPO2 (pulse ox), RESP (respiration rate), SOLAR (solar input), PUSH (wheelchair pushes), SLEEP (sleep score). Any other type writes its reading alone. Not beside 'label:', which writes the device's own label in the same place. Default false.",
           "type": "boolean",
           "default": false
         },

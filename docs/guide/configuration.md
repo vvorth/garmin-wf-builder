@@ -374,6 +374,14 @@ Instead:
   | VO2 max (run, bike) | `VO2 49` |
   | current temperature | `NOW 24°` |
   | weekly bike / run distance | `BIKE 23.4`, `RUN 23.4` |
+  | race time and pace predictors: 5K, 10K, half marathon, marathon | `5K 24:40`, `10K`, `21K`, `42K 3:25:45`; a pace `5K 4:56` |
+  | recovery time | `RECOV 18h` |
+  | stress | `STRESS 32` |
+  | pulse ox | `SPO2 97` |
+  | respiration rate | `RESP 15` |
+  | solar input | `SOLAR 40` |
+  | wheelchair pushes | `PUSH 1520` |
+  | sleep score | `SLEEP 84` |
 
   Every other type draws its reading alone. The tags are `PREFIX` in
   `ts/src/complications.ts`; the generated `SlotText.prefix` holds a case

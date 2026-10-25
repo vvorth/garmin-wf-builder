@@ -31,7 +31,10 @@ test("the tags are the ones asked for, and sunrise is RISE", () => {
     heart_rate: "HR", steps: "STEPS", altitude: "ALT", sea_level_pressure: "BARO", battery: "BATT", body_battery: "BODY",
     calories: "CAL", floors_climbed: "FLRS", intensity_minutes: "INT MIN", notification_count: "NOTIF", sunrise: "RISE",
     sunset: "SET", vo2max_run: "VO2", vo2max_bike: "VO2", current_temperature: "NOW", weekly_bike_distance: "BIKE",
-    weekly_run_distance: "RUN",
+    weekly_run_distance: "RUN", race_predictor_5k: "5K", race_predictor_10k: "10K", race_predictor_half_marathon: "21K",
+    race_predictor_marathon: "42K", race_pace_predictor_5k: "5K", race_pace_predictor_10k: "10K",
+    race_pace_predictor_half_marathon: "21K", race_pace_predictor_marathon: "42K", recovery_time: "RECOV", stress: "STRESS",
+    pulse_ox: "SPO2", respiration_rate: "RESP", solar_input: "SOLAR", wheelchair_pushes: "PUSH", sleep_score: "SLEEP",
   });
 });
 

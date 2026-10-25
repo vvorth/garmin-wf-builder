@@ -629,7 +629,22 @@
   "vo2max_bike": "VO2",
   "current_temperature": "NOW",
   "weekly_bike_distance": "BIKE",
-  "weekly_run_distance": "RUN"
+  "weekly_run_distance": "RUN",
+  "race_predictor_5k": "5K",
+  "race_predictor_10k": "10K",
+  "race_predictor_half_marathon": "21K",
+  "race_predictor_marathon": "42K",
+  "race_pace_predictor_5k": "5K",
+  "race_pace_predictor_10k": "10K",
+  "race_pace_predictor_half_marathon": "21K",
+  "race_pace_predictor_marathon": "42K",
+  "recovery_time": "RECOV",
+  "stress": "STRESS",
+  "pulse_ox": "SPO2",
+  "respiration_rate": "RESP",
+  "solar_input": "SOLAR",
+  "wheelchair_pushes": "PUSH",
+  "sleep_score": "SLEEP"
  },
  "count_unit": {
   "heart_rate": "bpm",
