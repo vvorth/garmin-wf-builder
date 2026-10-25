@@ -237,6 +237,11 @@ export class ReadPlan {
       const reader = READERS.get(source.reader)!;
       const base = source.array_index === null ? reader.name : `${reader.name}[${source.array_index}]`;
       const guardParts: string[] = [];
+      // A module some target lacks is checked again where its object's fields are read: monkeyc 9.3.0
+      // only accepts them inside a check of their own (docs/lore/platform-constraints.md, 6d).
+      const moduleCheck = reader.requires_module !== null && this.device_guards.modules.has(reader.requires_module)
+        ? `(Toybox has :${reader.requires_module})` : null;
+      if (moduleCheck !== null) guardParts.push(moduleCheck);
       if (reader.nullable) guardParts.push(`${reader.name} != null`);
       const arrayGuard = catalog.arrayGuard(source);
       if (arrayGuard !== null) guardParts.push(arrayGuard);
@@ -251,7 +256,7 @@ export class ReadPlan {
         const objName = `${localName(path)}Obj`;
         out.push([objName, objRead]);
         const suffix = source.field_name!.slice(intermediate.length + 1);
-        out.push([localName(path), `(${objName} != null) ? ${objName}.${suffix} : null`]);
+        out.push([localName(path), `(${moduleCheck !== null ? `${moduleCheck} && ` : ""}${objName} != null) ? ${objName}.${suffix} : null`]);
         continue;
       }
       let read = catalog.readExpr(source);

@@ -70,6 +70,14 @@ test("a frame reads a guarded module behind a check written in the read, not one
   assert.doesNotMatch(view(bound("fenix8solar47mm"), ["fenix8solar47mm"]), /Toybox has :Complications/);
 });
 
+test("an element's own read of a guarded module's fields carries the module check too", () => {
+  if (!installed("fenix5", "fenix8solar47mm")) return;
+  const text = bound("fenix5, fenix8solar47mm").replace("{complication.solar_input:.0f}", "{weather.temperature:.0f}");
+  const v = view(text, ["fenix5", "fenix8solar47mm"]);
+  assert.match(v, /= \(\(Toybox has :Weather\) && weatherCurrent != null\) \? weatherCurrent\.temperature/);
+  assert.doesNotMatch(view(text.replace("fenix5, ", ""), ["fenix8solar47mm"]), /Toybox has :Weather/);
+});
+
 test("SlotText's switch sits inside the module check where a type is newer than a target", () => {
   if (!installed("fr955", "fenix8solar47mm")) return;
   const guarded = generated(slotted("fr955", "any"), ["fr955"]).get("source/SlotText.mc")!;
