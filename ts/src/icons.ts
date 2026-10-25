@@ -9,6 +9,7 @@
 import data from "./data/icons.json" with { type: "json" };
 import type { Device } from "./devices/device.ts";
 import { WholeFloat } from "./edit/yaml.ts";
+import { COMPOSITES } from "./fonts/composite.ts";
 import { formatG, num } from "./py.ts";
 import { type Length, pixelSize } from "./units.ts";
 
@@ -65,12 +66,12 @@ export function setIconFontGlyphs(glyphs: ReadonlySet<string> | string): void {
   available = glyphs;
 }
 
-/** Is this character in the icon font's own character map? */
+/** Is this character in the icon font's own character map, or a composite of a glyph that is? */
 export function fontHas(character: string): boolean {
   if (available === undefined || typeof available === "string") {
     throw new IconFontMissing(available ?? "the icon font is not installed: run tools/setup-env.sh, or node ts/tools/fetch-icon-font.ts");
   }
-  return available.has(character);
+  return available.has(character) || available.has(COMPOSITES.get(character)?.base ?? "");
 }
 
 /** A catalogue name's glyph, or `null` if the catalogue does not name it. */

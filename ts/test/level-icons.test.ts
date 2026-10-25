@@ -2,8 +2,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { WholeFloat } from "../src/edit/yaml.ts";
-import { CATALOG, LEVEL_ICONS, levelBand, levelIconName } from "../src/icons.ts";
+import { ICON_FONT } from "../src/emit/resources.ts";
+import { bake } from "../src/fonts/bake.ts";
+import { SOLAR_ARCS_FROM_PX } from "../src/fonts/composite.ts";
+import { CATALOG, fontHas, LEVEL_ICONS, levelBand, levelIconName } from "../src/icons.ts";
 import { slotSampleGlyph } from "../src/kinds/data.ts";
+import { readFontFile } from "../src/node.ts";
 import { previewOptions, render } from "../src/preview.ts";
 import { errors, face, generated, method, MINIMAL, resolved, view } from "./designs.ts";
 
@@ -68,6 +72,78 @@ test("a solar input pick's icon fills with the reading, unless the author chose 
   assert.equal(slotSampleGlyph(face(authored).config_data.get("left")!, "solar_input", 0), "\u{F04CE}");
   assert.match(method(view(authored), "iconForGlyph"), /SOLAR_INPUT: return "U\+F04CE";/);
   assert.doesNotMatch(generated(authored).get("source/IconGlyphs.mc")!, /solarLevel/, "no level function nobody calls");
+});
+
+/** The square's eight symmetries, as maps of a pixel in an `n`-wide tile. */
+const SYMMETRIES: ((x: number, y: number, n: number) => [number, number])[] = [
+  (x, y) => [x, y], (x, y, n) => [n - 1 - y, x], (x, y, n) => [n - 1 - x, n - 1 - y], (x, y, n) => [y, n - 1 - x],
+  (x, y, n) => [n - 1 - x, y], (x, y, n) => [x, n - 1 - y], (x, y) => [y, x], (x, y, n) => [n - 1 - y, n - 1 - x],
+];
+
+/** Each solar step baked at nominal `size`: its tile's pixels (1 for ink), and the tile's box. */
+function solarTiles(size: number): { across: number; pixels: Map<string, number[]>; boxes: Map<string, number[]> } {
+  const steps = LEVEL_ICONS.get("solar")!.steps;
+  const font = bake(readFontFile(ICON_FONT), { name: "solar", size, glyphs: steps.map(glyph).join("") });
+  const sheet = font.sheet!, pixels = new Map<string, number[]>(), boxes = new Map<string, number[]>();
+  for (const name of steps) {
+    const g = font.glyphs.get(glyph(name))!;
+    assert.equal(g.width, g.height, `${name} at ${size}: a square tile`);
+    pixels.set(name, Array.from({ length: g.width * g.height }, (_, i) => (sheet.bytes[(g.y + Math.floor(i / g.width)) * sheet.width + g.x + (i % g.width)]! ? 1 : 0)));
+    boxes.set(name, [g.width, g.height, g.xoffset, g.yoffset, g.xadvance]);
+  }
+  return { across: font.glyphs.get(glyph(steps[0]!))!.width, pixels, boxes };
+}
+
+/** The ink outside `share` of the tile's radius: the arcs or the teeth' tips, not the disc. */
+const rim = (pixels: number[], n: number, share: number): number[] =>
+  pixels.map((v, i) => (v && Math.hypot((i % n) + 0.5 - n / 2, Math.floor(i / n) + 0.5 - n / 2) > (share * n) / 2 ? 1 : 0));
+
+test("each solar step is a carved disc in the same square, every arc or tooth the same pixels", () => {
+  const steps = LEVEL_ICONS.get("solar")!.steps;
+  for (const name of steps) assert.ok(fontHas(glyph(name)), `${name} is in the icon font, composed`);
+  const tiers = new Set<string>();
+  for (let size = 12; size <= 52; size++) {
+    const { across: n, pixels, boxes } = solarTiles(size);
+    for (const name of steps) assert.deepEqual(boxes.get(name), boxes.get(steps[0]!), `${size}: ${name} has step 0's box`);
+    const full = pixels.get(steps[8]!)!;
+    // The bolt is cut out of the disc's middle.
+    assert.ok(rim(full, n, 0).some((v, i) => !v && Math.hypot((i % n) + 0.5 - n / 2, Math.floor(i / n) + 0.5 - n / 2) < n / 5), `${size}: the bolt is carved`);
+    const outer = rim(full, n, 0.74);
+    for (const map of SYMMETRIES) {
+      const moved = new Array<number>(n * n).fill(0);
+      outer.forEach((v, i) => { const [x, y] = map(i % n, Math.floor(i / n), n); moved[y * n + x] = v; });
+      assert.deepEqual(moved, outer, `${size}: the rim looks the same flipped or turned`);
+    }
+    if (n < SOLAR_ARCS_FROM_PX) {
+      tiers.add("star");
+      for (const name of steps) assert.deepEqual(pixels.get(name), full, `${size} (${n}px): ${name} is the static star`);
+      assert.ok(outer.some((v) => v), `${size}: the star has teeth`);
+    } else {
+      tiers.add("arcs");
+      const one = rim(pixels.get(steps[1]!)!, n, 0.74);
+      const perArc = one.filter((v) => v).length;
+      assert.ok(perArc > 0, `${size}: one arc is lit`);
+      steps.forEach((name, k) => assert.equal(rim(pixels.get(name)!, n, 0.74).filter((v) => v).length, k * perArc, `${size}: ${name} lights ${k} equal arcs`));
+      // The first arc is clockwise from 12 o'clock: the upper right quarter.
+      one.forEach((v, i) => { if (v) assert.ok(i % n >= n / 2 && Math.floor(i / n) < n / 2, `${size}: the first arc is upper right`); });
+    }
+  }
+  assert.deepEqual([...tiers].sort(), ["arcs", "star"]);
+});
+
+test("a fixed solar_level_8 behind the live icon is its track, pixel for pixel", () => {
+  const track = MINIMAL + `
+  glyph:
+    type: icon
+    icon: solar_level_8
+    size: 20%r
+    at: {anchor: center}
+    color: color.fg
+`;
+  assert.deepEqual(errors(track), []);
+  const live = (value: number): string => lit(fixed("complication.solar_input"), [["complication.solar_input", value]]);
+  assert.notEqual(live(100), live(0), "big enough to draw arcs");
+  assert.equal(lit(track, []), live(100));
 });
 
 test("a slot without a solar choice has no level function", () => {

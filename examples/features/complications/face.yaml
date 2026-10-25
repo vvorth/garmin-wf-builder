@@ -93,8 +93,10 @@ elements:
     absent: {text: "--"}
 
   # -- solar input: also only reachable through Complications -----------------
-  # A level icon: a circle that fills with the reading in nine steps, and the
-  # plain sun while there is none (docs/guide/icons.md, "A level icon").
+  # A level icon: a bolt in a disc, with up to eight arcs lit around it by
+  # the reading, and the plain sun while there is none. At this size (under
+  # 22 px across) every step is the same static star (docs/guide/icons.md,
+  # "A level icon").
   solar_icon:
     type: icon
     icon: { for: complication.solar_input }

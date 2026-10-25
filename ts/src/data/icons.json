@@ -192,48 +192,48 @@
   },
   "solar_level_0": {
    "name": "solar_level_0",
-   "codepoint": "󰝦",
-   "description": "an empty circle: solar input in band 1 of 9 (Material Design md-circle_outline)"
+   "codepoint": "􏀀",
+   "description": "a disc with a lightning bolt cut out and 0 of 8 arcs around it lit, clockwise from 12 o'clock; below 22 px across, a static eight-pointed star around the bolt: solar input in band 1 of 9 (composite, drawn at bake time)"
   },
   "solar_level_1": {
    "name": "solar_level_1",
-   "codepoint": "󰪞",
-   "description": "a circle one eighth filled: solar input in band 2 of 9 (Material Design md-circle_slice_1)"
+   "codepoint": "􏀁",
+   "description": "a disc with a lightning bolt cut out and 1 of 8 arcs around it lit, clockwise from 12 o'clock; below 22 px across, a static eight-pointed star around the bolt: solar input in band 2 of 9 (composite, drawn at bake time)"
   },
   "solar_level_2": {
    "name": "solar_level_2",
-   "codepoint": "󰪟",
-   "description": "a circle two eighths filled: solar input in band 3 of 9 (Material Design md-circle_slice_2)"
+   "codepoint": "􏀂",
+   "description": "a disc with a lightning bolt cut out and 2 of 8 arcs around it lit, clockwise from 12 o'clock; below 22 px across, a static eight-pointed star around the bolt: solar input in band 3 of 9 (composite, drawn at bake time)"
   },
   "solar_level_3": {
    "name": "solar_level_3",
-   "codepoint": "󰪠",
-   "description": "a circle three eighths filled: solar input in band 4 of 9 (Material Design md-circle_slice_3)"
+   "codepoint": "􏀃",
+   "description": "a disc with a lightning bolt cut out and 3 of 8 arcs around it lit, clockwise from 12 o'clock; below 22 px across, a static eight-pointed star around the bolt: solar input in band 4 of 9 (composite, drawn at bake time)"
   },
   "solar_level_4": {
    "name": "solar_level_4",
-   "codepoint": "󰪡",
-   "description": "a half-filled circle: solar input in band 5 of 9 (Material Design md-circle_slice_4)"
+   "codepoint": "􏀄",
+   "description": "a disc with a lightning bolt cut out and 4 of 8 arcs around it lit, clockwise from 12 o'clock; below 22 px across, a static eight-pointed star around the bolt: solar input in band 5 of 9 (composite, drawn at bake time)"
   },
   "solar_level_5": {
    "name": "solar_level_5",
-   "codepoint": "󰪢",
-   "description": "a circle five eighths filled: solar input in band 6 of 9 (Material Design md-circle_slice_5)"
+   "codepoint": "􏀅",
+   "description": "a disc with a lightning bolt cut out and 5 of 8 arcs around it lit, clockwise from 12 o'clock; below 22 px across, a static eight-pointed star around the bolt: solar input in band 6 of 9 (composite, drawn at bake time)"
   },
   "solar_level_6": {
    "name": "solar_level_6",
-   "codepoint": "󰪣",
-   "description": "a circle six eighths filled: solar input in band 7 of 9 (Material Design md-circle_slice_6)"
+   "codepoint": "􏀆",
+   "description": "a disc with a lightning bolt cut out and 6 of 8 arcs around it lit, clockwise from 12 o'clock; below 22 px across, a static eight-pointed star around the bolt: solar input in band 7 of 9 (composite, drawn at bake time)"
   },
   "solar_level_7": {
    "name": "solar_level_7",
-   "codepoint": "󰪤",
-   "description": "a circle seven eighths filled: solar input in band 8 of 9 (Material Design md-circle_slice_7)"
+   "codepoint": "􏀇",
+   "description": "a disc with a lightning bolt cut out and 7 of 8 arcs around it lit, clockwise from 12 o'clock; below 22 px across, a static eight-pointed star around the bolt: solar input in band 8 of 9 (composite, drawn at bake time)"
   },
   "solar_level_8": {
    "name": "solar_level_8",
-   "codepoint": "󰪥",
-   "description": "a filled circle: solar input in band 9 of 9 (Material Design md-circle_slice_8)"
+   "codepoint": "􏀈",
+   "description": "a disc with a lightning bolt cut out and 8 of 8 arcs around it lit, clockwise from 12 o'clock; below 22 px across, a static eight-pointed star around the bolt: solar input in band 9 of 9 (composite, drawn at bake time)"
   },
   "wheelchair": {
    "name": "wheelchair",

@@ -414,8 +414,9 @@ Instead:
   filled one) otherwise and when nothing could be pulled. An authored
   `icon:` on that choice keeps it.
   **A `battery` or `solar_input` icon fills with the reading**: one of
-  five battery steps, empty up to full, or nine solar ones, an empty
-  circle up to a full one, by the band of 0-100 the pulled reading falls
+  five battery steps, empty up to full, or nine solar ones, a
+  bolt in a disc with none to eight arcs lit around it (a static star
+  below 22 px), by the band of 0-100 the pulled reading falls
   in, and the plain icon when nothing could be pulled
   ([A level icon](icons.md#a-level-icon)); the slot's icon font then
   carries every step. An authored `icon:` on that choice keeps it.

@@ -27,7 +27,9 @@ Icons are glyphs from the [Nerd Fonts](https://www.nerdfonts.com) "Symbols
 Only" font, about 10,000 of them. `tools/setup-env.sh` downloads the font; it
 isn't stored in this repository. The build bakes only the glyphs you use into
 the face, the same way it bakes a custom text font. Each icon costs one small
-bitmap, and no image files ship.
+bitmap, and no image files ship. The solar level steps are the one exception to "a
+glyph from the font": no glyph there shows solar input filling up, so the
+build draws those steps itself when it bakes the font.
 
 ```yaml
 steps_icon:                          # a named icon: `wfb sources` lists the names
@@ -270,7 +272,7 @@ falls in, and so does a [slot](#a-slots-icon-slot) showing that metric
 | Metric | Source | Slot type | Steps |
 |---|---|---|---|
 | Battery | `system.battery`, `complication.battery` | `battery` | `battery_level_0`…`battery_level_4`: an empty battery, then a quarter more per step (Font Awesome `battery_empty`, `_quarter`, `_half`, `_three_quarters`, `_full`) |
-| Solar input | `complication.solar_input` | `solar_input` | `solar_level_0`…`solar_level_8`: an empty circle, then one more eighth filled per step (Material Design `circle_outline`, `circle_slice_1`…`8`) |
+| Solar input | `complication.solar_input` | `solar_input` | `solar_level_0`…`solar_level_8`: a disc with a lightning bolt cut out, and around it eight arcs, one more lit per step, clockwise from 12 o'clock. Under 22 px across, every step is the same eight-pointed star around the bolt ([below](#small-solar-icons)) |
 
 ```yaml
 solar:
@@ -283,8 +285,7 @@ solar:
 * **The steps are equal bands of 0-100**, the reading truncated into one:
   a battery's five bands are 20 wide, so 0-19% is the empty battery,
   20-39% a quarter and 80-100% the full one; solar's nine are 11.1 wide,
-  so 0-11 is the empty circle, 12-22 one eighth, and 89-100 the full
-  circle.
+  so 0-11 lights no arc, 12-22 one, and 89-100 all eight.
 * **Without a reading the metric's plain icon draws** (`battery`, the
   three-quarter battery; `solar`, the sun),
   as a slot's icon does: it still says which metric this is. On a frame
@@ -301,6 +302,44 @@ solar:
   step on its own.
 * `system.battery` is always there, so its icon is always a step; the two
   battery sources share one font at a size.
+
+#### Small solar icons
+
+An arc one or two pixels thick does not
+read, so a solar step drawn **under 22 px across** (its `size:` on that
+device) is a static icon instead: the same bolt in an eight-pointed star,
+whatever the reading. The choice is made per device, when the font is
+baked, so one face can show arcs on a large screen and the star on a
+small one. Keep a reading next to a small solar icon: the star alone does
+not show how much.
+
+The eight arcs (and the star's eight points) are laid out so each has the
+same pixels as the others, flipped or turned. That is why the star's
+points sit either side of 12 o'clock, not on it.
+
+#### A track behind the arcs
+
+Unlit arcs are not drawn. To show them dimmed, place the full step as a
+fixed icon **behind** the live one, at the same `size:` and position; the
+live icon's disc and lit arcs then cover it exactly:
+
+```yaml
+solar_track:
+  type: icon
+  icon: solar_level_8       # all eight arcs: the track
+  size: 20%r
+  at: {anchor: center}
+  color: "#555555"          # dark grey, a MIP palette colour
+  lint: {allow: [contrast], reason: "a dim track, on purpose"}
+solar:
+  type: icon
+  icon: {for: complication.solar_input}
+  size: 20%r
+  at: {anchor: center}
+  color: color.accent
+```
+
+Under 22 px both draw the same star, so the track is hidden there.
 
 ### Your own icon font
 

@@ -12,6 +12,7 @@ import opentype, { type Command, type Font } from "opentype.js";
 import { discPerimeterOffsets } from "../ir/model.ts";
 import { roundHalfEven } from "../py.ts";
 import { BakedFont, GlyphBox, type Sheet } from "./bmfont.ts";
+import { type Composite, COMPOSITES } from "./composite.ts";
 import type { FontFile } from "./files.ts";
 import { bounds, flatten, type PathCommand, rasterise, type Segment } from "./raster.ts";
 import { nameRecord, readSfnt } from "./sfnt.ts";
@@ -86,9 +87,17 @@ function metrics(p: Parsed, size: number): [number, number] {
   return [Math.ceil(mulFix(p.ascent, s) / 64), -Math.floor(mulFix(p.descent, s) / 64)];
 }
 
-/** A glyph's advance at `size`: its scaled advance in 26.6, rounded to a pixel. */
+/** The composite `ch` stands for in this font: one it lacks, whose base glyph it has. */
+function compositeIn(p: Parsed, ch: string): Composite | null {
+  const composite = COMPOSITES.get(ch);
+  if (composite === undefined || p.font.charToGlyph(ch).index !== 0 || p.font.charToGlyph(composite.base).index === 0) return null;
+  return composite;
+}
+
+/** A glyph's advance at `size`: its scaled advance in 26.6, rounded to a pixel; a composite's is its base's. */
 function advanceAt(p: Parsed, ch: string, size: number): number {
-  return Math.floor((mulFix(p.font.charToGlyph(ch).advanceWidth ?? 0, scale(p, size)) + 32) / 64);
+  const glyph = p.font.charToGlyph(compositeIn(p, ch)?.base ?? ch);
+  return Math.floor((mulFix(glyph.advanceWidth ?? 0, scale(p, size)) + 32) / 64);
 }
 
 /** `ch`'s advance in `source` baked at `size`: what the baked sheet's `xadvance` will be, turned or not. */
@@ -96,7 +105,25 @@ export function glyphAdvance(source: FontFile, ch: string, size: number): number
   return advanceAt(load(source), ch, size);
 }
 
+/** A glyph's outline, and for an upright composite the box its pixels are cut from. */
+interface Outline {
+  commands: PathCommand[];
+  frame: [number, number, number, number] | null;
+}
+
+/** `ch`'s outline at `size`, pen at `(0, baseline)`; `pixel` is one output pixel in its units, which a composite keeps to. */
+function outline(p: Parsed, ch: string, size: number, baseline: number, pixel = 1): Outline {
+  const composite = compositeIn(p, ch);
+  const box = composite !== null ? bounds(flatten(fontCommands(p, composite.base, size, baseline))) : null;
+  if (composite !== null && box !== null) return composite.outline(box, pixel);
+  return { commands: fontCommands(p, ch, size, baseline), frame: null };
+}
+
 function commands(p: Parsed, ch: string, size: number, baseline: number): PathCommand[] {
+  return outline(p, ch, size, baseline).commands;
+}
+
+function fontCommands(p: Parsed, ch: string, size: number, baseline: number): PathCommand[] {
   return p.font.charToGlyph(ch).getPath(0, baseline, size).commands.map((c: Command): PathCommand => {
     if (c.type === "Z") return { type: "Z" };
     if (c.type === "Q") return { type: "Q", x1: c.x1!, y1: c.y1!, x: c.x!, y: c.y! };
@@ -191,18 +218,22 @@ function turned(segments: Segment[], degrees: number, pivotX: number, pivotY: nu
 function rasteriseGlyph(p: Parsed, size: number, ch: string, antialias: boolean, rotate = 0): [Tile, number, number] | null {
   const big = size * SUPERSAMPLE;
   const [ascent, descent] = metrics(p, big);
-  let segments = flatten(commands(p, ch, big, ascent));
+  const drawn = outline(p, ch, big, ascent, SUPERSAMPLE);
+  let segments = flatten(drawn.commands);
   // Turned before rasterising, so the edge is as clean as an upright glyph's.
   if (rotate !== 0) segments = turned(segments, rotate, advanceAt(p, ch, size) * SUPERSAMPLE / 2, (ascent + descent) / 2);
-  const b = bounds(segments);
-  if (b === null) return null;
+  // An upright composite is cut from its own frame, whole output pixels, so its symmetry lands on the pixel grid.
+  const frame = rotate === 0 ? drawn.frame?.map(Math.round) ?? null : null;
+  const ink0 = bounds(segments);
+  if (ink0 === null) return null;
+  const b = frame === null ? ink0 : [Math.min(ink0[0], frame[0]!), Math.min(ink0[1], frame[1]!), Math.max(ink0[2], frame[2]!), Math.max(ink0[3], frame[3]!)];
   // An integer-aligned canvas over the outline, a pixel of margin each way.
-  const left = Math.floor(b[0]) - 1, top = Math.floor(b[1]) - 1;
-  const width = Math.ceil(b[2]) - left + 2, height = Math.ceil(b[3]) - top + 2;
+  const left = Math.floor(b[0]!) - 1, top = Math.floor(b[1]!) - 1;
+  const width = Math.ceil(b[2]!) - left + 2, height = Math.ceil(b[3]!) - top + 2;
   const canvas = rasterise(segments, left, top, width, height);
-  const ink = inkBox(canvas, width, height);
-  if (ink === null) return null;
-  const [ix0, iy0, ix1, iy1] = ink;
+  const inked = inkBox(canvas, width, height);
+  if (inked === null) return null;
+  const [ix0, iy0, ix1, iy1] = frame === null ? inked : [frame[0]! - left, frame[1]! - top, frame[2]! - left, frame[3]! - top];
   const cw = ix1 - ix0, ch2 = iy1 - iy0;
   const crop = new Uint8Array(cw * ch2);
   for (let y = 0; y < ch2; y++) crop.set(canvas.subarray((iy0 + y) * width + ix0, (iy0 + y) * width + ix1), y * cw);
@@ -413,10 +444,10 @@ export function inkHeight(source: FontFile, ch: string, size: number): number {
   return inkSize(source, ch, size)[1];
 }
 
-/** `ch`'s upright ink `[width, height]` at `size`, whole pixels. */
+/** `ch`'s upright ink `[width, height]` at `size`, whole pixels: a composite's frame, which its bake fills. */
 export function inkSize(source: FontFile, ch: string, size: number): [number, number] {
-  const p = load(source);
-  const b = bounds(flatten(commands(p, ch, Math.max(1, size), 0)));
+  const drawn = outline(load(source), ch, Math.max(1, size), 0);
+  const b = drawn.frame ?? bounds(flatten(drawn.commands));
   return b === null ? [0, 0] : [Math.max(0, Math.ceil(b[2]) - Math.floor(b[0])), Math.max(0, Math.ceil(b[3]) - Math.floor(b[1]))];
 }
 
