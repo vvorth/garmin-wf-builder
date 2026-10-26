@@ -77,8 +77,8 @@
   },
   "body_battery": {
    "name": "body_battery",
-   "codepoint": "󰙊",
-   "description": "a waving figure, for Body Battery -- deliberately not the plain 'battery' glyph, which means device charge (Material Design md-human_greeting_variant)"
+   "codepoint": "􏀐",
+   "description": "a head and shoulders inside a gauge that thickens as it sweeps from bottom left to top right, after the watch's own Body Battery icon -- deliberately not the plain 'battery' glyph, which means device charge (drawn at bake time: ts/src/fonts/composite.ts)"
   },
   "stress": {
    "name": "stress",
@@ -157,8 +157,8 @@
   },
   "recovery": {
    "name": "recovery",
-   "codepoint": "󰭖",
-   "description": "a person with a clock, for recovery time (Material Design md-account_clock)"
+   "codepoint": "󰁯",
+   "description": "a counter-clockwise arrow round a dot, for recovery time (Material Design md-backup_restore)"
   },
   "training": {
    "name": "training",

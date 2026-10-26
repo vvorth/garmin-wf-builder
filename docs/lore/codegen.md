@@ -138,16 +138,18 @@ These cost real time to discover; do not rediscover them.
   twice reports its mistakes twice (`_Lowering.lowered`).
 - **A composite icon is a glyph the icon font lacks, drawn at bake time**
   (`ts/src/fonts/composite.ts`): the solar level steps sit at U+10F000-
-  U+10F008 (Supplementary Private Use Area-B, empty in the font). Each
-  borrows a base glyph's advance and ink box (`md-lightning_bolt_circle`)
+  U+10F008 and `body_battery` at U+10F010 (Supplementary Private Use
+  Area-B, empty in the font). Each borrows a base glyph's advance and ink
+  box (`md-lightning_bolt_circle`)
   and draws its own outline there, through `outline`/`advanceAt` in
   `ts/src/fonts/bake.ts`, so sizing, measuring, the sheet and
   `icons.fontHas` treat it as an ordinary glyph, and nothing downstream of
   the sheet knows a composite exists. The bake tells it how big one output
   pixel is, which it uses twice: to pick the static star under
-  `SOLAR_ARCS_FROM_PX` across (per device, in the baked font only, so the
-  shared view never changes), and to snap its box to whole pixels from the
-  pen. An upright composite is then cut from that box, not from its ink,
+  `SOLAR_ARCS_FROM_PX` across, or Body Battery's one-band gauge under
+  `BODY_BATTERY_SEGMENTS_FROM_PX` (per device, in the baked font only, so
+  the shared view never changes), and to snap its box to whole pixels from
+  the pen. An upright composite is then cut from that box, not from its ink,
   so its centre is a pixel's corner or centre, and the eight arcs (or
   teeth), one orbit of the square's symmetries, get identical pixels. Cut
   from the ink box instead, the same outline lands off-grid and the arcs

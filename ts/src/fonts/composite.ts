@@ -13,6 +13,10 @@
 // orbit of the square's symmetries (rotations by 90 degrees and the four
 // mirrors), and the glyph is centred on the pixel grid, so every arc, and
 // every tooth, gets the same pixels, flipped or turned.
+//
+// Body Battery is a head and shoulders inside a tapering gauge, the outline
+// of the watch's own icon, which no glyph in the font has; like the solar
+// arcs, its gauge's segments merge into one band when small.
 import type { PathCommand } from "./raster.ts";
 
 /** A composite's outline, and the box its pixels are cut from when it is upright. */
@@ -118,7 +122,69 @@ function solarStep(lit: number): Composite {
   };
 }
 
+/** Body Battery's code point. */
+export const BODY_BATTERY = 0x10f010;
+/** The narrowest Body Battery, in output pixels across, whose gauge is drawn in segments; smaller, it is one band. */
+export const BODY_BATTERY_SEGMENTS_FROM_PX = 22;
+
+/** The top half of an ellipse about `(cx, cy)`, closed along its axis. */
+function dome(cx: number, cy: number, rx: number, ry: number): Point[] {
+  const n = 48;
+  return Array.from({ length: n + 1 }, (_, i): Point => {
+    const a = Math.PI + (Math.PI * i) / n;
+    return [cx + rx * Math.cos(a), cy + ry * Math.sin(a)];
+  });
+}
+
+/** `points` moved by `(dx, dy)`. */
+const moved = (points: Point[], dx: number, dy: number): Point[] => points.map(([x, y]): Point => [x + dx, y + dy]);
+
+/**
+ * Body Battery, after the watch's own icon: a head and shoulders inside a
+ * gauge that sweeps clockwise from bottom left to top right, growing from a
+ * hairline to a thick band. The gauge sits low, around the head rather than
+ * above it, and the whole is centred in the box and scaled until its longer
+ * side fills it. From `BODY_BATTERY_SEGMENTS_FROM_PX` across the gauge is
+ * four segments; smaller, gaps a pixel wide do not read, so it is one band,
+ * starting a little later so it clears the shoulder. It is not the plain
+ * 'battery' glyph, which means the device's charge.
+ */
+function bodyBatteryParts(across: number): Point[][] {
+  // The thin end is never under about a pixel and a quarter, or it breaks into dots.
+  const segmented = across >= BODY_BATTERY_SEGMENTS_FROM_PX, [thin, thick] = [Math.max(0.07, 2.5 / across), 0.3];
+  // Small, the gap between the gauge's start and the shoulder is under a pixel, so the gauge starts later.
+  const [from, to] = [segmented ? -135 : -122, 55], n = 24, drop = 0.28;
+  const count = segmented ? 4 : 1, gap = segmented ? 10 : 0, step = (to - from) / count;
+  const width = (a: number): number => thin + ((thick - thin) * (a - from)) / (to - from);
+  const gauge = Array.from({ length: count }, (_, k): Point[] => {
+    const [a0, a1] = [from + k * step + gap / 2, from + (k + 1) * step - gap / 2];
+    const angles = Array.from({ length: n + 1 }, (_, i) => a0 + ((a1 - a0) * i) / n);
+    return moved([...angles.map((a) => at(1, a * DEGREE)), ...[...angles].reverse().map((a) => at(1 - width(a), a * DEGREE))], 0, drop);
+  });
+  const parts = [...gauge, disc(0.27).map(([x, y]): Point => [x, y + 0.04]), dome(0, 0.98, 0.64, 0.5)];
+  const xs = parts.flat().map((q) => q[0]), ys = parts.flat().map((q) => q[1]);
+  const [cx, cy] = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  const half = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 2;
+  return parts.map((q) => turning(q.map(([x, y]): Point => [(x - cx) / half, (y - cy) / half]), 1));
+}
+
+/** Body Battery in the round box of `md-lightning_bolt_circle`, centred on the pixel grid as the solar steps are. */
+const BODY_BATTERY_COMPOSITE: Composite = {
+  base: BOLT_CIRCLE,
+  outline([x0, y0, x1, y1], pixel) {
+    const across = Math.max(1, Math.round((x1 - x0 + y1 - y0) / 2 / pixel));
+    const snap = (c: number): number => Math.round(c / pixel - across / 2) * pixel + (across * pixel) / 2;
+    const cx = snap((x0 + x1) / 2), cy = snap((y0 + y1) / 2), radius = (across * pixel) / 2;
+    const commands = bodyBatteryParts(across).flatMap((ps): PathCommand[] => [
+      ...ps.map(([x, y], i): PathCommand => ({ type: i === 0 ? "M" : "L", x: cx + x * radius, y: cy + y * radius })),
+      { type: "Z" },
+    ]);
+    return { commands, frame: [cx - radius, cy - radius, cx + radius, cy + radius] };
+  },
+};
+
 /** Every composite, by its code point. */
-export const COMPOSITES: ReadonlyMap<string, Composite> = new Map(
-  Array.from({ length: 9 }, (_, k): [string, Composite] => [String.fromCodePoint(SOLAR_FIRST + k), solarStep(k)]),
-);
+export const COMPOSITES: ReadonlyMap<string, Composite> = new Map([
+  ...Array.from({ length: 9 }, (_, k): [string, Composite] => [String.fromCodePoint(SOLAR_FIRST + k), solarStep(k)]),
+  [String.fromCodePoint(BODY_BATTERY), BODY_BATTERY_COMPOSITE],
+]);

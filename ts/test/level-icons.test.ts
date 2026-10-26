@@ -1,12 +1,14 @@
-// Level icons: an icon that fills with a 0-100 reading, on a slot and on `icon: {for:}`.
+// Level icons: an icon that fills with a 0-100 reading, on a slot and on `icon: {for:}`;
+// and Body Battery, the other glyph drawn at bake time.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { WholeFloat } from "../src/edit/yaml.ts";
 import { ICON_FONT } from "../src/emit/resources.ts";
 import { bake } from "../src/fonts/bake.ts";
-import { SOLAR_ARCS_FROM_PX } from "../src/fonts/composite.ts";
+import { BODY_BATTERY_SEGMENTS_FROM_PX, SOLAR_ARCS_FROM_PX } from "../src/fonts/composite.ts";
 import { CATALOG, fontHas, LEVEL_ICONS, levelBand, levelIconName } from "../src/icons.ts";
 import { slotSampleGlyph } from "../src/kinds/data.ts";
+import { bakeSize } from "../src/emit/resources.ts";
 import { readFontFile } from "../src/node.ts";
 import { previewOptions, render } from "../src/preview.ts";
 import { errors, face, generated, method, MINIMAL, resolved, view } from "./designs.ts";
@@ -208,4 +210,49 @@ test("icon: {for:} still refuses arithmetic over a level source", () => {
   const found = errors(fixed("complication.solar_input / 2"));
   assert.equal(found.length, 1);
   assert.match(found[0]!.message, /complication.battery, complication.solar_input, system.battery, weather.condition,/);
+});
+
+/** The 4-connected pieces of a `w`-wide tile's ink, each as its pixel indices. */
+function pieces(pixels: readonly number[], w: number): number[][] {
+  const seen = new Set<number>(), out: number[][] = [];
+  pixels.forEach((v, start) => {
+    if (!v || seen.has(start)) return;
+    const piece: number[] = [], todo = [start];
+    seen.add(start);
+    while (todo.length > 0) {
+      const i = todo.pop()!;
+      piece.push(i);
+      const [x, y] = [i % w, Math.floor(i / w)];
+      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]] as const) {
+        const j = ny * w + nx;
+        if (nx >= 0 && nx < w && ny >= 0 && j < pixels.length && pixels[j] && !seen.has(j)) { seen.add(j); todo.push(j); }
+      }
+    }
+    out.push(piece);
+  });
+  return out;
+}
+
+test("body_battery is a head and shoulders in a gauge that thickens clockwise, in segments once they read", () => {
+  const ch = CATALOG.get("body_battery")!.codepoint, source = readFontFile(ICON_FONT);
+  assert.ok(fontHas(ch), "in the icon font, composed");
+  const tiers = new Set<string>();
+  for (let px = 10; px <= 48; px++) {
+    // Baked as a slot or a `{for:}` icon bakes it: its longer side `px`.
+    const font = bake(source, { name: "bb", size: bakeSize(source, ch, px, true), glyphs: ch });
+    const g = font.glyphs.get(ch)!, w = g.width;
+    const pixels = Array.from({ length: w * g.height }, (_, i) => (font.sheet!.bytes[(g.y + Math.floor(i / w)) * font.sheet!.width + g.x + (i % w)]! ? 1 : 0));
+    const found = pieces(pixels, w);
+    const segmented = w >= BODY_BATTERY_SEGMENTS_FROM_PX;
+    tiers.add(segmented ? "segments" : "band");
+    // The head, the shoulders, and the gauge's band or its four segments, none touching another.
+    assert.equal(found.length, segmented ? 6 : 3, `${px} (${w}px across): ${found.length} pieces`);
+    if (!segmented) continue;
+    // The gauge's first segment holds the lowest-left ink, its last the highest-right; the last is the heavier.
+    const score = (i: number, sx: number, sy: number): number => sx * (i % w) + sy * Math.floor(i / w);
+    const extreme = (sx: number, sy: number): number[] => found.find((p) => p.includes(pixels.reduce((best, v, i) => (v && score(i, sx, sy) > score(best, sx, sy) ? i : best), pixels.indexOf(1))))!;
+    const first = extreme(-1, 1), last = extreme(1, -1);
+    assert.ok(last.length > first.length, `${px}: the last segment (${last.length}) is heavier than the first (${first.length})`);
+  }
+  assert.deepEqual([...tiers].sort(), ["band", "segments"]);
 });

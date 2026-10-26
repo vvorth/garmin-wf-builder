@@ -27,9 +27,12 @@ Icons are glyphs from the [Nerd Fonts](https://www.nerdfonts.com) "Symbols
 Only" font, about 10,000 of them. `tools/setup-env.sh` downloads the font; it
 isn't stored in this repository. The build bakes only the glyphs you use into
 the face, the same way it bakes a custom text font. Each icon costs one small
-bitmap, and no image files ship. The solar level steps are the one exception to "a
-glyph from the font": no glyph there shows solar input filling up, so the
-build draws those steps itself when it bakes the font.
+bitmap, and no image files ship. Two kinds of icon are exceptions to "a glyph
+from the font", because the font has nothing like them: the solar level steps
+(solar input filling up) and `body_battery` (a head and shoulders inside a
+gauge that thickens as it sweeps from bottom left to top right, the outline of
+the watch's own Body Battery icon). The build draws those itself when it bakes
+the font.
 
 ```yaml
 steps_icon:                          # a named icon: `wfb sources` lists the names
