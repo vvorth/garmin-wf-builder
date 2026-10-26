@@ -24,7 +24,11 @@ test("a chain of operators evaluates as Monkey C parses the printed text", () =>
 test("an arc's dc.drawArc call: whole degrees, the full circle, and the fill fraction", () => {
   assert.deepEqual(drawSpan(90, 90), [90, 0, true]);
   assert.deepEqual(drawSpan(90, -90), [90, 180, false]);
-  assert.deepEqual(drawSpan(-0.5, 359.5), [359, 359, true]); // half away from zero, both ways
+  assert.deepEqual(drawSpan(-0.5, 359.5), [0, 0, true]); // the sweep rounds half away from zero
+  assert.deepEqual(drawSpan(-0.5, -359.5), [0, 0, false]);
+  // The start rounds half up, so one angle written a turn apart draws one span.
+  assert.deepEqual(drawSpan(-268.5, -12), drawSpan(91.5, -12));
+  assert.deepEqual(drawSpan(-91.5, 12), drawSpan(268.5, 12));
   assert.equal(drawSpan(10, 0.4), null);
   assert.deepEqual(pillowArc([90, 90, true]), [-90, 270]);
   assert.deepEqual(pillowArc([90, 0, true]), [-90, 0]);

@@ -47,7 +47,7 @@ module WfbArc {
         // Garmin's degrees increase counter-clockwise (0 is 3 o'clock, 90 is
         // 12 o'clock), so an author's clockwise sweep *subtracts* from the start
         // angle and travels in the ARC_CLOCKWISE direction.
-        var start = roundAway(startDegrees) % 360;
+        var start = roundHalfUp(startDegrees) % 360;
         if (start < 0) { start += 360; }
         var end = (start - sweep) % 360;
         if (end < 0) { end += 360; }
@@ -60,6 +60,16 @@ module WfbArc {
         dc.setPenWidth(penWidth);
         dc.drawArc(cx, cy, radius, direction, start, end);
         dc.setPenWidth(1);
+    }
+
+    //! Round half up: a start angle must round the same way whatever whole
+    //! turn it is written in.  Half away from zero takes 91.5 to 92 but
+    //! -268.5, the same angle, to -269 (91), so two elements drawing one
+    //! cell from differently normalised starts land a degree apart.
+    function roundHalfUp(degrees as Float) as Number {
+        var shifted = degrees + 0.5;
+        var whole = shifted.toNumber();
+        return (whole > shifted) ? whole - 1 : whole;
     }
 
     //! Round half away from zero.  `toNumber` alone truncates towards zero,

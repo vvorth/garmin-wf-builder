@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { REPO_ROOT } from "../src/devices/node.ts";
-import { type ArcCall, drawProgress, drawSpan, mcMod, pillowArc, roundAway, rotatedX, rotatedY, toNumber } from "../src/draw/barrel.ts";
+import { type ArcCall, drawProgress, drawSpan, mcMod, pillowArc, roundAway, roundHalfUp, rotatedX, rotatedY, toNumber } from "../src/draw/barrel.ts";
 import { CATALOG, GARMIN_WEATHER_CONDITION_ICON } from "../src/icons.ts";
 import { garminArc } from "../src/layout.ts";
 import { previewOptions, render } from "../src/preview.ts";
@@ -27,13 +27,14 @@ const STATEMENTS: Record<string, string[]> = {
     "if (sweep == 0) { return; }",
     "if (sweep > 360) { sweep = 360; }",
     "if (sweep < -360) { sweep = -360; }",
-    "var start = roundAway(startDegrees) % 360;",
     "if (start < 0) { start += 360; }",
     "var end = (start - sweep) % 360;",
     "if (end < 0) { end += 360; }",
     "? Graphics.ARC_CLOCKWISE : Graphics.ARC_COUNTER_CLOCKWISE;",
     "dc.drawArc(cx, cy, radius, direction, start, end);",
     "? (degrees - 0.5).toNumber() : (degrees + 0.5).toNumber();",
+    "var start = roundHalfUp(startDegrees) % 360;",
+    "var shifted = degrees + 0.5; var whole = shifted.toNumber(); return (whole > shifted) ? whole - 1 : whole;",
   ],
   "WfbGeom.mc": [
     "return Math.floor(cx + x * cos - y * sin + 0.5).toNumber();",
@@ -140,6 +141,20 @@ test("drawProgress is drawSpan of the clamped fraction", () => {
 test("roundAway rounds half away from zero", () => {
   const cases: [number, number][] = [[0.0, 0], [0.49, 0], [0.5, 1], [1.5, 2], [2.4999, 2], [-0.49, 0], [-0.5, -1], [-1.5, -2], [-2.4999, -2]];
   for (const [value, expected] of cases) assert.equal(roundAway(value) + 0, expected, String(value));
+});
+
+test("one start angle a whole turn apart draws one span; rounding it half away from zero did not", () => {
+  /** The old start rounding: -268.5 went to -269 (91) while 91.5 went to 92. */
+  const oldStart = (start: number): number => (mcMod(roundAway(start), 360) + 360) % 360;
+  let disagree = 0;
+  for (let twice = -1440; twice <= 1440; twice++) {
+    const start = twice / 2;
+    for (const sweep of SWEEPS) assert.deepEqual(drawSpan(start, sweep), drawSpan(start + 360, sweep), `${start} ${sweep}`);
+    if (oldStart(start) !== oldStart(start + 360)) disagree++;
+  }
+  assert.ok(disagree > 0, "the sweep no longer separates the old rounding");
+  const cases: [number, number][] = [[0.5, 1], [1.5, 2], [-0.5, 0], [-1.5, -1], [-1.6, -2], [-268.5, -268], [91.5, 92]];
+  for (const [value, expected] of cases) assert.equal(roundHalfUp(value) + 0, expected, String(value));
 });
 
 test("the rotated anchor rounds half up, where truncation would not", () => {

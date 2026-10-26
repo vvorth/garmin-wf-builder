@@ -29,14 +29,19 @@ export function toNumber(x: WatchNumber): number {
   return Math.trunc(val(x));
 }
 
-/** Monkey C `%` on `Number`s: the result takes the dividend's sign. */
+/** Monkey C `%` on `Number`s: the result takes the dividend's sign, and is never JavaScript's -0. */
 export function mcMod(a: number, b: number): number {
-  return Math.trunc(a % b);
+  return Math.trunc(a % b) + 0;
 }
 
 /** `WfbArc.roundAway`: half away from zero. */
 export function roundAway(degrees: number): number {
   return degrees < 0.0 ? Math.trunc(degrees - 0.5) : Math.trunc(degrees + 0.5);
+}
+
+/** `WfbArc.roundHalfUp`: half up, so a start angle rounds the same in every turn. */
+export function roundHalfUp(degrees: number): number {
+  return Math.floor(degrees + 0.5);
 }
 
 /** A `dc.drawArc` call, `[start, end, clockwise]` in Garmin's degrees. */
@@ -48,7 +53,7 @@ export function drawSpan(startDegrees: number, sweepDegrees: number): ArcCall | 
   if (sweep === 0) return null;
   if (sweep > 360) sweep = 360;
   if (sweep < -360) sweep = -360;
-  let start = mcMod(roundAway(startDegrees), 360);
+  let start = mcMod(roundHalfUp(startDegrees), 360);
   if (start < 0) start += 360;
   let end = mcMod(start - sweep, 360);
   if (end < 0) end += 360;

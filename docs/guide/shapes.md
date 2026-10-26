@@ -112,6 +112,14 @@ time. It is **exactly** the conversion a `gauge` with `style: arc` uses; both
 call `garminArc` in `ts/src/layout.ts` and both draw through the same
 `WfbArc.drawSpan`, so the two arcs cannot drift apart.
 
+`drawArc` takes whole degrees, so every arc lands on them: the start
+rounds to the nearest degree, a half degree always the same way however
+many turns the angle is written from, and the sweep rounds half away from
+zero, so a span under half a degree draws nothing. Two arcs given the same
+`start_angle:` and `sweep:` therefore cover the same degrees whichever
+element draws them: a pattern's `arc` cells under a `segments` gauge's
+cells, for instance.
+
 Use `type: arc` for a fixed decorative span and `type: gauge` /
 `style: arc` for one whose length is bound to a reading.
 
