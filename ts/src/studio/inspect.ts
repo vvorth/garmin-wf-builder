@@ -38,6 +38,7 @@ import { slotDrawers } from "../edit/patch.ts";
 import { indexFor, type Path, Refused, type SpanIndex } from "../edit/spans.ts";
 import { elementTypes } from "../edit/structure.ts";
 import { WholeFloat } from "../edit/yaml.ts";
+import { compositeSvgPath } from "../fonts/composite.ts";
 import * as icons from "../icons.ts";
 import { SUPPRESSIBLE } from "../lint.ts";
 import { HAND_PART_FILLED_SHAPES, HAND_PART_GEOMETRY_KEYS, PATTERN_PART_GEOMETRY_KEYS } from "../ir/builder/hands.ts";
@@ -759,8 +760,12 @@ let words: Words | null = null;
 /** What the pickers offer: data sources by namespace, icon names and complication types. Device-independent. */
 export function vocabulary(): Words {
   if (words === null) {
-    const glyphs: Record<string, number> = {};
-    for (const [name, icon] of icons.CATALOG) glyphs[name] = icon.codepoint.codePointAt(0) ?? 0;
+    const glyphs: Record<string, number> = {}, paths: Record<string, string> = {};
+    for (const [name, icon] of icons.CATALOG) {
+      glyphs[name] = icon.codepoint.codePointAt(0) ?? 0;
+      const path = compositeSvgPath(icon.codepoint);
+      if (path !== null) paths[name] = path;
+    }
     words = {
       sources: Object.fromEntries(catalog.namespaces()),
       icons: [...icons.CATALOG.keys()].sort(),
@@ -772,6 +777,7 @@ export function vocabulary(): Words {
       categories: [...complications.CATEGORIES],
       complication_types: complications.names().map(complicationType),
       icon_glyphs: glyphs,
+      icon_paths: paths,
       source_info: Object.fromEntries([...catalog.CATALOG.keys()].sort().map((path) => {
         const source = catalog.get(path)!;
         return [path, { type: source.type, unit: source.unit, quantity: source.quantity, doc: source.doc, nullable: source.nullable }];

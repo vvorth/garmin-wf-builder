@@ -280,10 +280,15 @@ export interface GlyphProps {
   vocab: Partial<Vocabulary>;
 }
 
-// A catalogue icon drawn with the icon font (`/api/icon-font`), or its
-// name when the catalogue has no such icon.
+// A catalogue icon drawn with the icon font (`/api/icon-font`), or from its
+// outline when the compiler draws it itself (the font lacks it), or nothing
+// when the catalogue has no such icon.
 export function Glyph({ name, vocab }: GlyphProps): VNode {
   const cp = typeof name === "string" && name ? (vocab.icon_glyphs || {})[name] : undefined;
+  const path = typeof name === "string" && name ? (vocab.icon_paths || {})[name] : undefined;
+  if (path) {
+    return html`<span class="glyph" title=${name}><svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path d=${path} fill="currentColor" /></svg></span>`;
+  }
   return cp ? html`<span class="glyph" title=${name}>${String.fromCodePoint(cp)}</span>`
             : html`<span class="glyph dim">${name === "none" ? "∅" : ""}</span>`;
 }

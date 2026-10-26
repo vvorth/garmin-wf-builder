@@ -713,6 +713,8 @@ export interface Words {
   complication_types: ComplicationType[];
   /** Each catalogue icon's code point. */
   icon_glyphs: Record<string, number>;
+  /** The catalogue icons the compiler draws itself (the icon font lacks them), as SVG paths in a 24-unit square. */
+  icon_paths: Record<string, string>;
   /** Every data source, by path. */
   source_info: Record<string, SourceInfo>;
   format_codes: FormatCodes;

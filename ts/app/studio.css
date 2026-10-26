@@ -387,6 +387,7 @@ input[type="range"].wide { width: 100%; }
 /* icons, and a slot's card */
 @font-face { font-family: "wfb-icons"; src: url("../api/icon-font") format("truetype"); }
 .glyph { font-family: "wfb-icons"; font-size: 16px; line-height: 1; display: inline-block; min-width: 1em; text-align: center; }
+.glyph svg { display: block; margin: 0 auto; }
 .pop-grid.icons { grid-template-columns: repeat(10, 1fr); }
 .pop .swatch.icon { background: var(--raised); color: var(--text); font-size: 14px; display: grid; place-items: center; }
 .slot-card { padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }

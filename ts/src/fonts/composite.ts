@@ -183,6 +183,25 @@ const BODY_BATTERY_COMPOSITE: Composite = {
   },
 };
 
+/**
+ * A composite as an SVG path in a 24-unit square, for a page that draws
+ * glyphs with the icon font, which lacks it. Drawn 24 pixels across: the
+ * solar steps' arcs and Body Battery's segments, as a larger icon shows them.
+ */
+export function compositeSvgPath(ch: string): string | null {
+  const composite = COMPOSITES.get(ch);
+  if (composite === undefined) return null;
+  const n = (v: number): string => String(Math.round(v * 100) / 100);
+  return composite.outline([0, 0, 24, 24], 1).commands.map((c) => {
+    switch (c.type) {
+      case "M": case "L": return `${c.type}${n(c.x)} ${n(c.y)}`;
+      case "Q": return `Q${n(c.x1)} ${n(c.y1)} ${n(c.x)} ${n(c.y)}`;
+      case "C": return `C${n(c.x1)} ${n(c.y1)} ${n(c.x2)} ${n(c.y2)} ${n(c.x)} ${n(c.y)}`;
+      case "Z": return "Z";
+    }
+  }).join("");
+}
+
 /** Every composite, by its code point. */
 export const COMPOSITES: ReadonlyMap<string, Composite> = new Map([
   ...Array.from({ length: 9 }, (_, k): [string, Composite] => [String.fromCodePoint(SOLAR_FIRST + k), solarStep(k)]),

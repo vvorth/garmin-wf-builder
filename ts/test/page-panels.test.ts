@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { appText, appUri, count, DEFERRED_FETCH, eq, faceFixture, has, htmPreactUri, instantiate, len, node, page, preactUri, render, repoText, run, summary, testUri } from "./page-harness.ts";
-import { inspect } from "../src/studio/inspect.ts";
+import { inspect, vocabulary } from "../src/studio/inspect.ts";
 import { plain } from "../src/studio/json.ts";
 import { installAssets } from "../src/node.ts";
 import { db, newStudio } from "./studio-client.ts";
@@ -439,6 +439,34 @@ test("the icon picker writes a codepoint as {codepoint: \"U+XXXX\"} and shows on
     `));
   assert.equal(printed[0], "U+E241", "a codepoint written as an object shows as its code");
   assert.deepEqual(printed[1], [{ op: "set", element: ["elements", "glyph"], path: ["icon"], scope: "all", device: null, value: { codepoint: "U+F0004" } }]);
+});
+
+test("an icon the compiler draws shows from its outline, not as the icon font's missing glyph", async () => {
+  // The icon font lacks Body Battery and the solar steps, so a font glyph would draw the browser's placeholder box.
+  const text = instantiate("minimal", "T") + `
+  glyph:
+    type: icon
+    icon: body_battery
+    size: 10%r
+    at: { anchor: center }
+    color: color.dim
+`;
+  const doc = summary(text);
+  installAssets();
+  const words = vocabulary();
+  assert.deepEqual(Object.keys(words.icon_paths).sort(), ["body_battery", ...Array.from({ length: 9 }, (_, k) => `solar_level_${k}`)]);
+  const vocab = { icon_glyphs: words.icon_glyphs, icon_paths: words.icon_paths };
+  const printed = printedBy(inspector(doc, plain(inspect(text, ["elements", "glyph"], null)), { vocab }, `
+      const icon = field("icon");
+      const drawn = (e) => e.all((x) => x.localName === "path").map((x) => x.attributes.d);
+      const chip = icon.all((e) => cls(e) === "chip-button")[0];
+      out(drawn(chip));
+      await click(chip);
+      const pick = (name) => icon.all((e) => e.localName === "button" && e.attributes["aria-label"] === name)[0];
+      out([drawn(pick("solar_level_4")).length, drawn(pick("heart")).length, pick("heart").textContent.codePointAt(0)]);
+    `));
+  assert.deepEqual(printed[0], [words.icon_paths["body_battery"]], "the chosen icon's chip draws its outline");
+  assert.deepEqual(printed[1], [1, 0, words.icon_glyphs["heart"]], "a drawn icon in the picker is an outline; a font icon stays text");
 });
 
 test("a unit change converts an angle, asks for a length, and offers pt only where a font is in scope", async () => {
