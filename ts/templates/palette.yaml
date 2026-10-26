@@ -10,10 +10,10 @@
 # ready-to-paste block, is docs/guide/mip-palette.md.
 #
 # `label:` is what the watch shows for a swatch when a `config:` colour axis
-# offers it. `accent_color: choices: any` below offers the 27 of the 64 that
+# offers it. `accent_color: choices: any` below offers the 39 of the 64 that
 # look good on a MIP watch, by name, in the fēnix 8 editor and in the
 # settings menu the build generates for a watch without it (the Forerunner
-# 955) alike (docs/guide/mip-palette.md, "The recommended 27").
+# 955) alike (docs/guide/mip-palette.md, "The recommended colours").
 #
 # yaml-language-server: $schema=https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/schema/wfb-face-2.schema.json
 
@@ -111,7 +111,7 @@ config:
       navy: { scheme: navy }
   accent_color:
     default: color.web_orange
-    choices: any # the recommended 27, by name
+    choices: any # the recommended 39, by name
   data_color:
     default: color.baby_blue
     choices: [color.baby_blue, color.white, color.laser_lemon, color.screamin_green]

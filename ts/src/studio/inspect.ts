@@ -45,7 +45,7 @@ import { HAND_PART_FILLED_SHAPES, HAND_PART_GEOMETRY_KEYS, PATTERN_PART_GEOMETRY
 import type { Face } from "../ir/model.ts";
 import { SHAPE_GEOMETRY_KEYS } from "../kinds/shape.ts";
 import { subjectOf } from "./parts.ts";
-import { Color, ColorError, MIP64_NAMED } from "../palette.ts";
+import { Color, ColorError, MIP64_NAMED, MIP_LEFT_OUT } from "../palette.ts";
 import { hasSkin } from "../preview.ts";
 import { DATA_SAMPLE } from "../sample.ts";
 import { DATE_CODES, DURATION_CODES, TIME_CODES } from "../formatting.ts";
@@ -772,7 +772,7 @@ export function vocabulary(): Words {
       complications: ["auto", ...complications.names()],
       series: series.names(),
       types: elementTypes(),
-      mip: MIP64_NAMED.map(([name, value, label]) => ({ name, value, label })),
+      mip: MIP64_NAMED.map(([name, value, label]) => ({ name, value, label, note: MIP_LEFT_OUT[name] ?? null })),
       hand_presets: [...hands.presets().keys()].map(String),
       categories: [...complications.CATEGORIES],
       complication_types: complications.names().map(complicationType),

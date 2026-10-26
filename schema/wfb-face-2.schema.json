@@ -971,7 +971,7 @@
           "$ref": "#/$defs/swatchColor"
         },
         "choices": {
-          "description": "'any' offers the 27 MIP colours that look good on the watch, by name, on the native editor and the generated settings menu alike, with 'default:' listed first when it is not one of them (docs/guide/configuration.md). An explicit list becomes the editor's picklist; 'default:' must be one of the listed colours in that case, since Garmin defines no behaviour for a default that is not in the list. A listed colour with no 'label:' is named after its swatch, or by its MIP name.",
+          "description": "'any' offers the 39 recommended MIP colours, those that look good and apart on the watch, by name, on the native editor and the generated settings menu alike, with 'default:' listed first when it is not one of them (docs/guide/configuration.md). An explicit list becomes the editor's picklist; 'default:' must be one of the listed colours in that case, since Garmin defines no behaviour for a default that is not in the list. A listed colour with no 'label:' is named after its swatch, or by its MIP name.",
           "oneOf": [
             {
               "const": "any"

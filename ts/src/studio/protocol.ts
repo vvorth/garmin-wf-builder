@@ -649,6 +649,8 @@ export interface MipColor {
   name: string;
   value: string;
   label: string;
+  /** Why a `choices: any` colour setting does not offer it, or `null` when it does. */
+  note: string | null;
 }
 
 /** One complication type the Data axis offers. */

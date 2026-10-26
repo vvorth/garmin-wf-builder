@@ -239,7 +239,8 @@ export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, la
       const mipSwatch = (m: MipColor): VNode => {
         const holder = palette.find((p) => { const v = parseHex(p.value); return v && toHex(v) === m.value; });
         return html`<button class=${"swatch" + (holder ? " held" : "")} style=${`background:${m.value}`} aria-label=${m.label}
-          title=${`${m.label} ${m.value}${holder ? ` (this face: ${holder.name})` : ""}`} onClick=${() => pick(m.value)}></button>`;
+          title=${`${m.label} ${m.value}${holder ? ` (this face: ${holder.name})` : ""}${m.note ? `\nnot a recommended colour: ${m.note}` : ""}`}
+          onClick=${() => pick(m.value)}></button>`;
       };
       return html`
       ${faceGroup ? html`<div class="pop-group">

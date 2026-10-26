@@ -393,7 +393,7 @@ function AxisRow({ axis, entry, palette, ctx, onEdit }: AxisRowProps): VNode {
         <li class="axis-add"><${ColorPop} ctx=${ctx} roles=${false} label="+ add" title="offer another colour: one of the face's, or any other as it is"
           onPick=${add} /></li>
       </ol>`
-      : html`<div class="note">choices: any. The wearer picks from the 27 MIP colours that look
+      : html`<div class="note">choices: any. The wearer picks from the recommended MIP colours that look
           good on the watch, by name, on a fēnix 8 and on a watch without its editor (fr955) alike.
           <button onClick=${() => onEdit({ op: "set", path: choices, value: [...new Set([entry.default, ...legal.map((p) => `color.${p.name}`)])] })}>Make it a list</button></div>`}
   </div>`;

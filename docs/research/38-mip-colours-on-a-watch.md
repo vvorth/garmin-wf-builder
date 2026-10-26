@@ -319,5 +319,27 @@ The compiler cannot change that, and the 27 are chosen for ambient light.
   module's, not Garmin's.
 - **Hue.** A camera's rendering of hue from an LCD's narrow primaries is not
   the eye's, so the hues in §6 and §7 are indicative.
-- **The list itself.** Research 37's 27 are unchanged by this record. §6
-  names what each reading would change.
+- **The list's dark colours** rest on one look by the user, not on a
+  measurement (§9).
+
+## 9. The decision
+
+The user chose the list on 2026-10-26, from the eye-matched image marked
+with §6's rerun (a swatch sheet of all 64, the dropped ones crossed):
+
+- **Taken from the eye-matched rerun**: its seven additions, `bright_red`,
+  `jazzberry_jam`, `dark_magenta`, `screamin_green`, `bright_green`,
+  `japanese_laurel` and `midnight_blue`.
+- **Added by eye**: `kelly_green`, `navy`, `verdun_green`, `maroon` and
+  `dark_green`, "distinct enough in reality". Research 37 had dropped them
+  as dark copies of brighter colours and, for `kelly_green`, as olive.
+- **Kept**: `electric_indigo` and `neon_blue`, which the rerun dropped as
+  too close to `blue` and `navy_blue`. A colour-difference score is least
+  reliable among blues, and the image shows each pair apart in hue.
+
+That makes 39: `MIP_RECOMMENDED` in `ts/src/palette.ts`. The other 25 are
+the six pastels, the six muted mixes, `rust`, `citrus`, `tyrian_purple`,
+`mosque` and nine look-alikes. `MIP_LEFT_OUT` beside the list says why
+each is left out, naming for a look-alike the recommended colour nearest
+it in the eye-matched image. The editor's colour picker shows that note
+when a swatch is hovered.

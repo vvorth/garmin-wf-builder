@@ -483,15 +483,17 @@ pastel (`FF` with `AA`) reads as a tinted white, a muted mix (`AA` with
 `55`) as gray, a colour with no channel above `55` as a dim copy of a
 brighter one, and a dark orange, yellow or yellow-green as brown or olive,
 the colours people like least. Many pairs one step apart, `FF0000` and
-`AA0000` for one, are hard to tell apart. The recommended 27 that
-`choices: any` offers (`docs/guide/mip-palette.md`) leave all of these out
+`AA0000` for one, looked hard to tell apart in that model
 (`docs/research/37-mip-colour-appearance.md`). Photos of all 64 on a
-fēnix 8 Solar confirm the linear steps, put the gamut at about 23% of
-NTSC (the wider of the two the selection was tested on), and bear out the
-pastel, muted and dark rules
-(`docs/research/38-mip-colours-on-a-watch.md`). Which of two close colours
-stays is still a judgement near a threshold (§4, "Data, config and the AOD
-heat map").
+fēnix 8 Solar confirm the linear steps, put the gamut at about 23% to 32%
+of NTSC, wider than the module's, and bear out the pastel and muted
+rules; on the watch the `AA` and `55` colours stand further apart than
+the model said (`docs/research/38-mip-colours-on-a-watch.md`). The
+recommended 39 that `choices: any` offers (`docs/guide/mip-palette.md`)
+leave out the pastels, the muted mixes, `rust`, `citrus`,
+`tyrian_purple`, `mosque` and nine look-alikes; the dark colours on it
+were judged by eye on the watch (§4, "Data, config and the AOD heat
+map").
 With the **backlight** on in room light, the screen takes a cool cast:
 yellows and oranges go peach, reds pink and greens mint, and a few kept
 pairs (`aqua`/`azure_radiance`, `conifer`/`silver_chalice`) merge. The list
@@ -1295,19 +1297,16 @@ reads the same `_sleeping` field `seconds: awake` does, set in
 three targets and an AMOLED one (`ts/test/awake.test.ts`), but no watch has
 been seen hiding an element by it yet.
 
-**The recommended 27 MIP colours rest on a model checked by photos, not
-by eye.** The list `choices: any` offers comes from a model of a measured
-MIP module (§1, "64 colours, and everything else dithers"). Photos of
-`docs/research/probes/mip-colour-appearance/face.yaml` on a fēnix 8 Solar
-confirm the model's steps, gamut and rules. Its edges move with how the
-screen is seen: a close photo and the same photo matched to the watch by
-eye both put `japanese_laurel`, `dark_magenta` and `bright_green`, which
-the list leaves out, clear of every kept colour, and disagree on
-`texas_rose`, `cornflower_blue` and the blue–violet corner
-(`docs/research/38-mip-colours-on-a-watch.md`). The list is unchanged
-until those calls are made.
-Seen at an angle or under the backlight, the greens and cyans wash toward
-each other. `fr955` and the other MIP panels are not photographed yet.
+**The recommended 39 MIP colours were chosen on one fēnix 8 Solar.** The
+list `choices: any` offers comes from a model of a measured MIP module
+(§1, "64 colours, and everything else dithers"), checked against photos
+of `docs/research/probes/mip-colour-appearance/face.yaml` on a fēnix 8
+Solar and then by the user's eye on that watch, square-on with the
+backlight off (`docs/research/38-mip-colours-on-a-watch.md`). The
+closest pairs it keeps, `blue`/`electric_indigo` and
+`navy_blue`/`neon_blue`, are the ones a camera put nearest. Seen at an
+angle or under the backlight, the greens and cyans wash toward each other.
+`fr955` and the other MIP panels are not photographed yet.
 
 **Every source is a plain per-frame read; there are no refresh tiers or TTL
 caches.** Every value comes from a Garmin API that caches on its own side

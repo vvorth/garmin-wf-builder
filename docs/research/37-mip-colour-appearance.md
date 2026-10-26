@@ -5,6 +5,13 @@
 the watch: none that look like another one on the list, and none that
 look dirty, washed out or muddy. Which colours belong on that list?
 
+**Amended 2026-10-26.** The list `choices: any` offers is now 39, not
+the 27 below: photos and the user's eye on a fēnix 8 Solar showed the
+watch's gamut is wider than this model's and its `AA` and `55` colours
+further apart, and the user added four dark colours and `kelly_green` by
+eye (research 38 §9). The model and its reasoning stand as the record of
+how the first list was picked.
+
 **Short answer.** 27 of the 64: the four grays and 23 colours (§5). Every
 colour on the list stays at least CIEDE2000 8.5 from every other in a
 model of a reflective panel built from a real 64-colour MIP datasheet

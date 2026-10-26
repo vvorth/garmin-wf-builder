@@ -115,23 +115,44 @@ export function mip64Label(value: string): string | undefined {
 }
 
 /**
- * The 27 of the 64 that look good on a MIP panel, by name, in the editor
- * picker's order: the six hue families, then the grays. A `choices: any`
- * colour setting offers exactly these. Left out: the pastels (`FF` with
- * `AA`, off-white on the panel), the muted mixes (`AA` with `55`, gray),
- * the dark colours (nothing above `55`, dim copies of brighter ones), the
- * browns and olives, and one of every pair that looks alike -- modelled
- * from a measured MIP panel in docs/research/37-mip-colour-appearance.md.
+ * The 39 of the 64 that look good on a MIP panel and apart from each other,
+ * by name, in the editor picker's order: the six hue families, then the
+ * grays. A `choices: any` colour setting offers exactly these. Left out:
+ * the pastels (`FF` with `AA`, off-white on the panel), the muted mixes
+ * (`AA` with `55`, gray), `rust` and `citrus` (brown and olive),
+ * `tyrian_purple` and `mosque`, and one of every pair that looks alike.
+ * Chosen from a model of a measured MIP panel and photos of all 64 on a
+ * fēnix 8 Solar, the dark colours by eye on the watch
+ * (docs/research/37-mip-colour-appearance.md, 38-mip-colours-on-a-watch.md).
  */
 export const MIP_RECOMMENDED: readonly string[] = [
-  "sunset_orange", "razzmatazz", "red", "international_orange",
-  "texas_rose", "web_orange", "yellow",
-  "conifer", "green", "malachite",
+  "sunset_orange", "razzmatazz", "red", "international_orange", "jazzberry_jam", "bright_red", "maroon",
+  "texas_rose", "web_orange", "yellow", "verdun_green",
+  "conifer", "screamin_green", "bright_green", "green", "malachite", "kelly_green", "japanese_laurel", "dark_green",
   "medium_aquamarine", "aqua", "azure_radiance", "pigment_green",
-  "neon_blue", "navy_blue", "blue", "electric_indigo",
-  "medium_purple", "pink_flamingo", "electric_violet", "magenta_fuchsia", "indigo",
+  "neon_blue", "navy_blue", "blue", "electric_indigo", "midnight_blue", "navy",
+  "medium_purple", "pink_flamingo", "electric_violet", "magenta_fuchsia", "indigo", "dark_magenta",
   "white", "silver_chalice", "emperor", "black",
 ];
+
+const PASTEL = "a pastel: looks off-white on the watch";
+const MUTED = "a muted mix: looks gray on the watch";
+const LIKE = (label: string): string => `looks like ${label} on the watch`;
+
+/**
+ * Why each of the 64 that `MIP_RECOMMENDED` leaves out is left out, as the
+ * editor's colour picker says it; a look-alike names the recommended colour
+ * nearest it on the watch.
+ */
+export const MIP_LEFT_OUT: Readonly<Record<string, string>> = {
+  shalimar: PASTEL, lavender_rose: PASTEL, sundown: PASTEL, pale_turquoise: PASTEL, mint_green: PASTEL, perano: PASTEL,
+  olive_green: MUTED, violet_blue: MUTED, apple_blossom: MUTED, cadet_blue: MUTED, fruit_salad: MUTED, rich_blue: MUTED,
+  rust: "looks brown on the watch", citrus: "looks olive on the watch",
+  tyrian_purple: "dark: dim on the watch, and hard to see on black", mosque: "dark: dim on the watch, and hard to see on black",
+  laser_lemon: LIKE("Conifer"), spring_bud: LIKE("Yellow"), brilliant_rose: LIKE("Pink Flamingo"),
+  hollywood_cerise: LIKE("Magenta Fuchsia"), baby_blue: LIKE("Medium Aquamarine"), cornflower_blue: LIKE("Azure Radiance"),
+  medium_green: LIKE("Aqua"), persian_green: LIKE("Azure Radiance"), cobalt: LIKE("Navy Blue"),
+};
 
 export class ColorError extends Error {}
 

@@ -211,11 +211,12 @@ test("the colour axes are written as lists", async () => {
   assert.throws(() => edit(doc, { op: "set", path: ["config", "accent_color", "default"], value: "color.nope" }), Refused);
 });
 
-test("the vocabulary names the 64", async () => {
+test("the vocabulary names the 64, and says why a colour is not recommended", async () => {
   const client = await Client.open();
   const mip = (await client.call("vocabulary")).json.mip;
   assert.equal(mip.length, 64);
-  assert.deepEqual(mip[0], { name: "white", value: "#FFFFFF", label: "White" });
+  assert.deepEqual(mip[0], { name: "white", value: "#FFFFFF", label: "White", note: null });
+  assert.deepEqual(mip[1], { name: "shalimar", value: "#FFFFAA", label: "Shalimar", note: "a pastel: looks off-white on the watch" });
 });
 
 // -- schemes --

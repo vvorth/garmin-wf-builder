@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { mipFamilies } from "../app/values.ts";
 import { MIP64_NAMED } from "../src/palette.ts";
 
-const MIP = MIP64_NAMED.map(([name, value, label]) => ({ name, value, label }));
+const MIP = MIP64_NAMED.map(([name, value, label]) => ({ name, value, label, note: null }));
 
 /** A family's rows as hex, a gap as "------". */
 const shown = (rows: ({ value: string } | null)[][]): string => rows.map((row) => row.map((c) => (c ? c.value.slice(1) : "------")).join(" ")).join(" / ");
@@ -29,5 +29,5 @@ test("the 64 lay out as six families of ten and four grays, each block light to 
 
 test("a list that is not the 64 has no family layout", () => {
   assert.equal(mipFamilies(MIP.slice(1)), null);
-  assert.equal(mipFamilies([...MIP.slice(1), { name: "x", value: "#123456", label: "X" }]), null);
+  assert.equal(mipFamilies([...MIP.slice(1), { name: "x", value: "#123456", label: "X", note: null }]), null);
 });

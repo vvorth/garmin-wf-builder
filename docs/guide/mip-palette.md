@@ -17,31 +17,39 @@ offers the same 64 by name, and adds the one you pick to the face
 `MIP64_NAMED` in `ts/src/palette.ts`; this page and the template are checked
 against it.
 
-## The recommended 27
+## The recommended colours
 
 Not all 64 look good on the watch. A MIP screen reflects light rather
 than emitting it, so every colour is paler than on a monitor, and the
-middle steps (`55`, `AA`) are lighter than a monitor draws them. Four
-kinds are left out of the recommended set:
+middle steps (`55`, `AA`) are lighter than a monitor draws them. Of the
+64, 39 are recommended. These are left out:
 
 - **pastels** (one channel `FF`, the dimmest `AA`) look off-white;
 - **muted mixes** (one channel `AA`, the dimmest `55`) look gray;
-- **dark colours** (no channel above `55`) are dim copies of brighter ones;
-- **dark orange, yellow and yellow-green** (`rust`, `citrus`,
-  `kelly_green`) look brown or olive.
+- **`rust` and `citrus`** look brown and olive;
+- **`tyrian_purple` and `mosque`** are dim, and hard to see on black;
+- **look-alikes**: of each group of colours that look alike on the watch,
+  one stays. `laser_lemon`, `spring_bud`, `brilliant_rose`,
+  `hollywood_cerise`, `baby_blue`, `cornflower_blue`, `medium_green`,
+  `persian_green` and `cobalt` are left out.
 
-Of the rest, one of each group that looks alike stays. This is the list a
-colour setting's [`choices: any`](configuration.md#a-colour-settings-list-and-the-names-on-it)
+The other dark colours (`maroon`, `verdun_green`, `dark_green`, `navy`)
+stay: on the watch each is distinct from its brighter sibling. The
+editor's colour picker says why a colour is left out when you hover it
+([the editor](studio.md#the-colour-picker)).
+
+This is the list a colour setting's
+[`choices: any`](configuration.md#a-colour-settings-list-and-the-names-on-it)
 offers the wearer, in this order:
 
 | Family | Colours |
 |---|---|
-| Red | `sunset_orange` `#FF5555`, `razzmatazz` `#FF0055`, `red` `#FF0000`, `international_orange` `#FF5500` |
-| Yellow | `texas_rose` `#FFAA55`, `web_orange` `#FFAA00`, `yellow` `#FFFF00` |
-| Green | `conifer` `#AAFF55`, `green` `#00FF00`, `malachite` `#00FF55` |
+| Red | `sunset_orange` `#FF5555`, `razzmatazz` `#FF0055`, `red` `#FF0000`, `international_orange` `#FF5500`, `jazzberry_jam` `#AA0055`, `bright_red` `#AA0000`, `maroon` `#550000` |
+| Yellow | `texas_rose` `#FFAA55`, `web_orange` `#FFAA00`, `yellow` `#FFFF00`, `verdun_green` `#555500` |
+| Green | `conifer` `#AAFF55`, `screamin_green` `#55FF55`, `bright_green` `#55FF00`, `green` `#00FF00`, `malachite` `#00FF55`, `kelly_green` `#55AA00`, `japanese_laurel` `#00AA00`, `dark_green` `#005500` |
 | Cyan | `medium_aquamarine` `#55FFAA`, `aqua` `#00FFFF`, `azure_radiance` `#00AAFF`, `pigment_green` `#00AA55` |
-| Blue | `neon_blue` `#5555FF`, `navy_blue` `#0055FF`, `blue` `#0000FF`, `electric_indigo` `#5500FF` |
-| Magenta | `medium_purple` `#AA55FF`, `pink_flamingo` `#FF55FF`, `electric_violet` `#AA00FF`, `magenta_fuchsia` `#FF00FF`, `indigo` `#5500AA` |
+| Blue | `neon_blue` `#5555FF`, `navy_blue` `#0055FF`, `blue` `#0000FF`, `electric_indigo` `#5500FF`, `midnight_blue` `#0000AA`, `navy` `#000055` |
+| Magenta | `medium_purple` `#AA55FF`, `pink_flamingo` `#FF55FF`, `electric_violet` `#AA00FF`, `magenta_fuchsia` `#FF00FF`, `indigo` `#5500AA`, `dark_magenta` `#AA00AA` |
 | Gray | `white` `#FFFFFF`, `silver_chalice` `#AAAAAA`, `emperor` `#555555`, `black` `#000000` |
 
 The list is chosen for daylight and room light, with the backlight off.

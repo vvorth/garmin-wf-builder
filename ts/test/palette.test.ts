@@ -2,7 +2,7 @@
 // preview's snapping, which must agree with the lint's "nearest" exactly.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mip64Label, mip64Name, MIP64_NAMED, MIP_RECOMMENDED } from "../src/palette.ts";
+import { mip64Label, mip64Name, MIP64_NAMED, MIP_LEFT_OUT, MIP_RECOMMENDED } from "../src/palette.ts";
 import { mipFamilies } from "../app/values.ts";
 import { BLACK, Color, ColorError, hasPaletteRule, MIP64_LEVELS, WHITE } from "../src/palette.ts";
 import { quantise } from "../src/preview.ts";
@@ -59,11 +59,22 @@ test("the named MIP table is the 64", () => {
   assert.equal(mip64Label("#FF8000"), undefined);
 });
 
-test("the recommended set is 27 of the 64, once each, in the picker's order", () => {
-  assert.equal(MIP_RECOMMENDED.length, 27);
-  assert.equal(new Set(MIP_RECOMMENDED).size, 27);
-  const picker = mipFamilies(MIP64_NAMED.map(([name, value, label]) => ({ name, value, label })))!.flatMap((f) => f.rows.flat()).filter((c) => c !== null).map((c) => c.name);
+test("the recommended set is 39 of the 64, once each, in the picker's order", () => {
+  assert.equal(MIP_RECOMMENDED.length, 39);
+  assert.equal(new Set(MIP_RECOMMENDED).size, 39);
+  const picker = mipFamilies(MIP64_NAMED.map(([name, value, label]) => ({ name, value, label, note: null })))!.flatMap((f) => f.rows.flat()).filter((c) => c !== null).map((c) => c.name);
   assert.deepEqual(picker.filter((name) => MIP_RECOMMENDED.includes(name)), MIP_RECOMMENDED);
+});
+
+test("every colour the recommended set leaves out says why, and no recommended one does", () => {
+  const out = MIP64_NAMED.map(([name]) => name).filter((name) => !MIP_RECOMMENDED.includes(name));
+  assert.deepEqual(Object.keys(MIP_LEFT_OUT).sort(), out.sort());
+  // a look-alike names a colour the set does offer
+  const labels = new Map(MIP64_NAMED.map(([name, , label]) => [label, name]));
+  for (const note of Object.values(MIP_LEFT_OUT)) {
+    const like = note.match(/^looks like (.+) on the watch$/)?.[1];
+    if (like) assert.ok(MIP_RECOMMENDED.includes(labels.get(like) ?? ""), note);
+  }
 });
 
 const HEAD = `format: 2

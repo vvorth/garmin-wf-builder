@@ -155,7 +155,7 @@ const inspect = obj({
 
 const vocabulary = obj({
   sources: record(list(str)), icons: list(str), complications: list(str), series: list(str), types: list(str),
-  mip: list(obj({ name: str, value: str, label: str })), hand_presets: list(str), categories: list(str),
+  mip: list(obj({ name: str, value: str, label: str, note: nullable(str) })), hand_presets: list(str), categories: list(str),
   complication_types: list(obj({ name: str, label: str, category: str, icon: nullable(str), sample: nullable(str),
     capabilities: list(obj({ kind: literal("graph", "dynamic_icon", "gauge", "long_text"), detail: str })) })), icon_glyphs: record(int), icon_paths: record(str),
   source_info: record(obj({ type: literal("number", "float", "boolean", "string", "time", "date", "color"), unit: nullable(str), quantity: nullable(str), doc: str, nullable: bool })),

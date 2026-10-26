@@ -12,12 +12,17 @@ import { bundle } from "../src/studio/bundle.ts";
 
 test("the colours say who uses them and a pick changes the swatch", async () => {
   const text = summary(instantiate("minimal", "T"));
-  const printed = await render(text, "\n      await openSection(\"Colours\");\n      out(root.textContent.includes(\"used by background\"));\n      const chips = find((e) => cls(e).includes(\"chip-button\"));\n      out(chips.map((c) => c.textContent));\n      await click(chips[0]);                                  // bg's own picker\n      const grid = find((e) => cls(e).includes(\"swatch\") && e.parentNode && cls(e.parentNode).startsWith(\"pop-family\"));\n      out(grid.length);\n      out(find((e) => cls(e) === \"pop-title\").map((t) => t.textContent));\n      await click(grid.find((e) => e.attributes[\"aria-label\"] === \"Shalimar\"));  // #FFFFAA\n      out(edits);\n    ");
+  const printed = await render(text, "\n      await openSection(\"Colours\");\n      out(root.textContent.includes(\"used by background\"));\n      const chips = find((e) => cls(e).includes(\"chip-button\"));\n      out(chips.map((c) => c.textContent));\n      await click(chips[0]);                                  // bg's own picker\n      const grid = find((e) => cls(e).includes(\"swatch\") && e.parentNode && cls(e.parentNode).startsWith(\"pop-family\"));\n      out(grid.length);\n      out(find((e) => cls(e) === \"pop-title\").map((t) => t.textContent));\n      out([\"Shalimar\", \"Red\", \"Cobalt\"].map((l) => grid.find((e) => e.attributes[\"aria-label\"] === l).attributes.title));\n      await click(grid.find((e) => e.attributes[\"aria-label\"] === \"Shalimar\"));  // #FFFFAA\n      out(edits);\n    ");
   assert.equal(printed[0], true);
   assert.deepEqual(printed[1], ["#000000", "#FFFFFF", "#AAAAAA", "+ Colour"]);
   assert.deepEqual(printed[2], 64);
   assert.deepEqual(printed[3], ["MIP 64", "Custom"]);
-  assert.deepEqual(printed[4], [{"op": "set_swatch", "name": "bg", "value": "#FFFFAA"}]);
+  assert.deepEqual(printed[4], [
+    "Shalimar #FFFFAA\nnot a recommended colour: a pastel: looks off-white on the watch",
+    "Red #FF0000",
+    "Cobalt #0055AA\nnot a recommended colour: looks like Navy Blue on the watch",
+  ]);
+  assert.deepEqual(printed[5], [{"op": "set_swatch", "name": "bg", "value": "#FFFFAA"}]);
 });
 
 test("every Face-tab section offers an unintrusive link to its guide chapter", async () => {
@@ -98,7 +103,7 @@ test("an axis lists its choices inline, each with up, down and remove, adds one 
     { op: "insert_item", path: choices, at: 3, value: { color: "#FFFFAA", label: "Shalimar" } },
   ]);
   const any_ = summary((base + "\nconfig:\n  accent_color:\n    default: color.text\n    choices: any\n"));
-  printed = await render(any_, "\n      await openSection(\"Colour settings\");\n      out(root.textContent.includes(\"27 MIP colours that look\"));\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"Make it a list\")[0]);\n      out(edits);\n    ");
+  printed = await render(any_, "\n      await openSection(\"Colour settings\");\n      out(root.textContent.includes(\"recommended MIP colours that look\"));\n      await click(find((e) => e.localName === \"button\" && e.textContent === \"Make it a list\")[0]);\n      out(edits);\n    ");
   assert.equal(printed[0], true);
   assert.deepEqual(printed[1], [{"op": "set", "path": ["config", "accent_color", "choices"], "value": ["color.text", "color.bg", "color.dim"]}]);
 });
