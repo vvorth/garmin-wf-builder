@@ -20,7 +20,10 @@ That leaves 39 candidates. A deduplication pass keeps one colour of every
 group that looks alike and drops 16 more (§5). The model is UNVERIFIED
 against Garmin's own panel. `face.yaml` in the probe shows all 64 on a
 watch, with the dropped ones marked, so the user can check the list by
-eye (§6).
+eye (§6). Research 38 read photos of it on a fēnix 8 Solar: the
+linear steps hold, the gamut is about 12.5% NTSC (inside the bracket §3
+tests), and the green–cyan corner of the list is tighter than the model
+says.
 
 Probe: `docs/research/probes/mip-colour-appearance/` (`model.py`,
 `choose.py`, `gen-face.py`, the images below).
@@ -256,7 +259,8 @@ one assumption worth checking on a watch.
   It builds on all three targets (2026-10-24, SDK 9.3.0). Two things decide
   the step model: whether green and malachite (row 7, columns 4 and 3) look
   alike, and whether `555555` (row 6, column 3) looks mid-gray or nearly
-  black.
+  black. **Done: research 38** (`555555` reads mid-gray and the steps are
+  linear; green and malachite are close, 4.2 to 6.6 in the photos).
 
 ## 7. How the result is used
 

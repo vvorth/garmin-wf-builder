@@ -485,9 +485,15 @@ brighter one, and a dark orange, yellow or yellow-green as brown or olive,
 the colours people like least. Many pairs one step apart, `FF0000` and
 `AA0000` for one, are hard to tell apart. The recommended 27 that
 `choices: any` offers (`docs/guide/mip-palette.md`) leave all of these out
-(`docs/research/37-mip-colour-appearance.md`). Garmin's own panel's gamut
-and steps are unpublished, so the list is **unverified** on a watch (§4,
-"Data, config and the AOD heat map").
+(`docs/research/37-mip-colour-appearance.md`). Photos of all 64 on a
+fēnix 8 Solar confirm the linear steps, put the gamut at about 12.5% of
+NTSC, and bear out the pastel, muted and dark rules
+(`docs/research/38-mip-colours-on-a-watch.md`). Which of two close colours
+stays is still the model's call (§4, "Data, config and the AOD heat map").
+With the **backlight** on in room light, the screen takes a cool cast:
+yellows and oranges go peach, reds pink and greens mint, and a few kept
+pairs (`aqua`/`azure_radiance`, `conifer`/`silver_chalice`) merge. The list
+is chosen for ambient light.
 
 ### On-device configuration: four axes, four configurations, and a menu on fr955
 
@@ -1287,14 +1293,17 @@ reads the same `_sleeping` field `seconds: awake` does, set in
 three targets and an AMOLED one (`ts/test/awake.test.ts`), but no watch has
 been seen hiding an element by it yet.
 
-**The recommended 27 MIP colours are a model's choice, not a watch's.** The
-list `choices: any` offers comes from a model of a measured MIP module, not
-of Garmin's panel (§1, "64 colours, and everything else dithers"). The one
-assumption that matters is the steps: if Garmin's panel stepped like a
-monitor, a `55` would look nearly as dark as a `00`, and pairs such as
-`green`/`malachite` and `red`/`razzmatazz` would look alike.
-`docs/research/probes/mip-colour-appearance/face.yaml` draws all 64 on a
-watch, a dot on each colour the list leaves out, to check it by eye.
+**The recommended 27 MIP colours rest on a model checked by photos, not
+by eye.** The list `choices: any` offers comes from a model of a measured
+MIP module (§1, "64 colours, and everything else dithers"). Photos of
+`docs/research/probes/mip-colour-appearance/face.yaml` on a fēnix 8 Solar
+confirm the model's steps and its rules, but put the green–cyan colours
+closer together than the model does: `green`, `malachite`,
+`pigment_green`, `aqua` and `azure_radiance` are all near the line that
+decides whether a colour stays (`docs/research/38-mip-colours-on-a-watch.md`).
+A camera does not see hue as the eye does, so that corner of the list
+waits on someone looking at the watch. `fr955` and the other MIP panels
+are not photographed yet.
 
 **Every source is a plain per-frame read; there are no refresh tiers or TTL
 caches.** Every value comes from a Garmin API that caches on its own side

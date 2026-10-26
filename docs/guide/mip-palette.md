@@ -44,6 +44,11 @@ offers the wearer, in this order:
 | Magenta | `medium_purple` `#AA55FF`, `pink_flamingo` `#FF55FF`, `electric_violet` `#AA00FF`, `magenta_fuchsia` `#FF00FF`, `indigo` `#5500AA` |
 | Gray | `white` `#FFFFFF`, `silver_chalice` `#AAAAAA`, `emperor` `#555555`, `black` `#000000` |
 
+The list is chosen for daylight and room light, with the backlight off.
+With the backlight on indoors, the screen looks cooler: yellows and
+oranges turn peach, reds pink and greens mint, so a design that tells
+yellow from orange, or relies on a yellow-green, is weakest then.
+
 The list is `MIP_RECOMMENDED` in `ts/src/palette.ts`. How a screen shows
 colour, and why each colour was left out, is in
 [`docs/limitations.md`](../limitations.md).
