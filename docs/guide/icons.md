@@ -98,7 +98,10 @@ glyph the watch picks (`slot:`, `icon: {for:}`) is baked glyph by glyph,
 each so its ink's longer side is `size:`: every glyph fits the same
 `size:` square, so a wide glyph (`steps`) is no bigger than a tall one
 (`heart`), whichever the wearer picks or the weather brings. The font's
-line is the largest glyph's, and each glyph is centred in it.
+line is the largest glyph's, and each glyph is centred in it. The element's
+box (what the layout lints check, the `on_hold:` region and the native
+editor's highlight) is that line tall and as wide as the widest glyph, so
+it holds whichever one is drawn.
 
 **The catalogue prefers Material Design Icons** (`nf-md`, the icon font's
 largest and most consistent set) whenever a glyph reads at least as well as an

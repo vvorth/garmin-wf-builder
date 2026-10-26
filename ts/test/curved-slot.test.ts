@@ -114,7 +114,12 @@ test("a pick's glyph is justified by its own advance, not the reference glyph's"
     assert.ok(g.xadvance - font.measure(p.codepoint)[0] >= 4, "the drawn glyph is wider than the reference");
     // drawText justified on the anchor: the cell's left edge, then the glyph's own offset.
     const cx = p.anchor_point[0];
-    const left = (align === "left" ? cx : align === "right" ? cx - g.xadvance : cx - Math.floor(g.xadvance / 2)) + g.xoffset;
+    const cell = align === "left" ? cx : align === "right" ? cx - g.xadvance : cx - Math.floor(g.xadvance / 2);
+    const left = cell + g.xoffset;
+    // The lint box holds the widest glyph the slot can draw, so it holds this one's cell.
+    assert.equal(p.box.width, font.widestAdvance());
+    assert.ok(p.box.x <= cell + 1 && cell + g.xadvance <= p.box.x + p.box.width + 1,
+      `${align}: the cell ${cell}..${cell + g.xadvance} leaves the box ${p.box.x}..${p.box.x + p.box.width}`);
     const inkLeft = (frame: { width: number; height: number; data: Uint8ClampedArray }): number => {
       let x0 = frame.width;
       for (let i = 0; i < frame.width * frame.height; i++) if (frame.data[i * 4]! > 128) x0 = Math.min(x0, i % frame.width);
@@ -128,6 +133,24 @@ test("a pick's glyph is justified by its own advance, not the reference glyph's"
     rasterise(toJson(renderer, frameItems(r, options, null).find((item) => item.id === "glyph")!, tiles)[0], tiles, image, 1);
     assert.equal(inkLeft(image), preview, `${align}: the studio canvas agrees with the preview`);
   }
+});
+
+test("a data pair's box holds the widest icon its slot can draw", () => {
+  const pair = (icon: string): string => `${MINIMAL.replace("elements:", `${SLOT}elements:`)}
+  value:
+    type: data
+    slot: left
+    at: {anchor: center}
+${icon}    color: color.fg
+`.replace("default: steps", "default: current_temperature").replace("choices: [steps,", "choices: [steps, current_temperature,");
+  const box = (text: string): PlacedData => resolved(text).items.find((p) => p.id === "value") as PlacedData;
+  const withIcon = box(pair("    icon: {size: 20%r}\n")), bare = box(pair(""));
+  const r = resolved(pair("    icon: {size: 20%r}\n"));
+  const font = r.fonts.get(withIcon.icon_font_key!)!;
+  const cloud = font.glyphs.get(slotSampleGlyph(r.face.config_data.get("left")!, "current_temperature", null)!)!;
+  // The thermometer is the default pick, but the rain cloud the watch draws for it is wider.
+  assert.ok(cloud.xadvance > font.measure(CATALOG.get("temperature")!.codepoint)[0]);
+  assert.equal(withIcon.box.width - bare.box.width, withIcon.icon_gap_px + font.widestAdvance());
 });
 
 test("a notification count pick's icon empties at zero, unless the author chose one", () => {

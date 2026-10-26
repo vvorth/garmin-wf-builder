@@ -494,7 +494,8 @@ class DataKind extends ElementKind<DataElement> {
         iconPx = units.pixelSize(element.icon_size, r.device.minorRadius);
         iconFontKey = slotIconFontKey(element.slot, element.icon_size, element.resolved_antialias);
         const iconFont = r.fonts.get(iconFontKey);
-        iconWidth = iconFont !== undefined ? iconFont.measure(referenceGlyph)[0] : iconPx;
+        // The watch measures the pick's own glyph: the box holds the widest the slot can draw.
+        iconWidth = iconFont !== undefined ? iconFont.widestAdvance() : iconPx;
       }
     }
     const gapPx = element.icon_gap !== null ? units.pixelSize(element.icon_gap, r.device.minorRadius) : DATA_ICON_GAP;

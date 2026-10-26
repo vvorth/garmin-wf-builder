@@ -72,7 +72,9 @@ class IconKind extends ElementKind<IconElement> {
       measureCodepoint = element.codepoint;
     }
     const font = r.fonts.get(key);
-    const [width, height] = font !== undefined ? font.measure(measureCodepoint) : [px, px];
+    let [width, height] = font !== undefined ? font.measure(measureCodepoint) : [px, px];
+    // A glyph chosen on the watch can be any the font holds: the box is as wide as the widest.
+    if (font !== undefined && (element.slot !== null || element.isDynamic)) width = font.widestAdvance();
     // The lint box only: the runtime `drawText` anchor stays put; alignment is a device-side justify.
     const [dx, dy] = alignmentShift(width, height, element.align, element.vertical_align);
     const box = new Box(cx + dx - width / 2, cy + dy - height / 2, width, height);

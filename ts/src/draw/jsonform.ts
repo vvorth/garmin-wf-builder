@@ -258,8 +258,8 @@ function drawGlyph(op: JsonOp, fonts: Map<string, FontRef>, renderer: Renderer, 
   const ref = fonts.get(op["font"] as string)!;
   const box = op["box"] as number[], origin = op["origin"] as number[];
   if (ref.baked !== null) {
-    pasteGlyph(renderer, ref.baked, op["text"] as string, box[0]! + value(op["x"] as JsonNum) - origin[0]!,
-      box[1]! + value(op["y"] as JsonNum) - origin[1]!, box[2]!, op["justify"] as string[], color);
+    pasteGlyph(renderer, ref.baked, op["text"] as string, value(op["x"] as JsonNum), box[1]! + value(op["y"] as JsonNum) - origin[1]!,
+      op["justify"] as string[], color);
   }
 }
 

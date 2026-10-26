@@ -454,7 +454,8 @@ Instead:
   is pulled. This is the one element in the format whose drawn position is
   not fully resolved at build time (ADR 0004's one deliberate exception, and
   for exactly that reason); the geometry lints below size its box from the
-  value alone (see "What this compiler cannot tell you"). The pair's
+  widest reading and the widest icon the slot can draw (see "What this
+  compiler cannot tell you"). The pair's
   geometry -- for every icon `position:` -- is computed by one pure function,
   `ts/src/layout.ts`, which sizes the estimated
   box the lints read, and mirrored (not called -- the real text is not
@@ -817,7 +818,9 @@ since-removed `settings:` block, whose choices cycled rather than opening a
 list): the Watch Face menu entry appears and a change applies at once. The
 `config:` menu, and its lists of options, have not been seen on a watch yet.
 
-**A `data` element's geometry is sized from its readings alone.** The
+**A `data` element's geometry is sized from its readings and icons.** Its
+icon counts as the widest glyph any choice can draw (a temperature's
+weather icon, not the thermometer). The reading's
 estimate is the widest reading any of its choices can draw under its
 `unit:`/`short:`, after its tag under `prefix:` (`widestReading` in `ts/src/complications.ts`): a clock is `88:88`,
 a race prediction `8:88:88`, a weather condition its longest name -- so

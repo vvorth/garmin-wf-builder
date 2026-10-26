@@ -53,6 +53,13 @@ export class BakedFont {
     return [width, this.line_height];
   }
 
+  /** The widest advance of any glyph the font holds: the worst case of a glyph chosen on the watch. */
+  widestAdvance(): number {
+    let widest = 0;
+    for (const glyph of this.glyphs.values()) widest = Math.max(widest, glyph.xadvance);
+    return widest;
+  }
+
   /** `ch`'s advance as the upright glyph has it: what spacing round a turned glyph is measured from. */
   unturnedAdvance(ch: string): number {
     return this.unturned_advances.get(ch) ?? this.glyphs.get(ch)?.xadvance ?? 0;
