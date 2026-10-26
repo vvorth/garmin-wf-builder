@@ -5,7 +5,7 @@ import { collisions, javaStringHash, stringLiterals } from "../src/emit/strhash.
 import { Writer } from "../src/emit/writer.ts";
 
 test("two glyphs 993 codepoints apart share monkeyc's string label", () => {
-  // the `distance` and `temperature` glyphs, reproduced against a real build
+  // the `distance` glyph and Material Design's thermometer, reproduced against a real build
   assert.equal(javaStringHash("\u{F08F0}"), 1798574);
   assert.equal(javaStringHash("\u{F050F}"), 1798574);
   assert.notEqual(javaStringHash("\u{F08F0}"), javaStringHash("\u{F0510}"));

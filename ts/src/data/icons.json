@@ -67,23 +67,18 @@
   },
   "floors": {
    "name": "floors",
-   "codepoint": "󰓍",
-   "description": "a flight of stairs, for floors climbed (Material Design md-stairs)"
+   "codepoint": "󱊽",
+   "description": "a flight of stairs with an up arrow, for floors climbed (Material Design md-stairs_up)"
   },
   "distance": {
    "name": "distance",
    "codepoint": "󰣰",
    "description": "a map pin with a distance mark (Material Design md-map_marker_distance)"
   },
-  "phone": {
-   "name": "phone",
-   "codepoint": "󰄜",
-   "description": "a phone, for phone-connected status (Material Design md-cellphone)"
-  },
   "body_battery": {
    "name": "body_battery",
-   "codepoint": "󰙌",
-   "description": "a figure with raised arms, for Body Battery -- deliberately not the plain 'battery' glyph, which means device charge (Material Design md-human_handsup)"
+   "codepoint": "󰙊",
+   "description": "a waving figure, for Body Battery -- deliberately not the plain 'battery' glyph, which means device charge (Material Design md-human_greeting_variant)"
   },
   "stress": {
    "name": "stress",
@@ -112,8 +107,8 @@
   },
   "temperature": {
    "name": "temperature",
-   "codepoint": "󰔏",
-   "description": "a thermometer, for a single current-temperature reading (Material Design md-thermometer)"
+   "codepoint": "󱣗",
+   "description": "a sun beside a thermometer, for a single current-temperature reading (Material Design md-sun_thermometer_outline)"
   },
   "temperature_range": {
    "name": "temperature_range",
@@ -162,8 +157,8 @@
   },
   "recovery": {
    "name": "recovery",
-   "codepoint": "󰔟",
-   "description": "a sand timer, for recovery time (Material Design md-timer_sand)"
+   "codepoint": "󰭖",
+   "description": "a person with a clock, for recovery time (Material Design md-account_clock)"
   },
   "training": {
    "name": "training",

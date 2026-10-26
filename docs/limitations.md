@@ -366,7 +366,7 @@ in general.
 only the named catalogue entries, including codepoints above the Basic
 Multilingual Plane — all of Material Design Icons' ~7,000 glyphs live up
 there, and the catalogue now uses several of them (`heart`, `flame`, `alarm`,
-`dnd`, `notification`, `battery`, `floors`, `distance`, `phone`).
+`dnd`, `notification`, `floors`, `distance`, `temperature`).
 
 The one real, reproduced problem: the generated `<font filter="...">`
 resource attribute is parsed by the (Java) resource compiler as UTF-16 code

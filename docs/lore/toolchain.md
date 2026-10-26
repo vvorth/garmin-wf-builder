@@ -177,8 +177,9 @@ glitch.
   (`com.garmin.monkeybrains.compiler2.CompilerException`, from
   `Compiler2.assembleProject`), where `N` is the hash. VERIFIED: the label
   printed, `str___1798574`, is exactly the hash of both the `distance` glyph
-  (U+F08F0) and the `temperature` glyph (U+F050F), and a slot whose
-  `choices:` lists just those two types crashes on its own. A glyph above the
+  (U+F08F0) and Material Design's thermometer (U+F050F, then the
+  `temperature` glyph), and a slot whose `choices:` listed just those two
+  types crashed on its own. A glyph above the
   BMP is two UTF-16 units `(hi, lo)` hashing to `31*hi + lo`, so two
   Material Design glyphs 993 codepoints apart often collide; any two strings
   in the program can, in principle.

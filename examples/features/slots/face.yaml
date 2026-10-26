@@ -40,9 +40,9 @@
 #   `COMPLICATION_ICON` in `ts/src/icons.ts`: all 42 icons are baked, and a Connect IQ
 #   app's own complication, which the compiler cannot know, draws its reading
 #   with no icon. (Building this exposed a monkeyc crash on two string
-#   literals with the same Java hash, such as the `distance` and
-#   `temperature` glyphs; the compiler now avoids it by building a colliding
-#   glyph at runtime. See `docs/lore/toolchain.md`.) It declares no `on_hold:`
+#   literals with the same Java hash, such as two icon glyphs 993 codepoints
+#   apart; the compiler now avoids it by building a colliding glyph at
+#   runtime. See `docs/lore/toolchain.md`.) It declares no `on_hold:`
 #   at all -- holding it does nothing, which is a legitimate choice. Its
 #   `short: true` keeps a weather condition or training status to seven
 #   characters ("Mo clr", "Prodctv"); without it, "Cloudy chance of rain

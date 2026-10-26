@@ -101,10 +101,9 @@ test("a temperature pick's icon follows a weather condition, read beside it", ()
 });
 
 test("a pick's glyph is justified by its own advance, not the reference glyph's", () => {
-  // The thermometer measures the slot's box; the sample rain cloud drawn for the pick is wider.
+  // The default pick's shoe print measures the reference; the sample rain cloud drawn for a temperature pick is wider.
   for (const align of ["center", "left", "right"]) {
-    const text = slotIcon(`    align: ${align}`).replace("default: steps", "default: current_temperature")
-      .replace("choices: [steps,", "choices: [steps, current_temperature,");
+    const text = slotIcon(`    align: ${align}`).replace("choices: [steps,", "choices: [steps, current_temperature,");
     const r = resolved(text);
     const p = r.items.find((item) => item.id === "glyph") as PlacedIcon;
     const font = r.fonts.get(p.font_key)!;
@@ -142,14 +141,14 @@ test("a data pair's box holds the widest icon its slot can draw", () => {
     slot: left
     at: {anchor: center}
 ${icon}    color: color.fg
-`.replace("default: steps", "default: current_temperature").replace("choices: [steps,", "choices: [steps, current_temperature,");
+`.replace("choices: [steps,", "choices: [steps, current_temperature,");
   const box = (text: string): PlacedData => resolved(text).items.find((p) => p.id === "value") as PlacedData;
   const withIcon = box(pair("    icon: {size: 20%r}\n")), bare = box(pair(""));
   const r = resolved(pair("    icon: {size: 20%r}\n"));
   const font = r.fonts.get(withIcon.icon_font_key!)!;
   const cloud = font.glyphs.get(slotSampleGlyph(r.face.config_data.get("left")!, "current_temperature", null)!)!;
-  // The thermometer is the default pick, but the rain cloud the watch draws for it is wider.
-  assert.ok(cloud.xadvance > font.measure(CATALOG.get("temperature")!.codepoint)[0]);
+  // The shoe print is the default pick, but the rain cloud the watch draws for a temperature pick is wider.
+  assert.ok(cloud.xadvance > font.measure(CATALOG.get("steps")!.codepoint)[0]);
   assert.equal(withIcon.box.width - bare.box.width, withIcon.icon_gap_px + font.widestAdvance());
 });
 

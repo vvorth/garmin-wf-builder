@@ -65,7 +65,7 @@ screenshot shows the weather icon.
 steps_icon:
   type: icon
   icon: steps                 # alarm | battery | distance | dnd | flame | floors | heart |
-                               # notification | phone | steps, plus the `weather_*` glyphs the
+                               # notification | steps, plus the `weather_*` glyphs the
                                # Weather.CONDITION_* values map to -- run `wfb sources` for the
                                # full, current list
   size: 30px                  # px or %r only -- see below
