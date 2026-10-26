@@ -19,24 +19,24 @@ const offered = (text: string): string[] => {
   return axis.labels!.map((label, i) => `${label} ${axis.colors[i]}`);
 };
 
-test("choices: any offers the recommended 39 by name, in order, and no allowAny", () => {
+test("choices: any offers the recommended 37 by name, in order, and no allowAny", () => {
   const text = design("  accent_color: { default: color.fg, choices: any }\n");
   const want = MIP_RECOMMENDED.map((name) => `${LABEL.get(name)} ${HEX.get(name)}`);
-  assert.equal(want.length, 39);
+  assert.equal(want.length, 37);
   assert.deepEqual(offered(text), want);
   const xml = configResource(face(text));
   assert.doesNotMatch(xml, /allowAny/);
   // the default (white) is marked once, where the list has it
   assert.equal(xml.match(/default="true"/g)?.length, 1);
-  assert.match(xml, /<color default="true" label="@Strings\.ConfigAccentColor35">0xFFFFFF<\/color>/);
+  assert.match(xml, /<color default="true" label="@Strings\.ConfigAccentColor33">0xFFFFFF<\/color>/);
   assert.deepEqual(configLabelStrings(face(text)).map(([, label]) => label), MIP_RECOMMENDED.map((n) => LABEL.get(n)));
 });
 
 test("choices: any puts a default it does not offer first, by its swatch's name", () => {
-  // #FF8000 is not one of the 64; #5555AA is, but not one of the 39
+  // #FF8000 is not one of the 64; #5555AA is, but not one of the 37
   const first = `${LABEL.get(MIP_RECOMMENDED[0]!)} ${HEX.get(MIP_RECOMMENDED[0]!)}`;
   const amber = offered(design("  accent_color: { default: color.amber, choices: any }\n", '    amber: "#FF8000"\n'));
-  assert.deepEqual([amber.length, ...amber.slice(0, 2)], [40, "Amber #FF8000", first]);
+  assert.deepEqual([amber.length, ...amber.slice(0, 2)], [38, "Amber #FF8000", first]);
   assert.deepEqual(offered(design('  accent_color: { default: "#5555AA", choices: any }\n')).slice(0, 2), ["Rich Blue #5555AA", first]);
   assert.equal(offered(design('  accent_color: { default: "#FF8000", choices: any }\n'))[0], "#FF8000 #FF8000");
 });

@@ -649,7 +649,7 @@ it is what the wearer's list shows, or the order the face is drawn in.
   (`{color: "#FF8000"}`); one already listed is not added again. The editor always
   writes that list, so adding a colour to the palette never changes what
   the wearer is offered. A setting written `choices: any` is shown, not
-  edited: the wearer picks from [the recommended 39](mip-palette.md#the-recommended-colours),
+  edited: the wearer picks from [the recommended 37](mip-palette.md#the-recommended-colours),
   by name, on a fēnix 8 and on a watch without its editor (fr955) alike.
   **Make it a list** replaces it with the face's colours that no target
   dithers.
@@ -782,7 +782,7 @@ window has more room there (near the bottom of a long list, say):
   with the muted shade in the middle, and the one dark shade under it.
   Each block's left column leans toward the previous family and its right
   toward the next. Hovering a swatch shows its name and hex, and for one
-  of the 25 that `choices: any` does not offer, why
+  of the 27 that `choices: any` does not offer, why
   ([the recommended colours](mip-palette.md#the-recommended-colours)): a
   pastel, a muted mix, brown or olive, too dark, or which recommended
   colour it looks like on the watch.

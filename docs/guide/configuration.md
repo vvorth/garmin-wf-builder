@@ -86,7 +86,7 @@ theme:
 config:
   accent_color:
     default: "#FF8000"
-    choices: any                       # the 39 recommended MIP colours, by name
+    choices: any                       # the 37 recommended MIP colours, by name
   data_color:
     default: color.aqua                # a palette swatch, or a literal hex
     choices:                           # or an explicit list
@@ -645,7 +645,7 @@ still stands still while a slot or one of its choices is pulsing (see
 order, each with a name. The fēnix 8 editor and the settings menu below
 show the same list.
 
-- **`choices: any`** offers [the recommended 39](mip-palette.md#the-recommended-colours):
+- **`choices: any`** offers [the recommended 37](mip-palette.md#the-recommended-colours):
   the colours of the 64 a MIP screen shows that look good on it, none of
   them like another one on the list, by their MIP names, in the editor
   picker's order (red to magenta, then white to black). A `default:` that
@@ -680,7 +680,7 @@ option applies it at once.
 | Axis | The options listed |
 |---|---|
 | `style:` | every entry, by its label (else its scheme's label, else its name) |
-| `accent_color:`/`data_color:` | the [colour list](#a-colour-settings-list-and-the-names-on-it), by name: the `choices:` list, or for `choices: any` the recommended 39, the default first if it is not one of them |
+| `accent_color:`/`data_color:` | the [colour list](#a-colour-settings-list-and-the-names-on-it), by name: the `choices:` list, or for `choices: any` the recommended 37, the default first if it is not one of them |
 | a `slots:` entry | its `choices:` types; for `choices: any`, every complication type the device's API level has. Empty, and left out, on a device without `Toybox.Complications` |
 
 Which editor runs is decided on the watch, with the same `Application has

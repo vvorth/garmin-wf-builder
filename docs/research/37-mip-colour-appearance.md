@@ -5,7 +5,7 @@
 the watch: none that look like another one on the list, and none that
 look dirty, washed out or muddy. Which colours belong on that list?
 
-**Amended 2026-10-26.** The list `choices: any` offers is now 39, not
+**Amended 2026-10-26.** The list `choices: any` offers is now 37, not
 the 27 below: photos and the user's eye on a fēnix 8 Solar showed the
 watch's gamut is wider than this model's and its `AA` and `55` colours
 further apart, and the user added four dark colours and `kelly_green` by

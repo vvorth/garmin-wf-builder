@@ -64,7 +64,7 @@ or AOD-related has been observed on a watch or in the simulator.
   (the view's `_sleeping`, the flag `seconds: awake` reads), so `visible:
   system.awake` hides a digital seconds readout asleep; `wfb preview
   --asleep`/`--aod` read it as false (`docs/guide/modes-and-interaction.md`).
-- **The recommended MIP colours** — 39 of the 64 that look good and apart
+- **The recommended MIP colours** — 37 of the 64 that look good and apart
   on a MIP panel (`MIP_RECOMMENDED`, `ts/src/palette.ts`; why each other
   one is left out, `MIP_LEFT_OUT`, shown in the editor's colour picker): what a colour axis's
   `choices: any` offers on the native editor and the menu alike, by name,
@@ -75,7 +75,7 @@ or AOD-related has been observed on a watch or in the simulator.
   but with `getSettingsView` (fr955), the `config:` axes as one list per
   axis (`ts/src/emit/monkeyc/config_menu.ts`), a data slot titled by its
   optional `label:`; stored as `Application.Properties`
-  indices; `choices: any` offers the recommended 39 MIP colours or every
+  indices; `choices: any` offers the recommended 37 MIP colours or every
   complication type the device has (per-device `Layout` arrays). `config-unsupported` fires
   only with neither (`fenix5`/`fenix5x`). The mechanism was seen working on
   `fr955`; the `config:` menu itself not yet. `docs/guide/configuration.md`.

@@ -235,7 +235,7 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
 - **On-device config (2026-09-27):** the native editor for the four
   `config:` axes, and, on a watch without it, the same axes in a generated
   `getSettingsView` menu (one list per axis; `choices: any` offers the
-  39 recommended MIP colours or every supported complication type). No separate wearer
+  37 recommended MIP colours or every supported complication type). No separate wearer
   settings language: the short-lived `settings:` block was removed. Phone
   settings never reach a sideload; no `.SET` writer.
 - **Format 2 (2026-09-28):** one designed revision of the YAML

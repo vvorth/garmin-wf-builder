@@ -59,9 +59,9 @@ test("the named MIP table is the 64", () => {
   assert.equal(mip64Label("#FF8000"), undefined);
 });
 
-test("the recommended set is 39 of the 64, once each, in the picker's order", () => {
-  assert.equal(MIP_RECOMMENDED.length, 39);
-  assert.equal(new Set(MIP_RECOMMENDED).size, 39);
+test("the recommended set is 37 of the 64, once each, in the picker's order", () => {
+  assert.equal(MIP_RECOMMENDED.length, 37);
+  assert.equal(new Set(MIP_RECOMMENDED).size, 37);
   const picker = mipFamilies(MIP64_NAMED.map(([name, value, label]) => ({ name, value, label, note: null })))!.flatMap((f) => f.rows.flat()).filter((c) => c !== null).map((c) => c.name);
   assert.deepEqual(picker.filter((name) => MIP_RECOMMENDED.includes(name)), MIP_RECOMMENDED);
 });

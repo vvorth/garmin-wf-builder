@@ -22,7 +22,7 @@ against it.
 Not all 64 look good on the watch. A MIP screen reflects light rather
 than emitting it, so every colour is paler than on a monitor, and the
 middle steps (`55`, `AA`) are lighter than a monitor draws them. Of the
-64, 39 are recommended. These are left out:
+64, 37 are recommended. These are left out:
 
 - **pastels** (one channel `FF`, the dimmest `AA`) look off-white;
 - **muted mixes** (one channel `AA`, the dimmest `55`) look gray;
@@ -31,7 +31,8 @@ middle steps (`55`, `AA`) are lighter than a monitor draws them. Of the
 - **look-alikes**: of each group of colours that look alike on the watch,
   one stays. `laser_lemon`, `spring_bud`, `brilliant_rose`,
   `hollywood_cerise`, `baby_blue`, `cornflower_blue`, `medium_green`,
-  `persian_green` and `cobalt` are left out.
+  `persian_green`, `cobalt`, `neon_blue` and `electric_indigo` are left
+  out.
 
 The other dark colours (`maroon`, `verdun_green`, `dark_green`, `navy`)
 stay: on the watch each is distinct from its brighter sibling. The
@@ -48,7 +49,7 @@ offers the wearer, in this order:
 | Yellow | `texas_rose` `#FFAA55`, `web_orange` `#FFAA00`, `yellow` `#FFFF00`, `verdun_green` `#555500` |
 | Green | `conifer` `#AAFF55`, `screamin_green` `#55FF55`, `bright_green` `#55FF00`, `green` `#00FF00`, `malachite` `#00FF55`, `kelly_green` `#55AA00`, `japanese_laurel` `#00AA00`, `dark_green` `#005500` |
 | Cyan | `medium_aquamarine` `#55FFAA`, `aqua` `#00FFFF`, `azure_radiance` `#00AAFF`, `pigment_green` `#00AA55` |
-| Blue | `neon_blue` `#5555FF`, `navy_blue` `#0055FF`, `blue` `#0000FF`, `electric_indigo` `#5500FF`, `midnight_blue` `#0000AA`, `navy` `#000055` |
+| Blue | `navy_blue` `#0055FF`, `blue` `#0000FF`, `midnight_blue` `#0000AA`, `navy` `#000055` |
 | Magenta | `medium_purple` `#AA55FF`, `pink_flamingo` `#FF55FF`, `electric_violet` `#AA00FF`, `magenta_fuchsia` `#FF00FF`, `indigo` `#5500AA`, `dark_magenta` `#AA00AA` |
 | Gray | `white` `#FFFFFF`, `silver_chalice` `#AAAAAA`, `emperor` `#555555`, `black` `#000000` |
 

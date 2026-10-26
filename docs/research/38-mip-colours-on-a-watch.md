@@ -333,13 +333,14 @@ with §6's rerun (a swatch sheet of all 64, the dropped ones crossed):
 - **Added by eye**: `kelly_green`, `navy`, `verdun_green`, `maroon` and
   `dark_green`, "distinct enough in reality". Research 37 had dropped them
   as dark copies of brighter colours and, for `kelly_green`, as olive.
-- **Kept**: `electric_indigo` and `neon_blue`, which the rerun dropped as
-  too close to `blue` and `navy_blue`. A colour-difference score is least
-  reliable among blues, and the image shows each pair apart in hue.
+- **Dropped, as the rerun did**: `electric_indigo` (like `blue`) and
+  `neon_blue` (like `navy_blue`). They were kept at first, since a
+  colour-difference score is least reliable among blues, and the user
+  dropped them after looking.
 
-That makes 39: `MIP_RECOMMENDED` in `ts/src/palette.ts`. The other 25 are
+That makes 37: `MIP_RECOMMENDED` in `ts/src/palette.ts`. The other 27 are
 the six pastels, the six muted mixes, `rust`, `citrus`, `tyrian_purple`,
-`mosque` and nine look-alikes. `MIP_LEFT_OUT` beside the list says why
+`mosque` and eleven look-alikes. `MIP_LEFT_OUT` beside the list says why
 each is left out, naming for a look-alike the recommended colour nearest
 it in the eye-matched image. The editor's colour picker shows that note
 when a swatch is hovered.

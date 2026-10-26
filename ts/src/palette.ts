@@ -115,7 +115,7 @@ export function mip64Label(value: string): string | undefined {
 }
 
 /**
- * The 39 of the 64 that look good on a MIP panel and apart from each other,
+ * The 37 of the 64 that look good on a MIP panel and apart from each other,
  * by name, in the editor picker's order: the six hue families, then the
  * grays. A `choices: any` colour setting offers exactly these. Left out:
  * the pastels (`FF` with `AA`, off-white on the panel), the muted mixes
@@ -130,7 +130,7 @@ export const MIP_RECOMMENDED: readonly string[] = [
   "texas_rose", "web_orange", "yellow", "verdun_green",
   "conifer", "screamin_green", "bright_green", "green", "malachite", "kelly_green", "japanese_laurel", "dark_green",
   "medium_aquamarine", "aqua", "azure_radiance", "pigment_green",
-  "neon_blue", "navy_blue", "blue", "electric_indigo", "midnight_blue", "navy",
+  "navy_blue", "blue", "midnight_blue", "navy",
   "medium_purple", "pink_flamingo", "electric_violet", "magenta_fuchsia", "indigo", "dark_magenta",
   "white", "silver_chalice", "emperor", "black",
 ];
@@ -152,6 +152,7 @@ export const MIP_LEFT_OUT: Readonly<Record<string, string>> = {
   laser_lemon: LIKE("Conifer"), spring_bud: LIKE("Yellow"), brilliant_rose: LIKE("Pink Flamingo"),
   hollywood_cerise: LIKE("Magenta Fuchsia"), baby_blue: LIKE("Medium Aquamarine"), cornflower_blue: LIKE("Azure Radiance"),
   medium_green: LIKE("Aqua"), persian_green: LIKE("Azure Radiance"), cobalt: LIKE("Navy Blue"),
+  neon_blue: LIKE("Navy Blue"), electric_indigo: LIKE("Blue"),
 };
 
 export class ColorError extends Error {}
