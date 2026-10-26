@@ -486,10 +486,12 @@ the colours people like least. Many pairs one step apart, `FF0000` and
 `AA0000` for one, are hard to tell apart. The recommended 27 that
 `choices: any` offers (`docs/guide/mip-palette.md`) leave all of these out
 (`docs/research/37-mip-colour-appearance.md`). Photos of all 64 on a
-fēnix 8 Solar confirm the linear steps, put the gamut at about 12.5% of
-NTSC, and bear out the pastel, muted and dark rules
+fēnix 8 Solar confirm the linear steps, put the gamut at about 23% of
+NTSC (the wider of the two the selection was tested on), and bear out the
+pastel, muted and dark rules
 (`docs/research/38-mip-colours-on-a-watch.md`). Which of two close colours
-stays is still the model's call (§4, "Data, config and the AOD heat map").
+stays is still a judgement near a threshold (§4, "Data, config and the AOD
+heat map").
 With the **backlight** on in room light, the screen takes a cool cast:
 yellows and oranges go peach, reds pink and greens mint, and a few kept
 pairs (`aqua`/`azure_radiance`, `conifer`/`silver_chalice`) merge. The list
@@ -1297,13 +1299,15 @@ been seen hiding an element by it yet.
 by eye.** The list `choices: any` offers comes from a model of a measured
 MIP module (§1, "64 colours, and everything else dithers"). Photos of
 `docs/research/probes/mip-colour-appearance/face.yaml` on a fēnix 8 Solar
-confirm the model's steps and its rules, but put the green–cyan colours
-closer together than the model does: `green`, `malachite`,
-`pigment_green`, `aqua` and `azure_radiance` are all near the line that
-decides whether a colour stays (`docs/research/38-mip-colours-on-a-watch.md`).
-A camera does not see hue as the eye does, so that corner of the list
-waits on someone looking at the watch. `fr955` and the other MIP panels
-are not photographed yet.
+confirm the model's steps, gamut and rules, and in the best photo every
+kept pair stays apart except `web_orange`/`texas_rose`. Its edges are
+within about one ΔE of the line that decides whether a colour stays:
+`texas_rose` on the list, and `japanese_laurel`, `dark_magenta`,
+`bright_green` and `cornflower_blue` off it, could each go the other way
+(`docs/research/38-mip-colours-on-a-watch.md`). A camera does not see hue
+as the eye does, so those calls wait on someone looking at the watch.
+Seen at an angle or under the backlight, the greens and cyans wash toward
+each other. `fr955` and the other MIP panels are not photographed yet.
 
 **Every source is a plain per-frame read; there are no refresh tiers or TTL
 caches.** Every value comes from a Garmin API that caches on its own side

@@ -1,10 +1,11 @@
 """Read the 64 swatches out of phone photos of face.yaml on a watch and test the model (research 38).
 
-The photos are a fēnix 8 Solar showing face.yaml in office light, once with the
-backlight off and twice with it on. For each photo the four corners of the swatch
-grid were found by hand; a homography maps the face's 173 px grid onto the photo,
-and each swatch is the median of a ring of points inside it, clear of its edge and
-of the black dot a dropped colour carries.
+The photos are a fēnix 8 Solar showing face.yaml in office light: one at an angle
+with the backlight off, two with it on, and one close and square-on with it off,
+taken to look as much like the watch as possible. For each photo the four corners
+of the swatch grid were found by hand; a homography maps the face's 173 px grid
+onto the photo, and each swatch is the median of a ring of points inside it, clear
+of its edge and of the black dot a dropped colour carries.
 
 A phone camera is not a colorimeter: its tone curve is unknown and it boosts
 contrast and colour. So the step test uses only the *order* of the swatches'
@@ -18,8 +19,11 @@ Prints, per photo:
   - the photo's chroma against the model's, and the gamut that would match it;
   - lightness and chroma of each of choose.py's groups, against the photo's white;
   - the closest pairs among the 27 kept colours;
-  - choose.py's deduplication re-run on the photo's colours.
-`--png` writes photos.png: each photo's 64, balanced to its white swatch, beside the model.
+  - choose.py's deduplication re-run on the photo's colours;
+each colour figure twice: as photographed, and less the light the watch glass
+reflects (deglare), which washes every swatch toward white by the same amount.
+`--png` writes photos.png: each photo's 64 balanced to its white swatch, the close
+photo again less the glare, then the datasheet, wider and monitor models.
 """
 import sys
 
@@ -38,6 +42,7 @@ PHOTOS = {
     "photo-ambient.jpg": [(112, 125), (625, 103), (681, 589), (113, 637)],
     "photo-backlight-1.jpg": [(82, 243), (573, 132), (703, 600), (167, 720)],
     "photo-backlight-2.jpg": [(85, 130), (586, 40), (686, 537), (155, 615)],
+    "photo-close.jpg": [(-4, -2), (813, -2), (813, 811), (-4, 811)],  # cropped to the grid; its outer edge is off the image
 }
 HEX = [h for _, h in NAMED]
 NAME = {h: n for n, h in NAMED}
@@ -101,9 +106,16 @@ def step_test(Y):
     return votes, best, near, taus
 
 
-def adapted_lab(rgb):
+def deglare(lin):
+    """Linear swatches less the light the glass reflects: a constant, taken off until black is 1/25 of white (the
+    measured panel's contrast). It keeps the lightness order and gives back the chroma the reflection washes out."""
+    black, white = lin[HEX.index("000000")], lin[HEX.index("FFFFFF")]
+    return lin - np.clip((black - white / CONTRAST) / (1 - 1 / CONTRAST), 0, None)
+
+
+def adapted_lab(rgb, glare=False):
     """CIELAB with the photo's own white swatch as the white the eye adapts to (von Kries in linear sRGB)."""
-    lin = decode(rgb)
+    lin = deglare(decode(rgb)) if glare else decode(rgb)
     lin = lin / lin[HEX.index("FFFFFF")]
     white = SRGB_TO_XYZ @ np.ones(3)
     return {h: lab(*(SRGB_TO_XYZ @ lin[i]), white) for i, h in enumerate(HEX)}
@@ -136,6 +148,22 @@ def reselect(Lab, kept):
     return scale, [h for h in chromatic if h not in out], [h for h in out if h not in chromatic]
 
 
+def report(Lab, kept, title):
+    print(title)
+    print("    grays L*: " + ", ".join(f"{h} {Lab[h][0]:.0f}" for h in ("000000", "555555", "AAAAAA", "FFFFFF")))
+    vs_datasheet, vs_wider, ntsc = gamut_match(Lab)
+    print(f"    chroma: {vs_datasheet:.2f}x datasheet, {vs_wider:.2f}x wider; matches a gamut of {100 * ntsc:.1f}% NTSC")
+    for group in ("pastel", "muted", "dark", "brown/olive", None):
+        hs = [h for h in HEX if rule(h) == group]
+        print(f"    {group or 'the rest':<12} L* {np.mean([Lab[h][0] for h in hs]):5.1f}"
+              f"  C* {np.mean([lch(Lab[h])[1] for h in hs]):5.1f}")
+    pairs = sorted((de2000(Lab[a], Lab[b]), a, b) for i, a in enumerate(kept) for b in kept[i + 1:])
+    print("    closest kept pairs: " + "; ".join(f"{NAME[a]}/{NAME[b]} {d:.1f}" for d, a, b in pairs[:8]))
+    scale, lost, gained = reselect(Lab, kept)
+    print(f"    re-run on the photo (threshold {THRESHOLD * scale:.1f}): drops {', '.join(NAME[h] for h in lost)};"
+          f" adds {', '.join(NAME[h] for h in gained)}")
+
+
 if __name__ == "__main__":
     kept, _ = select()
     sampled = {}
@@ -149,29 +177,20 @@ if __name__ == "__main__":
               f" best fit 55={best[1]:.2f} AA={best[2]:.2f} (tau {best[0]:.3f}; within 0.01 of it:"
               f" 55 {min(a for a, _ in near):.2f}-{max(a for a, _ in near):.2f},"
               f" AA {min(b for _, b in near):.2f}-{max(b for _, b in near):.2f})")
-        Lab = adapted_lab(rgb)
-        print("  grays L*: " + ", ".join(f"{h} {Lab[h][0]:.0f}" for h in ("000000", "555555", "AAAAAA", "FFFFFF")))
-        vs_datasheet, vs_wider, ntsc = gamut_match(Lab)
-        print(f"  chroma: {vs_datasheet:.2f}x datasheet, {vs_wider:.2f}x wider; matches a gamut of {100 * ntsc:.1f}% NTSC")
-        for group in ("pastel", "muted", "dark", "brown/olive", None):
-            hs = [h for h in HEX if rule(h) == group]
-            print(f"  {group or 'the rest':<12} L* {np.mean([Lab[h][0] for h in hs]):5.1f}"
-                  f"  C* {np.mean([lch(Lab[h])[1] for h in hs]):5.1f}")
-        pairs = sorted((de2000(Lab[a], Lab[b]), a, b) for i, a in enumerate(kept) for b in kept[i + 1:])
-        print("  closest kept pairs: " + "; ".join(f"{NAME[a]}/{NAME[b]} {d:.1f}" for d, a, b in pairs[:8]))
-        scale, lost, gained = reselect(Lab, kept)
-        print(f"  re-run on the photo (threshold {THRESHOLD * scale:.1f}): drops {', '.join(NAME[h] for h in lost)};"
-              f" adds {', '.join(NAME[h] for h in gained)}")
+        for glare in (False, True):
+            report(adapted_lab(rgb, glare), kept, "  less the glass glare:" if glare else "  as photographed:")
     if "--png" in sys.argv:
         from PIL import ImageDraw
         S, G, PAD = 20, 2, 12
-        def balanced(rgb):
+        def balanced(rgb, glare=False):
             """The photo's swatches scaled in linear light so its white swatch draws white."""
-            lin = np.clip(decode(rgb) / decode(rgb)[HEX.index("FFFFFF")], 0, 1)
+            lin = deglare(decode(rgb)) if glare else decode(rgb)
+            lin = np.clip(lin / lin[HEX.index("FFFFFF")], 0, 1)
             enc = np.where(lin <= 0.0031308, 12.92 * lin, 1.055 * lin ** (1 / 2.4) - 0.055)
             return lambda h: tuple(int(round(255 * v)) for v in enc[HEX.index(h)])
         cols = [(p, balanced(sampled[p])) for p in PHOTOS]
-        cols += [(p.name, p.display) for p in (DATASHEET, PANELS[-1])]
+        cols += [("close, less glare", balanced(sampled["photo-close.jpg"], True))]
+        cols += [(p.name, p.display) for p in (DATASHEET, WIDER, PANELS[-1])]
         im = Image.new("RGB", (len(cols) * (8 * (S + G) + PAD) + G, 8 * (S + G) + G), (40, 40, 40))
         d = ImageDraw.Draw(im)
         for k, (_, colour) in enumerate(cols):
