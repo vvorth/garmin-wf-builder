@@ -1,34 +1,76 @@
 # Trail Utility -- a dense digital tool face with angular frame lines,
-# modelled on a photo of an outdoor watch (build/preview/test_end.png):
-# two-tone hours/minutes, seconds, a battery-days ring, sunrise/sunset,
-# weather, recovery and body battery arcs and a heart-rate bar graph.
-# The original's model-name wordmark is replaced by the face's own name.
+# modelled on a picture of an outdoor watch (reference.png): two-tone
+# hours/minutes with seconds, sunrise/sunset, and six spots the wearer
+# picks on the watch (config: slots:), each drawn with what suits it:
 #
-# Preview:  ./wfb preview faces/trail-utility/face.yaml --time 07:53:35
-# Build:    ./wfb build faces/trail-utility/face.yaml
+# * top_left / top_right: an arc across the top, filled against the
+#   pick's own scale, with its icon and reading below it;
+# * weather: the reading with its icon, which follows the weather;
+# * ring: a full ring round the reading on the right (battery by default);
+# * graph: bars of the pick's history (heart rate over 4 hours by default);
+# * bottom: one reading with its icon under the graph.
 #
-# yaml-language-server: $schema=../../schema/wfb-face-2.schema.json
+# Every font is one the watch already has (a vector face, so it scales):
+# Bionic for the time, Roboto Condensed for everything else. The accent
+# colour is the wearer's to change. The original's model-name wordmark is
+# replaced by the face's own name.
+#
+# Preview:  ./wfb preview examples/generated_by_skill/trail-utility/face.yaml --time 10:10:38
+# Build:    ./wfb build examples/generated_by_skill/trail-utility/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
 format: 2
 
 face:
   id: ffbf5db6-078b-43c7-9eb7-ed4e4750bcf8
   name: Trail Utility
-  version: 1.0.0
+  version: 2.0.0
 
 build:
   targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
 resources:
   fonts:
-    clock: { source: assets/ChivoMono-Bold.ttf, size: 47%r, monospace: true, antialias: true }
-    small: { face: [RobotoCondensedBold], size: 13.8%r }
+    clock: { face: [BionicSemiBold, BionicBold, RobotoCondensedBold], size: 66%r }
+    seconds: { face: [BionicSemiBold, BionicBold, RobotoCondensedBold], size: 20%r }
+    small: { face: [RobotoCondensedRegular], size: 14.5%r }
+    label: { face: [RobotoCondensedBold], size: 13%r }
   palette:                          # every channel 00 / 55 / AA / FF
     bg: "#000000"
-    white: "#FFFFFF"
-    sand: "#AAAAAA"
-    track: "#AAAAAA"
+    fg: "#AAAAAA"
+    track: "#555555"
     frame: "#555555"
 
+config:
+  accent_color:
+    default: "#AAFF00"
+    choices: any
+  slots:
+    top_left:
+      label: "Top left"
+      default: body_battery
+      choices: [body_battery, stress, battery, steps, floors_climbed, intensity_minutes, recovery_time]
+    top_right:
+      label: "Top right"
+      default: steps
+      choices: [steps, calories, floors_climbed, intensity_minutes, body_battery, stress, battery]
+    weather:
+      label: "Weather"
+      default: current_temperature
+      choices: [current_temperature, high_low_temperature, altitude, sea_level_pressure]
+    ring:
+      label: "Ring"
+      default: battery
+      choices: [battery, body_battery, stress, pulse_ox, steps]
+    graph:
+      label: "Graph"
+      default: heart_rate
+      choices: [heart_rate, steps, calories, floors_climbed, intensity_minutes, current_temperature]
+    bottom:
+      label: "Bottom"
+      default: solar_input
+      choices: [solar_input, battery, body_battery, stress, steps, calories, floors_climbed, intensity_minutes, heart_rate, altitude, notification_count, recovery_time]
 
 static:
   background:
@@ -37,11 +79,7 @@ static:
     size: { width: 100%, height: 100% }
     color: color.bg
 
-
-  # the two empty arcs across the top: tracks for the progress arcs below
-  arc_track_l: { type: arc, at: { anchor: center }, radius: 95%r, thickness: 6%r, start_angle: 315deg, sweep: 42deg, color: color.track, lint: { allow: [safe-area], reason: "the top arcs follow the screen edge by design" } }
-  arc_track_r: { type: arc, at: { anchor: center }, radius: 95%r, thickness: 6%r, start_angle: 3deg, sweep: 42deg, color: color.track, lint: { allow: [safe-area], reason: "the top arcs follow the screen edge by design" } }
-  divider: { type: line, at: { anchor: center, dy: -82.6%r }, to: { anchor: center, dy: -62.2%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "a dim divider, decoration only" } }
+  divider: { type: line, at: { anchor: center, dx: -1%r, dy: -80%r }, to: { anchor: center, dx: -1%r, dy: -59%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "a dim divider, decoration only" } }
   frame_top:
     type: group
     children:
@@ -51,182 +89,197 @@ static:
   frame_sun:
     type: group
     children:
-      fs1: { type: line, at: { anchor: center, dx: -82.6%r, dy: -48.5%r }, to: { anchor: center, dx: 15.6%r, dy: -48.5%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
-      fs2: { type: line, at: { anchor: center, dx: 15.6%r, dy: -48.5%r }, to: { anchor: center, dx: 27.5%r, dy: -27.5%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
-      fs3: { type: line, at: { anchor: center, dx: 27.5%r, dy: -27.5%r }, to: { anchor: center, dx: 87.4%r, dy: -27.5%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+      fs1: { type: line, at: { anchor: center, dx: -82.6%r, dy: -46.5%r }, to: { anchor: center, dx: 11%r, dy: -46.5%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+      fs2: { type: line, at: { anchor: center, dx: 11%r, dy: -46.5%r }, to: { anchor: center, dx: 25%r, dy: -27%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
+      fs3: { type: line, at: { anchor: center, dx: 25%r, dy: -27%r }, to: { anchor: center, dx: 85%r, dy: -27%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
   frame_date:
     type: group
     children:
-      fd1: { type: line, at: { anchor: center, dx: -85%r, dy: 42.5%r }, to: { anchor: center, dx: -39.5%r, dy: 42.5%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
-      fd2: { type: line, at: { anchor: center, dx: -39.5%r, dy: 42.5%r }, to: { anchor: center, dx: -27.5%r, dy: 25.7%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
-      fd3: { type: line, at: { anchor: center, dx: -27.5%r, dy: 25.7%r }, to: { anchor: center, dx: 43.1%r, dy: 25.7%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
+      fd1: { type: line, at: { anchor: center, dx: -85%r, dy: 44%r }, to: { anchor: center, dx: -38%r, dy: 44%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+      fd2: { type: line, at: { anchor: center, dx: -38%r, dy: 44%r }, to: { anchor: center, dx: -29%r, dy: 26%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
+      fd3: { type: line, at: { anchor: center, dx: -29%r, dy: 26%r }, to: { anchor: center, dx: 42%r, dy: 26%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
   frame_graph:
     type: group
     children:
-      fg1: { type: line, at: { anchor: center, dx: -73%r, dy: 67.6%r }, to: { anchor: center, dx: -62.2%r, dy: 52.7%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
-      fg2: { type: line, at: { anchor: center, dx: -62.2%r, dy: 52.7%r }, to: { anchor: center, dx: 62.2%r, dy: 52.7%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
-      fg3: { type: line, at: { anchor: center, dx: 62.2%r, dy: 52.7%r }, to: { anchor: center, dx: 73%r, dy: 67.6%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
-  battery_ring: { type: circle, filled: false, at: { anchor: center, dx: 70.3%r, dy: 3.2%r }, radius: 26.3%r, thickness: 2.4%r, color: color.sand }
-  name_label: { type: text, text: "TRAIL", font: font.small, at: { anchor: center, dx: 7.2%r, dy: 34.7%r }, color: color.white }
-  sunrise_icon: { type: icon, icon: sunrise, size: 12%r, at: { anchor: center, dx: -43.9%r, dy: -37.7%r }, color: color.white }
+      fg1: { type: line, at: { anchor: center, dx: -73%r, dy: 68%r }, to: { anchor: center, dx: -61%r, dy: 52%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+      fg2: { type: line, at: { anchor: center, dx: -61%r, dy: 52%r }, to: { anchor: center, dx: 61%r, dy: 52%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast], reason: "dim frame line, decoration only" } }
+      fg3: { type: line, at: { anchor: center, dx: 61%r, dy: 52%r }, to: { anchor: center, dx: 73%r, dy: 68%r }, thickness: 2px, color: color.frame, lint: { allow: [contrast, safe-area], reason: "dim frame line, decoration only; it ends at the screen edge on purpose" } }
+  ring_outer: { type: circle, filled: false, at: { anchor: center, dx: 67%r, dy: 3%r }, radius: 29%r, thickness: 3px, color: color.frame, lint: { allow: [contrast], reason: "dim bezel round the ring, decoration only" } }
+  name_label: { type: text, text: "TRAIL", font: font.label, at: { anchor: center, dx: 6%r, dy: 35.5%r }, color: color.fg }
+  sunrise_icon: { type: icon, icon: sunrise, size: 14%r, at: { anchor: center, dx: -40.5%r, dy: -37%r }, color: color.fg }
+
 elements:
-  # --- top row: recovery | body battery ---
-  recovery_arc:
-    lint: { allow: [safe-area], reason: "the top arcs follow the screen edge by design" }
-    type: gauge
-    style: arc
-    value: complication.recovery_time
-    max: 5760
-    at: { anchor: center }
-    radius: 95%r
-    thickness: 6%r
-    start_angle: 315deg
-    sweep: 42deg
-    color: color.white
-    absent: hide
-  body_battery_arc:
-    lint: { allow: [safe-area], reason: "the top arcs follow the screen edge by design" }
-    type: gauge
-    style: arc
-    value: complication.body_battery
-    max: 100
-    at: { anchor: center }
-    radius: 95%r
-    thickness: 6%r
-    start_angle: 3deg
-    sweep: 42deg
-    color: color.white
-    absent: hide
-  recovery_icon: { type: icon, icon: recovery, size: 13.2%r, at: { anchor: center, dx: -34.7%r, dy: -69.4%r }, color: color.white }
-  recovery_value:
-    type: text
-    text: "{clamp(complication.recovery_time / 60, 0, 99):d}h"
-    font: font.small
-    at: { anchor: center, dx: -23.9%r, dy: -69.4%r }
-    align: left
-    color: color.white
-    absent: {text: "--"}
-  body_battery_icon: { type: icon, icon: body_battery, size: 13.2%r, at: { anchor: center, dx: 21.5%r, dy: -69.4%r }, color: color.white }
-  body_battery_value:
-    lint: { allow: [text-overflow, safe-area], reason: "clamped to 0-100, so at most 3 digits; the linter has no range for a complication" }
-    type: text
-    text: "{clamp(complication.body_battery, 0, 100):d}"
-    font: font.small
-    at: { anchor: center, dx: 32.3%r, dy: -69.4%r }
-    align: left
-    color: color.white
-    absent: {text: "--"}
+  # --- top: two arcs that fill toward 12 o'clock, each a slot ---
+  top_left_slot:
+    type: group
+    children:
+      top_left_arc:
+        lint: { allow: [safe-area], reason: "the top arcs follow the screen edge by design" }
+        type: gauge
+        slot: top_left
+        style: arc
+        at: { anchor: center }
+        radius: 94%r
+        thickness: 6%r
+        start_angle: 316deg
+        sweep: 43deg
+        color: color.accent
+        track_color: color.track
+        absent: hide
+      top_left_value:
+        type: data
+        slot: top_left
+        font: font.small
+        icon: { size: 18%r, gap: 2%r, color: color.fg }
+        at: { anchor: center, dx: -50%r, dy: -68%r }
+        align: left
+        color: color.fg
+        absent: { text: "--" }
+        on_hold: auto
+  top_right_slot:
+    type: group
+    children:
+      top_right_arc:
+        lint: { allow: [safe-area], reason: "the top arcs follow the screen edge by design" }
+        type: gauge
+        slot: top_right
+        style: arc
+        at: { anchor: center }
+        radius: 94%r
+        thickness: 6%r
+        start_angle: 44deg
+        sweep: -43deg
+        color: color.accent
+        track_color: color.track
+        absent: hide
+      top_right_value:
+        type: data
+        slot: top_right
+        font: font.small
+        icon: { size: 15%r, gap: 3%r, color: color.fg }
+        at: { anchor: center, dx: 5%r, dy: -68%r }
+        align: left
+        color: color.fg
+        absent: { text: "--" }
+        on_hold: auto
 
-  # --- sunrise / sunset, from seconds since midnight ---
-  sunrise_h:
-    lint: { allow: [text-overflow, safe-area], reason: "clamped to 0-23, so at most 2 digits; the linter has no range for a complication" }
+  # --- sunrise / sunset ---
+  sunrise:
     type: text
-    text: "{clamp(floor(complication.sunrise / 3600), 0, 23):d}"
+    text: "{complication.sunrise:%H:%M}"
     font: font.small
-    at: { anchor: center, dx: -68.2%r, dy: -37.7%r }
+    at: { anchor: center, dx: -49%r, dy: -36.5%r }
     align: right
-    color: color.white
-    absent: {text: "--"}
-  sunrise_m:
+    color: color.fg
+    absent: { text: "--:--" }
+  sunset:
     type: text
-    text: ":{complication.sunrise % 3600 / 60:02d}"
+    text: "{complication.sunset:%H:%M}"
     font: font.small
-    at: { anchor: center, dx: -68.2%r, dy: -37.7%r }
+    at: { anchor: center, dx: -30%r, dy: -36.5%r }
     align: left
-    color: color.white
-    absent: hide
-  sunset_h:
-    type: text
-    text: "{clamp(floor(complication.sunset / 3600), 0, 23):d}"
-    font: font.small
-    at: { anchor: center, dx: -22.1%r, dy: -37.7%r }
-    align: right
-    color: color.white
-    absent: {text: "--"}
-  sunset_m:
-    type: text
-    text: ":{complication.sunset % 3600 / 60:02d}"
-    font: font.small
-    at: { anchor: center, dx: -22.1%r, dy: -37.7%r }
-    align: left
-    color: color.white
-    absent: hide
+    color: color.fg
+    absent: { text: "--:--" }
 
-  # --- weather ---
-  weather_icon: { type: icon, icon: { for: weather.condition }, size: 18%r, at: { anchor: center, dx: 45.5%r, dy: -38.3%r }, color: color.white }
-  temperature:
-    lint: { allow: [text-overflow, safe-area], reason: "clamped to -99..99; the linter has no range for this reading" }
-    type: text
-    text: "{clamp(weather.temperature, -99, 99):.0f}°"
+  # --- weather slot ---
+  weather_value:
+    type: data
+    slot: weather
     font: font.small
-    at: { anchor: center, dx: 56.3%r, dy: -38.3%r }
-    align: left
-    color: color.white
-    absent: {text: "--°"}
+    short: true
+    icon: { size: 17%r, gap: 5%r, color: color.fg }
+    at: { anchor: center, dx: 70%r, dy: -37%r }
+    align: right
+    color: color.fg
+    absent: { text: "--" }
+    on_hold: auto
 
   # --- time ---
+  # Bionic SemiBold is the boldest Bionic the fenix 8 has, lighter than
+  # the picture's digits: a 1 px outline in the digit's own colour thickens
+  # each stroke by a pixel all round.
   hours:
-    lint: { allow: [text-overflow, safe-area], reason: "the hours sit against the left edge by design, as in the reference photo" }
+    lint: { allow: [contrast, text-outline-interior], reason: "the outline is the digit's own colour on purpose: it emboldens the glyph rather than ringing it" }
     type: text
     text: "{time.clock:%H}"
     font: font.clock
-    at: { anchor: center, dx: -39.5%r, dy: 0%r }
+    at: { anchor: center, dx: -34%r, dy: -1.5%r }
     align: right
-    color: color.white
+    color: color.fg
+    outline: { color: color.fg }
   minutes:
+    lint: { allow: [text-outline-interior], reason: "the outline is the digit's own colour on purpose: it emboldens the glyph rather than ringing it" }
     type: text
     text: "{time.clock:%M}"
     font: font.clock
-    at: { anchor: center, dx: -38.3%r, dy: 0%r }
+    at: { anchor: center, dx: -33%r, dy: -1.5%r }
     align: left
-    color: color.sand
+    color: color.accent
+    outline: { color: color.accent }
   seconds:
     type: text
     text: "{time.second:02d}"
-    font: FONT_XTINY
-    at: { anchor: center, dx: 20.3%r, dy: -12%r }
+    font: font.seconds
+    at: { anchor: center, dx: 21.5%r, dy: -12.5%r }
     align: left
-    color: color.white
+    color: color.fg
 
-  # --- battery ---
-  battery_icon: { type: icon, icon: { codepoint: "U+F240" }, size: 10.8%r, at: { anchor: center, dx: 70.3%r, dy: -4.3%r }, color: color.white }
-  battery_days:
-    type: text
-    text: "{clamp(system.battery_in_days, 0, 99):.0f}d"
-    font: font.small
-    at: { anchor: center, dx: 70.6%r, dy: 8.4%r }
-    color: color.white
-    on_hold: battery
+  # --- the ring slot ---
+  ring_slot:
+    type: group
+    at: { anchor: center, dx: 67%r, dy: 3%r }
+    size: { width: 52%r, height: 52%r }
+    on_hold: auto
+    children:
+      ring_gauge:
+        type: gauge
+        slot: ring
+        style: arc
+        at: { anchor: center }
+        radius: 25.5%r
+        thickness: 3%r
+        start_angle: 0deg
+        sweep: 360deg
+        color: color.accent
+        track_color: color.track
+        absent: hide
+      ring_icon: { type: icon, slot: ring, size: 14%r, at: { anchor: center, dy: -7%r }, color: color.fg }
+      ring_value:
+        type: data
+        slot: ring
+        font: font.small
+        unit: true
+        at: { anchor: center, dy: 9%r }
+        color: color.fg
+        absent: { text: "--" }
 
   # --- date ---
   date:
     type: text
-    text: "{date.today:%a %e}"
+    text: "{(date.weekday == 1 ? \"SUN\" : (date.weekday == 2 ? \"MON\" : (date.weekday == 3 ? \"TUE\" : (date.weekday == 4 ? \"WED\" : (date.weekday == 5 ? \"THU\" : (date.weekday == 6 ? \"FRI\" : \"SAT\"))))))} {date.today:%d}"
     font: font.small
-    at: { anchor: center, dx: -60.7%r, dy: 33.5%r }
-    color: color.white
+    at: { anchor: center, dx: -59%r, dy: 34.5%r }
+    color: color.fg
 
-  # --- graph + solar ---
-  hr_graph:
+  # --- graph slot ---
+  graph:
     type: graph
-    series: heart_rate
-    range: {duration: 4h}
-    buckets: 24
+    slot: graph
     style: bars
-    bar_width: 3px
-    min: 0
-    max: auto
-    at: { anchor: center, dy: 65.5%r }
-    size: { width: 111.3%r, height: 20.3%r }
-    color: color.sand
-    on_hold: heart_rate
-  solar_icon: { type: icon, icon: solar, size: 10.8%r, at: { anchor: center, dx: -5.3%r, dy: 87.4%r }, color: color.white }
-  solar_value:
-    lint: { allow: [text-overflow, safe-area], reason: "clamped to 0-100, so at most 3 digits; the linter has no range for a complication" }
-    type: text
-    text: "{clamp(complication.solar_input, 0, 100):d}"
+    buckets: 48
+    bar_width: 2px
+    at: { anchor: center, dy: 67%r }
+    size: { width: 116%r, height: 20%r }
+    color: color.accent
+    on_hold: auto
+
+  # --- bottom slot ---
+  bottom_value:
+    type: data
+    slot: bottom
     font: font.small
-    at: { anchor: center, dx: 3.6%r, dy: 87.4%r }
-    align: left
-    color: color.white
-    absent: {text: "--"}
+    icon: { size: 13%r, gap: 3%r, color: color.fg }
+    at: { anchor: center, dx: -1%r, dy: 86.5%r }
+    color: color.fg
+    absent: { text: "--" }
+    on_hold: auto
