@@ -2,7 +2,8 @@
 
 The photos are a fēnix 8 Solar showing face.yaml in office light: one at an angle
 with the backlight off, two with it on, and one close and square-on with it off,
-taken to look as much like the watch as possible. For each photo the four corners
+taken to look as much like the watch as possible; and that last one again with
+its levels set by the user while looking at the watch. For each photo the four corners
 of the swatch grid were found by hand; a homography maps the face's 173 px grid
 onto the photo, and each swatch is the median of a ring of points inside it, clear
 of its edge and of the black dot a dropped colour carries.
@@ -43,6 +44,7 @@ PHOTOS = {
     "photo-backlight-1.jpg": [(82, 243), (573, 132), (703, 600), (167, 720)],
     "photo-backlight-2.jpg": [(85, 130), (586, 40), (686, 537), (155, 615)],
     "photo-close.jpg": [(-4, -2), (813, -2), (813, 811), (-4, 811)],  # cropped to the grid; its outer edge is off the image
+    "photo-eye.jpg": [(-4, -2), (813, -2), (813, 811), (-4, 811)],    # photo-close.jpg, levels matched to the watch by eye
 }
 HEX = [h for _, h in NAMED]
 NAME = {h: n for n, h in NAMED}

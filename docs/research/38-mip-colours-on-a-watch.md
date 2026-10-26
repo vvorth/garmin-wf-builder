@@ -5,12 +5,13 @@ setting offers from a *model* of a reflective MIP panel. It left open how
 large Garmin's gamut is, and whether a channel's `55` and `AA` reflect ⅓
 and ⅔ of the light (linear area steps) or step like a monitor, in which
 case `55` is nearly as dark as `00`. Its probe face draws all 64 on a
-watch, and the user photographed it four times. What do the photos say
+watch, and the user photographed it four times, then matched the best
+photo's levels to the watch by eye. What do the photos say
 about the model, and about the list?
 
 **Short answer.**
 
-- **The steps are linear, as the model assumed.** In all four photos, the
+- **The steps are linear, as the model assumed.** In every image, the
   model with linear steps orders the swatches by lightness far better than
   monitor-like steps (§3). `555555` reads mid-gray (L\* 72 in the best
   photo; linear predicts 67, monitor-like 42). VERIFIED on a fēnix 8 Solar,
@@ -20,7 +21,7 @@ about the model, and about the list?
   the light the watch glass reflects, matches 25.5% NTSC, and its colour
   differences run at the `wider` model's scale (§4). The user, looking at
   the watch, reports that even that photo is a little paler than the real
-  screen.
+  screen; their eye-matched version reads as 32% NTSC (§6).
 - **The rules hold.** Pastels are the palest and grayest group, muted mixes
   are gray, dark colours are dim, and the colours the list keeps are the
   most saturated (§5).
@@ -30,15 +31,20 @@ about the model, and about the list?
   apart in three of the four photos. Four colours the list drops come in just
   over the line instead: `japanese_laurel` (Garmin's `DK_GREEN`),
   `dark_magenta`, `bright_green` and `cornflower_blue`. Each is 9.4 to 10.4
-  from its nearest kept colour, where the model put them 7.7 to 8.9. Which
-  side of the line they fall on is a judgement for the eye, not the camera.
+  from its nearest kept colour, where the model put them 7.7 to 8.9.
+- **The eye-matched image keeps the list's structure and moves its edges**
+  (§6). With a true black and the user's levels, `texas_rose` clears the
+  line and the greens and cyans are far apart. The blue–violet corner
+  tightens instead (`blue`/`electric_indigo` 6.8). Three colours the list
+  drops clear the line in both the close photo and the eye-matched image:
+  `japanese_laurel`, `dark_magenta` and `bright_green`.
 - **The backlight changes the picture** (§7). In room light it adds a cool
   cast. Yellows and oranges go peach, reds go pink and greens go mint.
   `aqua` and `azure_radiance` merge, and so do `conifer` and
   `silver_chalice`.
 
 Probe: `docs/research/probes/mip-colour-appearance/` (`measure.py`, the
-four photos, `photos.png`).
+five images, `photos.png`).
 
 ---
 
@@ -55,6 +61,7 @@ dot on each colour the list drops.
 | `photo-backlight-1.jpg` | on | some glare along the top edge |
 | `photo-backlight-2.jpg` | on | |
 | `photo-close.jpg` | off | close and square-on, cropped to the grid, taken to look as much like the watch as possible; the user notes glass reflection makes it a little paler than the screen |
+| `photo-eye.jpg` | off | `photo-close.jpg` with its levels adjusted by the user while looking at the watch: "more or less how I see it" |
 
 The first three are crops around the screen. `photo-close.jpg` is the
 photo as the user sent it. Its white swatch has the same colour as the
@@ -89,13 +96,14 @@ of a ring of points inside it, clear of its edge and of the 6 px dot. The
 sample points were drawn over each photo and checked by eye before any
 numbers were read.
 
-![each photo's 64 balanced to its white swatch, the close photo again less the glare, then the datasheet, wider and monitor models](probes/mip-colour-appearance/photos.png)
+![each image's 64 balanced to its white swatch, the close photo again less the glare, then the datasheet, wider and monitor models](probes/mip-colour-appearance/photos.png)
 
-*`photos.png`, left to right: the ambient photo, the two backlit photos and
-the close photo, each scaled in linear light so its white swatch draws
-white; the close photo again, less the glare; then the model's `datasheet`,
-`wider` and monitor panels. The close photo less the glare and the `wider`
-model look alike.*
+*`photos.png`, left to right: the ambient photo, the two backlit photos, the
+close photo and the eye-matched image, each scaled in linear light so its
+white swatch draws white; the close photo again, less the glare; then the
+model's `datasheet`, `wider` and monitor panels. The close photo less the
+glare and the `wider` model look alike; the eye-matched image is more
+saturated still.*
 
 ## 3. The steps
 
@@ -111,6 +119,7 @@ photo shows:
 | backlight 1 | 129 | 35 | 15 | 0.795 / 0.694 |
 | backlight 2 | 144 | 22 | 13 | 0.822 / 0.694 |
 | close | 131 | 31 | 17 | 0.846 / 0.748 |
+| eye-matched | 137 | 31 | 11 | 0.855 / 0.751 |
 
 The minority votes are what uneven light across the screen, glare and
 viewing angle produce: the white swatch sits in a corner and black in the
@@ -131,6 +140,7 @@ The grays, as L\* against the photo's white:
 | ambient photo | 35 | 62 | 94 | 100 |
 | close photo | 41 | 75 | 95 | 100 |
 | close photo, less the glare | 24 (set) | 72 | 94 | 100 |
+| eye-matched | 1 | 59 | 92 | 100 |
 | model, linear steps | 24 | 67 | 86 | 100 |
 | model, monitor-like steps | 24 | 42 | 71 | 100 |
 
@@ -145,6 +155,7 @@ model's, colour by colour, and finds the gamut whose median chroma matches:
 | backlight 1 | 1.43× | 0.82× | 15.5% | 18.5% |
 | backlight 2 | 1.50× | 0.85× | 17.0% | 23.0% |
 | close | 1.60× | 0.92× | 20.0% | 25.5% |
+| eye-matched | 2.05× | 1.19× | 32.0% | (no glare left) |
 
 The close photo is the one to trust. It was taken square-on, so the
 panel's viewing angle and the glass's reflection cost it the least; the
@@ -219,25 +230,67 @@ The close photo, less the glare, at a threshold of 9.1:
 
 The other photos mostly agree on `web_orange`/`texas_rose`: the pair is
 5.5 to 7.9 apart in three of the four photos (8.8 in the first backlit
-one), and `texas_rose` drops in three of the four reruns. They do not agree with the close photo on the
-green–cyan corner. In the ambient and backlit photos, `green`,
+one), and `texas_rose` drops in three of the four reruns. They do not
+agree with the close photo on the green–cyan corner. In the ambient and backlit photos, `green`,
 `malachite`, `pigment_green`, `aqua` and `azure_radiance` crowd within 2
 to 7 of each other, and their reruns drop `malachite`, `pigment_green` and
 `azure_radiance`. Those three photos have the paler colours of §4: at an
 angle, from a distance or under the backlight, the greens and cyans wash
 toward each other. Square-on, with the backlight off, they separate.
 
-So the list's structure is right. Its edges are within about one ΔE of
-the threshold either way, and the camera cannot settle a call that fine:
-it does not see hue as the eye does, least of all for a yellow-green from
-an LCD's narrow primaries. What the photos support:
+### The eye-matched image
 
-- **`texas_rose` is the weakest colour on the list**: too close to
-  `web_orange` in three photos of four.
-- **`japanese_laurel`, `dark_magenta`, `bright_green` and
-  `cornflower_blue`** are candidates to add, if the eye agrees that each
-  stands apart from its neighbour in the table above.
-- **`conifer` or `spring_bud`**, not both.
+`photo-eye.jpg` is the close photo with its levels set by the user while
+comparing it with the watch, which makes it the eye's own rendering of the
+screen. Its black is a true black (L\* 1), as black looks on the watch
+in context, so no glare correction applies. It is the most saturated
+reading: 1.19 times `wider`, a gamut of 32% NTSC. The steps are linear
+again: 137 pairs against 31, a best fit of `55` at 0.38 and `AA` at 0.68,
+and `555555` at L\* 59, where linear steps with a true black predict 64
+and monitor-like ones 36.
+
+Because the image stands for what the eye sees, 37's threshold of 9
+applies to it unscaled: CIEDE2000 is a perceptual scale.
+
+- **Closest kept pairs**: white/silver_chalice 5.9, blue/electric_indigo
+  6.8, navy_blue/neon_blue 8.3, azure_radiance/navy_blue 9.8,
+  magenta_fuchsia/electric_violet 10.1, aqua/medium_aquamarine 10.4,
+  web_orange/texas_rose 10.6. Every other pair is further apart; green and
+  malachite are 13.7.
+- **The rerun at 9 drops** `electric_indigo` (like `blue`) and `neon_blue`
+  (like `navy_blue`), and **adds** `bright_red` (12.4 from `red`),
+  `japanese_laurel` (12.9 from `pigment_green`), `midnight_blue`,
+  `dark_magenta` (12.1 from `electric_violet`), `jazzberry_jam`,
+  `bright_green` (12.9 from `green`) and `screamin_green`: 32 colours.
+  Scaled to the image's spread instead (1.15 times `wider`, a threshold of
+  10.3), it also drops `electric_violet`, `navy_blue` and `indigo`.
+- `cornflower_blue` stays out (8.9 from `azure_radiance`), and so does
+  `spring_bud` (6.5 from `yellow`), so `conifer` keeps its place.
+
+With a true black the dark saturated colours separate from their bright
+siblings, which is why the `AA` versions of red, green and magenta come
+in. The darkest blues move toward each other: `blue` is L\* 50 and
+`electric_indigo` 45, both strongly coloured.
+
+### What the images support
+
+The list's structure is right. Its edges depend on how the screen is
+seen, and the two square-on readings (the close photo less the glare, and
+the eye-matched image) agree on some and not others:
+
+- **Add `japanese_laurel`, `dark_magenta` and `bright_green`.** Both
+  readings put each clear of every kept colour (9.8 to 13.8).
+- **`texas_rose` is borderline**: 7.9 from `web_orange` in the close
+  photo, 10.6 in the eye-matched image.
+- **Only the eye-matched image** drops `electric_indigo` and `neon_blue`
+  and adds `bright_red`, `midnight_blue`, `jazzberry_jam` and
+  `screamin_green`.
+- **Only the close photo** adds `cornflower_blue`, and swaps `conifer`
+  for `spring_bud`.
+
+A camera does not see hue as the eye does, so where the two disagree, the
+eye-matched image is the better witness. The user's levels, though, are
+one adjustment by eye on one phone's screen.
 
 ## 7. The backlight
 
@@ -267,5 +320,4 @@ The compiler cannot change that, and the 27 are chosen for ambient light.
 - **Hue.** A camera's rendering of hue from an LCD's narrow primaries is not
   the eye's, so the hues in §6 and §7 are indicative.
 - **The list itself.** Research 37's 27 are unchanged by this record. §6
-  names the colour to drop, the colours to add and how to check each by
-  eye.
+  names what each reading would change.

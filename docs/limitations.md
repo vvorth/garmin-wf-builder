@@ -1299,13 +1299,13 @@ been seen hiding an element by it yet.
 by eye.** The list `choices: any` offers comes from a model of a measured
 MIP module (§1, "64 colours, and everything else dithers"). Photos of
 `docs/research/probes/mip-colour-appearance/face.yaml` on a fēnix 8 Solar
-confirm the model's steps, gamut and rules, and in the best photo every
-kept pair stays apart except `web_orange`/`texas_rose`. Its edges are
-within about one ΔE of the line that decides whether a colour stays:
-`texas_rose` on the list, and `japanese_laurel`, `dark_magenta`,
-`bright_green` and `cornflower_blue` off it, could each go the other way
-(`docs/research/38-mip-colours-on-a-watch.md`). A camera does not see hue
-as the eye does, so those calls wait on someone looking at the watch.
+confirm the model's steps, gamut and rules. Its edges move with how the
+screen is seen: a close photo and the same photo matched to the watch by
+eye both put `japanese_laurel`, `dark_magenta` and `bright_green`, which
+the list leaves out, clear of every kept colour, and disagree on
+`texas_rose`, `cornflower_blue` and the blue–violet corner
+(`docs/research/38-mip-colours-on-a-watch.md`). The list is unchanged
+until those calls are made.
 Seen at an angle or under the backlight, the greens and cyans wash toward
 each other. `fr955` and the other MIP panels are not photographed yet.
 
