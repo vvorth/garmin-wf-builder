@@ -132,8 +132,8 @@
   },
   "intensity": {
    "name": "intensity",
-   "codepoint": "󰑮",
-   "description": "a running figure, for intensity minutes (Material Design md-run_fast)"
+   "codepoint": "󰅒",
+   "description": "a clock with speed lines, for intensity minutes (Material Design md-clock_fast)"
   },
   "run": {
    "name": "run",
