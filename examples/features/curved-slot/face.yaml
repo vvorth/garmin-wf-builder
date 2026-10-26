@@ -119,10 +119,10 @@ elements:
         at: { anchor: right }
         radius: 93.5%r
         thickness: 6%r
-        start_angle: 360deg
-        sweep: -180deg
+        start_angle: 358deg
+        sweep: -176deg
         count: 12
-        gap: 5%r
+        gap: 4deg
         color: color.left
         track_color: color.track
         absent: hide
@@ -159,10 +159,10 @@ elements:
         at: { anchor: left }
         radius: 93.5%r
         thickness: 6%r
-        start_angle: 0deg
-        sweep: 180deg
+        start_angle: 2deg
+        sweep: 176deg
         count: 12
-        gap: 5%r
+        gap: 4deg
         color: color.right
         track_color: color.track
         absent: hide

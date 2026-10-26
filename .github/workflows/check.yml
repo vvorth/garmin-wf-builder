@@ -132,6 +132,7 @@ jobs:
             # test/studio-canvas.test.ts
             # test/studio-edits.test.ts
             # test/studio-panels.test.ts
+            # test/whole-degree.test.ts
           )
           node --test "${tests[@]}"
 

@@ -17,11 +17,13 @@ import * as kinds from "./kinds/index.ts";
 import * as expr from "./expr.ts";
 import type { Expression } from "./ir/model.ts";
 import {
-  BEZEL_MARGIN, HIDDEN_BY_FONT, insideScreen, insideVisibleAreaFor, isFullBleed, type Placed, PlacedGauge, PlacedPattern, PlacedText, ResolvedFace,
+  BEZEL_MARGIN, HIDDEN_BY_FONT, insideScreen, insideVisibleAreaFor, isFullBleed, type Placed, PlacedGauge, PlacedPattern, PlacedShape, PlacedText,
+  ResolvedArcPart, ResolvedFace,
   visibleReach,
 } from "./layout.ts";
 import { type Color, Color as ColorClass, hasPaletteRule, LUMINANCE_WEIGHTS, srgbChannelToLinear } from "./palette.ts";
-import { deepEqual, formatFixed, quoted, roundHalfEven, truthy } from "./py.ts";
+import { deepEqual, formatFixed, formatG, quoted, roundHalfEven, truthy } from "./py.ts";
+import { roundAway, roundHalfUp } from "./draw/barrel.ts";
 import * as aodMask from "./aod_mask.ts";
 import { WholeFloat } from "./edit/yaml.ts";
 import type { ExprValue } from "./expr.ts";
@@ -39,6 +41,7 @@ export const SUPPRESSIBLE: ReadonlySet<string> = new Set([
   "config-unsupported", "duplicate-style", "unreachable-layout",
   "sub-pixel-length", "font-unavailable", "off-screen", "text-outline-interior",
   "aod-unreachable", "aod-empty", "aod-burn-in", "override-unreachable",
+  "whole-degree",
 ]);
 
 /** Every diagnostic code emitted anywhere in this compiler. */
@@ -67,7 +70,7 @@ export const ALL_CODES: ReadonlySet<string> = new Set([
   "static", "static-overlap", "string-label", "subscreen",
   "text-antialias", "text-curve", "outline", "text-outline-interior",
   "unreachable-layout",
-  "text-overflow", "toolchain", "type", "units", "when-absent", "yaml",
+  "text-overflow", "toolchain", "type", "units", "when-absent", "whole-degree", "yaml",
 ]);
 
 /** Python's `sorted()` of strings: by code point. */
@@ -1393,6 +1396,71 @@ export function checkPatternStep(resolved: ResolvedFace, bag: Bag): void {
   }
 }
 
+// -- whole degrees --
+
+/** An arc as the generated code hands it to `WfbArc.drawSpan`: start and sweep, the author's clockwise-from-12 degrees. */
+type AuthoredArc = [number, number];
+
+const isWhole = (degrees: number): boolean => Math.abs(degrees - Math.round(degrees)) < 1e-6;
+
+/** The arcs `placed` draws, each with the owner a finding names, its span, and the keys that place it. */
+function arcsDrawn(placed: Placed): [string, Span | null, AuthoredArc[], string][] {
+  if (placed instanceof PlacedShape) {
+    if (placed.element.shape !== "arc") return [];
+    return [[placed.id, placed.element.span, [[placed.start_angle, placed.sweep]], "'start_angle:' and 'sweep:'"]];
+  }
+  if (placed instanceof PlacedGauge) {
+    const element = placed.element;
+    if (element.geometry !== "arc") return [];
+    if (element.style === "segments") {
+      const cells = Array.from({ length: element.count! }, (_, i): AuthoredArc => [placed.start_angle + i * placed.step, placed.cell]);
+      return [[placed.id, element.span, cells, "'start_angle:', 'sweep:', 'count:' and 'gap:' (an angle, such as '3deg', the same on every screen)"]];
+    }
+    const arcs: AuthoredArc[] = [[placed.start_angle, placed.sweep]];
+    if (element.style === "scale") arcs.push(...placed.band_spans);
+    return [[placed.id, element.span, arcs, element.style === "scale" ? "'start_angle:', 'sweep:' and the 'bands:' fractions" : "'start_angle:' and 'sweep:'"]];
+  }
+  if (placed instanceof PlacedPattern) {
+    const element = placed.element;
+    const turns = element.pattern === "radial" ? element.drawnIndices().map((i) => i * element.step_angle) : [0.0];
+    return placed.parts.filter((part): part is ResolvedArcPart => part instanceof ResolvedArcPart).map((part) => {
+      const source = element.parts.find((p) => p.id === part.id);
+      const arcs = turns.map((turn): AuthoredArc => [part.start_angle + element.start_angle + turn, part.sweep]);
+      const keys = element.pattern === "radial" ? "the part's 'start_angle:' and 'sweep:', and the pattern's 'start:' and 'step_angle:'"
+        : "the part's 'start_angle:' and 'sweep:', and the pattern's 'start:'";
+      return [`${placed.id}.${part.id}`, source?.span ?? element.span, arcs, keys];
+    });
+  }
+  return [];
+}
+
+/** Where `WfbArc.drawSpan` puts an author's start: Garmin's degrees rounded half up, read back clockwise from 12. */
+const drawnStart = (start: number): number => 90 - roundHalfUp(90 - start);
+
+export function checkWholeDegrees(resolved: ResolvedFace, bag: Bag): void {
+  const deg = (degrees: number): string => `${formatG(degrees)}deg`;
+  for (const placed of resolved.items) {
+    for (const [owner, span, arcs, keys] of arcsDrawn(placed)) {
+      const off = arcs.filter(([start, sweep]) => !isWhole(start) || !isWhole(sweep));
+      if (off.length === 0) continue;
+      const [start, sweep] = off[0]!;
+      const asked = `from ${deg(start)} sweeping ${deg(sweep)}`;
+      const drawn = `from ${deg(drawnStart(start))} sweeping ${deg(roundAway(sweep))}`;
+      const finding = arcs.length === 1 ? `its arc ${asked} is off a whole degree -- it draws ${drawn}`
+        : off.length === 1 ? `1 of its ${arcs.length} arcs, ${asked}, is off a whole degree -- it draws ${drawn}`
+        : `${off.length === arcs.length ? `all ${off.length} of its` : `${off.length} of its ${arcs.length}`} arcs are off a whole degree -- the first, ${asked}, draws ${drawn}`;
+      emit(bag, placed, diag("warning", "whole-degree", `${owner}: on ${resolved.device.id}, ${finding}`, span, {
+          notes: [
+            "dc.drawArc truncates every angle it is given, so each arc's start and sweep round to whole degrees; arcs meant to line up "
+            + "with each other, or to sit symmetrically, can land a degree apart",
+            `place it on whole degrees with ${keys}, or accept the rounding with 'lint: {allow: [whole-degree], reason: ...}'`,
+          ],
+          confidence: "exact -- the angles the generated code passes to WfbArc.drawSpan",
+        }));
+    }
+  }
+}
+
 // -- memory (measured, post-build) --
 
 /**
@@ -1442,5 +1510,5 @@ const DEVICE_CHECKS: readonly ((resolved: ResolvedFace, bag: Bag) => void)[] = [
   checkPartialUpdateBudget, checkHoldTargets, checkDeadElement,
   checkAodUnreachable, checkAodEmpty, checkAodBurnIn, checkApiGated,
   checkGraphicsPool, checkStaticOverlap, checkTextOutlineInterior,
-  checkPatternStep,
+  checkPatternStep, checkWholeDegrees,
 ];

@@ -5,7 +5,8 @@
 #
 # * **Segments on an arc** (`battery_segments`): the battery as ten cells
 #   round the rim, round(fraction x count) of them lit in `color:`, the rest
-#   in `track_color:`, separated by a 3 px `gap:`.
+#   in `track_color:`, separated by a 2deg `gap:` -- whole degrees, so
+#   every cell is the same 28deg (an arc is drawn on whole degrees).
 # * **Segments on a bar** (`steps_segments`): five cells, no track -- only
 #   the lit cells draw.
 # * **A scale on an arc** (`hr_scale`): heart rate over three coloured
@@ -55,10 +56,10 @@ elements:
     at: { anchor: center }
     radius: 84%r
     thickness: 6%r
-    start_angle: 210deg
-    sweep: 300deg
+    start_angle: 211deg
+    sweep: 298deg
     count: 10
-    gap: 3px
+    gap: 2deg
     color: color.accent
     track_color: color.track
 

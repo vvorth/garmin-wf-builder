@@ -187,10 +187,10 @@ battery_segments:
   at: { anchor: center }
   radius: 84%r
   thickness: 6%r
-  start_angle: 210deg
-  sweep: 300deg
-  count: 10                   # ten cells...
-  gap: 3px                    # ...3 px apart, measured along the arc
+  start_angle: 211deg
+  sweep: 298deg
+  count: 10                   # ten cells of 28deg...
+  gap: 2deg                   # ...2 degrees apart: whole degrees, as an arc is drawn
   color: color.accent         # lit cells
   track_color: color.track    # the rest (omit to draw only the lit ones)
 
@@ -226,7 +226,10 @@ the track: on an arc, along the arc at `radius:`, so the same `5px` is
 fewer degrees on a bigger screen. On an arc it can also be an angle with
 its unit (`3deg`, `0.01turn`), the same number of degrees on every screen,
 so the cells keep their proportions whatever the radius. An angle on a bar
-is an error.
+is an error. Each cell is drawn on whole degrees, so pick `start_angle:`,
+`sweep:`, `count:` and an angle `gap:` that give whole-degree cells (12 cells
+of 11deg with 4deg gaps fill 176deg); anything else, a length `gap:`
+included, warns `whole-degree`.
 
 ```yaml
   steps_ring:

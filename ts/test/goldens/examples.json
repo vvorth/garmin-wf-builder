@@ -1303,9 +1303,9 @@
     "resources/settings/properties.xml": "3fdb3b0c3aa79071e95ce49042010193",
     "source/FeatureCurvedSlotApp.mc": "d2160baef974be1399776894d9a710cc",
     "source/Palette.mc": "c7e9dbeb5ccb0e2046e60e7e91542f1e",
-    "source-fenix8solar47mm/Layout.mc": "35db31108cf5671552d7f8cc48e03805",
-    "source-fenix8solar51mm/Layout.mc": "15c5f0d3fabffb0adf18c82a9485edd6",
-    "source-fr955/Layout.mc": "f640eaa6bec814ae1d9bd0eaf9f1b8a1",
+    "source-fenix8solar47mm/Layout.mc": "e4c61df746fdf2a0109cd6c3e5ef5808",
+    "source-fenix8solar51mm/Layout.mc": "59c8d068104ebd9c1583bd9e1e6da44a",
+    "source-fr955/Layout.mc": "e696ec2a42b304796cc666b8b8b56345",
     "source/IconGlyphs.mc": "e8789f801af19988928253c634e43b48",
     "source/FeatureCurvedSlotView.mc": "52e4b394eb97263111139f69d3ba0b4d",
     "source/FeatureCurvedSlotSlotDrawable.mc": "349d1bc973d861f1d6b6fba421376ee0",
@@ -1356,8 +1356,8 @@
     "resources/settings/properties.xml": "3fdb3b0c3aa79071e95ce49042010193",
     "source/FeatureCurvedSlotApp.mc": "d2160baef974be1399776894d9a710cc",
     "source/Palette.mc": "c7e9dbeb5ccb0e2046e60e7e91542f1e",
-    "source-fenix947mm/Layout.mc": "12f5b1652454cf8eb064d5f1797cd64b",
-    "source-fr955/Layout.mc": "f640eaa6bec814ae1d9bd0eaf9f1b8a1",
+    "source-fenix947mm/Layout.mc": "da8f298fb4751558e4f0c2059bbf8778",
+    "source-fr955/Layout.mc": "e696ec2a42b304796cc666b8b8b56345",
     "source/IconGlyphs.mc": "e8789f801af19988928253c634e43b48",
     "source/FeatureCurvedSlotView.mc": "cac4b8baeed4ee2dc64a9a3787c11861",
     "source/FeatureCurvedSlotSlotDrawable.mc": "349d1bc973d861f1d6b6fba421376ee0",
@@ -1390,19 +1390,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "521d572496fe29709c973c371785b98e",
-    "fenix8solar51mm": "69011cc99e2162d50fc01e7e7cbc6419",
-    "fr955": "f403319a218716def93ae67c62d5428c"
+    "fenix8solar47mm": "e459cd3481ff787527fbbf99e9f368cc",
+    "fenix8solar51mm": "f9f4064aaf4caeabde861603d7adf025",
+    "fr955": "fdefe780a73e1c7fd6c30167db566ece"
    },
    "asleep": {
-    "fenix8solar47mm": "521d572496fe29709c973c371785b98e",
-    "fenix8solar51mm": "69011cc99e2162d50fc01e7e7cbc6419",
-    "fr955": "f403319a218716def93ae67c62d5428c"
+    "fenix8solar47mm": "e459cd3481ff787527fbbf99e9f368cc",
+    "fenix8solar51mm": "f9f4064aaf4caeabde861603d7adf025",
+    "fr955": "fdefe780a73e1c7fd6c30167db566ece"
    },
    "time": {
-    "fenix8solar47mm": "32dbff328c665db715513bc97a769b96",
-    "fenix8solar51mm": "0bdae10df7d904727cd8f25520aa72c4",
-    "fr955": "7d192e11343b679b02b205d9228526df"
+    "fenix8solar47mm": "83065d51c70c1901e37a29f9d5ab34f8",
+    "fenix8solar51mm": "dd2e5049efa2a64a8a6c676c26fe598c",
+    "fr955": "f0b457b89386e75a00dfd8b28a8fc72b"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Curved Slot' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -2307,7 +2307,7 @@
   }
  },
  "examples/features/progress/face.yaml": {
-  "diagnostics": "examples/features/progress/face.yaml:42:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   42 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/progress/face.yaml:42:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   42 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/progress/face.yaml:42:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   42 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
+  "diagnostics": "examples/features/progress/face.yaml:43:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   43 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/progress/face.yaml:43:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   43 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/progress/face.yaml:43:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   43 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
   "projects": {
    "targets": {
     "manifest.xml": "bada9ee99884c538d45b7c73d8cae26a",
@@ -2315,9 +2315,9 @@
     "resources/strings/strings.xml": "a6cab957159310d53c5a5196612b80ee",
     "source/FeatureProgressApp.mc": "78d07f484ed535a553d20b586c1c1f71",
     "source/Palette.mc": "1016cd863b0f0251a0a63e3c06e89811",
-    "source-fenix8solar47mm/Layout.mc": "50db32d0ebacaddc55e8e44ae8c224de",
-    "source-fenix8solar51mm/Layout.mc": "b58d17a77c8018ba89b26f6a73d71daf",
-    "source-fr955/Layout.mc": "6afcd1af54485a3e930a01ae9c8691b5",
+    "source-fenix8solar47mm/Layout.mc": "5c2fada30b9a05f9eb5f28cd05e753d4",
+    "source-fenix8solar51mm/Layout.mc": "30abd03845804f8c257c5245d143d865",
+    "source-fr955/Layout.mc": "409602284f981c74c6524089673ae682",
     "source/FeatureProgressView.mc": "3d1a7ee087b11f6b4bc1ee80fed77edc",
     "runtime-lib/WfbArc.mc": "0d9bf509926676a8134bf2da13c99b57",
     "runtime-lib/WfbMath.mc": "bc6e10e7e52c0455de1fba7a8556b72f",
@@ -2334,10 +2334,10 @@
     "resources/strings/strings.xml": "a6cab957159310d53c5a5196612b80ee",
     "source/FeatureProgressApp.mc": "78d07f484ed535a553d20b586c1c1f71",
     "source/Palette.mc": "1016cd863b0f0251a0a63e3c06e89811",
-    "source-fenix847mm/Layout.mc": "04f56acd4cac7899d797786c4afeb5ef",
-    "source-fenix8solar47mm/Layout.mc": "50db32d0ebacaddc55e8e44ae8c224de",
-    "source-fr245/Layout.mc": "386555cadc5d8462e58e81ac2306aeae",
-    "source-fenix6/Layout.mc": "caab5ab8e0e2e4849dd934ec39f6a9a4",
+    "source-fenix847mm/Layout.mc": "2425831bf730cd24a3474730d2a533f3",
+    "source-fenix8solar47mm/Layout.mc": "5c2fada30b9a05f9eb5f28cd05e753d4",
+    "source-fr245/Layout.mc": "e8815de98132353adc8e2a58f04cfc49",
+    "source-fenix6/Layout.mc": "5e33d0a0221d7d783a1c1429c5bab3ed",
     "source/FeatureProgressView.mc": "e6779dfc538419c4dc092ab9886f3752",
     "runtime-lib/WfbArc.mc": "0d9bf509926676a8134bf2da13c99b57",
     "runtime-lib/WfbMath.mc": "bc6e10e7e52c0455de1fba7a8556b72f",
@@ -2356,8 +2356,8 @@
     "resources/strings/strings.xml": "a6cab957159310d53c5a5196612b80ee",
     "source/FeatureProgressApp.mc": "78d07f484ed535a553d20b586c1c1f71",
     "source/Palette.mc": "1016cd863b0f0251a0a63e3c06e89811",
-    "source-fenix947mm/Layout.mc": "6f2a38c751e95c4e6a5def0f6c76357d",
-    "source-fr955/Layout.mc": "6afcd1af54485a3e930a01ae9c8691b5",
+    "source-fenix947mm/Layout.mc": "d4a079d419d31c2455d7b01a34270efa",
+    "source-fr955/Layout.mc": "409602284f981c74c6524089673ae682",
     "source/FeatureProgressView.mc": "ff6de9c8e7ba87f4e9463f1a34139984",
     "runtime-lib/WfbArc.mc": "0d9bf509926676a8134bf2da13c99b57",
     "runtime-lib/WfbMath.mc": "bc6e10e7e52c0455de1fba7a8556b72f",
@@ -2369,19 +2369,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "f89c79502cfe031978b12729b7fe0026",
-    "fenix8solar51mm": "2de5419312952ffd4fc71289db1add14",
-    "fr955": "f89c79502cfe031978b12729b7fe0026"
+    "fenix8solar47mm": "bfda76b680cab303d60967ad146fd8fc",
+    "fenix8solar51mm": "48c19284e5ad6a553e32ccd41b2f8174",
+    "fr955": "bfda76b680cab303d60967ad146fd8fc"
    },
    "asleep": {
-    "fenix8solar47mm": "f89c79502cfe031978b12729b7fe0026",
-    "fenix8solar51mm": "2de5419312952ffd4fc71289db1add14",
-    "fr955": "f89c79502cfe031978b12729b7fe0026"
+    "fenix8solar47mm": "bfda76b680cab303d60967ad146fd8fc",
+    "fenix8solar51mm": "48c19284e5ad6a553e32ccd41b2f8174",
+    "fr955": "bfda76b680cab303d60967ad146fd8fc"
    },
    "time": {
-    "fenix8solar47mm": "f89c79502cfe031978b12729b7fe0026",
-    "fenix8solar51mm": "2de5419312952ffd4fc71289db1add14",
-    "fr955": "f89c79502cfe031978b12729b7fe0026"
+    "fenix8solar47mm": "bfda76b680cab303d60967ad146fd8fc",
+    "fenix8solar51mm": "48c19284e5ad6a553e32ccd41b2f8174",
+    "fr955": "bfda76b680cab303d60967ad146fd8fc"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature progress' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -3686,7 +3686,7 @@
   }
  },
  "examples/generated_by_skill/red-tactical/face.yaml": {
-  "diagnostics": "examples/generated_by_skill/red-tactical/face.yaml:225:24: note[icon]: glyph U+F240 is in the catalogue as 'battery_level_4' -- 'icon: battery_level_4' says the same thing and survives a font update\n  225 |     icon: { codepoint: \"U+F240\" }\n                               ^\n\nexamples/generated_by_skill/red-tactical/face.yaml:55:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   55 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/generated_by_skill/red-tactical/face.yaml:55:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   55 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/generated_by_skill/red-tactical/face.yaml:55:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   55 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
+  "diagnostics": "examples/generated_by_skill/red-tactical/face.yaml:226:24: note[icon]: glyph U+F240 is in the catalogue as 'battery_level_4' -- 'icon: battery_level_4' says the same thing and survives a font update\n  226 |     icon: { codepoint: \"U+F240\" }\n                               ^\n\nexamples/generated_by_skill/red-tactical/face.yaml:55:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   55 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/generated_by_skill/red-tactical/face.yaml:55:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   55 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/generated_by_skill/red-tactical/face.yaml:55:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   55 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
   "projects": {
    "targets": {
     "manifest.xml": "576cc6b9b4760caecb1a0cfd250a6adf",
@@ -3694,10 +3694,10 @@
     "resources/strings/strings.xml": "9fa23d7eb8d175d3e10492038fcd84a9",
     "source/RedTacticalApp.mc": "96047d452c1938c1b41e154ef8b1a8dc",
     "source/Palette.mc": "484aa975b9688b66461e732a0cb0a03d",
-    "source-fenix8solar47mm/Layout.mc": "94884e0a6a91229d52c75f96423a63d1",
-    "source-fenix8solar51mm/Layout.mc": "b93f1cdbc8d2401aad451e0111cb166d",
-    "source-fr955/Layout.mc": "9d8cdd2577d22a619b72f25c5a305f95",
-    "source/RedTacticalView.mc": "f13b8fe3a057c2f95a9acd54d14ad9e8",
+    "source-fenix8solar47mm/Layout.mc": "0011eff3c7578ae42f527532a94ee9b9",
+    "source-fenix8solar51mm/Layout.mc": "dffc0952a2e07e2721be5eb894a4bb10",
+    "source-fr955/Layout.mc": "3c9808a0663f3988f7089db5c2bf8a4c",
+    "source/RedTacticalView.mc": "d29dbeca9306b819133f3840dfa22b70",
     "source/RedTacticalDelegate.mc": "bded38cc16f32c3c11d22e77e19a6776",
     "runtime-lib/WfbArc.mc": "0d9bf509926676a8134bf2da13c99b57",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
@@ -3748,9 +3748,9 @@
     "resources/strings/strings.xml": "9fa23d7eb8d175d3e10492038fcd84a9",
     "source/RedTacticalApp.mc": "96047d452c1938c1b41e154ef8b1a8dc",
     "source/Palette.mc": "484aa975b9688b66461e732a0cb0a03d",
-    "source-fenix947mm/Layout.mc": "9b87e6dd362be1f8ef84cd8d3b769154",
-    "source-fr955/Layout.mc": "9d8cdd2577d22a619b72f25c5a305f95",
-    "source/RedTacticalView.mc": "9d0aab7a7db7004145d723a3412c7891",
+    "source-fenix947mm/Layout.mc": "efe55310051ac19018ea1b15288aa26c",
+    "source-fr955/Layout.mc": "3c9808a0663f3988f7089db5c2bf8a4c",
+    "source/RedTacticalView.mc": "049d631159bcc7a8ac63b27631c9744c",
     "source/RedTacticalDelegate.mc": "bded38cc16f32c3c11d22e77e19a6776",
     "runtime-lib/WfbArc.mc": "0d9bf509926676a8134bf2da13c99b57",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
@@ -3780,19 +3780,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "b9e7cdc0e0721215ca21c7a6c858a335",
-    "fenix8solar51mm": "063c22a23249d403f652c0d2696b8fd7",
-    "fr955": "19ae5e24362c9049a58591b9dd5b5d76"
+    "fenix8solar47mm": "f316a3156f8c69a3bf481a93986a7eb4",
+    "fenix8solar51mm": "c6ca56c7cda36a68298d32c848b82710",
+    "fr955": "7bab2147e9b7fef41f2420536ed974db"
    },
    "asleep": {
-    "fenix8solar47mm": "d91cee6ff8b1933219ab2ac8f17ae30d",
-    "fenix8solar51mm": "e5c8c4abc1a35e6d9fd7a59700bb252c",
-    "fr955": "b67c23203d30aa5cca27e1fe25b0dd7b"
+    "fenix8solar47mm": "4243572b6e400267e63848eeb79130a4",
+    "fenix8solar51mm": "c21f385f635220737950c587fe49a9af",
+    "fr955": "beff3b8c3fcf29e67bfd59ac9c813160"
    },
    "time": {
-    "fenix8solar47mm": "7ca5bea48c0450e45d8351463d66bac1",
-    "fenix8solar51mm": "d259c218afd55777f04df42ef43a7f40",
-    "fr955": "6331c329515c74a26f440ab0c50b9782"
+    "fenix8solar47mm": "d29772d1383c26ac272341f5203e5b30",
+    "fenix8solar51mm": "fd752dd086570f651939d04c80772109",
+    "fr955": "8bd0ae9f97b51f844d7b040642a55119"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Red Tactical' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",

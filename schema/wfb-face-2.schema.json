@@ -2325,7 +2325,7 @@
           "maximum": 60
         },
         "gap": {
-          "description": "style: segments only -- the space between two cells (default 2px): a length, measured along the track (on an arc, along the arc at 'radius:'), or on an arc an angle with its unit, such as 3deg, which keeps the cells' proportions on every screen.",
+          "description": "style: segments only -- the space between two cells (default 2px): a length, measured along the track (on an arc, along the arc at 'radius:'), or on an arc an angle with its unit, such as 3deg, which keeps the cells' proportions on every screen. An arc is drawn on whole degrees, so on an arc pick an angle that leaves whole-degree cells; a length gap (the default included) rarely does, and warns 'whole-degree'.",
           "$ref": "#/$defs/gaugeGap"
         },
         "bands": {

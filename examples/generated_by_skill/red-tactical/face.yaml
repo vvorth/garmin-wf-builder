@@ -72,17 +72,18 @@ static:
       tick: { type: line, at: { dy: -97%r }, to: { dy: -89%r }, thickness: 1px }
 
   # Left half: twelve hollow cells laid exactly under the step gauge's own
-  # cells ((180 - 11 x 3) / 12 = 12.25 degrees each, 3 degrees apart).
+  # cells ((176 - 11 x 4) / 12 = 11 degrees each, 4 degrees apart, 2 degrees
+  # clear of 12 and 6 o'clock -- whole degrees, which is all an arc can draw).
   step_cells:
     type: pattern
     pattern: radial
     at: { anchor: center }
     count: 12
-    step_angle: 15.25deg
+    step_angle: 15deg
     color: color.bg
     outline: { color: color.red, width: 1 }
     parts:
-      cell: { type: arc, radius: 93.5%r, thickness: 6%r, start_angle: 180deg, sweep: 12.25deg }
+      cell: { type: arc, radius: 93.5%r, thickness: 6%r, start_angle: 182deg, sweep: 11deg }
 
   vo2_track:
     type: circle
@@ -144,10 +145,10 @@ elements:
     at: { anchor: center }
     radius: 93.5%r
     thickness: 6%r
-    start_angle: 360deg
-    sweep: -180deg
+    start_angle: 358deg
+    sweep: -176deg
     count: 12
-    gap: 5.0%r
+    gap: 4deg
     color: color.red
     absent: hide
 

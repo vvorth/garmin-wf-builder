@@ -12,7 +12,7 @@ out" — see its own paragraph below.
 
 ## At a glance
 
-Twenty-three codes are suppressible. One line each, derived from this chapter,
+Twenty-five codes are suppressible. One line each, derived from this chapter,
 [`docs/limitations.md`](../limitations.md) §3 and `ts/src/lint.ts`'s own
 messages; see `ts/src/lint.ts` if unsure.
 
@@ -41,6 +41,7 @@ messages; see `ts/src/lint.ts` if unsure.
 | `aod-unreachable` | an element's own `aod:` block can never draw because an ancestor group already writes `aod: {visible: false}`, which is sticky |
 | `aod-empty` | an AMOLED target where nothing in the design draws in always-on display |
 | `override-unreachable` | an [`overrides:`](placement.md#per-device-and-per-shape-overrides) selector matches no device in this build, so it changes nothing |
+| `whole-degree` | an arc's start or sweep is off a whole degree -- a `type: arc`, an arc gauge (each `segments` cell, each `scale` band) or a pattern's `arc` part in any copy -- so the watch draws it a fraction of a degree elsewhere (see [Shapes](shapes.md)) |
 | `aod-burn-in` | the rendered `--aod` frame -- masked, at its worst of 4 mask phases, unless `defaults: {aod: {mask: false}}` -- lights over 10% of pixels or 10% of luminance (Garmin's rule) at a sampled worst-case time; under the threshold this is an informational `note` instead, naming the same figures |
 
 ## Lint suppression
@@ -72,13 +73,13 @@ the generated code itself, so it follows the ordinary "acknowledge it, with
 a reason" suppression path like every other measured/estimated check
 instead of joining the hard-limit errors below.
 
-Twenty-four codes are suppressible: `palette-dither`, `palette-mono`, `safe-area`, `off-screen`,
+Twenty-five codes are suppressible: `palette-dither`, `palette-mono`, `safe-area`, `off-screen`,
 `text-overflow`, `contrast`, `partial-update-budget`, `hold-overlap`,
 `hold-unsupported`, `api-gated`, `dead-element`, `graphics-pool`,
 `antialias-dither`, `static-overlap`, `config-unsupported`,
 `duplicate-style`, `unreachable-layout`, `sub-pixel-length`,
 `text-outline-interior`, `aod-unreachable`, `aod-empty`, `aod-burn-in`,
-`override-unreachable` and `font-unavailable` — a `face:` font, or an element using one, that has
+`override-unreachable`, `whole-degree` and `font-unavailable` — a `face:` font, or an element using one, that has
 `unsupported: hide` and fails to resolve a usable face on some target
 device (["Vector (`face:`) fonts"](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable)). Under the default
 `error` instead, the same failure is a **hard build error and never

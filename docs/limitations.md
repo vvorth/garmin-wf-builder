@@ -896,7 +896,11 @@ checks, reached from the other direction); geometry against the framebuffer and
 the visible area (round and rectangle only); glyph coverage of a subsetted
 font; contrast arithmetic; a relative length resolving below 1 px with
 `min_1px:` off (`sub-pixel-length` -- resolved device geometry, not an
-estimate, same as the safe-area/overlap checks).
+estimate, same as the safe-area/overlap checks); an arc whose start or sweep
+is off a whole degree (`whole-degree` -- the angles the generated code passes
+to `WfbArc.drawSpan`, every copy of a pattern and every cell of a gauge;
+`Dc.drawArc` truncates every argument, per its own note in SDK 9.2.0's
+`bin/api.debug.xml`).
 
 **Per-device API availability is checked by symbol table, by version
 comparison, and by module/field lookup, because the data supports only one

@@ -118,7 +118,10 @@ many turns the angle is written from, and the sweep rounds half away from
 zero, so a span under half a degree draws nothing. Two arcs given the same
 `start_angle:` and `sweep:` therefore cover the same degrees whichever
 element draws them: a pattern's `arc` cells under a `segments` gauge's
-cells, for instance.
+cells, for instance. An arc off a whole degree -- `start_angle: 358.5deg`,
+or a `segments` gauge whose cells come out 12.25deg long -- draws a fraction
+of a degree from where it was asked, so it is a `whole-degree` warning
+(see [Lints](lints.md)).
 
 Use `type: arc` for a fixed decorative span and `type: gauge` /
 `style: arc` for one whose length is bound to a reading.
