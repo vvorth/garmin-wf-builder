@@ -12,7 +12,7 @@
 #   - Garmin's own font files     -> ~/.Garmin/ConnectIQ/Fonts (Linux: copied
 #                                    from vendor/fonts/, if present -- optional;
 #                                    macOS: read in place, like the devices)
-#   - Node 24 (if no Node on PATH -> ~/.local/share/wfb/node-v<version>
+#   - Node 24.22.1 (if no patched Node on PATH -> ~/.local/share/wfb/node-v<version>
 #     strips TypeScript types)       (downloaded, checked against SHASUMS256),
 #                                    and ts/'s npm dependencies
 #   - the SDK device reference    -> .cache/device-reference/ (extracted from
@@ -318,10 +318,12 @@ fi
 # ----------------------------------------------------------- node -----------
 say "node"
 # The TypeScript compiler in ts/ runs its .ts sources directly, which needs a
-# Node that strips types: an official build of 22.18+ or 24. A distribution
-# build may lack it (Ubuntu's 22.22 fails with ERR_NO_TYPESCRIPT), so the
+# Node that strips types, and one past Node's October 2026 security releases:
+# 22.23.4+, 24.22.1+ or 26.12.1+, or a later major (ts/src/node_version.ts
+# holds the same table, and wfb refuses an older one). A distribution build may
+# lack type stripping (Ubuntu's 22.22 fails with ERR_NO_TYPESCRIPT), so that
 # check runs a .ts file rather than reading the version.
-NODE_VERSION="24.21.0"
+NODE_VERSION="24.22.1"
 NODE_HOME="${HOME}/.local/share/wfb/node-v${NODE_VERSION}"
 strips_types() {
     local probe
@@ -332,9 +334,22 @@ strips_types() {
     rm -rf "${probe}"
     return ${ok}
 }
+# Whether $1 is at least its release line's patched version.
+node_patched() {
+    local major minor patch min_minor min_patch
+    IFS=. read -r major minor patch <<< "$("$1" -p 'process.versions.node' 2>/dev/null)"
+    case "${major}" in
+        22) min_minor=23; min_patch=4 ;;
+        24) min_minor=22; min_patch=1 ;;
+        26) min_minor=12; min_patch=1 ;;
+        ''|*[!0-9]*) return 1 ;;
+        *) [ "${major}" -gt 26 ]; return ;;
+    esac
+    [ "${minor}" -gt "${min_minor}" ] || { [ "${minor}" -eq "${min_minor}" ] && [ "${patch}" -ge "${min_patch}" ]; }
+}
 NODE=""
 for cand in "${NODE_HOME}/bin/node" "$(command -v node 2>/dev/null || true)"; do
-    if [ -n "${cand}" ] && [ -x "${cand}" ] && strips_types "${cand}"; then
+    if [ -n "${cand}" ] && [ -x "${cand}" ] && node_patched "${cand}" && strips_types "${cand}"; then
         NODE="${cand}"
         break
     fi
@@ -369,7 +384,7 @@ if [ -z "${NODE}" ]; then
     echo "installed Node ${NODE_VERSION} at ${NODE_HOME}"
 fi
 NODE_BIN="$(dirname "${NODE}")"
-echo "node $("${NODE}" --version) at ${NODE}: strips types"
+echo "node $("${NODE}" --version) at ${NODE}: patched, strips types"
 if [ "${NODE_BIN}" = "${NODE_HOME}/bin" ]; then
     if [ "${IS_MAC}" = false ] && [ -f "${PERSIST}" ] && [ -w "${PERSIST}" ]; then
         grep -qF "${NODE_HOME}/bin" "${PERSIST}" 2>/dev/null || {

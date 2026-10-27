@@ -5,7 +5,7 @@
   "description": "garmin-wf-builder's compiler, preview, editor back end and server, in TypeScript",
   "type": "module",
   "engines": {
-    "node": ">=22.18"
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   },
   "scripts": {
     "test": "node --test \"test/**/*.test.ts\"",

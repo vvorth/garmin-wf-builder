@@ -34,7 +34,7 @@
 #
 #   The /fonts mount is optional -- see docs/container.md.
 
-ARG NODE_VERSION=24.21.0
+ARG NODE_VERSION=24.22.1
 ARG DEBIAN_SUITE=trixie
 
 # Optional: a base64-encoded PEM certificate to trust, for networks behind a

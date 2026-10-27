@@ -52,8 +52,8 @@ reads the SDK Manager's in place), copies Garmin's own font files in from
 (`ts/tools/fetch-icon-font.ts`, pinned and hash-checked; the font is not committed)
 and prefetches the registry's system-font stand-ins the same way
 (`ts/tools/fetch-system-fonts.ts`; see `docs/lore/toolchain.md`), and
-installs Node 24 when the one on `PATH` cannot run TypeScript, with `ts/`'s npm
-dependencies.
+installs Node 24.22.1 when the one on `PATH` cannot run TypeScript or is
+unpatched, with `ts/`'s npm dependencies.
 
 The SDK downloads freely. **Device definitions cannot be downloaded** —
 `api.gcs.garmin.com` returns HTTP 401 and needs a Garmin SSO login that cannot be
@@ -759,9 +759,13 @@ npm run test:slow        # every slow-test design, example and fixture through m
 npm run test:browser     # the editor's pages in headless Chromium, against a real wfb studio (ts/browser/)
 ```
 
-**Node 24 is needed.** `tools/setup-env.sh` installs an official build when
-the Node on `PATH` cannot run `.ts` files (a distribution build may lack type
-stripping), and prepends it to `PATH`. How the tests are organised is
+**Node 22.23.4+, 24.22.1+ or 26.12.1+ is needed** (or a later major): the
+releases before them carry known security vulnerabilities, so `wfb` refuses
+to run on one (all but `wfb doctor`, which reports it) and `npm ci` refuses
+to install (`ts/.npmrc` sets `engine-strict`). `ts/src/node_version.ts` holds
+the table. `tools/setup-env.sh` installs an official 24.22.1 when the Node on
+`PATH` is older or cannot run `.ts` files (a distribution build may lack type
+stripping), and prepends it to `PATH`; CI asks `setup-node` for `^24.22.1`. How the tests are organised is
 `ts/test/CLAUDE.md`.
 
 Golden-file tests over the generated Monkey C are the primary compiler test, and
@@ -853,7 +857,7 @@ mounted at `/devices`: `wfb --version`, `java -version`, `monkeyc
 build --no-compile` and `wfb preview`. `monkeyc` does not know `wfbtest`,
 so no `.prg` is compiled in CI.
 
-`check.yml` runs on Node 24, with **no Garmin file at all**: Garmin's device
+`check.yml` runs on Node 24.22.1 or a later 24, with **no Garmin file at all**: Garmin's device
 definitions are the owner's licensed copy and are never in the repository
 (root `CLAUDE.md` §2). It runs on the project's own fixture device,
 `wfbtest` (`ts/test/fixtures/devices/`), which `WFB_DEVICES` and

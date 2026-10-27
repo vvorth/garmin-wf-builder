@@ -32,6 +32,7 @@ import * as starters from "./starters.ts";
 import * as term from "./term.ts";
 import { fill, wrap } from "./textwrap.ts";
 import { VERSION } from "./version.ts";
+import { nodeRefusal } from "./node_version.ts";
 
 const DEFAULT_OUTPUT = "build";
 const DEFAULT_EXPORT_OUTPUT = "dist";
@@ -406,6 +407,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     return 0;
   }
   term.setMode((args["color"] as string | null) || color || "auto");
+  // An unpatched Node runs nothing but doctor, which reports it among the rest.
+  const refusal = nodeRefusal(process.versions.node);
+  if (refusal !== null && current.name !== "doctor") {
+    error(refusal);
+    err("       run tools/setup-env.sh, which installs a patched Node, or upgrade yours; wfb doctor checks the rest");
+    return 1;
+  }
   installAssets();
   try {
     return await (args["handler"] as Handler)(args);
@@ -928,7 +936,9 @@ function doctorCommand(args: Namespace): number {
   };
 
   out(`wfb ${VERSION}`);
-  out(`  node             ${process.version.slice(1)}  (${process.execPath})`);
+  const nodeProblem = nodeRefusal(process.versions.node);
+  out(`${nodeProblem === null ? ok : missing} node             ${process.versions.node}  (${process.execPath})`);
+  if (nodeProblem !== null) fail("install a patched Node", [nodeProblem, "run tools/setup-env.sh, which installs one, or upgrade yours"]);
   out(`${existsSync(SCHEMA) ? ok : missing} schema           ${SCHEMA}`);
 
   const haveReference = existsSync(DEVICE_REFERENCE) && statSync(DEVICE_REFERENCE).isDirectory();

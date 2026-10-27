@@ -48,7 +48,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 24
+          node-version: "^24.22.1"
           cache: npm
           cache-dependency-path: ts/package-lock.json
 
@@ -83,6 +83,7 @@ jobs:
             test/gate.test.ts
             test/kinds.test.ts
             test/lint.test.ts
+            test/node-version.test.ts
             test/page-app.test.ts
             test/page-colors.test.ts
             test/page-face.test.ts

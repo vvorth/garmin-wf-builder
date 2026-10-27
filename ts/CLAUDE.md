@@ -14,8 +14,11 @@ npm run bundle              # dist/wfb.js, dist/worker.js and dist/app.js, the b
 ```
 
 Node runs the `.ts` sources directly (type stripping), so there is no build
-step outside the browser bundle. That needs an official Node 22.18+ or 24;
-`../tools/setup-env.sh` installs one when the `node` on `PATH` cannot.
+step outside the browser bundle. That needs an official Node 22.23.4+,
+24.22.1+ or 26.12.1+ (earlier releases carry known security vulnerabilities:
+`src/node_version.ts` holds the table, `wfb` refuses an older Node and
+`npm ci` does too, through `engine-strict`); `../tools/setup-env.sh`
+installs 24.22.1 when the `node` on `PATH` will not do.
 How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
 
 ## Rules

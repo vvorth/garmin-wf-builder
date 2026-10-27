@@ -325,7 +325,7 @@ SDK and `node_modules` with its development tools, so the image can run
 | `SDK_BASE_URL` | Garmin's download host | override for an internal mirror |
 | `WFB_NERD_FONTS_BASE_URL` | the Nerd Fonts GitHub releases | override for a mirror of the icon font |
 | `WFB_FONTS_MIRROR` | empty | override the host of every registry system-font URL, for a mirror that reproduces the same paths |
-| `NODE_VERSION` | `24.21.0` | the `node` image tag for every stage |
+| `NODE_VERSION` | `24.22.1` | the `node` image tag for every stage; earlier than 22.23.4, 24.22.1 or 26.12.1 is vulnerable, and `wfb` refuses it |
 | `EXTRA_CA_CERT_B64` | empty | a base64 PEM certificate to trust |
 
 Behind a TLS-inspecting proxy:

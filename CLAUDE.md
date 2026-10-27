@@ -87,8 +87,10 @@ anything with an icon validates), the SDK device reference at
 `ts/tools/extract-device-reference.ts`; **derived and not committed**, rebuilt
 when missing or the SDK changes, and `wfb` refuses to load devices without
 it; `wfb build` warns when it came from another SDK), `CIQ_SDK` and `PATH` in
-`/etc/sandbox-persistent.sh`, and an official Node 24 (when the `node` on
-`PATH` cannot run `.ts` files) with `ts/`'s npm dependencies. Device install is
+`/etc/sandbox-persistent.sh`, and an official Node 24.22.1 (when the `node`
+on `PATH` cannot run `.ts` files or predates 22.23.4/24.22.1/26.12.1, whose
+earlier releases are vulnerable and which `wfb` refuses) with `ts/`'s npm
+dependencies. Device install is
 **incremental**: re-running it after `vendor/devices/` gains a new device
 copies in just that one, without touching what is already installed
 (`docs/lore/toolchain.md`). It also copies `vendor/fonts/` (Garmin's own,

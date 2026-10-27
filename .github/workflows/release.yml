@@ -145,7 +145,7 @@ jobs:
           ref: ${{ needs.version.outputs.tag }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 24
+          node-version: "^24.22.1"
       # The overview is DOCKERHUB.md as released; the short description is kept here.
       - name: Update the description and overview
         env:
