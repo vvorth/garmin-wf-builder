@@ -7,7 +7,7 @@ import * as expr from "../expr.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { type AnyHandPart, type Element, Expression, Gauge, HOLD_AUTO } from "../ir/model.ts";
 import { arcBox, type Placed, PlacedGauge, type Resolver, rotatableParts, strokePad } from "../layout.ts";
-import { degrees, formatG, isNumber, num, quoted, str } from "../py.ts";
+import { formatG, isNumber, num, quoted, str } from "../py.ts";
 import { Angle, Box, IntBox, roundPx as round } from "../units.ts";
 import { type Common, type ContrastSubject, ElementKind, type LiveHandle, type LiveHandleInput, register } from "./base.ts";
 import { resolveSlotReference } from "./data.ts";
@@ -138,6 +138,9 @@ const ARC_KEYS = ["radius", "thickness", "start_angle", "sweep"];
 /** A `gap:` written with an angle's unit: degrees between an arc's cells, whatever the radius. */
 const ANGLE_GAP = /(deg|rad|turn)\s*$/;
 
+/** An arc's `gap:` when none is written. An arc is drawn on whole degrees, so its gap is an angle. */
+const DEFAULT_ARC_GAP = 2.0;
+
 /** `style: segments`/`scale`: an arc's four keys or a bar's `size:`, exactly one, then their own keys. */
 function buildTicked(b: Builder, node: Node, element: Gauge): boolean {
   const style = element.style;
@@ -168,6 +171,15 @@ function buildTicked(b: Builder, node: Node, element: Gauge): boolean {
         return false;
       }
       element.gap = b.angle(node, "gap");
+    } else if (arcGiven.length > 0 && node.has("gap")) {
+      const written = String(gap).trim();
+      b.bag.error("element", `${element.id}: 'gap: ${written}' is a length, but an arc's cells are measured in degrees -- `
+        + "give it as an angle, such as 2deg (the default)", b.doc.span(node, "gap"), {
+          notes: ["dc.drawArc takes whole degrees, so a length along the arc would be turned into degrees and rounded anyway"],
+        });
+      return false;
+    } else if (arcGiven.length > 0) {
+      element.gap = new Angle(DEFAULT_ARC_GAP);
     } else {
       element.gap = b.length(node, "gap");
     }
@@ -200,13 +212,8 @@ function resolveTicked(r: Resolver, element: Gauge, placed: PlacedGauge, parent:
   const arc = element.geometry === "arc";
   const length = arc ? placed.sweep : placed.size[0];
   if (element.style === "segments") {
-    let gap: number;
-    if (element.gap instanceof Angle) {
-      gap = element.gap.degrees;
-    } else {
-      gap = r.extent(element.gap, parent, "minor", 2, null, min1px, "gap");
-      if (arc) gap = placed.radius > 0 ? degrees(gap / placed.radius) : 0.0;
-    }
+    // An arc's gap is always an angle (the builder refuses a length there); a bar's is a length, 2px by default.
+    let gap = element.gap instanceof Angle ? element.gap.degrees : r.extent(element.gap, parent, "minor", 2, null, min1px, "gap");
     if (arc) gap = Math.abs(gap) * (placed.sweep < 0 || Object.is(placed.sweep, -0) ? -1 : 1);
     const count = element.count!;
     placed.cell = (length - (count - 1) * gap) / count;

@@ -26,7 +26,7 @@ the same placement rule as every other element with a box.
 | `needle` | 1–16 [hand parts](analog-hands.md#analog-hands) keyed by id | required (`needle`) | the needle, pointing at 12, axis at `at:` |
 | `size` | size | required (`bar`; `segments`/`scale` on a bar) | the bar's box |
 | `count` | 2–60 | required (`segments`) | how many cells |
-| `gap` | length, or angle on an arc | `2px` (`segments`) | space between two cells |
+| `gap` | angle on an arc, length on a bar | `2deg` on an arc, `2px` on a bar (`segments`) | space between two cells |
 | `bands` | 1–8 `{to, color}` | — (`scale`) | coloured zones along the track, `to` a fraction 0–1 |
 | `pointer` | length | the track's thickness or height (`scale`) | radius of the dot at the value |
 | `color` | color expression | — | fill colour |
@@ -221,15 +221,17 @@ bar, cell edges land on whole pixels the way `style: bar`'s fill does. A
 `gap:` so wide that no cell is left on some device is an error
 (`progress-segments`), not an empty element.
 
-`gap:` is a length (`px`, `%`, `%r`; a bare number is `px`), measured along
-the track: on an arc, along the arc at `radius:`, so the same `5px` is
-fewer degrees on a bigger screen. On an arc it can also be an angle with
-its unit (`3deg`, `0.01turn`), the same number of degrees on every screen,
-so the cells keep their proportions whatever the radius. An angle on a bar
-is an error. Each cell is drawn on whole degrees, so pick `start_angle:`,
-`sweep:`, `count:` and an angle `gap:` that give whole-degree cells (12 cells
-of 11deg with 4deg gaps fill 176deg); anything else, a length `gap:`
-included, warns `whole-degree`.
+On an arc, `gap:` is an angle (`4deg`, `0.01turn`), 2deg when not written:
+the same number of degrees on every screen, so the cells keep their
+proportions whatever the radius. A length there (`5px`, `2%r`, a bare
+number) is an error, because an arc is measured in degrees: `drawArc` takes
+whole degrees, so a length along the arc would be turned into degrees and
+rounded anyway. On a bar, `gap:` is a length (`px`, `%`, `%r`; a bare number
+is `px`), 2px when not written, and an angle there is an error. Each arc
+cell is drawn on whole degrees, so pick `start_angle:`, `sweep:`, `count:`
+and `gap:` that give whole-degree cells (12 cells of 11deg with 4deg gaps
+fill 176deg); anything else warns `whole-degree`. `radius:` and
+`thickness:` stay lengths: neither runs along the arc.
 
 ```yaml
   steps_ring:
@@ -240,10 +242,10 @@ included, warns `whole-degree`.
     at: { anchor: center }
     radius: 93.5%r
     thickness: 6%r
-    start_angle: 360deg
-    sweep: -180deg
+    start_angle: 358deg
+    sweep: -176deg
     count: 12
-    gap: 3deg                # (180 - 11 x 3) / 12 = 12.25deg a cell
+    gap: 4deg                # (176 - 11 x 4) / 12 = 11deg a cell, 2deg clear of each end
     color: color.accent
     absent: hide
 ```

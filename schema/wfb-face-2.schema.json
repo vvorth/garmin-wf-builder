@@ -494,7 +494,7 @@
       ]
     },
     "gaugeGap": {
-      "description": "A segmented gauge's gap: a length (px, %, %r; a bare number is px), measured along the track, or on an arc gauge an angle with its unit (deg, rad or turn), the same on every screen.",
+      "description": "A segmented gauge's gap: on an arc gauge an angle with its unit (deg, rad or turn), the same on every screen; on a bar a length (px, %, %r; a bare number is px).",
       "anyOf": [
         {
           "$ref": "#/$defs/length"
@@ -2325,7 +2325,7 @@
           "maximum": 60
         },
         "gap": {
-          "description": "style: segments only -- the space between two cells (default 2px): a length, measured along the track (on an arc, along the arc at 'radius:'), or on an arc an angle with its unit, such as 3deg, which keeps the cells' proportions on every screen. An arc is drawn on whole degrees, so on an arc pick an angle that leaves whole-degree cells; a length gap (the default included) rarely does, and warns 'whole-degree'.",
+          "description": "style: segments only -- the space between two cells. On an arc an angle with its unit, such as 4deg (default 2deg): an arc is drawn on whole degrees, so a length there is an error, and an angle that leaves cells off a whole degree warns 'whole-degree'. On a bar a length (default 2px), measured along the bar; an angle there is an error.",
           "$ref": "#/$defs/gaugeGap"
         },
         "bands": {

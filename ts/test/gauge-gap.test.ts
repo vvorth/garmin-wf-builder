@@ -35,11 +35,25 @@ test("an angle gap is that many degrees between cells on every screen, signed wi
   }
   const ccw = gauge(arc("0.01turn", "180deg"), "fenix8solar47mm");
   assert.ok(Math.abs(ccw.step - ccw.cell - 3.6) < 1e-9, `turns: ${ccw.step - ccw.cell}`);
-  // a length is still measured along the arc, so its degrees follow the radius
-  const [small, large] = ["fenix8solar47mm", "fenix8solar51mm"].map((d) => gauge(arc("5px"), d));
-  assert.notEqual(small!.step - small!.cell, large!.step - large!.cell);
-  const bare = gauge(arc("5"), "fenix8solar47mm");
-  assert.equal(bare.step - bare.cell, small!.step - small!.cell, "a bare number is px, not degrees");
+});
+
+test("an arc with no gap: written gets 2 degrees between cells on every screen", () => {
+  const unwritten = arc("2deg").replace("    gap: 2deg\n", "");
+  for (const device of ["fenix8solar47mm", "fenix8solar51mm", "fr955"]) {
+    const g = gauge(unwritten, device);
+    assert.ok(Math.abs(g.step - g.cell - -2) < 1e-9, `${device}: gap ${g.step - g.cell}`);
+  }
+});
+
+test("a length gap on an arc is refused, a bare number included: an arc is measured in degrees", () => {
+  for (const gap of ["5px", "2%r", "3%", "5"]) {
+    const text = arc(gap);
+    const found = errors(text);
+    assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+    assert.equal(found[0]!.message,
+      `steps: 'gap: ${gap}' is a length, but an arc's cells are measured in degrees -- give it as an angle, such as 2deg (the default)`);
+    assert.equal(found[0]!.span?.line, text.split("\n").findIndex((l) => l.includes(`gap: ${gap}`)) + 1);
+  }
 });
 
 test("an angle gap on a bar, or a gap of no known unit, is refused", () => {
@@ -63,10 +77,27 @@ test("an angle gap on a bar, or a gap of no known unit, is refused", () => {
   assert.ok(errors(arc("3dog")).length > 0);
 });
 
-test("the editor offers a gauge's gap as a length or an angle", () => {
-  const text = arc("3deg");
-  const path = [...indexFor(text).elements().find((e) => e.name === "steps")!.path];
-  const gap = inspect(text, path, null).fields.find((f) => f.key === "gap")!;
-  assert.equal(gap.widget, "gap");
-  assert.equal(gap.value, "3deg");
+test("the editor offers an arc gauge's gap as an angle and a bar's as a length", () => {
+  const gapField = (text: string) => {
+    const path = [...indexFor(text).elements().find((e) => e.name === "steps")!.path];
+    return inspect(text, path, null).fields.find((f) => f.key === "gap")!;
+  };
+  const onArc = gapField(arc("3deg"));
+  assert.equal(onArc.widget, "angle");
+  assert.equal(onArc.value, "3deg");
+  const onBar = gapField(MINIMAL + `
+  steps:
+    type: gauge
+    style: segments
+    value: activity.steps
+    max: activity.step_goal
+    at: { anchor: center }
+    size: { width: 60%, height: 8px }
+    count: 10
+    gap: 3px
+    color: color.fg
+    absent: hide
+`);
+  assert.equal(onBar.widget, "length");
+  assert.equal(onBar.value, "3px");
 });

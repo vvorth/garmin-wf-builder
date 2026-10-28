@@ -83,7 +83,7 @@ const MAX_DEPTH = 6;
 const WIDGET_BY_REF: Record<string, Widget> = {
   length: "length", handLength: "length", patternLength: "length",
   angle: "angle",
-  // a segmented gauge's gap: a length, or an angle on an arc
+  // a segmented gauge's gap: an angle on an arc, a length on a bar (`field` picks which)
   gaugeGap: "gap",
   align: "align",
   colorExpression: "color", colorRef: "color", color: "color", hexColor: "color", swatchColor: "color",
@@ -245,7 +245,9 @@ interface Reading {
 }
 
 function field(r: Reading, key: string, path: Path, node: Json, raw: unknown, required: boolean, depth: number): Field {
-  const [kind, widget, resolved] = classify(key, r.type, path, node);
+  const [kind, classified, resolved] = classify(key, r.type, path, node);
+  // a gauge's gap is an angle on an arc (one with `radius:`) and a length on a bar
+  const widget = classified === "gap" && r.type === "gauge" ? (r.data.has("radius") ? "angle" : "length") : classified;
   const present = raw !== null && raw !== undefined;
   const out: Field = {
     key, path: [...path], kind, widget, description: String(node["description"] || resolved["description"] || ""),

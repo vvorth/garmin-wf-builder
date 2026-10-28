@@ -1414,7 +1414,7 @@ function arcsDrawn(placed: Placed): [string, Span | null, AuthoredArc[], string]
     if (element.geometry !== "arc") return [];
     if (element.style === "segments") {
       const cells = Array.from({ length: element.count! }, (_, i): AuthoredArc => [placed.start_angle + i * placed.step, placed.cell]);
-      return [[placed.id, element.span, cells, "'start_angle:', 'sweep:', 'count:' and 'gap:' (an angle, such as '3deg', the same on every screen)"]];
+      return [[placed.id, element.span, cells, "'start_angle:', 'sweep:', 'count:' and 'gap:' (2deg when not written)"]];
     }
     const arcs: AuthoredArc[] = [[placed.start_angle, placed.sweep]];
     if (element.style === "scale") arcs.push(...placed.band_spans);

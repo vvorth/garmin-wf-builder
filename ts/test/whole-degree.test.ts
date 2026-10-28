@@ -73,13 +73,13 @@ test("an arc on whole degrees is quiet; a half-degree start or sweep warns with 
     ["ring: on fenix8solar47mm, its arc from 10deg sweeping 12.5deg is off a whole degree -- it draws from 10deg sweeping 13deg"]);
 });
 
-test("a segments gauge: whole cells and gaps are quiet; half-degree cells or a length gap warn", () => {
+test("a segments gauge: whole cells and gaps are quiet; half-degree cells warn, with the default gap too", () => {
   assert.deepEqual(findings(segments("358deg", "-176deg", "4deg")), []);
   assert.deepEqual(findings(segments("358.5deg", "-177deg", "3deg")),
     ["steps: on fenix8solar47mm, all 12 of its arcs are off a whole degree -- the first, from 358.5deg sweeping -12deg, draws from 358deg sweeping -12deg"]);
-  const length = findings(segments("358deg", "-176deg", "5%r"));
-  assert.equal(length.length, 1);
-  assert.match(length[0]!, /^steps: on fenix8solar47mm, all 12 of its arcs are off a whole degree/);
+  const unwritten = (sweep: string): string => segments("359deg", sweep, "2deg").replace("    gap: 2deg\n", "");
+  assert.deepEqual(findings(unwritten("-178deg")), [], "(178 - 11 x 2) / 12 = 13deg a cell");
+  assert.equal(findings(unwritten("-176deg")).length, 1, "(176 - 11 x 2) / 12 is not whole");
 });
 
 test("a radial pattern's arc part: every copy is checked, not only copy 0", () => {
