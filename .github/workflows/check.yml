@@ -91,6 +91,7 @@ jobs:
             test/page-modules.test.ts
             test/page-store.test.ts
             test/palette.test.ts
+            test/prg-name.test.ts
             test/py.test.ts
             test/studio-sw.test.ts
             test/units.test.ts

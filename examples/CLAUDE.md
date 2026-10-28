@@ -24,7 +24,7 @@ No verification target needs a `config-unsupported` allow: fr955 edits
 Each face's header comment explains what it exercises, and every face here
 is named `Feature <thing>` so a sideloaded build is obviously a demo on the
 watch -- keep that convention for new ones; it also decides the `.prg` name
-(`feature-graph-fr955.prg`). The table in `README.md` says which face covers
+(`feature-graph-1.0.0-fr955.prg`). The table in `README.md` says which face covers
 which feature. Rules that are not obvious from the files:
 
 - **`features/analog/` stays the generated analog-hands design**:

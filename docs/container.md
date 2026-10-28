@@ -20,9 +20,9 @@ rest of this page uses that local name.
 
 ```
 generated  /work/build/graph
-built      graph-fenix8solar47mm.prg  3,417 B / 131,072 B (2.6%)
-built      graph-fenix8solar51mm.prg  3,418 B / 131,072 B (2.6%)
-built      graph-fr955.prg  3,417 B / 131,072 B (2.6%)
+built      graph-1.0.0-fenix8solar47mm.prg  3,417 B / 131,072 B (2.6%)
+built      graph-1.0.0-fenix8solar51mm.prg  3,418 B / 131,072 B (2.6%)
+built      graph-1.0.0-fr955.prg  3,417 B / 131,072 B (2.6%)
 ```
 
 The generated Monkey C is byte-identical to a host build of the same design.

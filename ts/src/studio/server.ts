@@ -42,6 +42,7 @@ import { Bag } from "../diagnostics.ts";
 import { type FontFile, type FontFiles, locate } from "../fonts/files.ts";
 import { NodeFontFiles } from "../fonts/node.ts";
 import { ICON_FONT, SCHEMA } from "../node.ts";
+import { prgName } from "../build.ts";
 import { build as runBuild, Toolchain } from "../node_build.ts";
 import { formatFixed } from "../py.ts";
 import { MAX_UPLOAD_BYTES } from "./bundle.ts";
@@ -316,7 +317,7 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
     const ok = result !== null && bag.ok() && prg !== null;
     const log = bag.render({ verbose: true }) + (result !== null && result.products.size === 0 && bag.ok() ? "\n\nthe build left no .prg" : "");
     if (ok) {
-      builds.set(id, { prg: prg!, name: `${stem}-${device}.prg`, work });
+      builds.set(id, { prg: prg!, name: prgName(stem, result!.face.version, device), work });
       // a Map keeps insertion order: the first is the oldest
       for (const [old, kept] of [...builds].slice(0, Math.max(0, builds.size - KEPT_BUILDS))) {
         rmSync(kept.work, { recursive: true, force: true });

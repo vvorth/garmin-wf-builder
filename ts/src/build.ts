@@ -129,3 +129,10 @@ export function slug(name: string): string {
   const cleaned = Array.from(name, (c) => (/[\p{L}\p{N}]/u.test(c) ? c.toLowerCase() : "-")).join("");
   return cleaned.replace(/-+/g, "-").replace(/^-+|-+$/g, "") || "face";
 }
+
+/** A built face's file name, `<stem>-<version>-<device>.prg`; a version with no letter or digit is left out. */
+export function prgName(stem: string, version: string, device: string): string {
+  const cleaned = Array.from(version, (c) => (/[\p{L}\p{N}.+_]/u.test(c) ? c : "-")).join("")
+    .replace(/-+/g, "-").replace(/^[-.]+|[-.]+$/g, "");
+  return /[\p{L}\p{N}]/u.test(cleaned) ? `${stem}-${cleaned}-${device}.prg` : `${stem}-${device}.prg`;
+}

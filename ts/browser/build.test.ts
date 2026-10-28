@@ -27,7 +27,7 @@ if (!process.env["CIQ_SDK"]) {
     await modal.locator("button.primary", { hasText: "Build and download" }).click();
     await modal.locator(".modal-body", { hasText: "Building for" }).waitFor();
     const download = await waiting;
-    assert.equal(download.suggestedFilename(), "feature-shapes-fenix8solar47mm.prg");
+    assert.equal(download.suggestedFilename(), "feature-shapes-1.0.0-fenix8solar47mm.prg");
     const size = statSync((await download.path())!).size;
     assert.ok(size > 10_000, `the .prg is only ${size} bytes`);
     const report = modal.locator(".modal-body", { hasText: "Built" });

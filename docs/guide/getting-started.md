@@ -101,9 +101,9 @@ wfb build my-face.yaml              # generate Monkey C and compile
 
 ```
 generated  /home/you/faces/build/my-face
-built      my-face-fenix8solar47mm.prg  2,775 B / 131,072 B (2.1%)
-built      my-face-fenix8solar51mm.prg  2,775 B / 131,072 B (2.1%)
-built      my-face-fr955.prg            2,775 B / 131,072 B (2.1%)
+built      my-face-1.0.0-fenix8solar47mm.prg  2,775 B / 131,072 B (2.1%)
+built      my-face-1.0.0-fenix8solar51mm.prg  2,775 B / 131,072 B (2.1%)
+built      my-face-1.0.0-fr955.prg            2,775 B / 131,072 B (2.1%)
 sdk        Connect IQ 9.2.0, recorded in build-info.json
 ```
 
@@ -155,12 +155,13 @@ each other. `wfb new` generates a fresh one for you.
    drive. On macOS, use [OpenMTP](https://openmtp.ganeshrvel.com). On Linux,
    your file manager handles MTP.
 2. Copy the `.prg` for your model, for example
-   `build/my-face/my-face-fenix8solar47mm.prg`, into the watch's
+   `build/my-face/my-face-1.0.0-fenix8solar47mm.prg`, into the watch's
    `GARMIN/APPS/` folder.
 3. Unplug the watch, then choose the face in its watch-face list.
 
-To update the face, copy a new build over the old file. To remove it, delete
-the file.
+To update the face, copy the new build in. The file name carries the face's
+`version:`, so after a version change delete the old `.prg` as well, or the
+watch holds both. To remove the face, delete the file.
 
 To publish the face on the Connect IQ Store instead, `wfb export` packages it
 as one `.iq` ([Exporting for the Store](preview-and-cli.md#exporting-for-the-connect-iq-store)).
@@ -169,7 +170,7 @@ as one `.iq` ([Exporting for the Store](preview-and-cli.md#exporting-for-the-con
 
 | Output | What it is |
 |---|---|
-| `<name>-<device>.prg` | the signed face, to copy to `GARMIN/APPS/` |
+| `<name>-<version>-<device>.prg` | the signed face, to copy to `GARMIN/APPS/`: the face's `name:` and `version:`, as the editor's Build also names its download |
 | `source/*View.mc`, `*Delegate.mc`, `Palette.mc`, … | generated Monkey C, shared by all devices |
 | `source-<device>/Layout.mc` | every `%` and `%r` resolved to pixels for that screen |
 | `resources-<device>/fonts/` | your TTFs baked to bitmap fonts, holding only the glyphs you use |

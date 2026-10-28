@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { cpus, homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { faceCapableDevices, load, resolveAll, selectDevices, slug } from "./build.ts";
+import { faceCapableDevices, load, prgName, resolveAll, selectDevices, slug } from "./build.ts";
 
 export { slug };
 import type { Device, DeviceDatabase } from "./devices/device.ts";
@@ -469,7 +469,7 @@ export function runProcess(command: string[], cwd: string, timeoutSeconds: numbe
 }
 
 async function runMonkeyc(result: BuildResult, device: Device, toolchain: Toolchain, work: string): Promise<Compiled> {
-  const name = `${slug(result.face.name)}-${device.id}.prg`;
+  const name = prgName(slug(result.face.name), result.face.version, device.id);
   const staged = join(work, device.id, name);
   mkdirSync(dirname(staged), { recursive: true });
   // Typecheck and optimization levels live in the generated jungle, so a hand-run monkeyc reproduces this build.
