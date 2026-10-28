@@ -845,7 +845,7 @@ it is** discards your typing and shows the face as it now is.
 **Build…** opens a dialog listing the face's own watches, and any other
 installed one below them. Pick one and **Build and download**: the editor
 runs `wfb build` for that watch on the face as it is now, which takes a
-few seconds, and the browser downloads `<face>-<watch>.prg`. The dialog
+few seconds, and the browser downloads `<face>-<version>-<watch>.prg`. The dialog
 shows the memory it uses against the watch's limit, and the build's log;
 a failed build shows the log, with the reason. Copy the `.prg` to the
 watch's `GARMIN/APPS` folder ([getting started](getting-started.md)).

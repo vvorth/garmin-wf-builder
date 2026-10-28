@@ -159,9 +159,12 @@ each other. `wfb new` generates a fresh one for you.
    `GARMIN/APPS/` folder.
 3. Unplug the watch, then choose the face in its watch-face list.
 
-To update the face, copy the new build in. The file name carries the face's
-`version:`, so after a version change delete the old `.prg` as well, or the
-watch holds both. To remove the face, delete the file.
+The watch installs the `.prg` when it is unplugged, and the file then
+disappears from `GARMIN/APPS/`: a current watch does not show installed
+faces there. To update the face, copy the new build in the same way. It
+replaces the installed one because both carry the same `face: id:`, whatever
+their file names (the name carries the `version:`). To remove the face, use
+the watch's own watch-face list.
 
 To publish the face on the Connect IQ Store instead, `wfb export` packages it
 as one `.iq` ([Exporting for the Store](preview-and-cli.md#exporting-for-the-connect-iq-store)).
