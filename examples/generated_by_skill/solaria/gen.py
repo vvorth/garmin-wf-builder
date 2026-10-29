@@ -1,39 +1,31 @@
 #!/usr/bin/env python3
-"""Generate build/faces/solaria/face.yaml.
+"""Generate face.yaml beside this script.
 
-The YAML format has no variables, so every astronomical expression is
+The YAML format has no variables, so every expression the face shares is
 spelled out in full wherever it is used.  This script keeps each fragment
-in one place and substitutes it, so the moon age used by the moon disc,
-the age needle, the tide and the spring/neap marker is one expression.
+in one place and substitutes it, so the moon age read by the shadow discs,
+the age needle, the tide and the spring/neap marker is one expression, and
+the twenty second-time-zone layouts come out of one loop.
+
+The astronomy itself is the watch's: `astro.day_of_year`, `astro.moon_age`,
+`astro.equation_of_time`, `astro.sun_declination`, `astro.sidereal_time`
+and `astro.sun_noon_altitude` (docs/guide/data.md, "Astronomy"), the UTC
+offset is `time.utc_offset`, and only the calendar's ISO-week year-edge
+arithmetic and the tide's lunitidal cycle are computed here.
+
+Preview a particular sky with `wfb preview`'s own switches, for example
+`--sample astro.moon_age=5`, `--date 2026-12-21 --time 12:00:00 --sample
+time.utc_offset=0`, or `--style tz_tokyo`.
 """
+import math
 import sys
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "examples/generated_by_skill/solaria/face.yaml"
 
-MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-
-def by_month(values, last_is_else=True):
-    """A ternary chain over the localised month name, `values` Jan..Dec."""
-    parts = []
-    for name, v in zip(MONTHS[:-1], values[:-1]):
-        parts.append(f'date.month == "{name}" ? {v} : ')
-    return "(" + "".join(parts) + f"{values[-1]})"
-
-
-def shift(values):
-    return values[1:] + values[:1]
-
-
 # -- calendar ----------------------------------------------------------------
 LEAP = "((date.year % 4 == 0 and date.year % 100 != 0) or date.year % 400 == 0)"
-CUM = by_month([0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334])
 # day of the year, 1..366
-N = f'({CUM} + date.day + (({LEAP} and date.month != "Jan" and date.month != "Feb") ? 1 : 0))'
-# days since 2000-01-01 (whole days)
-Y1 = "(date.year - 1)"
-D = f"(365 * (date.year - 2000) + floor({Y1} / 4) - floor({Y1} / 100) + floor({Y1} / 400) - 484 + {N} - 1)"
-FRAC = "((time.hour * 60 + time.minute) / 1440.0)"
+N = "astro.day_of_year"
 # ISO weekday, Monday = 1 .. Sunday = 7 (date.weekday is 1 = Sunday)
 ISODOW = "((date.weekday + 5) % 7 + 1)"
 # ISO week number: floor((N - isodow + 10) / 7), with the year-edge cases.
@@ -59,14 +51,7 @@ WEEK = (f"({W0} < 1 ? ({has53('date.year - 1')} ? 53 : 52) : "
 
 # -- moon ----------------------------------------------------------------------
 LUN = "29.530588"
-DN = f"({D} + {FRAC} - 5.6)"           # days since the 2000-01-06 18:14 UT new moon
-AGE = f"({DN} - {LUN} * floor({DN} / {LUN}))"
-import os
-if os.environ.get("MOON_AGE_OVERRIDE"):
-    AGE = "(" + os.environ["MOON_AGE_OVERRIDE"] + ")"
-# preview-only overrides: the preview reads every complication as absent
-SUNRISE = "(" + os.environ["SUNRISE_OVERRIDE"] + ")" if os.environ.get("SUNRISE_OVERRIDE") else "complication.sunrise"
-SUNSET = "(" + os.environ["SUNSET_OVERRIDE"] + ")" if os.environ.get("SUNSET_OVERRIDE") else "complication.sunset"
+AGE = "astro.moon_age"                 # days, 0 at new .. 14.77 full .. 29.53
 HALF = "14.765294"
 # days into the current half-lunation: 0 at a syzygy, 7.38 at a quadrature
 DSYZ = f"({AGE} - {HALF} * floor({AGE} / {HALF}))"
@@ -77,24 +62,10 @@ SPRING = f"(abs({DSYZ} - 7.382647) > 4.4)"
 TIDE = f"((floor(time.hour * 60 + time.minute - 720 - {AGE} * 48.8) % 745 + 745) % 745)"
 
 # -- sun -----------------------------------------------------------------------
-EOT0 = [-3.2, -13.5, -12.4, -4.0, 2.9, 2.3, -3.7, -6.3, 0.0, 10.2, 16.4, 11.1]
-DEC0 = [-23.0, -17.3, -7.8, 4.4, 15.0, 22.0, 23.1, 18.1, 8.3, -3.1, -14.3, -21.8]
-
-
-def interp(table):
-    a = by_month(table)
-    b = by_month(shift(table))
-    return f"({a} + ({b} - {a}) * (date.day - 1) / 30.0)"
-
-
-EOT = interp(EOT0)   # minutes, apparent minus mean
-DEC = interp(DEC0)   # degrees, + north
-CULM = f"(({SUNRISE} + {SUNSET}) / 2)"          # seconds, local clock
-# local mean time in hours: clock + (12:00 - apparent noon) - equation of time
-LMT = f"((time.hour * 60 + time.minute) / 60.0 + 12 - {CULM} / 3600.0 - {EOT} / 60.0)"
-GMST0 = f"(6.697375 + 0.0657098242 * ({D} - 0.5))"
-LST = f"({GMST0} + 1.002738 * {LMT})"
-LST_SEC = f"(({LST} - 24 * floor({LST} / 24)) * 3600)"
+EOT = "astro.equation_of_time"         # minutes, apparent minus mean
+DEC = "astro.sun_declination"          # degrees, + north
+CULM = "((complication.sunrise + complication.sunset) / 2)"   # seconds, local clock
+LST_SEC = "(astro.sidereal_time * 3600)"                      # seconds of sidereal day
 
 SEASON = (f'({N} < 79 ? "WINTER" : {N} < 172 ? "SPRING" : {N} < 266 ? "SUMMER" : '
           f'{N} < 355 ? "AUTUMN" : "WINTER")')
@@ -104,11 +75,8 @@ ZOD = (f'({N} < 20 ? "SGR" : {N} < 47 ? "CAP" : {N} < 70 ? "AQR" : {N} < 108 ? "
        f'{N} < 259 ? "LEO" : {N} < 303 ? "VIR" : {N} < 327 ? "LIB" : {N} < 333 ? "SCO" : '
        f'{N} < 351 ? "OPH" : "SGR")')
 
-DAY_NOW = (f"(time.hour * 3600 + time.minute * 60 + time.second >= {SUNRISE} and "
-           f"time.hour * 3600 + time.minute * 60 + time.second < {SUNSET})")
-
-
-import math
+DAY_NOW = ("(time.hour * 3600 + time.minute * 60 + time.second >= complication.sunrise and "
+           "time.hour * 3600 + time.minute * 60 + time.second < complication.sunset)")
 
 
 def pol(cx, cy, ang, r):
@@ -123,27 +91,57 @@ def q(s):
 
 
 # -- second time zone layouts -------------------------------------------------
-OFFSETS = [o for o in range(-11, 13) if o != 0]
+# (entry, dial label of at most five letters, city, standard-time offset in
+# hours east of UTC).  Standard time only: a zone's daylight saving is not
+# applied, and the layout label says so.
+CITIES = [
+    ("hnl", "HNL", "Honolulu", -10),
+    ("lax", "LA", "Los Angeles", -8),
+    ("den", "DEN", "Denver", -7),
+    ("chi", "CHI", "Chicago", -6),
+    ("nyc", "NYC", "New York", -5),
+    ("sao", "SAO", "São Paulo", -3),
+    ("azo", "AZO", "Azores", -1),
+    ("utc", "UTC", "UTC", 0),
+    ("par", "PAR", "Paris", 1),
+    ("cai", "CAI", "Cairo", 2),
+    ("mow", "MOW", "Moscow", 3),
+    ("dxb", "DXB", "Dubai", 4),
+    ("khi", "KHI", "Karachi", 5),
+    ("bom", "BOM", "Mumbai", 5.5),
+    ("dac", "DAC", "Dhaka", 6),
+    ("bkk", "BKK", "Bangkok", 7),
+    ("hkg", "HKG", "Hong Kong", 8),
+    ("tokyo", "TOKYO", "Tokyo", 9),
+    ("syd", "SYD", "Sydney", 10),
+    ("akl", "AKL", "Auckland", 12),
+]
 
 
-def tz_id(o):
-    return f"tz_{'m' if o < 0 else 'p'}{abs(o)}"
+def offset_label(hours):
+    sign = "-" if hours < 0 else "+"
+    whole, frac = divmod(abs(hours), 1)
+    return f"{sign}{int(whole)}" + (f":{int(frac * 60):02d}" if frac else "")
 
 
 layouts = []
 styles = []
-for o in OFFSETS:
-    lid = tz_id(o)
-    sign = "-" if o < 0 else "+"
-    zone_min = f"(((time.hour + {o} + 24) % 24) * 60 + time.minute)"
-    zone_h = f"((time.hour + {o} + 24) % 24)"
+for entry, dial, city, hours in CITIES:
+    lid = f"tz_{entry}"
+    off = int(round(hours * 3600))
+    # seconds since the zone's midnight: local clock to UTC through the
+    # watch's own offset, then to the zone; `+ 86400` keeps `%` positive
+    zone_sec = (f"(((time.hour * 3600 + time.minute * 60 - time.utc_offset "
+                f"{'-' if off < 0 else '+'} {abs(off)}) % 86400 + 86400) % 86400)")
+    zone_min = f"({zone_sec} / 60)"
+    zone_h = f"({zone_sec} / 3600)"
     layouts.append(f"""  {lid}:
-    label: "{sign}{abs(o)}h"
+    label: "{city} {offset_label(hours)} (standard time)"
     elements:
       {lid}_hand:
         type: gauge
         style: needle
-        value: {zone_min}
+        value: {q(zone_min)}
         max: 1440
         at: {{ anchor: center, dx: 43.5%r, dy: -10%r }}
         start_angle: 0deg
@@ -154,19 +152,20 @@ for o in OFFSETS:
           hub: {{ type: circle, radius: 1.5%r }}
       {lid}_label:
         type: text
-        text: "{sign}{abs(o)}h"
+        text: "{dial}"
         font: font.t7
         at: {{ anchor: center, dx: 43.5%r, dy: 1%r }}
         color: color.grey
 """)
-    styles.append(f'      {lid}: {{ label: "2nd zone {sign}{abs(o)}h", layout: {lid} }}')
+    styles.append(f'      {lid}: {{ label: "2nd zone · {city}", layout: {lid} }}')
 
 yaml = f"""# Solaria -- every front-dial indication of the Vacheron Constantin Les
 # Cabinotiers Solaria Ultra Grand Complication that a Garmin watch face can
-# compute from the clock, the calendar and the sunrise/sunset complications.
+# compute from the clock, the calendar, the watch's astronomy (astro.*),
+# the position of its weather report and the sunrise/sunset complications.
 #
-# Generated by gen.py beside this file (the astronomical expressions are
-# shared fragments there); edit the generator, then rerun it.
+# Generated by gen.py beside this file (the shared expressions are
+# fragments there); edit the generator, then rerun it.
 #
 # yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
 
@@ -490,7 +489,7 @@ elements:
     # midnight to sunrise, painted over the static white ring (no track of its own)
     type: gauge
     style: arc
-    value: {q(SUNRISE)}
+    value: complication.sunrise
     max: 86400
     at: {{ anchor: center }}
     radius: 95%r
@@ -503,7 +502,7 @@ elements:
   night_after_sunset:
     type: gauge
     style: arc
-    value: {q(f'86400 - {SUNSET}')}
+    value: 86400 - complication.sunset
     max: 86400
     at: {{ anchor: center }}
     radius: 95%r
@@ -531,11 +530,11 @@ elements:
         text: "{{copy * 2}}"
         font: font.t7
         at: {{ dy: -94%r }}
-        visible: {q(f'copy * 7200 < {SUNRISE} or copy * 7200 >= {SUNSET}')}
+        visible: "copy * 7200 < complication.sunrise or copy * 7200 >= complication.sunset"
   sunrise_pointer:
     type: gauge
     style: needle
-    value: {q(SUNRISE)}
+    value: complication.sunrise
     max: 86400
     at: {{ anchor: center }}
     start_angle: 180deg
@@ -549,7 +548,7 @@ elements:
   sunset_pointer:
     type: gauge
     style: needle
-    value: {q(SUNSET)}
+    value: complication.sunset
     max: 86400
     at: {{ anchor: center }}
     start_angle: 180deg
@@ -650,7 +649,7 @@ elements:
   moon_waxing:
     type: gauge
     style: needle
-    value: {q(AGE)}
+    value: {AGE}
     max: {HALF}
     at: {{ anchor: center, dx: -43.5%r, dy: 20%r }}
     start_angle: 0deg
@@ -674,7 +673,7 @@ elements:
   moon_age_hand:
     type: gauge
     style: needle
-    value: {q(AGE)}
+    value: {AGE}
     max: {LUN}
     at: {{ anchor: center, dx: -43.5%r, dy: -10%r }}
     start_angle: 285deg
@@ -730,6 +729,53 @@ elements:
     color: color.red
     needle:
       blade: {{ type: line, at: {{ dy: 0%r }}, to: {{ dy: -25%r }}, thickness: 2px }}
+  height:
+    # the sun's height at culmination, 0 .. 90 degrees over the left sector;
+    # the whole scale goes with the reading, which needs a position
+    type: group
+    at: {{ anchor: center, dy: 44%r }}
+    size: {{ width: 66%r, height: 66%r }}
+    visible: "astro.sun_noon_altitude <= 90"
+    children:
+      scale:
+        type: arc
+        at: {{ anchor: center }}
+        radius: 26%r
+        thickness: 1.5%r
+        start_angle: 240deg
+        sweep: 60deg
+        color: color.white
+      ticks:
+        type: pattern
+        pattern: radial
+        at: {{ anchor: center }}
+        count: 3
+        start: 240deg
+        step_angle: 30deg
+        color: color.white
+        parts:
+          tick: {{ type: line, at: {{ dy: -27%r }}, to: {{ dy: -24%r }}, thickness: 1px }}
+      zero: {{ type: text, text: "0", font: font.t7, at: {pol(0.0, 0.0, 248.0, 17.5)}, color: color.grey }}
+      ninety: {{ type: text, text: "90", font: font.t7, at: {pol(0.0, 0.0, 304.5, 32.0)}, color: color.grey }}
+      label:
+        type: text
+        text: "HEIGHT"
+        font: font.t7
+        at: {{ anchor: center }}
+        color: color.grey
+        curve: {{ style: radial, angle: 275deg, radius: 29.5%r, direction: clockwise }}
+      hand:
+        type: gauge
+        style: needle
+        value: astro.sun_noon_altitude
+        max: 90
+        at: {{ anchor: center }}
+        start_angle: 240deg
+        sweep: 60deg
+        color: color.white
+        absent: hide
+        needle:
+          blade: {{ type: line, at: {{ dy: 0%r }}, to: {{ dy: -25%r }}, thickness: 2px }}
   sol_hub: {{ type: circle, at: {{ anchor: center, dy: 44%r }}, radius: 1.5%r, color: color.white }}
   culmination:
     type: text
@@ -842,13 +888,13 @@ elements:
   hub_pin: {{ type: circle, at: {{ anchor: center }}, radius: 1.5%r, color: color.bg }}
 
 # ----------------------------------------------------------------------------
-# The second time zone: the watch knows no UTC offset, so the wearer picks
-# the zone's offset from the local time on the Styles axis.
+# The second time zone: one layout per city, each hand reading the zone's
+# clock from the watch's own UTC offset, picked on the Styles axis.
 layouts:
 {"".join(layouts)}
 config:
   style:
-    default: tz_p1
+    default: tz_utc
     choices:
 {chr(10).join(styles)}
 """
