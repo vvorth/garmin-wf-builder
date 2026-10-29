@@ -9,7 +9,7 @@
 // guards the one shared view must carry); the lint needs the per-element,
 // per-device detail (`sourceUnavailable`, `readerUnavailable`). A binding a
 // target lacks reads as absent there, like every nullable source.
-import { CATALOG, READERS, type Source } from "./catalog.ts";
+import { CATALOG, readerNames, READERS, type Source } from "./catalog.ts";
 import * as complications from "./complications.ts";
 import { compareVersions, Device, DeviceError } from "./devices/device.ts";
 import { CONFIG_SYMBOL, type Element, type Face, type FontSpec, Graph, overrideKeyFor } from "./ir/model.ts";
@@ -63,12 +63,18 @@ function fieldRoot(source: Source): string | null {
   return source.field_name === null ? null : source.field_name.split(".", 1)[0]!;
 }
 
-/** Is the catalogue path unavailable on `device`, and why: its reader, its own requirements, then its field. */
+/** Is the catalogue path unavailable on `device`, and why: its readers, its own requirements, then its field. */
 export function sourceUnavailable(path: string, device: Device): Unavailable | null {
   const source = CATALOG.get(path);
-  if (source === undefined) return null;
-  const gap = readerUnavailable(source.reader, device);
-  if (gap !== null) return gap;
+  return source === undefined ? null : sourceGap(source, device);
+}
+
+/** `sourceUnavailable` for a `Source` in hand: every reader a call takes is checked, the primary first. */
+export function sourceGap(source: Source, device: Device): Unavailable | null {
+  for (const name of readerNames(source)) {
+    const gap = readerUnavailable(name, device);
+    if (gap !== null) return gap;
+  }
   for (const symbol of source.requires) {
     const found = symbolGap(symbol, device);
     if (found !== null) return found;

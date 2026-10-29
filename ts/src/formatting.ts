@@ -104,7 +104,7 @@ export const DATE_CODES: ReadonlyMap<string, Code> = new Map([
   ["b", code("abbreviated month, e.g. Sep", "Sep", (r) => `${r.date}.month`, (v) => valueStr(v.get("date.month") ?? "Sep"))],
   // FORMAT_MEDIUM's `month` is a localised String: the Number month exists only under FORMAT_SHORT.
   ["m", code("month number, zero-padded", "12", (r) => `(${r.date_short}.month as Number).format("%02d")`,
-    (v) => formatInt(int(v.get("date.month_number"), 9), "02"), "date.weekday")],
+    (v) => formatInt(int(v.get("date.month_number"), 9), "02"), "date.month_number")],
   ["Y", code("four-digit year", "2026", (r) => `${r.date}.year.format("%04d")`, (v) => formatInt(year(v), "04"))],
   ["y", code("two-digit year", "26", (r) => `(${r.date}.year % 100).format("%02d")`, (v) => formatInt(((year(v) % 100) + 100) % 100, "02"))],
   ["%", pct()],

@@ -22,10 +22,11 @@ can bind.
 | spec | inside a placeholder, after `:` | Python-style spec or strftime codes | — | [Formats](#formats) |
 | `units:` | `text` | `auto` \| `metric` \| `statute` | — (no conversion) | [Units](#units) |
 | `absent:` | any nullable binding | `hide` \| `{text: "--"}` \| `{value: <expr>}` | — (required for a nullable binding) | [Absence is the normal case](#absence-is-the-normal-case) |
-| `time.*` | source namespace | — | — | clock and time-of-day readings |
-| `date.*` | source namespace | — | — | calendar date, localised weekday/month |
+| `time.*` | source namespace | — | — | clock and time-of-day readings, the offset from UTC |
+| `date.*` | source namespace | — | — | calendar date, localised weekday/month, the month as a number |
 | `activity.*` | source namespace | — | — | steps, calories, distance, floors, and more |
 | `weather.*` | source namespace | — | — | condition, temperature, forecast |
+| `position.*` | source namespace | — | — | latitude and longitude of the weather observation, needing the Positioning permission |
 | `device.*` | source namespace | — | — | notifications, alarms, do-not-disturb, phone-connected |
 | `system.*` | source namespace | — | — | battery, charging |
 | `complication.*` | source namespace | — | — | [the `complication.*` namespace](#the-complication-namespace-and-the-one-rule-for-reaching-it) |
@@ -101,8 +102,11 @@ heart_rate
   ...
 ```
 
-As of this writing the catalogue covers `time.*`, `date.*` (including the
-localised month name and weekday), `device.*` (notification/alarm counts,
+As of this writing the catalogue covers `time.*` (the clock, its hour,
+minute and second, and `time.utc_offset`, the local time's offset from UTC
+in seconds), `date.*` (including the localised month name and weekday,
+`date.weekday` as a number 1–7 and `date.month_number` as a number 1–12),
+`device.*` (notification/alarm counts,
 do-not-disturb, phone-connected, 24-hour setting), `system.*` (battery,
 charging), `activity.*` (steps, calories, distance, floors, move bar,
 intensity minutes, stress score, respiration rate, time to recovery),
@@ -112,6 +116,25 @@ today's high/low and precipitation chance, humidity, wind speed,
 today's/tomorrow's forecast condition — see [`icon: {for:}`](icons.md#a-dynamic-icon-icon-for) for turning a
 condition into a drawn icon), `user.*` (running/cycling VO2 max, resting
 heart rate, from `Toybox.UserProfile`), and `complication.*` (below).
+
+**The wearer's position: `position.latitude` and `position.longitude`.**
+A watch face cannot ask the GPS, but the weather report it already reads
+says where its conditions were observed, and that is what these two
+sources answer: degrees, north and east positive, as floats
+(`"{position.latitude:.4f}"` renders `51.4769`). Binding either adds the
+**`Positioning`** permission to the generated `manifest.xml`, because
+Garmin returns no location without it. Both are nullable, and absent in
+three cases, so an `absent:` policy is required as for any nullable
+source: the face lacks the permission (never, since the compiler derives
+it), the watch has no weather report yet, or the report carries no
+location. On a device without `Toybox.Weather` (`fenix5`, `fenix5x`) they
+read as absent and the build warns `api-gated`, like every `weather.*`
+source. The preview uses the Royal Observatory at Greenwich
+(51.4769, -0.0005) as its sample; `--sample position.latitude=48.8566`
+overrides it. That a sideloaded face holding `Positioning` actually
+receives the observation location is UNVERIFIED on a watch: the SDK
+documents the field and the permission rule, and the simulator does not
+run here.
 
 ### The `complication.*` namespace, and the one rule for reaching it
 
@@ -425,6 +448,10 @@ where the other belongs is exactly the confusion the split prevents:
 `text: "{date.today:%a %e %b}"` renders `Thu 3 Sep`. The weekday and month come back from
 the firmware already localised, so a custom font bound to a date is subsetted
 with the whole alphabet rather than with the glyphs of one particular day.
+The month `%m` prints is also a source of its own, `date.month_number`
+(1 = January .. 12 = December), for a value (`"{date.month_number:d}"`) or
+an expression (`date.month_number > 6 ? color.autumn : color.spring`); the
+day of the week is `date.weekday` (1 = Sunday .. 7 = Saturday) the same way.
 
 Time values use strftime codes, plus one addition:
 
@@ -442,6 +469,27 @@ constantly. A builder should get it right once.
 Text around the placeholder is kept for a clock or date value too, and a
 spec may hold literal text between its codes: `"at {time.clock:%H:%M} UTC"`
 renders `at 10:09 UTC`, and `"{date.today:%a, %e %b}"` renders `Wed, 3 Sep`.
+
+**Another time zone.** `time.utc_offset` is the local time's offset from
+UTC in seconds, positive east of Greenwich, exactly as the watch reports it
+in `ClockTime.timeZoneOffset`. Whether that figure includes daylight-saving
+time when it is in force is not stated by the SDK and is UNVERIFIED on a
+watch: `time.utc_offset` is whatever `timeZoneOffset` holds, no more.
+Turned into seconds since midnight and formatted as a time of day (the
+[next section](#durations-and-times-of-day)), it gives UTC:
+
+```yaml
+utc:
+  type: text
+  text: "UTC {((time.hour * 3600 + time.minute * 60 - time.utc_offset) % 86400 + 86400) % 86400:%H:%M}"
+```
+
+renders `UTC 08:09` at the sample 10:09 and offset 7200 (`wfb preview
+--sample time.utc_offset=3600` moves it to `09:09`). A second zone at an
+offset of `O` seconds east of UTC is the same expression with `+ O` before
+the first `%`: `+ 19800` for India, `- 18000` for New York in winter. The
+`+ 86400` keeps the remainder positive, since `%` on the watch takes the
+dividend's sign ([Expressions](#expressions)).
 
 ### Durations and times of day
 

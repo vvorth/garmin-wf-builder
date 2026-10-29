@@ -57,11 +57,23 @@ export interface Source {
   to_float: boolean;
   count: boolean;
   launch_complication: string | null;
+  /** The barrel function the value is read through, `<call>(<reader>[, <extra readers>...])`; `null` reads a field. */
+  call: string | null;
+  /** Further readers the call takes, in parameter order after `reader`. */
+  extra_readers: string[];
+}
+
+/** A catalogue entry as the JSON spells it: `call` and `extra_readers` are optional there. */
+type RawSource = Omit<Source, "call" | "extra_readers"> & Partial<Pick<Source, "call" | "extra_readers">>;
+
+function withDefaults(raw: RawSource): Source {
+  return { call: null, extra_readers: [], ...raw };
 }
 
 export const READERS: ReadonlyMap<string, Reader> = new Map(Object.entries(data.readers as Record<string, Reader>));
 
-export const CATALOG: Catalogue<Source> = new Catalogue(Object.entries(data.sources as Record<string, Source>));
+export const CATALOG: Catalogue<Source> = new Catalogue(Object.entries(data.sources as Record<string, RawSource>)
+  .map(([path, raw]) => [path, withDefaults(raw)]));
 
 /** The paths superseded by `complication.*`, so an old design is told the replacement. */
 export const RENAMED_SOURCES: ReadonlyMap<string, string> = new Map(Object.entries(data.renamed_sources));
@@ -72,16 +84,31 @@ export const WEATHER_CONDITION_SOURCES: ReadonlySet<string> = new Set(data.weath
 /** Permissions a watch face may declare (Core_Topics/Manifest_and_Permissions.html, the "Watch Face" column). */
 export const WATCHFACE_PERMISSIONS: ReadonlySet<string> = new Set(data.watchface_permissions);
 
-function reader(source: Source): Reader {
-  const found = READERS.get(source.reader);
-  if (found === undefined) throw new Error(`no reader ${source.reader}`);
+function readerNamed(name: string): Reader {
+  const found = READERS.get(name);
+  if (found === undefined) throw new Error(`no reader ${name}`);
   return found;
 }
 
-/** The Monkey C expression reading `source` off its reader local. */
+function reader(source: Source): Reader {
+  return readerNamed(source.reader);
+}
+
+/** Every reader `source` reads through: the primary first, then `extra_readers` in order. */
+export function readerNames(source: Source): string[] {
+  return [source.reader, ...source.extra_readers];
+}
+
+/** `readerNames`, resolved. */
+export function readersOf(source: Source): Reader[] {
+  return readerNames(source).map(readerNamed);
+}
+
+/** The Monkey C expression reading `source` off its reader local(s): a field, or a barrel call taking every reader. */
 export function readExpr(source: Source): string {
   const r = reader(source);
   const base = source.array_index === null ? r.name : `${r.name}[${source.array_index}]`;
+  if (source.call !== null) return `${source.call}(${[base, ...source.extra_readers.map((name) => readerNamed(name).name)].join(", ")})`;
   return source.field_name === null ? base : `${base}.${source.field_name}`;
 }
 
@@ -92,7 +119,7 @@ export function arrayGuard(source: Source): string | null {
 
 /** Whether the generated code must null-check before using the value. */
 export function guardNeeded(source: Source): boolean {
-  return source.nullable || reader(source).nullable;
+  return source.nullable || readersOf(source).some((r) => r.nullable);
 }
 
 /** The new path for a renamed source, or `undefined`. Checked before a fuzzy match: a renamed path is an exact former name. */
@@ -123,7 +150,9 @@ export class Requirements {
 
   add(source: Source): void {
     for (const p of source.permissions) this.permissions.add(p);
-    this.readers.add(source.reader);
-    this.modules.add(reader(source).module);
+    for (const name of readerNames(source)) {
+      this.readers.add(name);
+      this.modules.add(readerNamed(name).module);
+    }
   }
 }

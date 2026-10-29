@@ -5,7 +5,9 @@ import { test } from "node:test";
 import { get } from "../src/catalog.ts";
 import { barrelModules } from "../src/emit/usage.ts";
 import * as formatting from "../src/formatting.ts";
-import { drawn, errors, face, MINIMAL, method, template, view } from "./designs.ts";
+import { dateValues, previewOptions, sampleValues } from "../src/preview.ts";
+import { SAMPLE } from "../src/sample.ts";
+import { drawn, errors, face, MINIMAL, method, resolved, template, view } from "./designs.ts";
 
 const r = (spec: string, value: unknown, type: Parameters<typeof formatting.render>[2], values: Record<string, unknown> = {}): string =>
   formatting.render(spec, value, type, new Map(Object.entries(values)));
@@ -59,7 +61,7 @@ test("dates", () => {
   assert.equal(formatting.emit("{:%m}", "", "date", { readers: { ...formatting.DEFAULT_READERS, date: "d", date_short: "ds" } }), '(ds.month as Number).format("%02d")');
   assert.equal(formatting.emit("{:%a %d %e %b %Y %y %%}", "", "date"),
     'date.day_of_week + " " + date.day.format("%02d") + " " + date.day.format("%d") + " " + date.month + " " + date.year.format("%04d") + " " + (date.year % 100).format("%02d") + " " + "%"');
-  for (const [spec, extra] of [["{:%m}", ["date.weekday"]], ["{:%Y-%m-%d}", ["date.weekday"]], ["{:%a %e %b}", []], ["{:%Y}", []]] as const) {
+  for (const [spec, extra] of [["{:%m}", ["date.month_number"]], ["{:%Y-%m-%d}", ["date.month_number"]], ["{:%a %e %b}", []], ["{:%Y}", []]] as const) {
     assert.deepEqual(formatting.extraPaths(spec, "date"), extra, spec);
   }
 });
@@ -175,6 +177,45 @@ test("a duration face: what the watch reads and the preview draws", () => {
   const written = method(view(reading("complication.recovery_time * 60", "{:%-H:%M}")), "drawReading");
   assert.ok(!written.includes("* 60 * 60") && !written.includes("60) * 60"));
   assert.ok(!method(view(reading("complication.recovery_time", "{:d} min")), "drawReading").includes("* 60"));
+});
+
+test("the numeric month and the UTC offset: what the watch reads and the preview draws", () => {
+  const bound = (text: string): string => BASE + `
+  reading:
+    type: text
+    text: "${text}"
+    font: FONT_SMALL
+    at: {anchor: center}
+    color: color.fg
+`;
+  const sample = Object.fromEntries(SAMPLE);
+  // the month is a Number under FORMAT_SHORT only, so it is read off the short reader and cast, as the weekday is
+  const month = method(view(bound("{date.month_number:02d}")), "drawReading");
+  assert.ok(month.startsWith("(dc as Dc, dateShort as Gregorian.Info)"), month);
+  assert.ok(month.includes("var dateMonthNumber = dateShort.month as Number;"), month);
+  assert.ok(method(view(bound("{date.weekday:d}")), "drawReading").includes("var dateWeekday = dateShort.day_of_week as Number;"));
+  assert.equal(drawn(bound("{date.month_number:02d}"), "reading", sample), "09");
+  assert.equal(drawn(bound("{date.month_number:d}"), "reading", { ...sample, ...Object.fromEntries(dateValues(2026, 2, 14)) }), "2");
+  const half = bound('{(date.month_number > 2 ? \\"late\\" : \\"early\\")}');
+  assert.deepEqual(errors(half), []);
+  assert.equal(drawn(half, "reading", { ...sample, ...Object.fromEntries(dateValues(2026, 2, 14)) }), "early");
+  assert.equal(drawn(half, "reading", sample), "late");
+  // the offset is ClockTime.timeZoneOffset, read off the clock local
+  const offset = method(view(bound("{time.utc_offset:d}")), "drawReading");
+  assert.ok(offset.startsWith("(dc as Dc, clock as System.ClockTime)") && offset.includes("var timeUtcOffset = clock.timeZoneOffset;"), offset);
+  assert.equal(drawn(bound("{time.utc_offset:d}"), "reading", sample), "7200");
+  // the guide's UTC example: seconds since midnight as a time of day, at the sample 10:09 and offset 7200
+  const utc = bound("UTC {((time.hour * 3600 + time.minute * 60 - time.utc_offset) % 86400 + 86400) % 86400:%H:%M}");
+  assert.equal(drawn(utc, "reading", sample), "UTC 08:09");
+  assert.equal(drawn(utc, "reading", { ...sample, "time.utc_offset": 3600 }), "UTC 09:09");
+  assert.equal(drawn(utc, "reading", { ...sample, "time.hour": 1 }), "UTC 23:09");
+  assert.ok(method(view(utc), "drawReading").includes("WfbTime.durationPart(((((((timeHour * 3600) + (timeMinute * 60)) - timeUtcOffset) % 86400) + 86400) % 86400), 3600, 0)"));
+  // a second zone: the same with its own offset added, and `--sample` overrides the sample offset
+  const india = bound("{((time.hour * 3600 + time.minute * 60 - time.utc_offset + 19800) % 86400 + 86400) % 86400:%H:%M}");
+  assert.equal(drawn(india, "reading", sample), "13:39");
+  const values = sampleValues(resolved(utc), previewOptions({ sample: new Map([["time.utc_offset", 3600]]) }), null);
+  assert.equal(values.get("time.utc_offset"), 3600);
+  assert.equal(sampleValues(resolved(utc), previewOptions({ date: [2026, 2, 14] }), null).get("date.month_number"), 2);
 });
 
 test("a pace from units", () => {

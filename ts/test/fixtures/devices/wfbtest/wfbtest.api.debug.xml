@@ -33,6 +33,7 @@
 <entry field="true" symbol="month"/>
 <entry field="true" symbol="moveBarLevel"/>
 <entry field="true" symbol="notificationCount"/>
+<entry field="true" symbol="observationLocationPosition"/>
 <entry field="true" symbol="paceUnits"/>
 <entry field="true" symbol="phoneConnected"/>
 <entry field="true" symbol="precipitationChance"/>
@@ -46,6 +47,7 @@
 <entry field="true" symbol="temperature"/>
 <entry field="true" symbol="temperatureUnits"/>
 <entry field="true" symbol="timeToRecovery"/>
+<entry field="true" symbol="timeZoneOffset"/>
 <entry field="true" symbol="value"/>
 <entry field="true" symbol="vo2maxCycling"/>
 <entry field="true" symbol="vo2maxRunning"/>

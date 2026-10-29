@@ -30,7 +30,9 @@ or AOD-related has been observed on a watch or in the simulator.
   already turned (`ts/src/fonts/bake.ts`). `docs/guide/placement.md`,
   `icons.md`.
 - **Data** — the full source catalogue including all 42
-  `COMPLICATION_TYPE_*` values; every source is a plain per-frame pull.
+  `COMPLICATION_TYPE_*` values; every source is a plain per-frame pull
+  (`date.month_number` is `Gregorian.Info.month` under `FORMAT_SHORT`, and
+  `time.utc_offset` is `ClockTime.timeZoneOffset`; `docs/guide/data.md`).
   `text:` templates (`"{expr:spec}"`, several placeholders on a `text`
   element, `segments` in `ts/src/template.ts`, `Text.more`), `absent:`
   (`hide` | `{text:}` | `{value:}`, one `$defs` entry `absence` in the schema);

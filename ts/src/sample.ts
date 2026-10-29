@@ -17,6 +17,7 @@ export const SAMPLE: ReadonlyMap<string, ExprValue> = new Map<string, ExprValue>
   ["time.hour", 10],
   ["time.minute", 9],
   ["time.second", 42],
+  ["time.utc_offset", 7200], // two hours east of UTC: the sample date is 3 September
   ["device.is_24_hour", true],
   // `System.UNIT_METRIC` (0) for every unit setting.
   ["device.distance_units", 0],
@@ -46,6 +47,9 @@ export const SAMPLE: ReadonlyMap<string, ExprValue> = new Map<string, ExprValue>
   ["weather.condition", 3],
   ["weather.condition_today", 3],
   ["weather.condition_tomorrow", 3],
+  // The Royal Observatory, Greenwich: nobody's own, and local sidereal time there is GMST.
+  ["position.latitude", 51.4769],
+  ["position.longitude", -0.0005],
 ]);
 
 /** The wearer a gauge on a `config: slots:` slot is scaled for: illustrative, nobody's own. */

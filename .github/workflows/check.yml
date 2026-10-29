@@ -127,6 +127,7 @@ jobs:
             # test/page-accept.test.ts
             # test/page-panels.test.ts
             # test/parameter-limits.test.ts
+            # test/position.test.ts
             # test/protocol.test.ts
             # test/reading-count.test.ts
             # test/slot-graph.test.ts

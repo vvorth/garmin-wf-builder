@@ -775,7 +775,9 @@ These cost real time to discover; do not rediscover them.
   on type '$.Toybox.Lang.String'`) until this was fixed, because nothing
   had ever compiled every `DATE_CODES` entry in one build.
   `DATE_CODES` in `ts/src/formatting.ts`' `m` row is the one place "which codes need
-  a second reader" is decided: its `emit` and its `extra_path` sit side by
+  a second reader" is decided: its `emit` and its `extra_path` (the
+  catalogue source of the same number, `date.month_number`, whose reader is
+  the local the code names) sit side by
   side, and `extra_paths` (which `ReadPlan` in `ts/src/emit/monkeyc/readplan.ts`
   calls to add the extra reader-local parameter) reads that row, so an
   element's generated method and the parameter list supplying it cannot
@@ -801,3 +803,38 @@ These cost real time to discover; do not rediscover them.
   `[]` typed `Array<Complications.Type>` in `Layout.mc` compiles
   warning-free on a device without the module (fenix6), so no second
   shape is needed there.
+
+- **A catalogue source read through a barrel call: `call:` and
+  `extra_readers` (2026-10-29).** A `Source` in `ts/src/data/catalog.json`
+  normally reads one field off one reader local (`weatherCurrent.temperature`).
+  With `call: "WfbAstro.latitude"` the read is instead
+  `<call>(<reader local>[, <extra reader locals>...])`, and
+  `extra_readers: ["clock"]` names the further readers the call takes, in
+  parameter order after the primary `reader`. Both keys are optional in
+  the JSON: `ts/src/catalog.ts` fills `call: null` and `extra_readers: []`
+  in at load, so the 94 field-reading entries are untouched and the
+  goldens stayed byte-identical. Everything that hoists or gates a reader
+  walks `catalog.readerNames(source)` (primary, then extras) rather than
+  `source.reader`: `ReadPlan`'s reader lists, method parameters and
+  arguments (`ts/src/emit/monkeyc/readplan.ts`), `Requirements.add` (the
+  readers' modules and the manifest's permissions), `guardNeeded` (a
+  nullable extra reader needs the guard), and `sourceGap` in
+  `ts/src/availability.ts` (an extra reader a device lacks makes the source
+  unavailable there, so `api-gated` fires). The read itself
+  (`declarationsFor`, exported so a synthetic entry can be tested without
+  a catalogue row) guards every reader the call takes exactly as the
+  primary is guarded today -- `(Toybox has :M)` where
+  `device_guards.modules` says so, `reader != null` for a nullable one --
+  so the barrel function receives non-null arguments and its own
+  parameters are typed non-null (`conditions as Weather.CurrentConditions`,
+  returning `Float?`). `field_name` keeps its job as the key of the device
+  table's field check: `position.latitude` names
+  `observationLocationPosition`, which `fenix5` lacks, so a build with it
+  gets `weatherCurrent has :observationLocationPosition` in the guard and
+  the `api-gated` lint, like any field. `barrelModules`
+  (`ts/src/emit/usage.ts`) copies the barrel file from the call's `Wfb<Name>.`
+  in the generated text, so a new barrel module needs no registration.
+  `intermediate:` and `call:` are not combined (the intermediate branch
+  wins); no entry needs both. Measured: a face binding both `position.*`
+  sources is 1,283 B on each of the three verification targets, and
+  1,354 B there when `fenix5` joins the build (the two `has` checks).

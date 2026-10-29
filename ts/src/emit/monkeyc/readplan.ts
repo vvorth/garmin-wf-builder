@@ -1,7 +1,7 @@
 // `ReadPlan`: which API calls happen, and where, for one view: its
 // analysis, guards and declarations; the pulls it writes come with the view.
 import * as catalog from "../../catalog.ts";
-import { CATALOG, READERS, type Source } from "../../catalog.ts";
+import { CATALOG, type Reader, READERS, type Source } from "../../catalog.ts";
 import { frameMembers } from "../../draw/frames.ts";
 import * as formatting from "../../formatting.ts";
 import { type Element, type Expression, HandsElement, Text } from "../../ir/model.ts";
@@ -83,7 +83,7 @@ export class ReadPlan {
       this.otherBound.set(placed.id, otherPaths.filter((p) => !visiblePaths.includes(p)));
       const all = [...paths, ...formatPaths.filter((p) => !paths.includes(p))];
       this.perElement.set(placed.id, all);
-      for (const path of all) this.modules.add(READERS.get(CATALOG.get(path)!.reader)!.module);
+      for (const path of all) for (const reader of catalog.readersOf(CATALOG.get(path)!)) this.modules.add(reader.module);
     }
 
     for (const mode of ["active", "low_power"]) {
@@ -230,47 +230,7 @@ export class ReadPlan {
 
   private declarePaths(paths: readonly string[]): [string, string][] {
     const out: [string, string][] = [];
-    for (const path of paths) {
-      const source = CATALOG.get(path)!;
-      // time.clock/date.today: formatting reads the reader parameter by name.
-      if (source.field_name === null && (source.type === "time" || source.type === "date")) continue;
-      const reader = READERS.get(source.reader)!;
-      const base = source.array_index === null ? reader.name : `${reader.name}[${source.array_index}]`;
-      const guardParts: string[] = [];
-      // A module some target lacks is checked again where its object's fields are read: monkeyc 9.3.0
-      // only accepts them inside a check of their own (docs/lore/platform-constraints.md, 6d).
-      const moduleCheck = reader.requires_module !== null && this.device_guards.modules.has(reader.requires_module)
-        ? `(Toybox has :${reader.requires_module})` : null;
-      if (moduleCheck !== null) guardParts.push(moduleCheck);
-      if (reader.nullable) guardParts.push(`${reader.name} != null`);
-      const arrayGuard = catalog.arrayGuard(source);
-      if (arrayGuard !== null) guardParts.push(arrayGuard);
-      const intermediate = source.intermediate;
-      const fieldRoot = intermediate !== null ? intermediate : source.field_name;
-      if (fieldRoot !== null && this.device_guards.fields.has(fieldRoot.split(".", 1)[0]!)) {
-        guardParts.push(`${base} has :${fieldRoot.split(".", 1)[0]}`);
-      }
-      if (intermediate !== null) {
-        let objRead = `${base}.${intermediate}`;
-        if (guardParts.length > 0) objRead = `(${guardParts.join(" && ")}) ? ${objRead} : null`;
-        const objName = `${localName(path)}Obj`;
-        out.push([objName, objRead]);
-        const suffix = source.field_name!.slice(intermediate.length + 1);
-        out.push([localName(path), `(${moduleCheck !== null ? `${moduleCheck} && ` : ""}${objName} != null) ? ${objName}.${suffix} : null`]);
-        continue;
-      }
-      let read = catalog.readExpr(source);
-      if (source.count) read = `WfbComplications.count(${reader.name})`;
-      else if (source.cast !== null) read = `${read} as ${source.cast}`;
-      if (guardParts.length > 0) read = `(${guardParts.join(" && ")}) ? ${read} : null`;
-      if (source.to_float) {
-        const rawName = `${localName(path)}Raw`;
-        out.push([rawName, read]);
-        out.push([localName(path), `(${rawName} != null) ? ${rawName}.toFloat() : null`]);
-        continue;
-      }
-      out.push([localName(path), read]);
-    }
+    for (const path of paths) out.push(...declarationsFor(CATALOG.get(path)!, this.device_guards));
     return out;
   }
 
@@ -278,12 +238,11 @@ export class ReadPlan {
     return ReadPlan.dedupeReaders(this.perElement.get(placed.id)!);
   }
 
-  /** The reader each of `paths` reads through, in first-seen order. */
+  /** The readers each of `paths` reads through (a call's extra readers included), in first-seen order. */
   private static dedupeReaders(paths: readonly string[], into: readonly string[] | null = null): string[] {
     const readers = into !== null ? [...into] : [];
     for (const path of paths) {
-      const reader = CATALOG.get(path)!.reader;
-      if (!readers.includes(reader)) readers.push(reader);
+      for (const reader of catalog.readerNames(CATALOG.get(path)!)) if (!readers.includes(reader)) readers.push(reader);
     }
     return readers;
   }
@@ -291,4 +250,62 @@ export class ReadPlan {
   sourcesFor(placed: Placed): string[] {
     return this.perElement.get(placed.id)!;
   }
+}
+
+/**
+ * `[local, read]` pairs declaring `source`'s value off its reader local(s),
+ * guarded as the build needs: a module some target lacks is checked again
+ * where its object's fields are read (monkeyc 9.3.0 only accepts them inside
+ * a check of their own, docs/lore/platform-constraints.md, 6d), a nullable
+ * reader is null-checked, and a field some target lacks gets `has :field`.
+ * A source read through a barrel `call` guards every reader the call takes
+ * the same way, so the barrel function receives non-null arguments.
+ */
+export function declarationsFor(source: Source, guards: Guards): [string, string][] {
+  const path = source.path;
+  const out: [string, string][] = [];
+  // time.clock/date.today: formatting reads the reader parameter by name.
+  if (source.field_name === null && (source.type === "time" || source.type === "date")) return out;
+  const reader = READERS.get(source.reader)!;
+  const base = source.array_index === null ? reader.name : `${reader.name}[${source.array_index}]`;
+  const guardParts: string[] = [];
+  const moduleCheckFor = (r: Reader): string | null =>
+    r.requires_module !== null && guards.modules.has(r.requires_module) ? `(Toybox has :${r.requires_module})` : null;
+  const moduleCheck = moduleCheckFor(reader);
+  if (moduleCheck !== null) guardParts.push(moduleCheck);
+  if (reader.nullable) guardParts.push(`${reader.name} != null`);
+  for (const name of source.extra_readers) {
+    const extra = READERS.get(name)!;
+    const check = moduleCheckFor(extra);
+    if (check !== null && !guardParts.includes(check)) guardParts.push(check);
+    if (extra.nullable) guardParts.push(`${extra.name} != null`);
+  }
+  const arrayGuard = catalog.arrayGuard(source);
+  if (arrayGuard !== null) guardParts.push(arrayGuard);
+  const intermediate = source.intermediate;
+  const fieldRoot = intermediate !== null ? intermediate : source.field_name;
+  if (fieldRoot !== null && guards.fields.has(fieldRoot.split(".", 1)[0]!)) {
+    guardParts.push(`${base} has :${fieldRoot.split(".", 1)[0]}`);
+  }
+  if (intermediate !== null) {
+    let objRead = `${base}.${intermediate}`;
+    if (guardParts.length > 0) objRead = `(${guardParts.join(" && ")}) ? ${objRead} : null`;
+    const objName = `${localName(path)}Obj`;
+    out.push([objName, objRead]);
+    const suffix = source.field_name!.slice(intermediate.length + 1);
+    out.push([localName(path), `(${moduleCheck !== null ? `${moduleCheck} && ` : ""}${objName} != null) ? ${objName}.${suffix} : null`]);
+    return out;
+  }
+  let read = catalog.readExpr(source);
+  if (source.count) read = `WfbComplications.count(${reader.name})`;
+  else if (source.cast !== null) read = `${read} as ${source.cast}`;
+  if (guardParts.length > 0) read = `(${guardParts.join(" && ")}) ? ${read} : null`;
+  if (source.to_float) {
+    const rawName = `${localName(path)}Raw`;
+    out.push([rawName, read]);
+    out.push([localName(path), `(${rawName} != null) ? ${rawName}.toFloat() : null`]);
+    return out;
+  }
+  out.push([localName(path), read]);
+  return out;
 }

@@ -115,6 +115,7 @@ describe("the command line", { concurrency: true }, () => {
     assert.ok(sources.split("complication.").length - 1 >= 42);
     assert.ok(sources.includes("on_hold: auto -> heart_rate"));
     assert.ok(!sources.includes("body_battery.current") && !sources.includes("device.next_calendar_event"));
+    assert.ok(sources.includes("date.month_number") && sources.includes("time.utc_offset"));
     const complications = wfb(["complications"]).stdout;
     assert.ok(complications.includes("42 complication types") && complications.includes("on_hold: auto") && !complications.includes("invalid"));
     const list = wfb(["series"]).stdout;
