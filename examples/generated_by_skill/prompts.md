@@ -36,3 +36,22 @@ trail-utility, second pass (reference.png, a cleaner render of the same kind of 
   using skill watchface from image and attached picture as a baseline. use
   slots, gauges, graphs
 ❯ use integrated fenix8 solar fonts
+
+
+solaria (three press photos of the Vacheron Constantin Les Cabinotiers
+Solaria Ultra Grand Complication, not committed; `gen.py` writes the face,
+`preview-skin.png` is the result, `preview-night.png` the same at 22:40
+with a forced sunrise and sunset, and `moon-phases.png` the moon at eight
+forced ages):
+
+❯ that is the watch that has the most number of mechanical complications.
+  Vacheron Constantin Solaria Ultra Grand Complication. can you look it up
+  and make all possible complications into a watchface for
+  fenix8solar47mm/51mm. then when done list me all of them and what
+  couldn't be done via yaml alone. do not include external fonts yet. do
+  10-20 iterations.
+❯ remove yellow rim around the watchface, white outline with sun position
+  should be the most outside thing, this way there is more space for the
+  rest of the stuff in the middle as well. mock it first, confirm with me,
+  then do
+  (chose: night sector painted dark grey on the ring)
