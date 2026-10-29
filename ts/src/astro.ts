@@ -171,7 +171,9 @@ export function astroValues(values: ReadonlyMap<string, ExprValue>): Map<string,
   const ut = utSeconds(num(values.get("time.hour")) ?? 0, num(values.get("time.minute")) ?? 0, num(values.get("time.second")) ?? 0,
     num(values.get("time.utc_offset")) ?? 0);
   const now = daysSinceJ2000(year, month, day, ut), today = noon(year, month, day);
-  const latitude = num(values.get("position.latitude")), longitude = num(values.get("position.longitude"));
+  // The watch narrows the position to a Float first (`WfbAstro.latitude` answers `toDegrees()[0].toFloat()`), so the twin does too.
+  const narrowed = (path: string): number | null => { const x = num(values.get(path)); return x === null ? null : Math.fround(x); };
+  const latitude = narrowed("position.latitude"), longitude = narrowed("position.longitude");
   const placed = (f: (lat: number, lon: number) => number): ExprValue => latitude === null || longitude === null ? null : asFloat(f(latitude, longitude));
   return new Map<string, ExprValue>([
     ["astro.day_of_year", dayOfYear(year, month, day)],

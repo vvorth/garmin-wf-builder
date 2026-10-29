@@ -153,7 +153,7 @@ below and the `.mc` text to the twin, statement by statement.
   `astro.days_since_j2000` is this value as a Float.
 - **Date-only sources** (`sun_declination`, `equation_of_time`,
   `sun_noon_altitude`) are computed at noon UT of the local date
-  (`d = wholeDays`): their value moves at most 0.4 deg or 0.3 min across a
+  (`d = wholeDays`): their value moves at most 0.4 deg or 0.5 min across a
   day, inside the tolerances below, and they change once a day.
 
 ### 5.2 The sun (Meeus, *Astronomical Algorithms*, ch. 25 low accuracy, ch. 28, ch. 12)
@@ -290,6 +290,15 @@ Greenwich) draws `DOY 246`, `J2K 9741.84`, `DEC 7.43`, `EOT 0.6m`, `AGE
   is UT: the SDK says only "the time offset from UTC in seconds". The sun's
   azimuth is the reading that would show a wrong sign at once (it would
   run four hours off at UTC+2).
+- That `Math.asin` is never handed an argument past 1: `sin φ sin δ + cos φ
+  cos δ cos H` can exceed 1 only by rounding at the exact zenith (the
+  latitude equal to the declination at the instant of transit), where the
+  SDK says `asin` answers NaN; the host twin does the same, and a Float
+  latitude never lands there exactly. Not observed.
+- That a `Double` compares with a `Number` literal (`w < 0`, `gap < 0`) as a
+  `Float` does (`WfbArc.mc`'s `start < 0`): it builds under strict typing on
+  every target, and the comparison is the shape the SDK's own samples use,
+  but a Double has not been watched doing it on a watch.
 - That `Gregorian.info(..., FORMAT_SHORT).month` is a `Number` on every
   device: the SDK types it `Number or String` and `date.month_number`
   already relies on the short format answering a Number.

@@ -245,18 +245,18 @@ test("the preview derives the sample astronomy from the frame's date, time, offs
   assert.equal(values.get("astro.day_of_year"), 246);
   assert.equal(num(values.get("astro.days_since_j2000")), Math.fround(SAMPLE_UT));
   assert.equal(num(values.get("astro.moon_age")), Math.fround(astro.moonAge(SAMPLE_UT)));
-  assert.equal(num(values.get("astro.sun_altitude")), Math.fround(astro.sunAltitude(SAMPLE_UT, LAT, LON)));
-  assert.equal(num(values.get("astro.sidereal_time")), Math.fround(astro.siderealTime(SAMPLE_UT, LON)));
-  assert.equal(num(values.get("astro.sun_noon_altitude")), Math.fround(astro.sunNoonAltitude(astro.noon(2026, 9, 3), LAT)));
+  assert.equal(num(values.get("astro.sun_altitude")), Math.fround(astro.sunAltitude(SAMPLE_UT, Math.fround(LAT), Math.fround(LON))));
+  assert.equal(num(values.get("astro.sidereal_time")), Math.fround(astro.siderealTime(SAMPLE_UT, Math.fround(LON))));
+  assert.equal(num(values.get("astro.sun_noon_altitude")), Math.fround(astro.sunNoonAltitude(astro.noon(2026, 9, 3), Math.fround(LAT))));
   const item = (id: string) => r.items.find((p) => p.id === id)!;
   assert.equal(drawnText(r, item("alt"), values as never), "ALT 25.7");
   assert.equal(drawnText(r, item("age"), values as never), "AGE 21.1d");
   assert.equal(drawnText(r, item("doy"), values as never), "246");
   // An overridden offset or position flows through; an astro override of its own wins; no position, no sun.
   const utc = sampleValues(r, previewOptions({ sample: new Map([["time.utc_offset", 0]]) }), null);
-  assert.equal(num(utc.get("astro.sun_altitude")), Math.fround(astro.sunAltitude(astro.daysSinceJ2000(2026, 9, 3, astro.utSeconds(10, 9, 42, 0)), LAT, LON)));
+  assert.equal(num(utc.get("astro.sun_altitude")), Math.fround(astro.sunAltitude(astro.daysSinceJ2000(2026, 9, 3, astro.utSeconds(10, 9, 42, 0)), Math.fround(LAT), Math.fround(LON))));
   const paris = sampleValues(r, previewOptions({ sample: new Map([["position.latitude", 48.8566], ["position.longitude", 2.3522]]) }), null);
-  assert.equal(num(paris.get("astro.sun_altitude")), Math.fround(astro.sunAltitude(SAMPLE_UT, 48.8566, 2.3522)));
+  assert.equal(num(paris.get("astro.sun_altitude")), Math.fround(astro.sunAltitude(SAMPLE_UT, Math.fround(48.8566), Math.fround(2.3522))));
   const forced = sampleValues(r, previewOptions({ sample: new Map([["astro.moon_age", 3.5]]) }), null);
   assert.equal(forced.get("astro.moon_age"), 3.5);
   assert.equal(drawnText(r, item("age"), forced as never), "AGE 3.5d");
@@ -358,4 +358,45 @@ test("the example binds every astro.* and position.* source and lints clean on t
   for (const [path] of TABLE) assert.ok(paths.has(path), path);
   assert.ok(paths.has("position.latitude") && paths.has("position.longitude"));
   assert.deepEqual(checked(text).filter((d) => d.severity !== "note").map((d) => `${d.code}: ${d.message}`), []);
+});
+
+// -- after review: the twin's literals, the Float the position is narrowed to, and the flags' edges --
+
+test("every numeric literal of the arithmetic is the same set in WfbAstro.mc and astro.ts", () => {
+  const strip = (text: string): string => text.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  const literals = (text: string, drop: RegExp): Set<string> =>
+    new Set([...strip(text).matchAll(/(?<![\w.])\d+(?:\.\d+)?d?(?![\w.])/g)].map((m) => m[0].replace(/d$/, "")).filter((n) => !drop.test(n)));
+  const mc = readFileSync(join(REPO_ROOT, "runtime-lib", "WfbAstro.mc"), "utf8");
+  const ts = readFileSync(join(REPO_ROOT, "ts", "src", "astro.ts"), "utf8").split("// -- the readings")[0]!;
+  const mcSet = literals(mc, /^$/), tsSet = literals(ts, /^$/);
+  // The twin's `?? 2000` defaults and the `[0]`/`[1]` indexes are not arithmetic; nothing else may differ.
+  const onlyTs = [...tsSet].filter((n) => !mcSet.has(n)), onlyMc = [...mcSet].filter((n) => !tsSet.has(n));
+  assert.deepEqual([onlyMc, onlyTs.filter((n) => !["0", "1", "2000"].includes(n))], [[], []]);
+  assert.ok(mcSet.has("360.98564736629") && mcSet.has("481267.881") && mcSet.has("0.0057183"), "the constants that matter are seen");
+});
+
+test("the twin narrows the position to a Float before computing, as the watch does", () => {
+  const r = resolved(MINIMAL);
+  const now = astro.daysSinceJ2000(2026, 9, 3, astro.utSeconds(10, 9, 42, 7200));
+  for (let i = 0; i < 24; i++) {
+    const lat = 51.4769 + i * 0.013, lon = -0.0005 + i * 0.017;
+    const values = sampleValues(r, previewOptions({ sample: new Map([["position.latitude", lat], ["position.longitude", lon]]) }), null);
+    assert.equal(num(values.get("astro.sun_altitude")), Math.fround(astro.sunAltitude(now, Math.fround(lat), Math.fround(lon))), `altitude at ${lat}`);
+    assert.equal(num(values.get("astro.sun_azimuth")), Math.fround(astro.sunAzimuth(now, Math.fround(lat), Math.fround(lon))), `azimuth at ${lat}`);
+  }
+});
+
+test("--date refuses a year below 100; --sample takes null for a nullable source and refuses it for the rest", () => {
+  const fifty = wfb(["preview", EXAMPLE, "-d", "fenix8solar47mm", "-o", "-", "--date", "0050-01-01"]);
+  assert.equal(fifty.code, 1);
+  assert.ok(fifty.stderr.includes("--date '0050-01-01' is not a calendar day written YYYY-MM-DD"), fifty.stderr);
+  const plain = wfb(["preview", EXAMPLE, "-d", "fenix8solar47mm", "-o", "-"]);
+  const absent = wfb(["preview", EXAMPLE, "-d", "fenix8solar47mm", "-o", "-", "--sample", "position.latitude=null"]);
+  assert.equal(absent.code, 0, absent.stderr);
+  assert.ok(!absent.bytes.equals(plain.bytes), "an absent position hides the sun needle and draws the absent texts");
+  const refused = wfb(["preview", EXAMPLE, "-d", "fenix8solar47mm", "-o", "-", "--sample", "time.utc_offset=null"]);
+  assert.equal(refused.code, 1);
+  assert.ok(refused.stderr.includes("time.utc_offset takes a whole number") && !refused.stderr.includes("or null"), refused.stderr);
+  const hinted = wfb(["preview", EXAMPLE, "-d", "fenix8solar47mm", "-o", "-", "--sample", "position.latitude=x"]);
+  assert.ok(hinted.stderr.includes("takes a float, or null"), hinted.stderr);
 });

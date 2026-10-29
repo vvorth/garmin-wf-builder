@@ -554,6 +554,8 @@ function parsePreviewDate(text: string): [number, number, number] | null {
   if (m === null) return null;
   const date: [number, number, number] = [Number(m[1]), Number(m[2]), Number(m[3])];
   const [year, month, day] = date;
+  // Date.UTC reads a year below 100 as 19xx, so refuse it before asking it.
+  if (year < 100) return null;
   if (!(month >= 1 && month <= 12 && day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate())) return null;
   return date;
 }
@@ -576,10 +578,12 @@ function previewSamples(given: readonly string[]): [Map<string, ExprValue>, Map<
       throw new FlagError(`--sample ${quoted(name)} is neither a complication type nor a catalogue path (see wfb complications and wfb sources)`);
     }
     let value: ExprValue;
-    if (type === "string") value = text;
+    const source = name.includes(".") ? catalog.get(name) : undefined;
+    if (source !== undefined && text === "null" && catalog.guardNeeded(source)) value = null; // the reading absent, to see the absent: branch
+    else if (type === "string") value = text;
     else if (type === "boolean" && (text === "true" || text === "false")) value = text === "true";
     else if ((type === "number" && /^-?\d+$/.test(text)) || (type === "float" && Number.isFinite(Number(text)))) value = Number(text);
-    else throw new FlagError(`--sample ${name}=${text}: ${name} takes a ${type === "number" ? "whole number" : type}`);
+    else throw new FlagError(`--sample ${name}=${text}: ${name} takes a ${type === "number" ? "whole number" : type}${source !== undefined && catalog.guardNeeded(source) ? ", or null" : ""}`);
     if (name.includes(".")) sample.set(name, value);
     else {
       data.set(name, value);

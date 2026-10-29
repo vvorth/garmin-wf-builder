@@ -174,10 +174,12 @@ obliquity (Meeus) for the declination, right ascension and equation of
 time; Greenwich mean sidereal time from the same day count; and a
 six-term series for the moon's longitude, whose elongation from the sun
 gives the age and the illuminated fraction. Against a reference ephemeris
-they hold the declination within 0.01°, the altitude and azimuth within
-0.02° (refraction left out, which lifts a low sun by up to half a degree),
-the equation of time within 0.1 minute, sidereal time within a second and
-the moon's age within 0.02 days of the true new and full moons. The watch
+they hold the declination within 0.01°, the altitude within 0.02°
+(refraction left out, which lifts a low sun by up to half a degree), the
+azimuth likewise except within about a degree of the zenith, where an
+azimuth is ill-defined, the equation of time within 0.1 minute, mean
+sidereal time within about a second of apparent, and the moon's phase
+within 0.03 days. The watch
 computes in double precision and hands back a single-precision float, so
 `days_since_j2000` resolves to about a minute and the rest to far better
 than their formulas. A small face could not hold more: these are the
