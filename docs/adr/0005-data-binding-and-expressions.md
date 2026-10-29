@@ -558,3 +558,26 @@ errors beside several: `units:` (one quantity to convert), `absent: {value:
 <expr>}` (one reading to substitute) and an `aod: {text:}` restyle, which
 would have to pair each placeholder with its own and is left unbuilt. A
 pattern's text part keeps one placeholder.
+
+## Amendment (2026-10-29): computed sources are catalogue entries, never expression functions
+
+A reading the watch can compute but no API answers -- the sun's altitude,
+the moon's age, local sidereal time -- is a **catalogue source read through
+a named barrel call**, not a function of the expression language. A `Source`
+may carry `call:` (`WfbAstro.sunAltitude`) and `extra_readers:`; the
+generated read is `<call>(<reader locals>)` behind the readers' usual
+guards, and the catalogue's type, nullability, permission and per-device
+gating apply unchanged. The `astro.*` namespace is the first use.
+
+Why not `sun_altitude(position.latitude, position.longitude)` in an
+expression: an expression compiles to the Monkey C it spells (§2), and a
+function that is not a transcription would need its own codegen, its own
+host twin for the preview and the lints, its own nullability rule and its
+own permission derivation -- the four things the catalogue already does for
+a source. The arguments are not the author's to choose either: the
+computation reads the watch's own readers (the date, the clock, the weather
+report's location), so the author has nothing to pass. A source names the
+value; the barrel function owns the formula; `ts/src/astro.ts` is its host
+twin, held to the barrel's text by test. The expression language stays
+what §2 made it: arithmetic, comparison, conditionals and the five
+`WfbMath` helpers, each a line of Monkey C.

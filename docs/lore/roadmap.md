@@ -32,7 +32,12 @@ or AOD-related has been observed on a watch or in the simulator.
 - **Data** — the full source catalogue including all 42
   `COMPLICATION_TYPE_*` values; every source is a plain per-frame pull
   (`date.month_number` is `Gregorian.Info.month` under `FORMAT_SHORT`, and
-  `time.utc_offset` is `ClockTime.timeZoneOffset`; `docs/guide/data.md`).
+  `time.utc_offset` is `ClockTime.timeZoneOffset`; `docs/guide/data.md`);
+  `position.latitude`/`longitude` off the weather report, and the ten
+  computed `astro.*` sources (the sun, the moon, sidereal time), each a
+  catalogue entry read through a `WfbAstro.mc` call with `ts/src/astro.ts`
+  as the preview's twin (`docs/guide/data.md`, "Astronomy";
+  `examples/features/astro/`).
   `text:` templates (`"{expr:spec}"`, several placeholders on a `text`
   element, `segments` in `ts/src/template.ts`, `Text.more`), `absent:`
   (`hide` | `{text:}` | `{value:}`, one `$defs` entry `absence` in the schema);

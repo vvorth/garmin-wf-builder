@@ -27,6 +27,7 @@ can bind.
 | `activity.*` | source namespace | — | — | steps, calories, distance, floors, and more |
 | `weather.*` | source namespace | — | — | condition, temperature, forecast |
 | `position.*` | source namespace | — | — | latitude and longitude of the weather observation, needing the Positioning permission |
+| `astro.*` | source namespace | — | — | [the sun, the moon and sidereal time](#astronomy), computed on the watch from the date, the clock and the position |
 | `device.*` | source namespace | — | — | notifications, alarms, do-not-disturb, phone-connected |
 | `system.*` | source namespace | — | — | battery, charging |
 | `complication.*` | source namespace | — | — | [the `complication.*` namespace](#the-complication-namespace-and-the-one-rule-for-reaching-it) |
@@ -135,6 +136,82 @@ overrides it. That a sideloaded face holding `Positioning` actually
 receives the observation location is UNVERIFIED on a watch: the SDK
 documents the field and the permission rule, and the simulator does not
 run here.
+
+### Astronomy
+
+The `astro.*` sources are computed on the watch, in the support barrel's
+`WfbAstro` module, from three things it already has: the date, the clock
+(its UTC offset included) and the position its weather report was observed
+at. Nothing is fetched and nothing is cached; like every other source, each
+is read fresh every frame.
+
+| Path | Type | Needs | Meaning |
+|---|---|---|---|
+| `astro.day_of_year` | number 1–366 | the date | day of the year, 1 = 1 January |
+| `astro.days_since_j2000` | float, days | date, clock | days since J2000.0 (2000-01-01 12:00 UT) at this instant |
+| `astro.moon_age` | float, days 0–29.53 | date, clock | the moon's age as its phase (elongation over the synodic month: 0 new, 14.77 full), the figure a moon-phase display wants; it can differ from the time elapsed since the last new moon by up to 0.7 days |
+| `astro.moon_illumination` | float 0–1 | date, clock | illuminated fraction of the moon's disc |
+| `astro.equation_of_time` | float, minutes | the date | apparent minus mean solar time: positive when a sundial runs fast |
+| `astro.sun_declination` | float, degrees | the date | the sun's declination |
+| `astro.sidereal_time` | float, hours 0–24, nullable | date, clock, position | local mean sidereal time |
+| `astro.sun_altitude` | float, degrees, nullable | date, clock, position | the sun's altitude above the horizon now, no refraction |
+| `astro.sun_azimuth` | float, degrees 0–360, nullable | date, clock, position | the sun's azimuth now, clockwise from north |
+| `astro.sun_noon_altitude` | float, degrees, nullable | date, position | the sun's altitude at today's culmination |
+
+The six that need no position are always there. The four that do are
+nullable and **absent until the watch holds a weather report with a
+location**, exactly as `position.*` is, so each needs an `absent:` policy;
+they read as absent on a device without `Toybox.Weather`, with the
+`api-gated` warning, and binding any of them adds the `Positioning`
+permission. A date-only source (`sun_declination`, `equation_of_time`,
+`sun_noon_altitude`) is computed for noon UT of the watch's local date, so
+it changes once a day; the others follow the clock, converted to UT with
+`time.utc_offset`.
+
+The formulas are the low-precision ones an almanac's appendix gives: the
+sun's mean longitude and anomaly, the equation of the centre and the mean
+obliquity (Meeus) for the declination, right ascension and equation of
+time; Greenwich mean sidereal time from the same day count; and a
+six-term series for the moon's longitude, whose elongation from the sun
+gives the age and the illuminated fraction. Against a reference ephemeris
+they hold the declination within 0.01°, the altitude and azimuth within
+0.02° (refraction left out, which lifts a low sun by up to half a degree),
+the equation of time within 0.1 minute, sidereal time within a second and
+the moon's age within 0.02 days of the true new and full moons. The watch
+computes in double precision and hands back a single-precision float, so
+`days_since_j2000` resolves to about a minute and the rest to far better
+than their formulas. A small face could not hold more: these are the
+figures a sundial, a moon dial or a planisphere complication needs, not an
+ephemeris.
+
+```yaml
+sun_needle:                  # altitude 0 points left, 90 points up
+  type: gauge
+  style: needle
+  value: astro.sun_altitude
+  max: 90
+  at: { anchor: center, dx: 10%, dy: 34% }
+  start_angle: 270deg
+  sweep: 90deg
+  color: color.sun
+  absent: hide
+  needle:
+    blade: { type: line, at: { dy: 0 }, to: { dy: -22%r }, thickness: 2px }
+moon:
+  type: text
+  text: "{astro.moon_illumination * 100:.0f}% lit, day {astro.moon_age:.0f}"
+```
+
+`wfb preview` derives every `astro.*` reading from the frame it draws:
+the sample moment (10:09:42 at UTC+2 on 3 September 2026, at Greenwich)
+gives an altitude of 25.7° and a moon 21.1 days old; `--date`, `--time`
+and `--sample time.utc_offset=…`/`position.latitude=…` move it, and
+`--sample astro.moon_age=3` still overrides the derived value. That the
+watch's own double-precision trigonometry agrees with the host's to the
+last digit is UNVERIFIED on a watch, like the position itself; a
+difference would be far below the float the reading is rounded to.
+[`examples/features/astro/face.yaml`](../../examples/features/astro/face.yaml)
+draws all ten readings and the needle above.
 
 ### The `complication.*` namespace, and the one rule for reaching it
 
@@ -598,5 +675,6 @@ other.
 - [`examples/features/slots/face.yaml`](../../examples/features/slots/face.yaml) — two complication slots, per-choice icon overrides, `on_hold: auto`.
 - [`examples/features/graph/face.yaml`](../../examples/features/graph/face.yaml) — graph styles and series.
 - [`examples/features/units/face.yaml`](../../examples/features/units/face.yaml) — `units:` on distance, temperature, wind and altitude.
+- [`examples/features/astro/face.yaml`](../../examples/features/astro/face.yaml) — every `astro.*` and `position.*` reading, and a sun-altitude needle.
 - [Configuration → The Data axis](configuration.md#the-data-axis) — declaring the `config: slots:` a `data` element draws.
 - [Gauges and graphs](progress-and-graphs.md) — the `graph`/`gauge` element reference.

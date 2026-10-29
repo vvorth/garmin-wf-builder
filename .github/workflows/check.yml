@@ -102,6 +102,7 @@ jobs:
             # fenix8solar51mm and fr955, fenix847mm, or the goldens' whole
             # set), which the fixture device cannot stand in for.
             # test/aod.test.ts
+            # test/astro.test.ts
             # test/availability.test.ts
             # test/awake.test.ts
             # test/barrel.test.ts

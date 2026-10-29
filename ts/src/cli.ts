@@ -214,6 +214,7 @@ const COMMAND_LIST: readonly Command[] = [
     { flags: ["--style"], help: "render one 'config: style:' entry by name (default: the default entry)" },
     { flags: ["--all-styles"], kind: "flag", help: "render every 'config: style:' entry side by side, one PNG per device" },
     { flags: ["--time"], metavar: "HH:MM[:SS]", help: "render analog hands (and any time.*-bound element) at this time instead of the sample 10:09:42" },
+    { flags: ["--date"], metavar: "YYYY-MM-DD", help: "render any date.*-bound element (and the astro.* readings derived from the date) on this day instead of the sample 2026-09-03" },
     { flags: ["--units"], choices: ["metric", "statute"], help: "the watch's unit setting to render a 'units: auto' element under (default: metric)" },
     { flags: ["--sample"], kind: "append", dest: "samples", metavar: "NAME=VALUE[,...]", help: "render at this reading instead of the sample one: a complication type (notification_count=0, steps=5432; also sets the sources of the same quantity, such as device.notification_count) or a catalogue path (activity.steps=5432, device.is_24_hour=false); repeatable, or several comma separated" },
     { flags: ["--asleep"], kind: "flag", help: "hide every awake-only second hand and read system.awake as false, simulating a sleeping glance (no mode/aod-set switch: 'always_on' membership used to do that too, but was removed -- see --aod)" },
@@ -547,6 +548,16 @@ function parsePreviewTime(text: string): [number, number, number] | null {
   return [hour, minute, second];
 }
 
+/** `YYYY-MM-DD`, a real calendar day, or `null`. */
+function parsePreviewDate(text: string): [number, number, number] | null {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text);
+  if (m === null) return null;
+  const date: [number, number, number] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const [year, month, day] = date;
+  if (!(month >= 1 && month <= 12 && day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate())) return null;
+  return date;
+}
+
 class FlagError extends Error {}
 
 /**
@@ -615,8 +626,13 @@ async function renderPreview(args: Namespace, db: DeviceDatabase, blurb = true):
   const allStyles = Boolean(args["all_styles"]), heatmap = Boolean(args["heatmap"]);
   const verboseFlag = Boolean(args["verbose"]);
   let time: [number, number, number] | null;
+  let date: [number, number, number] | null = null;
   try {
     time = previewTime(args, preview.MINUTES_PER_DAY);
+    if (args["date"] != null) {
+      date = parsePreviewDate(args["date"] as string);
+      if (date === null) throw new FlagError(`--date ${quoted(args["date"])} is not a calendar day written YYYY-MM-DD`);
+    }
   } catch (e) {
     if (!(e instanceof FlagError)) throw e;
     error(e.message);
@@ -655,7 +671,7 @@ async function renderPreview(args: Namespace, db: DeviceDatabase, blurb = true):
   const skin = Boolean(args["skin"]);
   const scale = args["scale"] as number;
   const options = preview.previewOptions({
-    scale, quantise: !args["no_quantise"], style, time, asleep: Boolean(args["asleep"]), aod: heatmap || Boolean(args["aod"]),
+    scale, quantise: !args["no_quantise"], style, time, date, asleep: Boolean(args["asleep"]), aod: heatmap || Boolean(args["aod"]),
     sample, data_sample: dataSample, skin,
   });
   const color = term.shouldColor(process.stdout);

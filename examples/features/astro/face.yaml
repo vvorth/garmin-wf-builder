@@ -1,0 +1,192 @@
+# A worked example for the `astro.*` sources (docs/guide/data.md
+# "Astronomy") and the `position.*` pair they build on: every reading drawn
+# as text, and a needle gauge on the sun's altitude.
+#
+# The watch computes these in `WfbAstro.mc` from three things it already
+# has: the date, the clock (its UTC offset included) and the position its
+# weather report was observed at. The six readings that need no position
+# (day of the year, days since J2000, the moon's age and illumination, the
+# equation of time, the sun's declination) are always there; the four that
+# do (local sidereal time, the sun's altitude, azimuth and noon altitude)
+# are absent, like `position.*` itself, until the watch holds a weather
+# report with a location -- so each of those texts carries `absent:`, and
+# the needle hides whole. Binding any of them adds the Positioning
+# permission to the manifest.
+#
+# The needle is a quadrant: it points left at the horizon (altitude 0, or
+# below) and straight up at the zenith (90), with a static arc as its dial.
+#
+# Build it with:     ./wfb build examples/features/astro/face.yaml
+# Preview it with:   ./wfb preview examples/features/astro/face.yaml
+#                    (the sample moment is 10:09:42 at UTC+2 on 3 September
+#                    2026, at Greenwich; `--date 2026-03-20 --time 12:00:00
+#                    --sample time.utc_offset=0` is the equinox at noon UT)
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 5b2e7d40-9c3a-4f18-b6e1-0d7a4c92f3ab
+  name: Feature Astro
+  version: 1.0.0
+
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    dim: "#AAAAAA"
+    sun: "#FFAA00"
+    moon: "#55AAFF"
+
+static:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  sun_dial:                       # the needle's quadrant: horizon to zenith
+    type: arc
+    at: { anchor: center, dx: 10%, dy: 34% }
+    radius: 11%
+    thickness: 2px
+    start_angle: 270deg
+    sweep: 90deg
+    color: color.dim
+
+  sun_label:
+    type: text
+    text: "SUN"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 10%, dy: 41% }
+    color: color.dim
+
+elements:
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: FONT_SMALL
+    at: { anchor: center, dy: -38% }
+    color: color.fg
+
+  # -- the left column: the position, and the date-only readings --
+  lat:
+    type: text
+    text: "LAT {position.latitude:.2f}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -42%, dy: -19% }
+    align: left
+    color: color.fg
+    absent: { text: "LAT --" }
+
+  lon:
+    type: text
+    text: "LON {position.longitude:.2f}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -42%, dy: -11.5% }
+    align: left
+    color: color.fg
+    absent: { text: "LON --" }
+
+  day_of_year:
+    type: text
+    text: "DOY {astro.day_of_year:d}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -42%, dy: -4% }
+    align: left
+    color: color.fg
+
+  j2000:
+    type: text
+    text: "J2K {astro.days_since_j2000:.2f}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -42%, dy: 3.5% }
+    align: left
+    color: color.fg
+
+  declination:
+    type: text
+    text: "DEC {astro.sun_declination:.2f}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -42%, dy: 11% }
+    align: left
+    color: color.sun
+
+  equation_of_time:
+    type: text
+    text: "EOT {astro.equation_of_time:.1f}m"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -42%, dy: 18.5% }
+    align: left
+    color: color.sun
+
+  # -- the right column: the moon, and the position-dependent sun --
+  moon_age:
+    type: text
+    text: "AGE {astro.moon_age:.1f}d"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 2%, dy: -19% }
+    align: left
+    color: color.moon
+
+  moon_illumination:
+    type: text
+    text: "LIT {astro.moon_illumination * 100:.0f}%"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 2%, dy: -11.5% }
+    align: left
+    color: color.moon
+
+  sidereal_time:
+    type: text
+    text: "LST {astro.sidereal_time:.2f}h"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 2%, dy: -4% }
+    align: left
+    color: color.fg
+    absent: { text: "LST --" }
+
+  sun_altitude:
+    type: text
+    text: "ALT {astro.sun_altitude:.1f}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 2%, dy: 3.5% }
+    align: left
+    color: color.sun
+    absent: { text: "ALT --" }
+
+  sun_azimuth:
+    type: text
+    text: "AZ {astro.sun_azimuth:.1f}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 2%, dy: 11% }
+    align: left
+    color: color.sun
+    absent: { text: "AZ --" }
+
+  sun_noon_altitude:
+    type: text
+    text: "NOON {astro.sun_noon_altitude:.1f}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: 2%, dy: 18.5% }
+    align: left
+    color: color.sun
+    absent: { text: "NOON --" }
+
+  sun_needle:                     # altitude 0 points left, 90 points up; below the horizon parks at 0
+    type: gauge
+    style: needle
+    value: astro.sun_altitude
+    max: 90
+    at: { anchor: center, dx: 10%, dy: 34% }
+    start_angle: 270deg
+    sweep: 90deg
+    color: color.sun
+    absent: hide
+    needle:
+      blade: { type: line, at: { dy: 0 }, to: { dy: -22%r }, thickness: 2px }
+      hub: { type: circle, radius: 3%r }

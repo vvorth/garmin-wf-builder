@@ -838,3 +838,32 @@ These cost real time to discover; do not rediscover them.
   wins); no entry needs both. Measured: a face binding both `position.*`
   sources is 1,283 B on each of the three verification targets, and
   1,354 B there when `fenix5` joins the build (the two `has` checks).
+  **`field_name` names a field of the primary reader**: `declarationsFor`
+  writes the device-field check on the primary reader's local, so a call
+  whose device-gated field belongs to another reader puts that reader
+  first. The `astro.*` sources that need the position therefore read
+  `weather_current` first (`WfbAstro.sunAltitude(weatherCurrent, dateShort,
+  clock)`) with `field_name: observationLocationPosition`, and a build with
+  `fenix5` guards `weatherCurrent has :observationLocationPosition`; written
+  the other way round the check would land on `dateShort`, be false on
+  every device, and read null everywhere without a diagnostic
+  (`ts/test/astro.test.ts` holds the shape).
+  **A computed source is the same mechanism**: the ten `astro.*` entries
+  name a `WfbAstro` function over one to three readers (`date_short`,
+  `clock`, `weather_current`) and nothing else, so the catalogue's type,
+  nullability, permission and device gating cover them with no new codegen,
+  and the expression language gains no function. The barrel does the
+  arithmetic in `Double` (a `Float` cannot hold days since J2000 together
+  with a fraction of a day; `Math.sin` and friends answer the type they are
+  given, kept through `.toDouble()` helpers so every intermediate stays
+  typed `Double`) and converts only the final reading with `.toFloat()`.
+  `ts/src/astro.ts` is the host twin -- the same formulas in the same
+  order, `Math.fround` for the final rounding -- which `sampleValues` in
+  `ts/src/preview.ts` runs over the frame's `date.*`, `time.*`,
+  `time.utc_offset` and `position.*` values after `--sample` overrides, as
+  `setDefault`s so an `astro.*` override of its own still wins.
+  `ts/test/astro.test.ts` holds the twin to reference values and the
+  `.mc` text to the twin, statement by statement. Measured:
+  `examples/features/astro/face.yaml` (every `astro.*` and `position.*`
+  reading as text, a needle gauge, a static dial) is 7,506 B on
+  `fenix8solar47mm` and `fr955`, 7,508 B on `fenix8solar51mm`.

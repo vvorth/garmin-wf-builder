@@ -8,6 +8,7 @@
 // layout's advances put it. A rotated or curved run turns its outlines
 // before they are rasterised, as the watch does, so no bitmap is rotated.
 import * as aodMask from "./aod_mask.ts";
+import { astroValues } from "./astro.ts";
 import type { Device, FontMetric } from "./devices/device.ts";
 import * as drawProgram from "./draw/index.ts";
 import type { Values } from "./draw/evaluator.ts";
@@ -118,6 +119,8 @@ export function sampleValues(resolved: ResolvedFace, options: PreviewOptions, en
   const setDefault = (key: string, value: ExprValue): void => {
     if (!values.has(key)) values.set(key, value);
   };
+  // The astronomy follows the date, time, offset and position above, overrides included; its own override still wins.
+  for (const [k, v] of astroValues(values)) setDefault(k, v);
   for (const [name, color] of resolved.face.palette) setDefault(`color.${name}`, color.value);
   for (const configEntry of resolved.face.config.values()) setDefault(`color.${configEntry.role}`, configEntry.default.value);
   if (entry !== null && entry.colors !== null) {

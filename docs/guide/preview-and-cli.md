@@ -57,7 +57,7 @@ wfb studio    [-p PORT]            # the editor, on http://127.0.0.1:8765/
 wfb build     design.yaml [-d DEVICE] [-o DIR] [-j N] [--no-compile] [--profile [REPS]] [--trace]
 wfb export    design.yaml [-d DEVICE | --all-devices] [--id UUID] [-o DIR]  # one signed .iq for the Store
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
-wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [--sample NAME=VALUE] [-q] [-o -]  # render to PNG; no simulator
+wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [--sample NAME=VALUE] [--time HH:MM[:SS]] [--date YYYY-MM-DD] [-q] [-o -]  # render to PNG; no simulator
 wfb simulate  design.yaml [-d DEVICE] [-f] [--trace] [--screenshot PNG]  # run it in the simulator
 wfb devices                        # installed device definitions and their limits
 wfb fonts     [DEVICE ...] [-d DEVICE]  # fonts per device: scalable (vector) and system (bitmap)
@@ -83,6 +83,15 @@ and `complication.notification_count`; `steps` sets `activity.steps`). A
 dotted name is one source (`wfb sources`), such as `device.is_24_hour=false`.
 A value must suit the type: a whole number, a number, `true` or
 `false`, or text.
+
+`wfb preview --time HH:MM[:SS]` renders at that time of day instead of the
+sample 10:09:42 (`--minute N` is the same, as a minute of the day), and
+`--date YYYY-MM-DD` on that calendar day instead of the sample 3 September
+2026: every `time.*` and `date.*` reading follows, and so does every
+`astro.*` reading derived from them ([Data](data.md#astronomy)). The three
+combine with `--sample`: `--date 2026-03-20 --time 12:00:00 --sample
+time.utc_offset=0` is noon UT at the March equinox. A day that is not one
+(`2026-02-30`) is refused.
 
 `wfb build` compiles the devices in parallel: one `monkeyc` per device, at
 most one per CPU and at most four at once. `-j N` sets the limit, and `-j 1`
