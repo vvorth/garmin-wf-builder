@@ -141,9 +141,13 @@ export function complicationTypesNamed(face: Face): Set<string> {
   const byConstant = new Map([...complications.TYPES.values()].map((t) => [t.constant, t.name]));
   for (const path of designPaths(face)) {
     const source = CATALOG.get(path);
-    const constant = source !== undefined ? READERS.get(source.reader)?.complication_type : null;
-    const type = constant ? byConstant.get(constant) : undefined;
-    if (type !== undefined) out.add(type);
+    if (source !== undefined) {
+      for (const name of readerNames(source)) {
+        const constant = READERS.get(name)?.complication_type;
+        const type = constant ? byConstant.get(constant) : undefined;
+        if (type !== undefined) out.add(type);
+      }
+    }
     if (source?.launch_complication && complications.TYPES.get(source.launch_complication) !== undefined) out.add(source.launch_complication);
   }
   for (const element of face.walk()) if (element.on_hold !== null && complications.TYPES.get(element.on_hold) !== undefined) out.add(element.on_hold);

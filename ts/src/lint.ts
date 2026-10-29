@@ -753,9 +753,12 @@ function expensiveLowPowerReader(element: Element): [string, string] | null {
     for (const path of expression.sources) {
       const source = catalog.get(path);
       if (source === undefined) continue;
-      if (source.reader === "weather_current" || source.reader === "weather_daily") return [path, "Weather.getCurrentConditions()/getDailyForecast()"];
-      const reader = catalog.READERS.get(source.reader);
-      if (reader !== undefined && reader.complication_type !== null) return [path, "Complications.getComplication()"];
+      // Every reader the source takes, a barrel call's extra readers included.
+      for (const name of catalog.readerNames(source)) {
+        if (name === "weather_current" || name === "weather_daily") return [path, "Weather.getCurrentConditions()/getDailyForecast()"];
+        const reader = catalog.READERS.get(name);
+        if (reader !== undefined && reader.complication_type !== null) return [path, "Complications.getComplication()"];
+      }
     }
   }
   return null;
