@@ -39,11 +39,12 @@ trail-utility, second pass (reference.png, a cleaner render of the same kind of 
 
 
 solaria (three press photos of the Vacheron Constantin Les Cabinotiers
-Solaria Ultra Grand Complication, not committed; `gen.py` writes the face,
-`preview-skin.png` is the result, `preview-night.png` the same at 22:40
-(the preview reads the sunrise/sunset complications as absent, so the night
-sector and the pointers are at their fallbacks), and `moon-phases.png` the
-moon at eight ages via `--sample astro.moon_age=`):
+Solaria Ultra Grand Complication, not committed; the user hand-edits
+`face.yaml` since version 1.2.0, after a generator wrote the first
+versions; `preview-skin.png` is the 47 mm render with a sample sunrise and
+sunset (`--sample sunrise=23520,sunset=70200`, since the preview reads a
+complication as absent), `preview-night.png` the same at 22:40, and
+`moon-phases.png` the moon at eight ages via `--sample astro.moon_age=`):
 
 ❯ that is the watch that has the most number of mechanical complications.
   Vacheron Constantin Solaria Ultra Grand Complication. can you look it up
@@ -62,3 +63,9 @@ moon at eight ages via `--sample astro.moon_age=`):
   second time zone now read the watch's own figures, which also made room
   for the one indication the face could not show before, the sun's height
   at culmination)
+❯ i made some changes  (version 1.2.0: the side counters at ±50 %r, larger
+  labels, the sunrise · culmination · sunset row, and fenix947mm as a
+  target for a higher-resolution preview in the studio; the orchestrator
+  fixed the night bands' width, the waxing shadow's axis and the nineteen
+  city hands that had not followed the counter, and gave the AMOLED target
+  the always-on frame it needs: the hands and hub, dimmed)
