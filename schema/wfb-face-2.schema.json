@@ -629,7 +629,7 @@
       ]
     },
     "patternCurve": {
-      "description": "curve: on a pattern's own 'type: text' part -- the same bend a 'text' element's own 'curve:' gives it, through the same Dc.drawAngledText/Dc.drawRadialText, with one difference: 'angle:' is in the TEMPLATE'S OWN LOCAL FRAME, for copy 0. A radial pattern turns every later copy's angle right along with its anchor -- the same way a pattern 'type: arc' part's own 'start_angle:' already turns with the copy -- so an author writes one angle per part (e.g. 0deg, tangent to the copy's own radius), not one per copy; a linear pattern never turns, so every copy simply keeps this angle unchanged. Otherwise identical to the 'curve' definition: 'style:' is the required discriminator ('angled'/'radial'), 'radius:'/'direction:' are rejected on 'angled'. The one real difference from '#/$defs/curve' is 'radius:', which is a handLength here (px or %r only) rather than a length -- a pattern part has no parent box for '%' and no font in scope for 'pt' in this position, the same restriction every other pattern-part length already carries.",
+      "description": "curve: on a pattern's own 'type: text' part -- the same bend a 'text' element's own 'curve:' gives it, through the same Dc.drawAngledText/Dc.drawRadialText, with one difference: 'angle:' is in the TEMPLATE'S OWN LOCAL FRAME, for copy 0. A radial pattern turns every later copy's angle right along with its anchor -- the same way a pattern 'type: arc' part's own 'start_angle:' already turns with the copy -- so an author writes one angle per part (e.g. 0deg, tangent to the copy's own radius), not one per copy; a linear pattern never turns, so every copy simply keeps this angle unchanged. Otherwise identical to the 'curve' definition: 'style:' is the required discriminator ('angled'/'radial'), 'radius:'/'direction:' are rejected on 'angled'. The one real difference from '#/$defs/curve' is 'radius:', which is a pattern part's length here rather than a length: px or %r, and in a linear or grid pattern also % of the box the pattern sits in; never pt, the same rule every other pattern-part length follows.",
       "type": "object",
       "required": [
         "style",
@@ -649,8 +649,8 @@
           "description": "In this part's own local (copy-0) frame -- a radial pattern composes it with the copy's own rotation, the same way an 'arc' part's 'start_angle:' composes with 'start:'/'step:'. Not one convention, the same split '#/$defs/curve's own 'angle:' makes: for 'style: radial', a POSITION (12 o'clock = 0, clockwise positive -- where around the circle the text starts). For 'style: angled', a ROTATION ('0deg' = level/unrotated, clockwise positive -- how far the text's own baseline is tilted). A radial PATTERN with an 'angled' text part composing '0deg' with each copy's own rotation is what makes one 'angle: 0deg' sit tangent to every copy's own radius and read level at the top of the dial, without the author writing one angle per copy."
         },
         "radius": {
-          "$ref": "#/$defs/handLength",
-          "description": "'radial' only: the circle's own radius, px or %r only (a pattern part's frame has no parent box for '%' and no font in scope for 'pt'). Required with 'style: radial'. Schema-legal but rejected as a build error under 'style: angled', the same 'text-antialias' precedent '`ts/src/ir/builder/index.ts`' already follows elsewhere."
+          "$ref": "#/$defs/patternPartLength",
+          "description": "'radial' only: the circle's own radius, px or %r, and in a linear or grid pattern also % of the box the pattern sits in (its smaller side); never pt. Required with 'style: radial'. Schema-legal but rejected as a build error under 'style: angled', the same 'text-antialias' precedent '`ts/src/ir/builder/index.ts`' already follows elsewhere."
         },
         "direction": {
           "description": "'radial' only: which way the text runs around the circle starting at 'angle:'. Schema-legal but rejected as a build error under 'style: angled', for the same reason 'radius:' is.",
@@ -738,6 +738,73 @@
           "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(%r|%|px)?\\s*$"
         }
       ]
+    },
+    "patternPartLength": {
+      "description": "px, % or %r. '%' is of the box the pattern sits in (its group's, or the screen's): across for dx and a width, down for dy and a height, its smaller side for a radius or thickness -- in a linear or grid pattern only, whose parts never turn; a radial pattern turns its parts with each copy, so '%' is refused there (px or %r). Not pt: a part's geometry has no font in scope to measure against. %r is the screen's minor radius. A bare number means px.",
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*[+-]?(\\d+\\.?\\d*|\\.\\d+)\\s*(%r|%|px)?\\s*$"
+        }
+      ]
+    },
+    "patternPartPosition": {
+      "description": "A position within a pattern part's frame, measured from the pattern's own 'at:' -- there is no anchor, because 'at:' already is one. Cartesian (dx/dy) or polar (angle/radius, clockwise from 12 o'clock), px, % (a linear or grid pattern's only) or %r.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dx": {
+          "$ref": "#/$defs/patternPartLength"
+        },
+        "dy": {
+          "$ref": "#/$defs/patternPartLength"
+        },
+        "angle": {
+          "$ref": "#/$defs/angle"
+        },
+        "radius": {
+          "$ref": "#/$defs/patternPartLength"
+        }
+      },
+      "dependentRequired": {
+        "angle": [
+          "radius"
+        ],
+        "radius": [
+          "angle"
+        ]
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "dx",
+              "angle"
+            ]
+          },
+          {
+            "required": [
+              "dy",
+              "angle"
+            ]
+          }
+        ]
+      }
+    },
+    "patternPartSize": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "$ref": "#/$defs/patternPartLength"
+        },
+        "height": {
+          "$ref": "#/$defs/patternPartLength"
+        }
+      }
     },
     "zOrder": {
       "type": "integer"
@@ -3251,7 +3318,7 @@
       }
     },
     "patternPart": {
-      "description": "One primitive of a pattern's template, in the same frame a hand part uses: origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks. 'anchor:' is rejected. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points' and 'mirror'; rectangle 'at', 'size', 'align'; line 'at', 'to', 'thickness'; circle 'at', 'radius', 'filled', 'thickness' (only when 'filled: false'), 'align'; arc 'radius', 'thickness', 'start_angle', 'sweep' (always centred on the copy's own origin); text 'at', 'text', 'font', 'align', 'curve', 'unsupported' and 'outline'.",
+      "description": "One primitive of a pattern's template, in the same frame a hand part uses: origin = the pattern's own 'at:', +x right, +y down, drawn as copy 0 looks. 'anchor:' is rejected. Lengths are px or %r, and in a linear or grid pattern also % of the box the pattern sits in. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points' and 'mirror'; rectangle 'at', 'size', 'align'; line 'at', 'to', 'thickness'; circle 'at', 'radius', 'filled', 'thickness' (only when 'filled: false'), 'align'; arc 'radius', 'thickness', 'start_angle', 'sweep' (always centred on the copy's own origin); text 'at', 'text', 'font', 'align', 'curve', 'unsupported' and 'outline'.",
       "type": "object",
       "required": [
         "type"
@@ -3272,12 +3339,12 @@
           ]
         },
         "points": {
-          "description": "A polygon part's vertices, 3 to 64 (2 to 64 with 'mirror: x', which supplies the rest), each a handPosition measured from the origin.",
+          "description": "A polygon part's vertices, 3 to 64 (2 to 64 with 'mirror: x', which supplies the rest), each a patternPartPosition measured from the origin.",
           "type": "array",
           "minItems": 2,
           "maxItems": 64,
           "items": {
-            "$ref": "#/$defs/handPosition"
+            "$ref": "#/$defs/patternPartPosition"
           }
         },
         "mirror": {
@@ -3287,19 +3354,19 @@
           ]
         },
         "at": {
-          "$ref": "#/$defs/handPosition"
+          "$ref": "#/$defs/patternPartPosition"
         },
         "size": {
-          "$ref": "#/$defs/handSize"
+          "$ref": "#/$defs/patternPartSize"
         },
         "to": {
-          "$ref": "#/$defs/handPosition"
+          "$ref": "#/$defs/patternPartPosition"
         },
         "thickness": {
-          "$ref": "#/$defs/handLength"
+          "$ref": "#/$defs/patternPartLength"
         },
         "radius": {
-          "$ref": "#/$defs/handLength"
+          "$ref": "#/$defs/patternPartLength"
         },
         "filled": {
           "type": "boolean",

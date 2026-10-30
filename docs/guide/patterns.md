@@ -109,10 +109,40 @@ element instead of sixty.
 it is copy 0, drawn **as it looks at 12 o'clock**, in a frame whose
 **origin is the pattern's `at:`**. `dx` is positive to the right and `dy`
 positive *down*, so a tick near the rim sits at negative `dy`. Part
-positions take `px` and `%r` only, and no `anchor:` (the origin is the
-anchor). A polar `{angle, radius}` position works too. Every part length
-resolves to whole pixels at build time, rounded half away from zero, the
-same as a hand part.
+lengths take `px` and `%r`, and, in a linear or grid pattern, `%` (below);
+never `pt`. A part position has no `anchor:` (the origin is the anchor). A
+polar `{angle, radius}` position works too. Every part length resolves to
+whole pixels at build time, rounded half away from zero, the same as a hand
+part.
+
+**`%` in a linear or grid pattern's parts** measures the box the pattern
+sits in -- its group's, or the screen's at the top level -- the way `%`
+does everywhere else: a `dx` and a `size.width` take the box's width, a
+`dy` and a `size.height` its height, and a `radius`, a `thickness` or a
+polar position's `radius` its smaller side. Inside a group that is how
+the parts scale with it:
+
+```yaml
+row:
+  type: group
+  at: {anchor: center}
+  size: {width: 70%r, height: 20%r}
+  children:
+    bars:
+      type: pattern
+      pattern: linear
+      at: {anchor: left, dx: 7%}
+      count: 7
+      step: {dx: 14%}                                 # of the group's width
+      color: color.accent
+      parts:
+        bar: {type: rectangle, size: {width: 10%, height: 80%}}   # of its width, of its height
+        dot: {type: circle, at: {dy: -30%}, radius: 5%, color: color.fg}
+```
+
+A radial pattern's parts take `px` and `%r` only: each copy turns its
+parts, so a `%` of the width or the height would mean something different
+at every angle. A hand's parts follow the same rule, for the same reason.
 
 | `pattern:` | copy `i` is | `step_angle:` / `step:` | `start:` |
 |---|---|---|---|
@@ -293,11 +323,10 @@ above). So `angle: 0deg` above draws every numeral tangent to its own
 radius (pointing outward from the dial's centre), with one authored angle,
 not twelve. A linear pattern never turns at all, so its copies simply keep
 the part's own angle unchanged — there is no copy angle to compose with.
-`style: radial`'s `radius:` is a `handLength` here (px or `%r` only — a
-pattern part's frame has no parent box for `%` and no font in scope for
-`pt`, the same restriction every other pattern-part length already
-carries), and its circle is centred on that copy's own anchor, not a fixed
-point.
+`style: radial`'s `radius:` is a part length like any other here (`px`
+or `%r`, plus `%` of the box's smaller side in a linear or grid pattern;
+never `pt`), and its circle is centred on that copy's own anchor, not a
+fixed point.
 
 `unsupported:` (`error`/`hide`) works the same way here as on a
 standalone `text` element, set on the part to override the font's own

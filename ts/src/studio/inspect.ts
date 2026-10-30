@@ -81,7 +81,7 @@ const MAX_DEPTH = 6;
 
 /** `$defs` entries that pick a scalar's control, by the name the schema refers to. */
 const WIDGET_BY_REF: Record<string, Widget> = {
-  length: "length", handLength: "length", patternLength: "length",
+  length: "length", handLength: "length", patternLength: "length", patternPartLength: "length",
   angle: "angle",
   // a segmented gauge's gap: an angle on an arc, a length on a bar (`field` picks which)
   gaugeGap: "gap",

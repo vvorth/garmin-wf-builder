@@ -506,23 +506,36 @@ function* partsOf(container: Dict, key = "parts"): Generator<[Step, Dict]> {
 interface Frame {
   noun: string;
   origin: string;
+  /** The units a length in this frame takes, as the message names them. */
+  units: string;
   lengthNote: string;
   anchorNote: string;
+  /** Each unit this frame refuses, and why; a unit not listed is accepted. */
   unitRefusals: Record<string, string>;
 }
 
 const HAND_FRAME: Frame = {
-  noun: "hand part", origin: "the hand's axis",
+  noun: "hand part", origin: "the hand's axis", units: "px or %r",
   lengthNote: "every coordinate in a hand is measured from its axis; %r (the screen's minor radius) scales it with the dial",
   anchorNote: "the axis is the element's own 'at:'; inside a hand, {dx, dy} or {angle, radius} are offsets from it",
   unitRefusals: { "%": "a hand frame has no parent box for '%' to measure against", pt: "a hand has no font for 'pt' to measure against" },
 };
-const PATTERN_FRAME: Frame = {
-  noun: "pattern part", origin: "the pattern's own 'at:'",
-  lengthNote: "every coordinate in a pattern part is measured from the pattern's own 'at:'; %r (the screen's minor radius) scales it with the dial",
+/** A radial pattern's parts turn with every copy, so a per-axis `%` would mean something else at each angle. */
+const RADIAL_PATTERN_FRAME: Frame = {
+  noun: "radial pattern part", origin: "the pattern's own 'at:'", units: "px or %r",
+  lengthNote: "every coordinate in a pattern part is measured from the pattern's own 'at:'; %r (the screen's minor radius) scales it with the dial and "
+    + "means the same at every angle; a linear or grid pattern's parts, which never turn, also take '%' of the box the pattern sits in",
   anchorNote: "{dx, dy} or {angle, radius} are offsets from 'at:'",
-  unitRefusals: { "%": "a pattern part's frame has no parent box for '%' to measure against",
+  unitRefusals: { "%": "a radial pattern turns each copy's parts, so a '%' of the width or height would mean something else at every angle",
     pt: "a pattern part's geometry has no font for 'pt' to measure against" },
+};
+/** A linear or grid pattern's parts never turn: `%` measures against the box the pattern sits in. */
+const STEPPED_PATTERN_FRAME: Frame = {
+  noun: "pattern part", origin: "the pattern's own 'at:'", units: "px, % or %r",
+  lengthNote: "every coordinate in a pattern part is measured from the pattern's own 'at:'; '%' is of the box the pattern sits in (its group's, or "
+    + "the screen's), across for x and a width, down for y and a height, its smaller side for a radius or thickness; %r is the screen's minor radius",
+  anchorNote: "{dx, dy} or {angle, radius} are offsets from 'at:'",
+  unitRefusals: { pt: "a pattern part's geometry has no font for 'pt' to measure against" },
 };
 
 /** Explain the two things a hand or pattern part's frame refuses that every other position accepts: `%`/`pt` lengths and `anchor:`. */
@@ -530,9 +543,9 @@ function checkFramePart(doc: YamlDocument, bag: Bag, part: Dict, path: Path, fra
   const bad: Path[] = [];
   const length = (container: Dict, key: string, at: Path): void => {
     const unit = handUnit(container.get(key));
-    if (unit === null) return;
+    if (unit === null || !(unit in frame.unitRefusals)) return;
     bag.error("schema",
-      `${dottedPath(at)}: ${quoted(container.get(key))} -- a ${frame.noun}'s lengths are px or %r only; ${frame.unitRefusals[unit]}`,
+      `${dottedPath(at)}: ${quoted(container.get(key))} -- a ${frame.noun}'s lengths are ${frame.units} only; ${frame.unitRefusals[unit]}`,
       doc.span(container, key), { notes: [frame.lengthNote] });
     bad.push(at);
   };
@@ -552,6 +565,8 @@ function checkFramePart(doc: YamlDocument, bag: Bag, part: Dict, path: Path, fra
   if (isDict(size)) for (const key of ["width", "height"]) length(size, key, [...path, "size", key]);
   const points = part.get("points");
   if (Array.isArray(points)) points.forEach((point, i) => position(point, [...path, "points", i]));
+  const curve = part.get("curve");
+  if (isDict(curve)) length(curve, "radius", [...path, "curve", "radius"]);
   return bad;
 }
 
@@ -591,7 +606,8 @@ function checkPatternFrame(doc: YamlDocument, bag: Bag): Path[] {
         }
       }
     }
-    for (const [i, part] of partsOf(element)) bad.push(...checkFramePart(doc, bag, part, [...here, "parts", i], PATTERN_FRAME));
+    const frame = element.get("pattern") === "radial" ? RADIAL_PATTERN_FRAME : STEPPED_PATTERN_FRAME;
+    for (const [i, part] of partsOf(element)) bad.push(...checkFramePart(doc, bag, part, [...here, "parts", i], frame));
   });
   return bad;
 }

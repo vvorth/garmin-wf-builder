@@ -12,7 +12,7 @@ import {
 } from "../ir/model.ts";
 import type { Device } from "../devices/device.ts";
 import {
-  type Ink, type Placed, PlacedPattern, type ResolvedHandPart, type Resolver, type ResolvedTextPart, roundHalfAway, textInk,
+  HAND_FRAME_BOX, type Ink, type Placed, PlacedPattern, type ResolvedHandPart, type Resolver, type ResolvedTextPart, roundHalfAway, textInk,
 } from "../layout.ts";
 import { deepEqual, formatG, num, floorMod } from "../py.ts";
 import { Box, IntBox, roundPx as round } from "../units.ts";
@@ -395,7 +395,10 @@ class PatternKind extends ElementKind<PatternElement> {
   override resolve(r: Resolver, element: PatternElement, parent: Box, depth: number): Placed {
     const [cx, cy] = r.point(element.at, parent);
     const center: [number, number] = [round(cx), round(cy)];
-    let [parts, reach] = r.resolveParts(element.parts, `${element.id}.parts`, element.resolved_min_1px);
+    // A radial pattern turns its parts with each copy, so a per-axis `%` would change meaning from copy to copy;
+    // a linear or grid pattern's parts never turn, and measure `%` against the box the pattern sits in.
+    const partFrame = element.pattern === "radial" ? HAND_FRAME_BOX : parent;
+    let [parts, reach] = r.resolveParts(element.parts, `${element.id}.parts`, element.resolved_min_1px, partFrame);
     let start: number, step: number, dx = 0, dy = 0;
     if (element.pattern === "radial") {
       [start, step] = [element.start_angle, element.step_angle];
@@ -409,7 +412,7 @@ class PatternKind extends ElementKind<PatternElement> {
     const aodThickness = r.aodExtent(element, "thickness", parent, 1);
     const placed = PlacedPattern.create({
       element, box: new IntBox(0, 0, 0, 0), center, depth, parts, copies: element.drawnIndices(), start, step, dx, dy,
-      columns: element.columns ?? 0, reach, aod_thickness: aodThickness,
+      columns: element.columns ?? 0, reach, aod_thickness: aodThickness, part_frame: partFrame,
     });
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, textReach = 0.0;
     for (const index of placed.copies) {

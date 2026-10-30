@@ -41,8 +41,13 @@ export class Placed {
   get kind(): string { return this.element.kind; }
 }
 
-/** The "parent box" of a hand/pattern part's own frame: zero-sized at the origin. */
-const HAND_FRAME_BOX = new Box(0.0, 0.0, 0.0, 0.0);
+/**
+ * The "parent box" of a hand's, a needle's or a radial pattern's part frame:
+ * zero-sized at the origin, so `%` has no extent there. A linear or grid
+ * pattern's parts measure `%` against the pattern's own parent box instead
+ * (`resolveParts`'s `frame`).
+ */
+export const HAND_FRAME_BOX = new Box(0.0, 0.0, 0.0, 0.0);
 
 /** Round half away from zero, so a mirrored `dx: -1.5px`/`1.5px` pair stays symmetric. */
 export function roundHalfAway(value: number): number {
@@ -585,6 +590,8 @@ export class PlacedPattern extends Placed {
   columns = 0;
   reach = 0.0;
   aod_thickness: number | null = null;
+  /** The box the parts' `%` lengths measured against: the parent box for a linear or grid pattern, else `HAND_FRAME_BOX`. */
+  part_frame: Box = HAND_FRAME_BOX;
 
   /** `[ox, oy, sin, cos]` for copy `index`: a rotation about `center`, or a translation. */
   transform(index: number): [number, number, number, number] {
@@ -963,33 +970,39 @@ export class Resolver {
     return new FontMetric(faceName || "vector", faceName, filename, fontPx);
   }
 
-  /** Every part of one `parts:` mapping (`owner` its path, `<element>.parts` or `<element>.needle`), and the farthest reach among them. */
-  resolveParts(parts: readonly AnyHandPart[], owner: string, min1px: boolean): [ResolvedHandPart[], number] {
+  /**
+   * Every part of one `parts:` mapping (`owner` its path, `<element>.parts` or
+   * `<element>.needle`), and the farthest reach among them. `frame` is the box
+   * a part's `%` lengths measure against: the zero-sized `HAND_FRAME_BOX`
+   * (where `%` has no extent) but for a linear or grid pattern's parts, which
+   * measure it against the pattern's own parent box.
+   */
+  resolveParts(parts: readonly AnyHandPart[], owner: string, min1px: boolean, frame: Box = HAND_FRAME_BOX): [ResolvedHandPart[], number] {
     const resolved: ResolvedHandPart[] = [];
     let reach = 0.0;
     for (const part of parts) {
-      const p = this.ownedBy({ ...this.owner!, id: `${owner}.${part.id}`, span: part.span }, () => this.handPartGeometry(part, min1px));
+      const p = this.ownedBy({ ...this.owner!, id: `${owner}.${part.id}`, span: part.span }, () => this.handPartGeometry(part, min1px, frame));
       resolved.push(p);
       reach = Math.max(reach, p.reach);
     }
     return [resolved, reach];
   }
 
-  /** One hand or pattern part in whole pixels in its own frame, rounded half away from zero. */
-  private handPartGeometry(part: AnyHandPart, min1px: boolean): ResolvedHandPart {
+  /** One hand or pattern part in whole pixels in its own frame, rounded half away from zero; `%` measures against `frame`. */
+  private handPartGeometry(part: AnyHandPart, min1px: boolean, frame: Box): ResolvedHandPart {
     const effective = part.min_1px !== null ? part.min_1px : min1px;
     if (part.shape === "polygon") {
       const points = part.points.map((p): [number, number] => {
-        const [x, y] = this.handPoint(p);
+        const [x, y] = this.handPoint(p, frame);
         return [roundHalfAway(x), roundHalfAway(y)];
       });
       const reach = points.length > 0 ? Math.max(...points.map(([x, y]) => hypot(x, y))) : 0.0;
       return ResolvedPolygonPart.create({ id: part.id, color: part.color, reach, points });
     }
     if (part.shape === "rectangle") {
-      let [cx, cy] = this.handPoint(part.at);
-      const width = this.handExtent(part.size.width, 0, effective, "size.width");
-      const height = this.handExtent(part.size.height, 0, effective, "size.height");
+      let [cx, cy] = this.handPoint(part.at, frame);
+      const width = this.handExtent(part.size.width, 0, effective, "size.width", frame, "x");
+      const height = this.handExtent(part.size.height, 0, effective, "size.height", frame, "y");
       const [dx, dy] = alignmentShift(width, height, part.align, part.vertical_align);
       cx += dx;
       cy += dy;
@@ -1000,27 +1013,27 @@ export class Resolver {
       return ResolvedPolygonPart.create({ id: part.id, color: part.color, reach, points });
     }
     if (part.shape === "line") {
-      const [x1, y1] = this.handPoint(part.at);
-      const [x2, y2] = this.handPoint(part.to!);
-      const thickness = Math.max(1, roundHalfAway(this.handExtent(part.thickness, 1, effective, "thickness")));
+      const [x1, y1] = this.handPoint(part.at, frame);
+      const [x2, y2] = this.handPoint(part.to!, frame);
+      const thickness = Math.max(1, roundHalfAway(this.handExtent(part.thickness, 1, effective, "thickness", frame)));
       const reach = Math.max(hypot(x1, y1), hypot(x2, y2)) + thickness / 2.0;
       return ResolvedLinePart.create({
         id: part.id, color: part.color, reach, x1: roundHalfAway(x1), y1: roundHalfAway(y1), x2: roundHalfAway(x2), y2: roundHalfAway(y2), thickness,
       });
     }
     if (part.shape === "arc") {
-      const radius = roundHalfAway(this.handExtent(part.radius, 0, effective, "radius"));
-      const thickness = Math.max(1, roundHalfAway(this.handExtent(part.thickness, 1, effective, "thickness")));
+      const radius = roundHalfAway(this.handExtent(part.radius, 0, effective, "radius", frame));
+      const thickness = Math.max(1, roundHalfAway(this.handExtent(part.thickness, 1, effective, "thickness", frame)));
       const startAngle = (part.start_angle ?? new Angle(0.0)).degrees;
       const sweep = (part.sweep ?? new Angle(360.0)).degrees;
       return ResolvedArcPart.create({ id: part.id, color: part.color, reach: radius + thickness / 2.0, radius, thickness, start_angle: startAngle, sweep });
     }
     if (part.shape === "text") {
-      const [x0, y0] = this.handPoint(part.at);
+      const [x0, y0] = this.handPoint(part.at, frame);
       const font = this.textFont(part.font, part.font_is_custom, part.curve);
       let curve = resolvedCurve(part.curve);
       if (part.curve !== null && curve.style === "radial" && part.curve.radius !== null) {
-        curve = replaceFields(curve, { radius_px: roundHalfAway(this.handExtent(part.curve.radius, 0, effective, "curve.radius")) });
+        curve = replaceFields(curve, { radius_px: roundHalfAway(this.handExtent(part.curve.radius, 0, effective, "curve.radius", frame)) });
       }
       const outline = part.outline;
       return ResolvedTextPart.create({
@@ -1031,24 +1044,31 @@ export class Resolver {
       });
     }
     // circle
-    let [cx, cy] = this.handPoint(part.at);
-    const radius = roundHalfAway(this.handExtent(part.radius, 0, effective, "radius"));
+    let [cx, cy] = this.handPoint(part.at, frame);
+    const radius = roundHalfAway(this.handExtent(part.radius, 0, effective, "radius", frame));
     const [dx, dy] = alignmentShift(2 * radius, 2 * radius, part.align, part.vertical_align);
     cx += dx;
     cy += dy;
-    const thickness = Math.max(1, roundHalfAway(this.handExtent(part.thickness, 1, effective, "thickness")));
+    const thickness = Math.max(1, roundHalfAway(this.handExtent(part.thickness, 1, effective, "thickness", frame)));
     const penReach = part.filled ? radius : radius + thickness / 2.0;
     return ResolvedCirclePart.create({
       id: part.id, color: part.color, reach: hypot(cx, cy) + penReach, x: roundHalfAway(cx), y: roundHalfAway(cy), radius, thickness, filled: part.filled,
     });
   }
 
-  private handPoint(at: Position): [number, number] {
-    return this.point(at, HAND_FRAME_BOX);
+  /** A part position: an offset from the part frame's origin (a part takes no `anchor:`), its `%` measured against `frame`. */
+  private handPoint(at: Position, frame: Box): [number, number] {
+    if (at.angle !== null) {
+      const radius = this.length(at.radius, frame, "minor", 0);
+      const theta = radians(at.angle.degrees);
+      return [radius * Math.sin(theta), -radius * Math.cos(theta)];
+    }
+    return [this.length(at.dx, frame, "x", 0), this.length(at.dy, frame, "y", 0)];
   }
 
-  private handExtent(length: Length | null, defaultValue: number, min1px: boolean, what: string): number {
-    return this.extent(length, HAND_FRAME_BOX, "minor", defaultValue, null, min1px, what);
+  /** A part extent; `%` measures against `frame`, across for a width, down for a height, else on its smaller side. */
+  private handExtent(length: Length | null, defaultValue: number, min1px: boolean, what: string, frame: Box, axis: Axis = "minor"): number {
+    return this.extent(length, frame, axis, defaultValue, null, min1px, what);
   }
 
   // -- helpers ------------------------------------------------------------------

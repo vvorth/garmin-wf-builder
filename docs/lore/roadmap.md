@@ -19,7 +19,8 @@ or AOD-related has been observed on a watch or in the simulator.
   primitives (`rectangle`, `circle`, `ellipse`, `arc`, `polygon`, `line`),
   `gauge`, `graph` (`range: {duration:}` or `{samples:}`), `hands`, `pattern`
   (`radial` turning by `step_angle:`, `linear` and `grid` moving by
-  `step: {dx, dy}`); nine internal kinds. `hands` and `pattern`
+  `step: {dx, dy}`, their parts' `%` measured against the pattern's
+  parent box); nine internal kinds. `hands` and `pattern`
   are the two places the watch does layout arithmetic (`WfbHands.mc`,
   `WfbGeom.mc`); baked pattern copies measured ~30× the memory
   (`docs/research/probes/pattern-cost/`). `docs/guide/elements.md`,

@@ -12,6 +12,12 @@
 #   dimmed.
 # * **Text parts on a grid** (`weekdays`): the seven day initials as one
 #   `type: text` part, a single row of seven, heading the dots.
+# * **`%` part lengths inside a group** (`week`): a framed strip of seven
+#   bars, today's lit. A linear (or grid) pattern's parts measure `%`
+#   against the box the pattern sits in, here the group's: each bar is 10 %
+#   of the strip's width and 60 % of its height, so resizing the group
+#   resizes the bars with it. The strip is 98%r wide, so its 1/7 step
+#   lines each bar up under a column of dots.
 #
 # The month always has 31 dots; a shorter month's last days simply never
 # light. A per-copy `visible:` could hide them, at the cost of reading the
@@ -77,3 +83,25 @@ elements:
     color: "copy == date.day - 1 ? color.today : (copy < date.day - 1 ? color.past : color.fg)"
     parts:
       dot: { type: circle, radius: 4%r }
+
+  week:
+    type: group
+    at: { anchor: center, dy: 68%r }
+    size: { width: 98%r, height: 14%r }
+    children:
+      frame:
+        type: rectangle
+        at: { anchor: center }
+        size: { width: 100%, height: 100% }
+        filled: false
+        color: color.past
+      bars:
+        type: pattern
+        pattern: linear
+        at: { anchor: left, dx: 7.1429% }   # the middle of the first seventh
+        count: 7
+        step: { dx: 14.2857% }              # a seventh of the group's width
+        # date.weekday is 1 = Sunday .. 7 = Saturday: (weekday + 5) % 7 is Monday = 0
+        color: "copy == (date.weekday + 5) % 7 ? color.today : color.past"
+        parts:
+          bar: { type: rectangle, size: { width: 10%, height: 60% } }

@@ -5,8 +5,10 @@
 // (`PartTarget`: a hand's, a pattern's or a needle's part, located in the
 // text and drawn at an angle). A part lives in its own frame, origin at the
 // axis and +y down, turned by the angle it is drawn at, so a delta on the
-// screen is turned back into that frame first (`toLocal`), and its lengths
-// are px or %r, which the frame's zero-sized box resolves (`HAND_FRAME`).
+// screen is turned back into that frame first (`toLocal`). Its lengths are
+// px or %r, which the frame's zero-sized box resolves (`HAND_FRAME`), and in
+// a linear or grid pattern also %, of the box the pattern sits in
+// (`PartTarget.frame`).
 //
 // The override target: a drag writes the most specific source of the key
 // for the viewed device (the device-id override, then the `shape:` one,
@@ -361,7 +363,7 @@ function positionKeys(view: View, index: SpanIndex, owner: Path, prefix: Path, p
   };
   const per = (unit: string, axis: Axis): number => {
     const value = pxPerUnit(unit, axis, parent, minor);
-    if (!value) throw new Refused(`${dotted([...owner, ...prefix])} is in %, which has no extent in a part's own frame; write it in px or %r`);
+    if (!value) throw new Refused(`${dotted([...owner, ...prefix])} is in %, which has no extent in this part's frame (a radial pattern's or a hand's); write it in px or %r`);
     return value;
   };
   const keys: Key[] = [];
@@ -564,7 +566,12 @@ export interface PartTarget {
   origin: [number, number];
   angle: number;
   name: string;
+  /** The box the part's `%` lengths measure against: a linear or grid pattern's parent box; `HAND_FRAME` when omitted. */
+  frame?: Box;
 }
+
+/** The box `target`'s `%` lengths measure against. */
+const frameOf = (target: PartTarget): Box => target.frame ?? HAND_FRAME;
 
 /** What a gesture is made on: an element, by id, or a part. */
 export type Subject = string | PartTarget;
@@ -582,15 +589,14 @@ export function toLocal(dx: number, dy: number, angle: number): [number, number]
   return [exact(dx * c + dy * s), exact(-dx * s + dy * c)];
 }
 
-/** A position in a part's own frame, in px, exactly as the layout resolves it (`Resolver.point` on `HAND_FRAME`). */
-export function localPoint(at: Position, minorRadius: number): [number, number] {
-  const [ax, ay] = HAND_FRAME.anchorPoint(at.anchor);
+/** A position in a part's own frame, in px, exactly as the layout resolves it (an offset from the origin, `%` measured against `frame`). */
+export function localPoint(at: Position, minorRadius: number, frame: Box = HAND_FRAME): [number, number] {
   if (at.angle !== null) {
-    const radius = at.radius !== null ? at.radius.resolve(HAND_FRAME, "minor", minorRadius) : 0;
+    const radius = at.radius !== null ? at.radius.resolve(frame, "minor", minorRadius) : 0;
     const theta = radians(at.angle.degrees);
-    return [ax + radius * Math.sin(theta), ay - radius * Math.cos(theta)];
+    return [radius * Math.sin(theta), -radius * Math.cos(theta)];
   }
-  return [ax + (at.dx !== null ? at.dx.resolve(HAND_FRAME, "x", minorRadius) : 0), ay + (at.dy !== null ? at.dy.resolve(HAND_FRAME, "y", minorRadius) : 0)];
+  return [at.dx !== null ? at.dx.resolve(frame, "x", minorRadius) : 0, at.dy !== null ? at.dy.resolve(frame, "y", minorRadius) : 0];
 }
 
 /** Whether a `mirror: x` part's point lies on the axis, so the mirror shares it rather than reflecting it. */
@@ -669,7 +675,7 @@ function movePart(view: View, target: PartTarget, dx: number, dy: number, scope:
     // a mirrored outline moves along its axis: a sideways move would break the symmetry it lists
     if (written.has("mirror")) ldx = 0;
     for (let i = 0; i < listed; i++) {
-      keys.push(...positionKeys(view, view.index, target.path, ["points", i], ir.points[i]!, ldx, ldy, "all", HAND_FRAME, false));
+      keys.push(...positionKeys(view, view.index, target.path, ["points", i], ir.points[i]!, ldx, ldy, "all", frameOf(target), false));
     }
     const goal = shifted(polygonPoints(before), ldx, ldy);
     return settle(view, view.index, keys, target.elementId, (p) => samePoints(polygonPoints(partAfter(view, target, p)[1]), goal));
@@ -678,13 +684,13 @@ function movePart(view: View, target: PartTarget, dx: number, dy: number, scope:
   const goals: [number, number][] = [];
   const checks: ((anchors: [number, number][], after: AnyHandPart) => boolean)[] = [];
   if (part === "both" || part === "at") {
-    keys.push(...positionKeys(view, view.index, target.path, ["at"], ir.at, ldx, ldy, "all", HAND_FRAME, false));
+    keys.push(...positionKeys(view, view.index, target.path, ["at"], ir.at, ldx, ldy, "all", frameOf(target), false));
     if (ir.shape === "rectangle") {
       // a rectangle resolves to its corners; its `at:` is checked where the author's values put it
-      const [x, y] = localPoint(ir.at, view.device.minorRadius);
+      const [x, y] = localPoint(ir.at, view.device.minorRadius, frameOf(target));
       const goal: [number, number] = [roundHalfAway(x + ldx), roundHalfAway(y + ldy)];
       checks.push((_, after) => {
-        const [ax, ay] = localPoint((after as { at: Position }).at, view.device.minorRadius);
+        const [ax, ay] = localPoint((after as { at: Position }).at, view.device.minorRadius, frameOf(target));
         return roundHalfAway(ax) === goal[0] && roundHalfAway(ay) === goal[1];
       });
     } else {
@@ -693,7 +699,7 @@ function movePart(view: View, target: PartTarget, dx: number, dy: number, scope:
     }
   }
   if (ir.shape === "line" && (part === "both" || part === "to")) {
-    keys.push(...positionKeys(view, view.index, target.path, ["to"], ir.to ?? new Position(), ldx, ldy, "all", HAND_FRAME, false));
+    keys.push(...positionKeys(view, view.index, target.path, ["to"], ir.to ?? new Position(), ldx, ldy, "all", frameOf(target), false));
     const end = shifted([anchorsOf(before)[1]!], ldx, ldy)[0]!;
     checks.push((anchors) => anchors[1]![0] === end[0] && anchors[1]![1] === end[1]);
   }
@@ -741,7 +747,7 @@ export function vertex(view: View, subject: Subject, index: number, dx: number, 
     let [ldx, ldy] = toLocal(dx, dy, subject.angle);
     // a mirrored outline's point on the axis stays on it
     if (written.has("mirror") && onAxis(ir.points[i]!)) ldx = 0;
-    const keys = positionKeys(view, view.index, subject.path, ["points", i], ir.points[i]!, ldx, ldy, "all", HAND_FRAME, false);
+    const keys = positionKeys(view, view.index, subject.path, ["points", i], ir.points[i]!, ldx, ldy, "all", frameOf(subject), false);
     const goal = shifted([polygonPoints(before)[i]!], ldx, ldy)[0]!;
     return settle(view, view.index, keys, subject.elementId, (p) => {
       const point = polygonPoints(partAfter(view, subject, p)[1])[i];
@@ -786,7 +792,7 @@ export function addVertex(view: View, subject: Subject, after: number, x: number
     [, count] = writtenPart(view, subject);
     path = subject.path;
     elementId = subject.elementId;
-    parent = HAND_FRAME;
+    parent = frameOf(subject);
     local = toLocal(x - subject.origin[0], y - subject.origin[1], subject.angle);
     const goal: [number, number] = [roundHalfAway(local[0]), roundHalfAway(local[1])];
     landed = (p) => {
@@ -872,10 +878,12 @@ function resizePart(view: View, target: PartTarget, key: readonly string[], delt
   const write: Path = [...target.path, ...key];
   const entry = view.index.get(write);
   const spelling = entry !== undefined ? lengthSpelling(dataAt(view.index, entry.path)) : new Spelling(length instanceof Length ? length.unit : "px");
-  const per = pxPerUnit(spelling.unit, "minor", HAND_FRAME, view.device.minorRadius);
-  if (!per) throw new Refused(`${dotted(write)} is in %, which has no extent in a part's own frame; write it in px or %r`);
+  const axis: Axis = key.join(".") === "size.width" ? "x" : key.join(".") === "size.height" ? "y" : "minor";
+  const frame = frameOf(target);
+  const per = pxPerUnit(spelling.unit, axis, frame, view.device.minorRadius);
+  if (!per) throw new Refused(`${dotted(write)} is in %, which has no extent in this part's frame (a radial pattern's or a hand's); write it in px or %r`);
   // an unwritten thickness is the layout's 1 px
-  const current = length instanceof Length ? length.resolve(HAND_FRAME, "minor", view.device.minorRadius) / per : 1 / per;
+  const current = length instanceof Length ? length.resolve(frame, axis, view.device.minorRadius) / per : 1 / per;
   const keys = [{ write, spelling, values: candidates(current + delta / per, LENGTH_STEPS[spelling.unit]!, per) }];
   return settle(view, view.index, keys, target.elementId, (p) => measure(partAfter(view, target, p)[1]) === goal);
 }

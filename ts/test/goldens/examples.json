@@ -1224,7 +1224,7 @@
   }
  },
  "examples/features/grid/face.yaml": {
-  "diagnostics": "examples/features/grid/face.yaml:39:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   39 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/grid/face.yaml:39:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   39 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/grid/face.yaml:39:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   39 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
+  "diagnostics": "examples/features/grid/face.yaml:45:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   45 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/grid/face.yaml:45:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   45 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/grid/face.yaml:45:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   45 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
   "projects": {
    "targets": {
     "manifest.xml": "52d8724c4ee709490518543e08c7afa3",
@@ -1232,10 +1232,11 @@
     "resources/strings/strings.xml": "bed3cffb5bd553b22aa9baf5e80af07c",
     "source/FeatureGridApp.mc": "66085c1b0dc919898b58015c0510dc46",
     "source/Palette.mc": "d91d8782b75b4f87b9fd398f5e2c988b",
-    "source-fenix8solar47mm/Layout.mc": "8863c4fef5e335972806c31fdfae85f5",
-    "source-fenix8solar51mm/Layout.mc": "92ab8b18090567d709cc8cf775c7f03d",
-    "source-fr955/Layout.mc": "cdc1b1deb975b3cd32dbf0d478653f36",
-    "source/FeatureGridView.mc": "f44954bd37283ec1bef14cf983c6446d",
+    "source-fenix8solar47mm/Layout.mc": "e64c4c70468a41402e82a5cdd0c94e92",
+    "source-fenix8solar51mm/Layout.mc": "ce9045b81117fccca407f9b40b36ed88",
+    "source-fr955/Layout.mc": "9003db63b4792ae19daf7114e8140b6d",
+    "source/FeatureGridView.mc": "b239d2c8282bf0a76f009a6b101bfd30",
+    "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
     "runtime-lib/WfbTime.mc": "da9743c5c4723c79755ca11d553d506b",
     "resources-fenix8solar47mm/drawables/drawables.xml": "9ef2b40fb8dd6db3f3d600f8519b02a3",
     "resources-fenix8solar47mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
@@ -1250,11 +1251,12 @@
     "resources/strings/strings.xml": "bed3cffb5bd553b22aa9baf5e80af07c",
     "source/FeatureGridApp.mc": "66085c1b0dc919898b58015c0510dc46",
     "source/Palette.mc": "d91d8782b75b4f87b9fd398f5e2c988b",
-    "source-fenix847mm/Layout.mc": "80cb0272281eab49a265ea6667dd0835",
-    "source-fenix8solar47mm/Layout.mc": "8863c4fef5e335972806c31fdfae85f5",
-    "source-fr245/Layout.mc": "7be02e56658bdb3db8686ea862f6370a",
-    "source-fenix6/Layout.mc": "8af948757b5eeaba007658aa489fadf2",
-    "source/FeatureGridView.mc": "60aa4653469c9e7cfba4219979ddb03c",
+    "source-fenix847mm/Layout.mc": "b0717420a7cda5d05013271fa93e9ef4",
+    "source-fenix8solar47mm/Layout.mc": "e64c4c70468a41402e82a5cdd0c94e92",
+    "source-fr245/Layout.mc": "d72c857decba972d647fc45d9458bddd",
+    "source-fenix6/Layout.mc": "d9d572d11424a61b6795c3cb156e627c",
+    "source/FeatureGridView.mc": "f140d4d9d1f16116d0c4271ffb46f1b7",
+    "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
     "runtime-lib/WfbTime.mc": "da9743c5c4723c79755ca11d553d506b",
     "resources-fenix847mm/drawables/drawables.xml": "44512f137dba34fd16c7806a5f384d99",
     "resources-fenix847mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
@@ -1271,9 +1273,10 @@
     "resources/strings/strings.xml": "bed3cffb5bd553b22aa9baf5e80af07c",
     "source/FeatureGridApp.mc": "66085c1b0dc919898b58015c0510dc46",
     "source/Palette.mc": "d91d8782b75b4f87b9fd398f5e2c988b",
-    "source-fenix947mm/Layout.mc": "802e4aedf0dba71326faa051d0e358f2",
-    "source-fr955/Layout.mc": "cdc1b1deb975b3cd32dbf0d478653f36",
-    "source/FeatureGridView.mc": "18921e271e714ba48bd141569d14141f",
+    "source-fenix947mm/Layout.mc": "a8baada2c771b44d3c44e9d0d8692892",
+    "source-fr955/Layout.mc": "9003db63b4792ae19daf7114e8140b6d",
+    "source/FeatureGridView.mc": "d0991e4e54d9eae42e890675b3f976b4",
+    "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
     "runtime-lib/WfbTime.mc": "da9743c5c4723c79755ca11d553d506b",
     "resources-fenix947mm/drawables/drawables.xml": "7e21448ff35a5496f76ef0ed5dff38a1",
     "resources-fenix947mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
@@ -1283,19 +1286,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "812091f9a55dff3d668a39157030ac10",
-    "fenix8solar51mm": "2847f128f60425ca5889edf2d1448628",
-    "fr955": "906e194532e0298f48e8f5afab36557f"
+    "fenix8solar47mm": "c5d8c1534e94235941646c18e4393974",
+    "fenix8solar51mm": "c9f0cfb5442cc34bdcf9d950944e3451",
+    "fr955": "9772d58c1dca8708fbe72c834ec3cd2b"
    },
    "asleep": {
-    "fenix8solar47mm": "812091f9a55dff3d668a39157030ac10",
-    "fenix8solar51mm": "2847f128f60425ca5889edf2d1448628",
-    "fr955": "906e194532e0298f48e8f5afab36557f"
+    "fenix8solar47mm": "c5d8c1534e94235941646c18e4393974",
+    "fenix8solar51mm": "c9f0cfb5442cc34bdcf9d950944e3451",
+    "fr955": "9772d58c1dca8708fbe72c834ec3cd2b"
    },
    "time": {
-    "fenix8solar47mm": "29a38197f471545146a7efa3f09e7be0",
-    "fenix8solar51mm": "fe164531436c18cfc6aebbab8f2bd55b",
-    "fr955": "0db8dc3d8fc231da2963cb6663261e27"
+    "fenix8solar47mm": "1c6d12018d76a8e60aa5c9ba41393dd4",
+    "fenix8solar51mm": "29061e96068df65eed5e10e13eb4f8cb",
+    "fr955": "4d0b93d4386fb801c03e69797348c4c6"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature grid' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
