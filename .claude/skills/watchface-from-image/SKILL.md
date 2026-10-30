@@ -42,9 +42,9 @@ find . ~ /workspace -maxdepth 4 -name watchface-builder.md 2>/dev/null | head
   touch. In short: it writes a face; it never changes the compiler, the
   schema, the docs or the examples.
 - **Where to write the face:** in a new directory the person names, or
-  `build/faces/<name>/face.yaml` if they name none. Never edit
-  `examples/dashboard/face.yaml` (the user's playground) or the other
-  examples unless asked.
+  `build/faces/<name>/face.yaml` if they name none. Never edit the
+  `examples/other` submodule (the user's own faces) or the other examples
+  unless asked.
 - **Show the person the last compare sheet** when you report, rather than
   only describing it, and a `wfb preview --skin` render: the face inside the
   watch's own simulator image.

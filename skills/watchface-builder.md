@@ -241,8 +241,8 @@ listed:
 - a **baked TTF** (`resources: {fonts: {x: {source: assets/Font.ttf, size: 20%r}}}`)
   matches a distinctive typeface exactly. A font needs a file the repository
   has or the person supplies; copy one into the face's own `assets/`
-  (`examples/dashboard/assets/` has ChivoMono, `examples/analog-custom/assets/`
-  Dynalight, `ts/templates/assets/` the templates' fonts). Use
+  (`ts/templates/assets/showcase/` has ChivoMono and Dynalight,
+  `examples/analog-custom/assets/` Dynalight too). Use
   `monospace: true` for a clock so it does not jitter.
 
 A font only one text uses can be written on that text instead of under
@@ -316,7 +316,7 @@ are known-good and warning-free:
 | colour or layout variants | `examples/features/styles/face.yaml`, `examples/features/config/face.yaml` |
 | distances and temperatures in the wearer's units | `examples/features/units/face.yaml` |
 | an AMOLED watch's always-on frame | `examples/features/aod/face.yaml` |
-| earlier output of this skill, from a photo | `examples/generated_by_skill/` (`navy-classic`, a dress dial; `trail-utility`, a digital sports face; `red-tactical`, a red tactical face from a render of a fēnix 8), with the prompts in `prompts.md` |
+| earlier output of this skill, from a photo | `examples/navy-classic/` (a dress dial, with its first compare round); more in the `examples/other` submodule when it is checked out: `trail-utility.yaml` (a digital sports face), `red-tactical.yaml` (a red tactical face from a render of a fēnix 8) and `solaria.yaml`, each beside its preview |
 
 ### Rules that otherwise cost you a round
 

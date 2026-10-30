@@ -810,7 +810,8 @@ specified; a key that is not built is a friendly build or schema error, never
 silently ignored. What was considered and turned down is under "Declined"
 below, and what is built but not yet seen on a watch is §4.
 
-`examples/dashboard/` reproduces the reference face in
+The dashboard face (`examples/other/dashboard/`, in the `examples/other`
+submodule) reproduces the reference face in
 `garmin-watchface-protomolecule` (the "can the schema express Dashboard?"
 question ADR 0004 poses). What it cannot have is a platform limit, not
 missing work: history graphs of Body Battery, stress, pressure or elevation
@@ -1132,7 +1133,7 @@ anyway. A face may gate at most 32 hold targets, one `Number`'s bits.
 ### Not checked at all
 
 * **Element overlap.** Two elements may be placed on top of each other with no
-  complaint. Building `examples/dashboard/` ran into this repeatedly: a
+  complaint. Building the dashboard face ran into this repeatedly: a
   separator drawn through a row of text validates cleanly, and only the preview
   shows it. A dense design is where this gap is felt.
 * **The rendered width of a computed value.** The overflow check knows the digit

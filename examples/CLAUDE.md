@@ -3,14 +3,18 @@
 Loaded automatically when working in `examples/`. `README.md` here is the
 user-facing index.
 
-**Layout.** Four faces at the top level are built to be worn --
-`dashboard/`, `showcase/`, `analog-custom/` and `enduro/` (work in
-progress). `features/` holds one face per format feature, `system-fonts/`
-the three calibration faces, and `generated_by_skill/` faces made from a
-reference picture by the `skill/watchface-from-image` branch's skill (with
-`prompts.md` and the reference PNGs beside them). Anything that walks the
-examples must recurse (`exampleDesigns` in `ts/tools/goldens.ts` does), and a
-flat `examples/*/face.yaml` glob sweeps up only the four wearable faces.
+**Layout.** Three faces at the top level are built to be worn --
+`showcase/`, `analog-custom/` and `navy-classic/` (made from a photo by the
+watchface-from-image skill). `features/` holds one face per format feature
+and `system-fonts/` the three calibration faces. `other/` is a git
+submodule (`vvorth/wfb-watchfaces`), the user's own faces, `dashboard/`
+among them: another repository, empty in a clone made without
+`--recurse-submodules` (continuous integration's included). Anything that
+walks the examples must recurse and must skip it: `isSubmodule` in
+`ts/src/node.ts` is the test, and `exampleDesigns` in `ts/tools/goldens.ts`
+and every test that walks `examples/` use it, so no golden, test or docs
+check ever reads the submodule. A flat `examples/*/face.yaml` glob sweeps up
+only the three wearable faces.
 
 Every example, template and fixture is format 2; a format 1 face no longer
 loads. Every example lints clean on every target. Where a design
@@ -68,12 +72,11 @@ those spokes).
 The Phase 2 slice is no longer an example: it is the test fixture
 `ts/test/fixtures/slice/`.
 
-### `examples/dashboard/face.yaml` is the user's own playground
+### `examples/other/` is the user's own collection
 
-The user edits this file directly between sessions and has said explicitly:
-**it is a playground, leave it alone.** Do not proactively "fix" its lint
-warnings, geometry or content — even a broken `wfb validate` or a failing
-`test_example_is_clean_on_every_target[dashboard]` is not, by itself, a
-defect to correct unless asked. When in doubt here, ask rather than assume —
-this is the one file in the repo where "the test suite is red" is not
-automatically a bug report.
+The user edits these faces directly between sessions, and
+`examples/other/dashboard/face.yaml` is the playground they named:
+**leave the submodule alone** unless asked. Do not proactively "fix" a
+face's lint warnings, geometry or content, and never commit inside it from
+this repository; a change there is a commit in `vvorth/wfb-watchfaces`.
+Nothing here tests its faces, so a red test never points at one.

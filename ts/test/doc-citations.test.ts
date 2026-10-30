@@ -14,6 +14,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 import { test } from "node:test";
 import { REPO_ROOT } from "../src/devices/node.ts";
+import { isSubmodule } from "../src/node.ts";
 
 /** "plan 14", "slice 2", "plans 01-02", a link into `docs/plans/`. */
 const PLAN = /\b[Pp]lans?\s+\d+|\b[Ss]lices?\s+\d+|docs\/plans\//g;
@@ -41,7 +42,7 @@ function files(...roots: string[]): string[] {
   const walk = (path: string): void => {
     const rel = relative(REPO_ROOT, path);
     if (RECORDS.some((r) => rel.startsWith(r)) || SKIP.some((s) => `/${rel}`.includes(s) || rel.startsWith(s))) return;
-    if (statSync(path).isDirectory()) for (const name of readdirSync(path)) walk(join(path, name));
+    if (statSync(path).isDirectory()) { if (rel === "" || !isSubmodule(path)) for (const name of readdirSync(path)) walk(join(path, name)); }
     else if (SUFFIXES.has(extname(path))) out.push(rel);
   };
   for (const root of roots) if (existsSync(join(REPO_ROOT, root))) walk(join(REPO_ROOT, root));

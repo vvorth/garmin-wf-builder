@@ -308,8 +308,9 @@ The full text, with the incident behind each rule, is in
   message.
 - **The fast suite is green** (`npm test` in `ts/`, `ts/test/CLAUDE.md`), so
   a red test is a regression until shown otherwise.
-- **`examples/dashboard/face.yaml` is the user's playground. Leave it
-  alone**, even when its test is red, unless asked (`examples/CLAUDE.md`).
+- **`examples/other/` (a git submodule: the user's own faces, the
+  `dashboard/` playground among them) is the user's. Leave it alone**
+  unless asked; nothing in this repository tests it (`examples/CLAUDE.md`).
 
 ### Documentation discipline
 

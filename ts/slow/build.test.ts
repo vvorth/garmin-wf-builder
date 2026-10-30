@@ -61,7 +61,6 @@ test("every slow-test design builds with nothing from monkeyc", async () => {
 
 test("every example and fixture builds with nothing from monkeyc", async () => {
   for (const design of exampleDesigns()) {
-    if (design.includes("/dashboard/")) continue; // the user's playground
     await check(join(REPO_ROOT, design));
   }
 });

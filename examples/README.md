@@ -7,17 +7,12 @@ Build or preview any of these:
 ./wfb preview examples/<path>/face.yaml
 ```
 
-Four faces here were designed to be worn. The rest are test beds: one was
-written for each feature as it landed, to exercise and document it.
+Three faces here were designed to be worn. The rest are test beds: one was
+written for each feature as it landed, to exercise and document it. More
+faces, the author's own, live in the [`other/`](#more-faces-the-other-submodule)
+submodule.
 
 ## Faces meant to be used
-
-### [`dashboard/`](dashboard/face.yaml)
-
-A dense, row-based digital face, modelled on a working reference face: a
-two-tone clock, weather, heart rate, steps and battery in rows separated by
-hairlines, with gauge arcs along the bezel. The most complete of the
-four, and the one whose vocabulary the others borrow.
 
 ### [`showcase/`](showcase/face.yaml)
 
@@ -33,10 +28,22 @@ A hand-tuned analog dial, grown out of
 numerals, date windows and four colour schemes. It keeps the generated
 design it started from as a second layout.
 
-### [`enduro/`](enduro/face.yaml) — work in progress
+### [`navy-classic/`](navy-classic/face.yaml)
 
-A big-clock face with a goal ring, two data clusters and battery, modelled
-on the Enduro 3. Hand-written and still being shaped.
+A navy sunray dress dial with polygon hands, batons and a day/date window at
+3, made from a photo of an automatic by the watchface-from-image skill
+(`skills/`); `round-1.png` beside it is that skill's first compare round.
+
+### More faces: the `other/` submodule
+
+[`other/`](other/) is a git submodule,
+[`vvorth/wfb-watchfaces`](https://github.com/vvorth/wfb-watchfaces): the
+author's own faces, among them `dashboard/` (a dense row-based digital
+face), `solaria.yaml` (the Vacheron Constantin Solaria's complications on
+`astro.*`), `trail-utility.yaml` and `red-tactical.yaml`, each beside a
+preview PNG. Fetch it with `git submodule update --init`. It is another
+repository: nothing in this one tests, builds or documents its faces, so a
+clone without it loses nothing here.
 
 ## Feature examples
 

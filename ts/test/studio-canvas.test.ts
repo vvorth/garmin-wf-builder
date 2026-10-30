@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { addVertex, move, resize, toLocal, turn, vertex, View } from "../src/edit/geometry.ts";
 import { indexFor, Refused } from "../src/edit/spans.ts";
 import { bakeFonts, ICON_FONT } from "../src/emit/resources.ts";
-import { readFontFile } from "../src/node.ts";
+import { isSubmodule, readFontFile } from "../src/node.ts";
 import { decodePng } from "../src/png.ts";
 import * as starters from "../src/starters.ts";
 import { bundle, readUpload } from "../src/studio/bundle.ts";
@@ -578,8 +578,8 @@ test("every live handle predicts the edit", async () => {
   const walk = (dir: string, out: string[] = []): string[] => {
     for (const name of readdirSync(join(REPO_ROOT, dir)).sort()) {
       const p = `${dir}/${name}`;
-      if (statSync(join(REPO_ROOT, p)).isDirectory()) walk(p, out);
-      else if (name === "face.yaml" && !p.includes("/dashboard/")) out.push(p);
+      if (statSync(join(REPO_ROOT, p)).isDirectory()) { if (!isSubmodule(p)) walk(p, out); }
+      else if (name === "face.yaml") out.push(p);
     }
     return out;
   };

@@ -785,11 +785,12 @@ test("every text: template of the examples reads as chips and rebuilds to the id
   const { join } = await import("node:path");
   const YAML = (await import("yaml")).default;
   const { REPO_ROOT } = await import("../src/devices/node.ts");
+  const { isSubmodule } = await import("../src/node.ts");
   const templates: string[] = [];
   const walk = (dir: string): void => {
     for (const name of readdirSync(join(REPO_ROOT, dir)).sort()) {
       const p = `${dir}/${name}`;
-      if (statSync(join(REPO_ROOT, p)).isDirectory()) { if (name !== "dashboard") walk(p); continue; }
+      if (statSync(join(REPO_ROOT, p)).isDirectory()) { if (!isSubmodule(p)) walk(p); continue; }
       if (name !== "face.yaml") continue;
       const visit = (v: unknown): void => {
         if (Array.isArray(v)) v.forEach(visit);
@@ -898,8 +899,8 @@ function conditionKeys(text: string): [string, unknown, string][] {
   return out;
 }
 
-test("on the showcase and enduro every visible, color, value, max and min opens in rows or in its own control, none as raw", async () => {
-  const keys = [...conditionKeys(repoText("examples/showcase/face.yaml")), ...conditionKeys(repoText("examples/enduro/face.yaml"))];
+test("on the showcase and features/progress every visible, color, value, max and min opens in rows or in its own control, none as raw", async () => {
+  const keys = [...conditionKeys(repoText("examples/showcase/face.yaml")), ...conditionKeys(repoText("examples/features/progress/face.yaml"))];
   const printed = printedBy(`
     const { readCondition } = await import(${JSON.stringify(appUri("condition-editor.ts"))});
     const modes = {};

@@ -119,7 +119,8 @@ These are the findings that shaped every decision. Full detail and citations in
 
 6e. **Modules and class *fields* are per-device too, not just functions, and
    the manifest floor cannot express any of it.** Discovered adding `fenix6`
-   (ConnectIQ 3.4.5) back to `examples/dashboard/face.yaml`'s `targets:`
+   (ConnectIQ 3.4.5) back to the dashboard face's `targets:` (now
+   `examples/other/dashboard/face.yaml`, in the `examples/other` submodule)
    (`docs/research/probes/api-gating/README.md`): `fenix6` and `fr245` lack
    the `Toybox.Complications` **module** entirely (`<dataEntry
    type="module">`, `Device.hasModule` in `ts/src/devices/device.ts`, new), not merely one

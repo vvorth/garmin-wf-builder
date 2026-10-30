@@ -16,6 +16,17 @@ export function repoFileExists(path: string): boolean {
   return existsSync(path.startsWith("/") ? path : join(REPO_ROOT, path));
 }
 
+/**
+ * Whether a repository-relative directory is a git submodule's working tree:
+ * it holds a `.git` file of its own. Its content belongs to another
+ * repository and is empty in a clone made without `--recurse-submodules`
+ * (continuous integration's among them), so nothing that enumerates this
+ * repository's own examples walks into it.
+ */
+export function isSubmodule(dir: string): boolean {
+  return existsSync(join(dir.startsWith("/") ? dir : join(REPO_ROOT, dir), ".git"));
+}
+
 /** Whether a path, relative to the working directory, names an existing file. */
 export function cwdFileExists(path: string): boolean {
   return existsSync(resolve(path));

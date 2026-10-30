@@ -15,7 +15,7 @@ import { generate } from "../src/emit/project.ts";
 import { bakeFonts, ICON_FONT } from "../src/emit/resources.ts";
 import type { FontFile } from "../src/fonts/files.ts";
 import { NodeFontFiles } from "../src/fonts/node.ts";
-import { installAssets } from "../src/node.ts";
+import { installAssets, isSubmodule } from "../src/node.ts";
 import { pngBytes, previewOptions, type PreviewOptions, render, renderAllStyles, UnknownStyleError } from "../src/preview.ts";
 import { decodePng } from "../src/png.ts";
 
@@ -103,13 +103,13 @@ export function corpusDiagnostics(only: (id: string) => boolean = () => true): R
 
 // -- the examples and fixtures --
 
-/** Every example and fixture design, by its path. */
+/** Every example and fixture design, by its path; a submodule's faces (`examples/other`) are another repository's. */
 export function exampleDesigns(): string[] {
   const out: string[] = [];
   const walk = (dir: string): void => {
     for (const name of readdirSync(join(REPO_ROOT, dir)).sort()) {
       const rel = `${dir}/${name}`;
-      if (statSync(join(REPO_ROOT, rel)).isDirectory()) walk(rel);
+      if (statSync(join(REPO_ROOT, rel)).isDirectory()) { if (!isSubmodule(rel)) walk(rel); }
       else if (name.endsWith(".yaml")) out.push(rel);
     }
   };

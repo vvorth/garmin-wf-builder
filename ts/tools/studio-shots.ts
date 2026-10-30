@@ -11,7 +11,7 @@
 // `--device` picks the watch the face is edited on, one of its targets. The
 // README's come from the user's own Red Tactical face, which is not in the
 // repository, on the fenix947mm (the sharpest of its targets):
-// `node ts/tools/studio-shots.ts --device fenix947mm red-tactical.yaml left_slot left_reading`.
+// `node ts/tools/studio-shots.ts --device fenix947mm examples/other/red-tactical.yaml left_slot left_reading`.
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";

@@ -10,7 +10,7 @@ import { MemoryDeviceFiles } from "../src/devices/files.ts";
 import { indexFor, Refused } from "../src/edit/spans.ts";
 import { ICON_FONT } from "../src/emit/resources.ts";
 import { NodeFontFiles } from "../src/fonts/node.ts";
-import { readFontFile } from "../src/node.ts";
+import { isSubmodule, readFontFile } from "../src/node.ts";
 import { decodePng } from "../src/png.ts";
 import * as starters from "../src/starters.ts";
 import { bundle, missing } from "../src/studio/bundle.ts";
@@ -36,8 +36,8 @@ const fieldsOf = (result: Inspect): Record<string, any> => Object.fromEntries(re
 function faces(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(join(ROOT, dir)).sort()) {
     const path = `${dir}/${name}`;
-    if (statSync(join(ROOT, path)).isDirectory()) faces(path, out);
-    else if (name === "face.yaml" && !path.includes("/dashboard/")) out.push(path);
+    if (statSync(join(ROOT, path)).isDirectory()) { if (!isSubmodule(join(ROOT, path))) faces(path, out); }
+    else if (name === "face.yaml") out.push(path);
   }
   return out;
 }

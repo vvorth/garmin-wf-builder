@@ -19,7 +19,7 @@ import { type Data } from "../src/edit/yaml.ts";
 import { deepCopy } from "../src/py.ts";
 import { add, elementTypes, group, moveToBlock, paste, ungroup } from "../src/edit/structure.ts";
 import { bakeFonts, ICON_FONT } from "../src/emit/resources.ts";
-import { readFontFile, repoFileExists } from "../src/node.ts";
+import { isSubmodule, readFontFile, repoFileExists } from "../src/node.ts";
 import { Length } from "../src/units.ts";
 import { db } from "./designs.ts";
 
@@ -35,8 +35,8 @@ const DESIGNS: string[] = (() => {
   const walk = (dir: string): void => {
     for (const name of readdirSync(join(REPO_ROOT, dir)).sort()) {
       const rel = `${dir}/${name}`;
-      if (statSync(join(REPO_ROOT, rel)).isDirectory()) walk(rel);
-      else if (name.endsWith(".yaml") && !rel.includes("/dashboard/")) out.push(rel);
+      if (statSync(join(REPO_ROOT, rel)).isDirectory()) { if (!isSubmodule(rel)) walk(rel); }
+      else if (name.endsWith(".yaml")) out.push(rel);
     }
   };
   walk("examples");

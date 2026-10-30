@@ -239,8 +239,10 @@ ts/                   the compiler, its tests and tools: one package for the
 runtime-lib/          the hand-written support barrel the generated code calls
 schema/               the published JSON Schema (a shipped artefact)
 examples/             example faces; `examples/README.md` is the index
-examples/dashboard/   one of the four faces built to be worn (with
-                      showcase/, analog-custom/ and enduro/)
+examples/showcase/    one of the three faces built to be worn (with
+                      analog-custom/ and navy-classic/)
+examples/other/       a git submodule (vvorth/wfb-watchfaces): the author's own
+                      faces; no test, golden or docs check walks it
 examples/features/    one face per format feature, written as each landed
 examples/system-fonts/  the three system-font calibration faces
 tools/                setup-env.sh, the front-end vendoring, and research/ (stdlib

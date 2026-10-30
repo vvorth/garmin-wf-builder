@@ -29,16 +29,15 @@ minimal so it rebases onto `main` without conflicts:
   this branch.
 - **No tests, by the user's decision.** Check an update by hand instead:
   1. extract the Quick reference YAML from `watchface-builder.md` (give it
-     a real UUID and copy `examples/dashboard/assets/ChivoMono-Bold.ttf`
+     a real UUID and copy `ts/templates/assets/showcase/ChivoMono-Bold.ttf`
      beside it into `assets/`), and `./wfb validate` it: clean apart from
      notes;
   2. do the same with the AMOLED snippet on an AMOLED target
      (`fenix847mm`);
   3. do the same with the slot snippet (`left_slot`), under a header that
      declares a `face:` font `reading` and the palette entries it names;
-  4. run `python3 skills/face-compare.py` on an
-     `examples/generated_by_skill/` face and its PNG: it must render, crop,
-     score and write a sheet.
+  4. run `python3 skills/face-compare.py` on `examples/navy-classic/face.yaml`
+     and its `round-1.png`: it must render, crop, score and write a sheet.
 
 ## Scope of watchface-from-image
 
@@ -59,8 +58,8 @@ compare sheets and previews under `build/`. Nothing else.
 **Out of scope:**
 
 - changing the compiler, the schema, the runtime library, the docs or the
-  examples (`examples/dashboard/face.yaml` is the user's playground, and is
-  never edited); a missing feature is reported, with the closest thing that
+  examples (the `examples/other` submodule holds the user's own faces, and
+  is never edited); a missing feature is reported, with the closest thing that
   exists, not built;
 - putting the `.prg` on a watch: the person copies it over USB;
 - the Connect IQ simulator: it does not run in a Linux container, so the
