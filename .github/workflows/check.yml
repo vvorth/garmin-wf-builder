@@ -127,6 +127,7 @@ jobs:
             # test/overrides.test.ts
             # test/page-accept.test.ts
             # test/page-panels.test.ts
+            # test/needle-percent.test.ts
             # test/parameter-limits.test.ts
             # test/pattern-part-percent.test.ts
             # test/call-readers.test.ts

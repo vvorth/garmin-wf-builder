@@ -7,8 +7,8 @@
 // axis and +y down, turned by the angle it is drawn at, so a delta on the
 // screen is turned back into that frame first (`toLocal`). Its lengths are
 // px or %r, which the frame's zero-sized box resolves (`HAND_FRAME`), and in
-// a linear or grid pattern also %, of the box the pattern sits in
-// (`PartTarget.frame`).
+// a linear or grid pattern also %, of the box the pattern sits in, or in a
+// needle %, of a square of that box's smaller side (`PartTarget.frame`).
 //
 // The override target: a drag writes the most specific source of the key
 // for the viewed device (the device-id override, then the `shape:` one,
@@ -566,7 +566,7 @@ export interface PartTarget {
   origin: [number, number];
   angle: number;
   name: string;
-  /** The box the part's `%` lengths measure against: a linear or grid pattern's parent box; `HAND_FRAME` when omitted. */
+  /** The box the part's `%` lengths measure against: a linear or grid pattern's parent box, a needle's square; `HAND_FRAME` when omitted. */
   frame?: Box;
 }
 

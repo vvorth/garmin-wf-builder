@@ -81,7 +81,7 @@ const MAX_DEPTH = 6;
 
 /** `$defs` entries that pick a scalar's control, by the name the schema refers to. */
 const WIDGET_BY_REF: Record<string, Widget> = {
-  length: "length", handLength: "length", patternLength: "length", patternPartLength: "length",
+  length: "length", handLength: "length", patternLength: "length", partLength: "length",
   angle: "angle",
   // a segmented gauge's gap: an angle on an arc, a length on a bar (`field` picks which)
   gaugeGap: "gap",
@@ -472,8 +472,9 @@ export function inspect(text: string, element: Path, device: Device | null, cont
     const inHand = element[1] === "hand_sets";
     const owner = subject === "part" ? dataAt(index.data, element.slice(0, -2)) : null;
     const pattern = subject === "part" && !inHand && isMap(owner) && owner.get("type") === "pattern";
+    const needle = subject === "part" && !inHand && isMap(owner) && owner.get("type") === "gauge";
     type = subject === "hand" ? "hand" : String(data.get("type"));
-    branch = (subject === "hand" ? defs["hand"] : pattern ? defs["patternPart"] : defs["handPart"]) ?? { properties: {} };
+    branch = (subject === "hand" ? defs["hand"] : pattern ? defs["patternPart"] : needle ? defs["needlePart"] : defs["handPart"]) ?? { properties: {} };
     hide = subject === "part" ? hiddenPartKeys(type, pattern) : new Set();
     const written = { own: null, group: null, defaults: null, hiddenBy: null };
     reading = { type, data, device: null, context: { ...context, frame: "awake" }, aodKeys: new Set(), cascade: written };

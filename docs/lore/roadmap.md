@@ -20,7 +20,8 @@ or AOD-related has been observed on a watch or in the simulator.
   `gauge`, `graph` (`range: {duration:}` or `{samples:}`), `hands`, `pattern`
   (`radial` turning by `step_angle:`, `linear` and `grid` moving by
   `step: {dx, dy}`, their parts' `%` measured against the pattern's
-  parent box); nine internal kinds. `hands` and `pattern`
+  parent box; a gauge needle's parts' `%` against that box's smaller
+  side); nine internal kinds. `hands` and `pattern`
   are the two places the watch does layout arithmetic (`WfbHands.mc`,
   `WfbGeom.mc`); baked pattern copies measured ~30× the memory
   (`docs/research/probes/pattern-cost/`). `docs/guide/elements.md`,

@@ -434,7 +434,7 @@ These cost real time to discover; do not rediscover them.
   **`style: radial`'s circle is centred on that copy's own anchor**, not a
   fixed point -- the same `at:` reinterpretation a standalone `curve:
   {style: radial}` text element already gives, applied per copy: the
-  circle's radius (`curve.radius_px`, a `patternPartLength` -- px or %r,
+  circle's radius (`curve.radius_px`, a `partLength` -- px or %r,
   plus `%` of the parent box in a linear or grid pattern, the schema's
   `patternCurve` -- resolved once, the same for
   every copy) gets a `Layout` constant (`<part>_RADIUS`, `ts/src/emit/monkeyc/view.ts.

@@ -23,7 +23,7 @@ the same placement rule as every other element with a box.
 | `thickness` | length | required (`arc`; `segments`/`scale` on an arc) | pen width |
 | `start_angle` | angle | required (`arc`, `needle`) | where the ring starts, or where the needle points at 0 |
 | `sweep` | angle | required (`arc`, `needle`) | how far the ring sweeps, or the needle turns at full scale |
-| `needle` | 1–16 [hand parts](analog-hands.md#analog-hands) keyed by id | required (`needle`) | the needle, pointing at 12, axis at `at:` |
+| `needle` | 1–16 [hand parts](analog-hands.md#analog-hands) keyed by id, lengths also in `%` ([below](#gauge-needles)) | required (`needle`) | the needle, pointing at 12, axis at `at:` |
 | `size` | size | required (`bar`; `segments`/`scale` on a bar) | the bar's box |
 | `count` | 2–60 | required (`segments`) | how many cells |
 | `gap` | angle on an arc, length on a bar | `2deg` on an arc, `2px` on a bar (`segments`) | space between two cells |
@@ -152,8 +152,9 @@ battery_needle:
 The needle points at `start_angle + fraction × sweep`, clockwise from 12,
 where the fraction is `value / max` clamped to 0–1 — the same mapping an
 `arc` fills with, so a needle and an arc with the same `start_angle` and
-`sweep` agree. `needle:` takes exactly what a [hand's
-`parts:`](analog-hands.md#analog-hands) takes: a mapping of parts keyed by
+`sweep` agree. `needle:` takes what a [hand's
+`parts:`](analog-hands.md#analog-hands) takes (with `%` lengths besides,
+below): a mapping of parts keyed by
 id (a plain list is accepted as shorthand), each a `polygon`, `rectangle`,
 `line` or `circle`, authored **as they look at 12 o'clock** with the axis at
 the origin, so the tip sits at a negative `dy`; a symmetric blade lists one
@@ -161,6 +162,35 @@ half with [`mirror: x`](analog-hands.md#symmetric-hands-mirror-x). A
 diagnostic names a part `<element>.needle.<id>`. A part with no `color:` takes
 the element's own, which may read data like any gauge colour; a part's
 own colour may not, as on a hand.
+
+**A needle's lengths take `px`, `%r` and `%`**, never `pt`. `%` is of the
+**smaller side** of the box the gauge sits in -- its group's, or the
+screen's at the top level -- for every length: a `dx` and a `dy`, a
+`size.width` and a `size.height`, a `radius` and a `thickness` alike. A
+needle turns, so a width measured across and a length measured down would
+give it one proportion pointing up and another pointing sideways in a box
+that is not square; measured against one side, it keeps its shape however
+it points. In a group that makes a sub-dial that scales as one piece:
+
+```yaml
+hr_dial:
+  type: group
+  at: { anchor: center, dy: 40%r }
+  size: { width: 44%r, height: 44%r }
+  children:
+    hr_needle:
+      type: gauge
+      style: needle
+      value: heart_rate.current
+      max: 200
+      at: { anchor: center }
+      start_angle: 270deg
+      sweep: 180deg
+      color: color.fg
+      needle:
+        needle: { type: line, at: { dy: 7% }, to: { dy: -41% }, thickness: 2px }   # of the group's 44%r
+        hub: { type: circle, radius: 4.55% }
+```
 
 The needle's extent is the disc it sweeps (the axis plus its farthest
 part), which the visible-area checks read like a hand's. `absent:`

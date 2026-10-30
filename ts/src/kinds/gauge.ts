@@ -538,12 +538,17 @@ class GaugeKind extends ElementKind<Gauge> {
       return placed;
     }
     if (element.style === "needle") {
-      const [parts, reach] = r.resolveParts(element.needle, `${element.id}.needle`, min1px);
+      // A needle turns, so its parts measure `%` against a square of the parent box's smaller side:
+      // every length then takes that side, and the needle keeps its proportions whichever way it points.
+      const side = Math.min(parent.width, parent.height);
+      const partFrame = new Box(0.0, 0.0, side, side);
+      const [parts, reach] = r.resolveParts(element.needle, `${element.id}.needle`, min1px, partFrame);
       const disc = new Box(cx - reach, cy - reach, 2 * reach, 2 * reach);
       return PlacedGauge.create({
         element, box: disc.rounded(), center: [round(cx), round(cy)], depth,
         start_angle: element.start_angle!.degrees, sweep: element.sweep!.degrees,
         needle: rotatableParts(parts, `${element.id}.needle`), reach, aod_thickness: r.aodExtent(element, "thickness", parent, 1),
+        part_frame: partFrame,
       });
     }
     const [sized, sx, sy] = r.sizedBox(element, parent, cx, cy);

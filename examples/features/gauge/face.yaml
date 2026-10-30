@@ -16,7 +16,10 @@
 #   its own takes it.
 # * **A heart-rate sub-gauge** (`hr_needle`): a line needle on an
 #   off-centre axis, 0-200 bpm over a half circle, with `absent:
-#   {value: 0}` parking it at zero while there is no reading.
+#   {value: 0}` parking it at zero while there is no reading. It sits in
+#   a square group (`hr_dial`) and its parts are written in `%`, which a
+#   needle measures against the smaller side of the box it sits in: the
+#   group's 44%r here, so the sub-dial scales as one piece.
 # * **A hub above the needle**: a part of the needle itself (a circle at the
 #   axis, drawn after the pointer), so it turns with it and costs nothing
 #   extra.
@@ -89,16 +92,23 @@ elements:
         points: [{ dx: -3%r, dy: 12%r }, { dx: -1%r, dy: -70%r },  dy: -74%r, { dx: 1%r, dy: -70%r }, { dx: 3%r, dy: 12%r }]
       hub: { type: circle, radius: 5%r, color: color.fg }
 
-  hr_needle:
-    type: gauge
-    style: needle
-    value: heart_rate.current
-    max: 200
+  # A sub-dial: the needle's `%` lengths take the smaller side of the
+  # group's box, so resizing the group resizes the needle with it.
+  hr_dial:
+    type: group
     at: { anchor: center, dy: 40%r }
-    start_angle: 270deg
-    sweep: 180deg
-    color: color.fg
-    absent: { value: 0.0 }
-    needle:
-      needle: { type: line, at: { dy: 3%r }, to: { dy: -18%r }, thickness: 2px }
-      hub: { type: circle, radius: 2%r }
+    size: { width: 44%r, height: 44%r }
+    children:
+      hr_needle:
+        type: gauge
+        style: needle
+        value: heart_rate.current
+        max: 200
+        at: { anchor: center }
+        start_angle: 270deg
+        sweep: 180deg
+        color: color.fg
+        absent: { value: 0.0 }
+        needle:
+          needle: { type: line, at: { dy: 7% }, to: { dy: -41% }, thickness: 2px }
+          hub: { type: circle, radius: 4.55% }

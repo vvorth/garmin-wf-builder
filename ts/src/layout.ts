@@ -42,10 +42,10 @@ export class Placed {
 }
 
 /**
- * The "parent box" of a hand's, a needle's or a radial pattern's part frame:
- * zero-sized at the origin, so `%` has no extent there. A linear or grid
- * pattern's parts measure `%` against the pattern's own parent box instead
- * (`resolveParts`'s `frame`).
+ * The "parent box" of a hand's or a radial pattern's part frame: zero-sized
+ * at the origin, so `%` has no extent there. A linear or grid pattern's parts
+ * measure `%` against the pattern's own parent box instead, and a needle's
+ * against a square of its parent box's smaller side (`resolveParts`'s `frame`).
  */
 export const HAND_FRAME_BOX = new Box(0.0, 0.0, 0.0, 0.0);
 
@@ -425,6 +425,8 @@ export class PlacedGauge extends Placed {
   size: [number, number] = [0, 0];
   aod_thickness: number | null = null;
   needle: RotatablePart[] = [];
+  /** The box the needle's `%` lengths measured against: a square of the parent box's smaller side. */
+  part_frame: Box = HAND_FRAME_BOX;
   reach = 0.0;
   cell = 0.0;
   step = 0.0;

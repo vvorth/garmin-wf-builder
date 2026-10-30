@@ -142,7 +142,10 @@ row:
 
 A radial pattern's parts take `px` and `%r` only: each copy turns its
 parts, so a `%` of the width or the height would mean something different
-at every angle. A hand's parts follow the same rule, for the same reason.
+at every angle. A hand's parts take `px` and `%r` only too ([Analog
+hands](analog-hands.md#analog-hands)); a [gauge
+needle's](progress-and-graphs.md#gauge-needles) take `%` of the smaller
+side of the box the gauge sits in.
 
 | `pattern:` | copy `i` is | `step_angle:` / `step:` | `start:` |
 |---|---|---|---|

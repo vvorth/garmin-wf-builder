@@ -144,8 +144,10 @@ element placed after the `type: hands` element that draws them; a hub
 
 **Units are `px` and `%r` only.** `%r` is the screen's minor radius, so a
 hand scales between a 260 px and a 280 px screen the same way the dial does;
-`%` is rejected (a hand frame has no parent box) and `pt` is rejected (a hand
-has no font). Everything resolves to whole pixels at build time, **rounded
+`%` is rejected (a hand set may be placed by any number of `hands` elements,
+so there is no one box for it to measure; a [gauge
+needle](progress-and-graphs.md#gauge-needles), which belongs to one gauge,
+does take `%`) and `pt` is rejected (a hand has no font). Everything resolves to whole pixels at build time, **rounded
 half away from zero** — a mirrored `dx: -1.5px`/`dx: 1.5px` pair resolves to
 `-2`/`2`, so a symmetric hand stays symmetric on the panel. The one thing
 that is *not* a build-time constant is the rotation itself: the watch turns

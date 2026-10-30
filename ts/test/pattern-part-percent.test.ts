@@ -84,7 +84,7 @@ test("a radial pattern's and a hand's parts still refuse `%`, and every pattern 
     pattern: radial
     at: {anchor: center}
     count: 4
-    step: 90
+    step_angle: 90
     color: color.fg
     parts:
       label: {type: text, text: A, font: FONT_SMALL, at: {dy: -40px}, curve: {radius: 30%}}

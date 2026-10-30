@@ -82,7 +82,7 @@ export function validate(doc: YamlDocument, bag: Bag): boolean {
   // An unknown element `type:` makes every oneOf branch fail for the same
   // uninformative reason, so it is caught first and named directly.
   const badTypes = [
-    ...checkElementTypes(doc, bag), ...checkHandFrame(doc, bag), ...checkPatternFrame(doc, bag),
+    ...checkElementTypes(doc, bag), ...checkHandFrame(doc, bag), ...checkPatternFrame(doc, bag), ...checkNeedleFrame(doc, bag),
     ...checkHandsPatternAlignment(doc, bag), ...checkReserved(doc, bag), ...checkAbsent(doc, bag),
     ...checkGraphRange(doc, bag), ...checkPatternStep(doc, bag), ...checkOutlines(doc, bag), ...checkIconCodepoints(doc, bag),
   ];
@@ -538,6 +538,15 @@ const STEPPED_PATTERN_FRAME: Frame = {
   unitRefusals: { pt: "a pattern part's geometry has no font for 'pt' to measure against" },
 };
 
+/** A needle turns, so every `%` length in its parts takes the smaller side of the box the gauge sits in. */
+const NEEDLE_FRAME: Frame = {
+  noun: "needle part", origin: "the needle's axis", units: "px, % or %r",
+  lengthNote: "every coordinate in a needle is measured from its axis (the gauge's 'at:'); '%' is of the smaller side of the box the gauge sits in "
+    + "(its group's, or the screen's), for every length, so the needle keeps its proportions whichever way it points; %r is the screen's minor radius",
+  anchorNote: "the axis is the gauge's own 'at:'; inside a needle, {dx, dy} or {angle, radius} are offsets from it",
+  unitRefusals: { pt: "a needle has no font for 'pt' to measure against" },
+};
+
 /** Explain the two things a hand or pattern part's frame refuses that every other position accepts: `%`/`pt` lengths and `anchor:`. */
 function checkFramePart(doc: YamlDocument, bag: Bag, part: Dict, path: Path, frame: Frame): Path[] {
   const bad: Path[] = [];
@@ -608,6 +617,16 @@ function checkPatternFrame(doc: YamlDocument, bag: Bag): Path[] {
     }
     const frame = element.get("pattern") === "radial" ? RADIAL_PATTERN_FRAME : STEPPED_PATTERN_FRAME;
     for (const [i, part] of partsOf(element)) bad.push(...checkFramePart(doc, bag, part, [...here, "parts", i], frame));
+  });
+  return bad;
+}
+
+/** `checkFramePart` over every gauge needle's parts. */
+function checkNeedleFrame(doc: YamlDocument, bag: Bag): Path[] {
+  const bad: Path[] = [];
+  visitElements(doc, (element, here) => {
+    if (element.get("type") !== "gauge") return;
+    for (const [i, part] of partsOf(element, "needle")) bad.push(...checkFramePart(doc, bag, part, [...here, "needle", i], NEEDLE_FRAME));
   });
   return bad;
 }

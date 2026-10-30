@@ -236,10 +236,11 @@ function placement(index: SpanIndex, resolved: ResolvedFace, placed: Placed, ref
   const angle = floorMod(drawn, 360.0);
   const hand = ref.hand;
   const name = hand !== null ? `${hand}.${ref.id} of ${placed.id}` : `${ref.id} of ${placed.id}`;
-  // a linear or grid pattern's parts measure `%` against the box the pattern sits in
+  // a linear or grid pattern's parts measure `%` against the box the pattern sits in, a needle's against a square of its smaller side
+  const frame = placed instanceof PlacedPattern || placed instanceof PlacedGauge ? placed.part_frame : null;
   const target: PartTarget = {
     path: ref.path, elementId: placed.id, hand, id: ref.id, origin: [transform[0], transform[1]], angle, name,
-    ...(placed instanceof PlacedPattern ? { frame: placed.part_frame } : {}),
+    ...(frame !== null ? { frame } : {}),
   };
   const [ir, part] = partOf(resolved.face, placed, target);
   return { target, ir, resolved: part, transform, written: ref.written };
