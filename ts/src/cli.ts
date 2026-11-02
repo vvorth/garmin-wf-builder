@@ -979,7 +979,8 @@ function doctorCommand(args: Namespace): number {
   const sdk = toolchain === null ? null : { root: toolchain.install, version: toolchain.version };
   const reference = ensureDeviceReference(sdk);
   const haveReference = existsSync(reference) && statSync(reference).isDirectory();
-  out(`${haveReference ? ok : missing} device reference ${dirname(reference)}`);
+  // A reference named outright (WFB_DEVICE_REFERENCE) is shown as named; an extracted one by its folder.
+  out(`${haveReference ? ok : missing} device reference ${process.env["WFB_DEVICE_REFERENCE"] ? reference : dirname(reference)}`);
   if (!haveReference) {
     fail("extract the SDK device reference", sdk === null
       ? ["it is extracted from the SDK's own device pages once an SDK is installed (`wfb init`)"]

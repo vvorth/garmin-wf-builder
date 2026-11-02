@@ -90,7 +90,8 @@ if run_extracting devices 2>&1 | grep -q 'extracting the device reference'; then
     echo "the cached device reference was extracted again" >&2
     exit 1
 fi
-# The compiler's copy sits in the same cache.
+# The compiler's copy sits in the same cache, made by the first command that compiles (doctor discovers the toolchain).
+run_extracting doctor | grep -q 'runs from a copy at /cache/wfb/sdk/'
 test -f "$cache"/wfb/sdk/*/bin/monkeybrains.jar
 
 # No SDK mounted: a build is refused with the mount, not a stack trace.
