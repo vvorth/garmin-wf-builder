@@ -35,12 +35,52 @@ describe("the command line", { concurrency: true }, () => {
     const home = scratch();
     const bare = wfb(["doctor"], { env: { WFB_DEVICES: join(home, "nothing-here"), HOME: home, CIQ_SDK: undefined } });
     assert.equal(bare.code, 1);
-    assert.ok(bare.stdout.includes("not ready") && bare.stdout.includes("401") && bare.stdout.includes("Connect IQ SDK"));
+    assert.ok(bare.stdout.includes("not ready") && bare.stdout.includes("401") && bare.stdout.includes("Connect IQ SDK") && bare.stdout.includes("wfb init"), bare.stdout);
     const fonts = join(scratch(), "fonts");
     const inContainer = wfb(["doctor"], { env: { WFB_FONTS: fonts, WFB_CONTAINER: "1" } }).stdout;
     assert.ok(inContainer.includes(`-v <SDK Manager's Fonts dir>:${fonts}:ro`) && !inContainer.includes("vendor/fonts/"));
     const onHost = wfb(["doctor"], { env: { WFB_FONTS: fonts, WFB_CONTAINER: undefined } }).stdout;
     assert.ok(onHost.includes("vendor/fonts/") && !onHost.includes(":ro"));
+  });
+
+  test("init: the steps for what is missing, the container's mounts, ready once the SDK and devices are there, and the licence gate on --download", () => {
+    const home = scratch();
+    const bare = wfb(["init"], { env: { WFB_DEVICES: join(home, "nothing-here"), HOME: home, CIQ_SDK: undefined, WFB_CONTAINER: undefined } });
+    assert.equal(bare.code, 1, bare.stdout + bare.stderr);
+    const text = plain(bare.stdout);
+    assert.ok(text.includes("MISSING devices") && text.includes("MISSING Connect IQ SDK"), text);
+    assert.ok(text.includes("developer.garmin.com/downloads/connect-iq/sdk-manager/") && text.includes("Developer Agreement"), text);
+    assert.ok(text.includes("1. Download") && text.includes("2. Open it") && text.includes("3. Run `wfb doctor`"), text);
+    assert.ok(!text.includes("docker run"), "no docker line unless asked");
+
+    const inContainer = plain(wfb(["init"], { env: { WFB_DEVICES: join(home, "nothing-here"), HOME: home, CIQ_SDK: join(home, "no-sdk"), WFB_CONTAINER: "1" } }).stdout);
+    assert.ok(inContainer.includes(`nothing mounted at ${join(home, "nothing-here")}`) && inContainer.includes(`nothing mounted at ${join(home, "no-sdk")}`), inContainer);
+    for (const needle of ["connectiq-sdk-manager.dmg", "connectiq-sdk-manager-linux.zip", "connectiq-sdk-manager-windows.zip", "Sdks:/sdk:ro", "Devices:/devices:ro", "wfb-cache:/cache", "%APPDATA%"]) {
+      assert.ok(inContainer.includes(needle), needle);
+    }
+
+    // A pretend SDK and the fixture device: ready, and --docker prints the mounts for this computer.
+    const sdk = join(home, "Sdks", "connectiq-sdk-lin-9.3.0-x");
+    mkdirSync(join(sdk, "bin"), { recursive: true });
+    writeFileSync(join(sdk, "bin", "monkeybrains.jar"), "jar");
+    writeFileSync(join(sdk, "bin", "version.txt"), "9.3.0\n");
+    const ready = wfb(["init", "--docker"], { env: { WFB_DEVICES: join(REPO_ROOT, "ts", "test", "fixtures", "devices"), HOME: home, CIQ_SDK: join(home, "Sdks"), WFB_CONTAINER: undefined } });
+    assert.equal(ready.code, 0, ready.stdout + ready.stderr);
+    const readyText = plain(ready.stdout);
+    assert.ok(readyText.includes("ready") && readyText.includes("9.3.0") && readyText.includes("1 at "), readyText);
+    assert.ok(readyText.includes("docker run --rm") && readyText.includes(":/sdk:ro"), readyText);
+
+    const gated = wfb(["init", "--download", join(home, "dl")], { env: { HOME: home, WFB_CONTAINER: undefined } });
+    if (process.platform === "linux") {
+      assert.equal(gated.code, 2);
+      assert.ok(gated.stderr.includes("--accept-license") && gated.stderr.includes("Developer Agreement"), gated.stderr);
+    } else {
+      assert.equal(gated.code, 2);
+    }
+    assert.ok(!existsSync(join(home, "dl")));
+    const container = wfb(["init", "--download", join(home, "dl"), "--accept-license"], { env: { HOME: home, WFB_CONTAINER: "1" } });
+    assert.equal(container.code, 2);
+    assert.ok(container.stderr.includes("desktop application"), container.stderr);
   });
 
   test("it works from an unrelated directory", () => {

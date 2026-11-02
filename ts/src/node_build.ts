@@ -12,6 +12,7 @@ import { faceCapableDevices, load, prgName, resolveAll, selectDevices, slug } fr
 export { slug };
 import type { Device, DeviceDatabase } from "./devices/device.ts";
 import { DEVICE_REFERENCE, REPO_ROOT } from "./devices/node.ts";
+import { referenceVersion } from "./devices/reference.ts";
 import type { Bag } from "./diagnostics.ts";
 import { type GeneratedProject, generate } from "./emit/project.ts";
 import { bakeFonts, type FontReader } from "./emit/resources.ts";
@@ -19,6 +20,7 @@ import * as strhash from "./emit/strhash.ts";
 import type { Face } from "./ir/model.ts";
 import { checkMemory, type MemoryStats } from "./lint.ts";
 import { cwdFileExists, readFontFile } from "./node.ts";
+import { type CompilerRoot, compilerRoot, expandHome, findSdk, monkeycCommand } from "./sdk.ts";
 
 /** Written into the build directory beside the `.prg`s: what built them. */
 export const BUILD_INFO = "build-info.json";
@@ -34,54 +36,58 @@ export const MONKEYC_TIMEOUT = 600;
 
 /** The SDK and the developer key a build compiles and signs with. */
 export class Toolchain {
+  /** The root the compiler runs from: the install, or a writable copy of its compiler files (`copied`). */
   readonly sdk: string;
+  /** The SDK as installed, where `bin/version.txt`, the doc pages, the simulator and `monkeydo` are. */
+  readonly install: string;
+  /** The SDK's release, `9.3.0`. */
+  readonly version: string;
+  readonly copied: boolean;
   readonly key: string;
 
-  constructor(sdk: string, key: string) {
-    this.sdk = sdk;
+  constructor(compiler: CompilerRoot, install: string, key: string) {
+    this.sdk = compiler.root;
+    this.install = install;
+    this.version = compiler.version;
+    this.copied = compiler.copied;
     this.key = key;
   }
 
+  /**
+   * The SDK `findSdk` finds for `sdk` (`--sdk`, else `CIQ_SDK`, else the SDK
+   * Manager's or `tools/setup-env.sh`'s install), compiled from in place when
+   * its `bin/` is writable and from a copy of its compiler files otherwise.
+   */
   static discover(sdk: string | null = null, key: string | null = null): Toolchain | null {
-    const expand = (path: string): string => (path.startsWith("~") ? join(homedir(), path.slice(1)) : path);
-    const sdkPath = expand(sdk ?? process.env["CIQ_SDK"] ?? "");
-    const keyPath = expand(key ?? process.env["WFB_KEY"] ?? join(homedir(), "ciq", "developer_key.der"));
-    if (!sdkPath || !existsSync(join(sdkPath, "bin", "monkeyc"))) return null;
-    return new Toolchain(sdkPath, keyPath);
+    const found = findSdk(sdk);
+    if (found === null) return null;
+    const keyPath = expandHome(key ?? process.env["WFB_KEY"] ?? join(homedir(), "ciq", "developer_key.der"));
+    return new Toolchain(compilerRoot(found), found.root, keyPath);
   }
 
-  get monkeyc(): string {
-    return join(this.sdk, "bin", "monkeyc");
-  }
-
-  get version(): string {
-    const text = join(this.sdk, "bin", "version.txt");
-    return existsSync(text) ? readFileSync(text, "utf8").trim() : this.sdk.slice(this.sdk.lastIndexOf("/") + 1);
+  /** `monkeyc`, to prepend to its arguments: the JVM on the compiler's jar, as the SDK's own launcher runs it. */
+  get monkeyc(): string[] {
+    return monkeycCommand(this.sdk);
   }
 }
 
 /** The SDK release the device reference was extracted from, or `null`. */
 export function referenceSdkVersion(reference: string = DEVICE_REFERENCE): string | null {
-  const path = join(dirname(reference), "sdk-version.txt");
-  try {
-    return readFileSync(path, "utf8").trim() || null;
-  } catch {
-    return null;
-  }
+  return referenceVersion(dirname(reference));
 }
 
 /** The SDK release this build compiles with, warning when the device reference came from another. */
 export function checkSdk(toolchain: Toolchain, bag: Bag, reference: string = DEVICE_REFERENCE): string {
   const version = toolchain.version;
   const extracted = referenceSdkVersion(reference);
-  const notes = ["run ./tools/setup-env.sh, or node ts/tools/extract-device-reference.ts, to extract it again"];
+  const notes = ["wfb extracts it from an SDK that has its doc pages; this one has none, so run node ts/tools/extract-device-reference.ts --sdk DIR on a full SDK"];
   if (extracted === null) {
     bag.note("sdk", `the device reference does not record its SDK, so it cannot be checked against SDK ${version}`, null, { notes });
   } else if (extracted !== version) {
     bag.warning("sdk", `the device reference was extracted from SDK ${extracted}, and this build compiles with SDK ${version}`, null, {
       notes: [
         "font metrics and palette sizes come from the reference, so text placement may not match what this SDK's devices measure",
-        "run ./tools/setup-env.sh, or node ts/tools/extract-device-reference.ts, to extract it from this SDK",
+        "wfb extracts it from an SDK that has its doc pages; this one has none, so run node ts/tools/extract-device-reference.ts --sdk DIR on a full SDK",
       ],
     });
   }
@@ -241,7 +247,7 @@ export async function build(given: string, { output, bag, devicesOnly = null, db
     const tools = toolchain ?? Toolchain.discover();
     if (tools === null) {
       bag.warning("toolchain", "no Connect IQ SDK found, so nothing was compiled", null, {
-        notes: ["set CIQ_SDK, or run ./tools/setup-env.sh", `the generated project is complete and is in ${buildDir}`],
+        notes: ["`wfb init` says how to install one, or set CIQ_SDK to one you have", `the generated project is complete and is in ${buildDir}`],
       });
     } else {
       result.sdk_version = checkSdk(tools, bag);
@@ -345,7 +351,7 @@ export async function exportApp(given: string, { output, bag, devicesOnly = null
   const started = performance.now();
   const tools = toolchain ?? Toolchain.discover();
   if (tools === null) {
-    bag.error("toolchain", "no Connect IQ SDK found, and an export needs monkeyc", null, { notes: ["set CIQ_SDK, or run ./tools/setup-env.sh"] });
+    bag.error("toolchain", "no Connect IQ SDK found, and an export needs monkeyc", null, { notes: ["`wfb init` says how to install one, or set CIQ_SDK to one you have"] });
     return null;
   }
   if (!existsSync(tools.key)) {
@@ -367,7 +373,7 @@ export async function exportApp(given: string, { output, bag, devicesOnly = null
   mkdirSync(work, { recursive: true });
   try {
     // -r strips debug information, as a release should; the jungle carries typecheck and optimization levels.
-    const command = [tools.monkeyc, "-f", "monkey.jungle", "-e", "-r", "-o", staged, "-y", tools.key, "-w", "--no-gen-styles", "--build-stats", "0"];
+    const command = [...tools.monkeyc, "-f", "monkey.jungle", "-e", "-r", "-o", staged, "-y", tools.key, "-w", "--no-gen-styles", "--build-stats", "0"];
     const timeout = Math.max(MONKEYC_TIMEOUT, EXPORT_TIMEOUT_PER_DEVICE * devices.length);
     const run = await runProcess(command, buildDir, timeout);
     if (run.timedOut) {
@@ -473,7 +479,7 @@ async function runMonkeyc(result: BuildResult, device: Device, toolchain: Toolch
   const staged = join(work, device.id, name);
   mkdirSync(dirname(staged), { recursive: true });
   // Typecheck and optimization levels live in the generated jungle, so a hand-run monkeyc reproduces this build.
-  const command = [toolchain.monkeyc, "-f", "monkey.jungle", "-d", device.id, "-o", staged, "-y", toolchain.key, "-w", "--no-gen-styles", "--build-stats", "0"];
+  const command = [...toolchain.monkeyc, "-f", "monkey.jungle", "-d", device.id, "-o", staged, "-y", toolchain.key, "-w", "--no-gen-styles", "--build-stats", "0"];
   const output = join(result.output_dir, name);
   const run = await runProcess(command, result.output_dir, MONKEYC_TIMEOUT);
   if (run.timedOut) return { returncode: null, text: `monkeyc took longer than ${MONKEYC_TIMEOUT} s and was stopped`, output };

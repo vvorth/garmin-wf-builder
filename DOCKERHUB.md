@@ -7,10 +7,10 @@ watch's own screen, see it on every watch you target, and build a signed
 ![wfb studio, the visual editor](https://raw.githubusercontent.com/vvorth/garmin-wf-builder/main/docs/screenshots/studio.png)
 
 This image is built from [`vvorth/garmin-wf-builder`](https://github.com/vvorth/garmin-wf-builder).
-It holds the `wfb` command line and editor with everything a build needs:
-Node, a headless Java runtime, and the Connect IQ SDK's compiler. You need
-nothing on the host but Docker and **your own copy of Garmin's device
-definitions** (see below).
+It holds the `wfb` command line and editor with the toolchain around
+Garmin's compiler: Node and a headless Java runtime. You need nothing on the
+host but Docker and **Garmin's Connect IQ SDK Manager's folders**: the SDK
+and your own copy of the device definitions (see below).
 
 ## What is included
 
@@ -21,13 +21,14 @@ definitions** (see below).
   watch, each with its memory use against that watch's limit.
 - `wfb preview`: renders the face to PNG with no simulator, from the same
   geometry the generated code uses.
-- `wfb validate`, `wfb devices`, `wfb sources`, `wfb doctor`.
-- The Connect IQ SDK (pruned to the compiler), the Nerd Fonts icon font and
-  free stand-ins for Garmin's system fonts.
+- `wfb init`: says what the SDK Manager has to put on your computer, and
+  how; `wfb doctor` checks everything a build needs.
+- `wfb validate`, `wfb devices`, `wfb sources`.
+- The Nerd Fonts icon font and free stand-ins for Garmin's system fonts.
 
-Not included: the Connect IQ simulator (it cannot run headless; use
-`wfb preview`, or the simulator on a desktop machine), and Garmin's device
-definitions (below).
+Not included: the Connect IQ SDK and Garmin's device definitions (below),
+and the Connect IQ simulator (it cannot run headless; use `wfb preview`, or
+the simulator on a desktop machine).
 
 ## Tags
 
@@ -40,22 +41,25 @@ definitions (below).
 Every tag is multi-arch: `linux/amd64` and `linux/arm64`; Docker pulls the
 one for your host.
 
-## You supply the device definitions
+## You supply the SDK and the device definitions
 
-Garmin's device definitions cannot be downloaded without a Garmin SSO login,
-and they are your licensed copy, so they are not in the image. Install the
-[Connect IQ SDK Manager](https://developer.garmin.com/connect-iq/sdk/) once on
-a desktop machine, let it download the watches you target, and mount its
-`Devices` directory read-only at `/devices`:
+Both are Garmin's, licensed to you: the Connect IQ SDK by the Developer
+Agreement you accept when downloading it, which does not allow it to be
+redistributed in an image, and the device definitions, which download only
+to a signed-in Garmin account. So they are not in the image. Install the
+[Connect IQ SDK Manager](https://developer.garmin.com/connect-iq/sdk/) once
+on a desktop machine, sign in, download the newest SDK on its SDK tab and
+the watches you target on its Devices tab, and mount its folders read-only:
 
-| Host | Path |
+| Host | The SDK Manager's folder (with `Sdks`, `Devices` and `Fonts` inside) |
 | --- | --- |
-| macOS | `~/Library/Application Support/Garmin/ConnectIQ/Devices` |
-| Linux | `~/.Garmin/ConnectIQ/Devices` |
-| Windows | `%APPDATA%\Garmin\ConnectIQ\Devices` |
+| macOS | `~/Library/Application Support/Garmin/ConnectIQ` |
+| Linux | `~/.Garmin/ConnectIQ` |
+| Windows | `%APPDATA%\Garmin\ConnectIQ` |
 
-If the mount is missing, the container says so instead of failing deep in a
-build.
+If a mount is missing, the container says so instead of failing deep in a
+build, and `docker run --rm vvorth/garmin-wf-builder init` prints every
+step for the computer running Docker.
 
 ## Quick start
 
@@ -66,15 +70,17 @@ docker volume create wfb-keys
 
 docker run --rm \
   -v "$PWD:/work" \
+  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
-  -v wfb-keys:/keys \
+  -v wfb-keys:/keys -v wfb-cache:/cache \
   vvorth/garmin-wf-builder:latest build my-face.yaml
 ```
 
 The `.prg` files land in `./build/`. As a shell alias:
 
 ```sh
-alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" -v wfb-keys:/keys vvorth/garmin-wf-builder:latest'
+alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" -v wfb-keys:/keys -v wfb-cache:/cache vvorth/garmin-wf-builder:latest'
+wfb doctor               # everything in place?
 wfb new "My Face"        # writes my-face.yaml from a template
 wfb preview my-face.yaml # build/preview/<watch>.png
 wfb build my-face.yaml   # build/my-face/*.prg
@@ -89,8 +95,9 @@ With no command, the image serves the editor on port `8765`:
 
 ```sh
 docker run --rm -it -p 127.0.0.1:8765:8765 \
+  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
-  -v wfb-keys:/keys \
+  -v wfb-keys:/keys -v wfb-cache:/cache \
   vvorth/garmin-wf-builder:latest
 ```
 
@@ -116,12 +123,15 @@ services:
     ports:
       - "127.0.0.1:8765:8765"
     volumes:
+      - /path/to/ConnectIQ/Sdks:/sdk:ro
       - /path/to/ConnectIQ/Devices:/devices:ro
       - /path/to/ConnectIQ/Fonts:/fonts:ro   # optional
       - wfb-keys:/keys
+      - wfb-cache:/cache                     # optional
 
 volumes:
   wfb-keys:
+  wfb-cache:
 ```
 
 ## Mounts
@@ -129,9 +139,11 @@ volumes:
 | Path | What | Needed by |
 | --- | --- | --- |
 | `/work` | your project directory; the working directory | `build`, `preview`, `validate` |
-| `/devices` | Garmin's device definitions, read-only | everything but `doctor` |
-| `/keys` | the developer signing key, `developer_key.der` | `build`, and Build in `studio` |
-| `/fonts` | optional: Garmin's own font files (the SDK Manager's `Fonts` directory, next to `Devices`) | `build`, `preview`, `studio` |
+| `/sdk` | the SDK Manager's `Sdks` folder (or one SDK), read-only | `build`, `export`, and Build in `studio` |
+| `/devices` | Garmin's device definitions, read-only | everything but `init` and `doctor` |
+| `/keys` | the developer signing key, `developer_key.der` | `build`, `export`, and Build in `studio` |
+| `/fonts` | optional: Garmin's own font files (the SDK Manager's `Fonts` folder, next to `Devices`) | `build`, `preview`, `studio` |
+| `/cache` | optional: the compiler's writable copy and the device reference, both made from the SDK; without the mount they are remade each run, a second or so | every command |
 
 **The signing key.** The first build generates a 4096-bit key at
 `/keys/developer_key.der`. Keep `/keys` on a volume so every build signs with
@@ -148,8 +160,8 @@ The image runs as uid `1000`, so on a typical single-user Linux host the build
 output is yours. Otherwise run with `--user "$(id -u):$(id -g)"`. On Docker
 Desktop for macOS and Windows ownership is mapped for you.
 
-Anything that is not a `wfb` subcommand (`sh`, `node`, `npm`, `java`,
-`monkeyc`) runs directly, so the image doubles as a shell:
+Anything that is not a `wfb` subcommand (`sh`, `node`, `npm`, `java`)
+runs directly, so the image doubles as a shell:
 `docker run --rm -it vvorth/garmin-wf-builder sh`.
 
 ## Links

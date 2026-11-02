@@ -1,43 +1,61 @@
-// Downloads and unpacks the Connect IQ SDK, stripped to the compiler. Run at
-// image build time (see the Dockerfile).
+// Downloads and unpacks the Connect IQ SDK, stripped to the compiler, for a
+// machine that will mount or point `wfb` at it (the container's smoke test
+// does; `tools/setup-env.sh` installs the whole SDK instead). Downloading
+// the SDK accepts Garmin's Connect IQ Developer Agreement
+// (https://developer.garmin.com/connect-iq/sdk/), which licenses it to the
+// person downloading, for developing and testing: a pruned SDK is still
+// Garmin's, and is not to be put in an image or an archive for others.
 //
 // The full SDK is 309 MB. `doc/`, `resources/` and `samples/` are
 // documentation; `share/` and the simulator, ERA, MonkeyMotion, the language
-// server and the FIT graph tool are GUI and analysis programs the container
-// does not run. What is left -- the compiler, its API database and the
-// resource XSD -- is about 26 MB and builds every target correctly. Pruned
-// files are skipped before they are inflated, so the archive never needs its
-// full size in memory.
+// server and the FIT graph tool are GUI and analysis programs a build does
+// not run. What is kept (`prunedSdkKeeps` in `ts/src/sdk.ts`) -- the compiler,
+// its API database and the resource XSD, the per-device reference pages
+// under `doc/docs/Device_Reference/` that `wfb` extracts the device reference
+// from, and the SDK's own licence texts and third-party notices -- is about
+// 48 MB and builds every target. Pruned files are skipped before they are
+// inflated, so the archive never needs its full size in memory.
 //
-// One part of `doc/` is data rather than documentation: the per-device pages
-// under `doc/docs/Device_Reference/`, which
-// `ts/tools/extract-device-reference.ts` reads. `--device-reference DIR`
-// writes them to `DIR/doc/docs/Device_Reference/`, so `DIR` can be passed to
-// that tool as `--sdk`.
+//   node ts/tools/fetch-sdk.ts URL [DESTINATION]
+//   node ts/tools/fetch-sdk.ts --newest [--version 9.3.0] [DESTINATION]
 //
-//   node ts/tools/fetch-sdk.ts URL [DESTINATION] [--device-reference DIR]
+// `--newest` looks the newest Linux release up in Garmin's `sdks.json`
+// (`SDK_BASE_URL` names a mirror), `--version` one release.
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { unzipSync } from "fflate";
+import { prunedSdkKeeps } from "../src/sdk.ts";
 
-const PRUNE_TREES = ["doc/", "samples/", "resources/", "share/"];
-const PRUNE_BIN = new Set([
-  "simulator", "connectiq", "connectiq.bat",
-  "monkeymotion", "monkeygraph", "monkeygraph.bat",
-  "era", "era.bat", "era.jar",
-  "LanguageServer.jar", "fit-graph.jar",
-  "shell", "mdd", "mdd.bat", "extdata",
-  "barrelbuild", "barrelbuild.bat", "barreltest", "barreltest.bat",
-  "monkeydoc", "monkeydoc.bat", "monkeym", "monkeym.bat",
-]);
 const EXECUTABLE = ["monkeyc", "monkeydo"];
-const DEVICE_REFERENCE = "doc/docs/Device_Reference/";
+const BASE_URL = process.env["SDK_BASE_URL"] || "https://developer.garmin.com/downloads/connect-iq/sdks";
 
-const { values, positionals } = parseArgs({ options: { "device-reference": { type: "string" } }, allowPositionals: true });
-const [url, destination = "/opt/ciq"] = positionals;
-if (url === undefined) throw new Error("usage: fetch-sdk.ts URL [DESTINATION] [--device-reference DIR]");
-const reference = values["device-reference"];
+const { values, positionals } = parseArgs({
+  options: { newest: { type: "boolean", default: false }, version: { type: "string" } },
+  allowPositionals: true,
+});
+
+interface Release { version: string; linux?: string }
+
+/** The Linux archive of the newest release in `sdks.json`, or of `version`. */
+async function newestArchive(version: string | undefined): Promise<string> {
+  const response = await fetch(`${BASE_URL}/sdks.json`, { signal: AbortSignal.timeout(60_000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status} for ${BASE_URL}/sdks.json`);
+  const releases = ((await response.json()) as Release[]).filter((r) => r.linux && (!version || r.version === version));
+  releases.sort((a, b) => a.version.localeCompare(b.version, "en", { numeric: true }));
+  const chosen = releases.at(-1);
+  if (chosen === undefined) throw new Error(version ? `sdks.json lists no Linux SDK ${version}` : "sdks.json lists no Linux SDK");
+  return `${BASE_URL}/${chosen.linux}`;
+}
+
+let url: string, destination: string;
+if (values.newest) {
+  url = await newestArchive(values.version);
+  destination = positionals[0] ?? "/opt/ciq";
+} else {
+  if (positionals[0] === undefined) throw new Error("usage: fetch-sdk.ts URL [DESTINATION], or --newest [--version X] [DESTINATION]");
+  [url, destination = "/opt/ciq"] = positionals as [string, string?];
+}
 
 console.log(`fetching ${url}`);
 const response = await fetch(url, { signal: AbortSignal.timeout(600_000) });
@@ -45,30 +63,17 @@ if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
 const archive = new Uint8Array(await response.arrayBuffer());
 console.log(`fetched ${Math.floor(archive.length / (1024 * 1024))} MB`);
 
-/** Where an archive member goes, or null when it is pruned. */
-function target(name: string): string | null {
-  if (name.startsWith(DEVICE_REFERENCE)) return reference ? join(reference, name) : null;
-  if (PRUNE_TREES.some((tree) => name.startsWith(tree))) return null;
-  if (!name.includes("/") && name.endsWith(".html")) return null;
-  const [top, entry] = name.split("/");
-  if (top === "bin" && entry !== undefined && PRUNE_BIN.has(entry)) return null;
-  return join(destination, name);
-}
-
-const files = unzipSync(archive, { filter: (file) => !file.name.endsWith("/") && target(file.name) !== null });
+const files = unzipSync(archive, { filter: (file) => !file.name.endsWith("/") && prunedSdkKeeps(file.name) });
 let size = 0;
 for (const [name, content] of Object.entries(files)) {
-  const path = target(name)!;
+  const path = join(destination, name);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
-  if (!(reference && name.startsWith(DEVICE_REFERENCE))) size += content.length;
+  size += content.length;
 }
-if (reference && !existsSync(join(reference, DEVICE_REFERENCE))) throw new Error(`the SDK archive has no ${DEVICE_REFERENCE}`);
 for (const name of EXECUTABLE) {
   const path = join(destination, "bin", name);
-  if (!existsSync(path)) throw new Error(`the SDK archive has no bin/${name}`);
-  chmodSync(path, 0o755);
+  if (existsSync(path)) chmodSync(path, 0o755);
 }
-// monkeyc rewrites it on every run, as whoever runs the container.
-if (existsSync(join(destination, "bin", "default.jungle"))) chmodSync(join(destination, "bin", "default.jungle"), 0o664);
-console.log(`pruned SDK is ${Math.floor(size / (1024 * 1024))} MB`);
+if (!existsSync(join(destination, "bin", "monkeybrains.jar"))) throw new Error(`the archive has no bin/monkeybrains.jar: not a Connect IQ SDK`);
+console.log(`pruned SDK is ${Math.floor(size / (1024 * 1024))} MB at ${destination}`);

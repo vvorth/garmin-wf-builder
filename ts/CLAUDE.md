@@ -30,7 +30,8 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
   requires. Type-only imports use `import type`.
 - **One package for the browser and Node.** Nothing reachable from
   `src/browser.ts` may import a `node:` module. Node-only code sits in its
-  own module (`src/devices/node.ts`), which only Node entry points import.
+  own module (`src/devices/node.ts`, `src/sdk.ts`), which only Node entry
+  points import.
 - **The compiler began as a port of a Python one**, and keeps Python's
   semantics wherever output depends on them (`src/py.ts`: rounding,
   `quoted` values, string formatting; the IR's snake_case field names). Keep them:
@@ -47,7 +48,14 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
   (`docs/development.md`, "Pipeline"); `src/CLAUDE.md` loads its lore.
   - `src/devices/files.ts` is the `DeviceFiles` interface every stage reads
     devices through: synchronous, filled up front in the browser.
-  - `src/devices/node.ts` is the same interface over the SDK's folders.
+  - `src/devices/node.ts` is the same interface over the SDK's folders,
+    and extracts the device reference from the installed SDK's pages
+    (`src/devices/reference.ts`) when it is missing or stale.
+  - `src/sdk.ts` finds the SDK (`--sdk`, `CIQ_SDK`, the SDK Manager's
+    `Sdks` folder, `~/ciq/sdks`), says which of its files the compiler
+    needs, copies those when the install is read-only, and runs `monkeyc`
+    as the JVM on its jar. `src/init.ts` is `wfb init`: what the SDK
+    Manager has to put on the machine, and the steps when it has not.
   - `src/devices/device.ts` is `Device` and `DeviceDatabase` over it; a
     database also holds the `FontFiles` its system-font metrics read.
   - `src/fonts/files.ts` is the `FontFiles` interface (the Garmin font
@@ -193,7 +201,8 @@ How the tests are organised, and the rules they keep, is `test/CLAUDE.md`.
   (`tools/fetch-system-fonts.ts`).
 - `tools/` holds the Node tools: the three `setup-env.sh` runs
   (`extract-device-reference.ts`, `fetch-icon-font.ts`,
-  `fetch-system-fonts.ts`), `fetch-sdk.ts` (the Docker image's SDK),
+  `fetch-system-fonts.ts`), `fetch-sdk.ts` (a pruned SDK for the image's
+  smoke test to mount),
   `build.ts`, `goldens.ts`, `export-data.ts`, `docs-shots.ts` (the
   screenshots in `../docs/screenshots/`), `studio-shots.ts` (the editor's
   screenshots there, through `browser/harness.ts`), `gen-profile-face.ts` and

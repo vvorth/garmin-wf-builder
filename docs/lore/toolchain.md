@@ -151,11 +151,15 @@ glitch.
   steps (`doc/docs/Core_Topics/Publishing_to_the_Store.html`): list every
   product in the manifest, export the `.iq`, upload it.
 - **`$CIQ_SDK/bin/monkeyc` is a bash script that runs `java` as its child,
-  not by `exec`** (SDK 9.2.0, checked 2026-10-04). `subprocess.run`'s
-  timeout kills only the script, so a hung build used to leave its JVM
-  (`-Xms1g`) running after wfb reported it stopped; the editor, which runs
-  `wfb build`, left `monkeyc` itself behind too. Both run their command
-  through `run` in `ts/src/node_build.ts`, which starts it in its own process group and
+  not by `exec`** (SDK 9.2.0, checked 2026-10-04; 9.3.0 the same: `java
+  -Xms1g -Dfile.encoding=UTF-8 -Dapple.awt.UIElement=true -classpath
+  "$MB_HOME"/monkeybrains.jar com.garmin.monkeybrains.Monkeybrains "$@"`).
+  `subprocess.run`'s timeout kills only the script, so a hung build used to
+  leave its JVM (`-Xms1g`) running after wfb reported it stopped; the
+  editor, which runs `wfb build`, left `monkeyc` itself behind too. Since
+  2026-11-02 `wfb` runs that JVM command itself (`monkeycCommand` in
+  `ts/src/sdk.ts`), with no script in between; both still run it through
+  `run` in `ts/src/node_build.ts`, which starts it in its own process group and
   kills the group on a timeout or an interrupt. A process that left the
   group (`setsid`) survives that kill and may hold the output pipes open,
   so the wait for them after the kill is bounded (5 s) rather than
@@ -272,11 +276,11 @@ why each part matters:
 
 | Piece | Location | Notes |
 |---|---|---|
-| Connect IQ SDK, newest (9.2.0 as of 2026-10-07) | `~/ciq/sdks/<version>` | Downloaded unauthenticated from `developer.garmin.com`, the newest Linux release its `sdks.json` lists unless `SDK_VERSION` pins one; offline, the newest already installed. A newer SDK replaces `CIQ_SDK`/`PATH` in `/etc/sandbox-persistent.sh`. 204 MB. |
+| Connect IQ SDK, newest (9.3.0 as of 2026-11-02) | `~/ciq/sdks/<version>` | Downloaded unauthenticated from `developer.garmin.com`, the newest Linux release its `sdks.json` lists unless `SDK_VERSION` pins one; offline, the newest already installed. A newer SDK replaces `CIQ_SDK`/`PATH` in `/etc/sandbox-persistent.sh`. 204 MB. `wfb` itself needs neither variable: `findSdk` in `ts/src/sdk.ts` takes `--sdk`, then `CIQ_SDK`, then the SDK Manager's `Sdks` folder (the SDK its `current-sdk.cfg` names, else the newest), then `~/ciq/sdks`, and each may be one SDK root or a folder of them. A root is recognised by `bin/monkeybrains.jar`; `monkeyc` is run as the JVM on that jar, exactly as the SDK's own `bin/monkeyc` script runs it, so the script's shell is not needed (the Windows SDK's copy has CRLF line ends). When the SDK's `bin/` is not writable (a read-only mount in the container), the compiler's files (about 26 MB: `bin/` less the GUI programs, `compilerNeeds`) are copied once per release to `$XDG_CACHE_HOME/wfb/sdk/<version>` (`~/.cache/wfb/...`) and compiled from there; `wfb doctor` says so. |
 | Developer key | `~/ciq/developer_key.der` | Plain OpenSSL RSA → PKCS#8 DER. No Garmin tooling needed. |
 | **Device definitions** | `~/.Garmin/ConnectIQ/Devices/` | **Cannot be downloaded.** See below. |
 | Garmin's own font files (optional) | `~/.Garmin/ConnectIQ/Fonts/` | Also cannot be downloaded; copied from `vendor/fonts/` the same incremental way, if present. See below. |
-| SDK device reference | `.cache/device-reference/` | Derived, never committed: `ts/tools/extract-device-reference.ts` scrapes the SDK's own `doc/docs/Device_Reference/*.html` (one JSON per device, 164 on SDK 9.2.0). The only source of each panel's real palette size and per-device system-font pixel metrics, and of the font names `ts/tools/fetch-system-fonts.ts` prefetches, so it is generated before the fonts. Rebuilt only when missing, when `source.txt` names a different SDK, or when `sdk-version.txt` (the SDK release, from its `bin/version.txt`, or `--sdk-version` in the Docker build, which keeps only the doc pages) is absent; regenerating it on 9.2.0 is byte-identical. `wfb build` compares `sdk-version.txt` with the SDK it compiles with (`ts/src/build.ts`: a `sdk` warning when they differ, a note when the reference records none) and writes both into `build-info.json` in the build directory. `wfb` refuses to load devices without it (`DeviceReferenceMissing`). |
+| SDK device reference | `.cache/device-reference/`, or `~/.cache/wfb/device-reference/` when the checkout is not writable | Derived, never committed: `ts/src/devices/reference.ts` parses the SDK's own `doc/docs/Device_Reference/*.html` (one JSON per device, 178 on SDK 9.3.0; `ts/tools/extract-device-reference.ts` is its command line). The only source of each panel's real palette size and per-device system-font pixel metrics, and of the font names `ts/tools/fetch-system-fonts.ts` prefetches, so `setup-env.sh` generates it before the fonts. **`wfb` extracts it itself** (`ensureDeviceReference` in `ts/src/devices/node.ts`, about a second for the fleet, a line on stderr) whenever it is missing or `sdk-version.txt` names another release than the SDK `findSdk` finds, provided that SDK has the pages (a pruned one may not: then what is there is used, and `wfb build` warns). `WFB_DEVICE_REFERENCE` names a folder of pages outright and is never extracted into (the fixture device's). `wfb build` compares `sdk-version.txt` with the SDK it compiles with (`checkSdk` in `ts/src/node_build.ts`: a `sdk` warning when they differ, a note when the reference records none) and writes both into `build-info.json` in the build directory. `wfb` refuses to load devices with no reference at all (`DeviceReferenceMissing`), which now only happens with no SDK installed. |
 | System-font registry stand-ins | `ts/assets/system-fonts/` | Free fonts, downloaded and hash-checked by `ts/tools/fetch-system-fonts.ts`. |
 | Env vars | `/etc/sandbox-persistent.sh` | `CIQ_SDK`, and SDK `bin/` on `PATH`. |
 | Node 24.22.1 | `~/.local/share/wfb/node-v<version>`, when the `node` on `PATH` cannot run `.ts` files or predates 22.23.4, 24.22.1 or 26.12.1 (the October 2026 security releases) | An official build, checked against `SHASUMS256.txt`, prepended to `PATH`; then `npm ci` in `ts/` (`yaml`, `fflate`, `opentype.js`; `typescript` and `esbuild` for development). |
@@ -284,6 +288,40 @@ why each part matters:
 The icon font, the device reference and the system fonts are fetched by the
 tools in `ts/tools/`, which need `ts/`'s npm dependencies, so Node is set up
 before them.
+
+### The Developer Agreement: why the SDK is the user's, not the image's
+
+The Connect IQ SDK page (`https://developer.garmin.com/connect-iq/sdk/`,
+read 2026-11-02) carries the **Connect IQ Developer Agreement** (updated
+2024-08-06; "By downloading any of the following SDKs, you accept our
+license agreement"), which "supersedes and replaces the Garmin CONNECT IQ
+SDK License Agreement". Its grant (I.a) is "a limited, non-exclusive,
+personal, revocable, non-assignable, non-sublicensable and non-transferable
+license to use the Program Materials for the sole purpose of developing and
+testing Applications"; its restrictions (I.b) forbid to "rent, lease, lend,
+upload to or host on any website or server, sell, redistribute, or
+sublicense the Program Materials in whole or in part, or to enable others
+to do so", and to "alter or remove any copyright, trademark, or other
+proprietary notices". "SDK" (IX.o) is the kit "in object code form ...
+including documentation, firmware, software, sample code, tools,
+libraries, APIs, data, and files", and "Program Materials" (IX.p) is that
+plus everything else Garmin makes available in the programme, the
+simulator named. There is no open-source carve-out, and the SDK's own
+`resources/readme/licenses/` holds `CIQ-LICENSE-AGREEMENT.html` beside the
+third-party notices (LGPL, Apache 2.0, OpenSSL, libpng and others).
+
+Consequences, all built: the Docker image carries no part of the SDK --
+not the compiler, not the API database, not the device reference derived
+from its pages -- and mounts the user's SDK Manager install at `/sdk`
+(`docs/container.md`); a pruned SDK (`ts/tools/fetch-sdk.ts`) keeps the
+licence folder and is only ever the downloader's own copy (the smoke test's
+runner); and the device definitions and Garmin's fonts, which the same
+agreement covers, stay out for the same reason as well as the 401 below.
+Downloading the SDK on one's own machine (`tools/setup-env.sh` on Linux,
+the SDK Manager elsewhere) is the ordinary use the agreement grants.
+Images published before 2026-11-02 (`26.10.0`–`26.10.2`, the `dev` tags of
+October 2026) contained the pruned SDK and are the project owner's to
+withdraw.
 
 ### The one thing that is genuinely gated: device definitions
 

@@ -83,10 +83,12 @@ newest SDK, devices and fonts in place instead), the developer key at
 `ts/assets/icons/` (downloaded and hash-checked by
 `ts/tools/fetch-icon-font.ts`; **not committed**, so a fresh clone needs it before
 anything with an icon validates), the SDK device reference at
-`.cache/device-reference/` (extracted from the SDK's own device pages by
-`ts/tools/extract-device-reference.ts`; **derived and not committed**, rebuilt
-when missing or the SDK changes, and `wfb` refuses to load devices without
-it; `wfb build` warns when it came from another SDK), `CIQ_SDK` and `PATH` in
+`.cache/device-reference/` (extracted from the SDK's own device pages;
+**derived and not committed**; `wfb` extracts it itself, there or under
+`~/.cache/wfb/`, whenever it is missing or from another SDK release than the
+one it finds -- `ts/src/sdk.ts` looks in `CIQ_SDK`, the SDK Manager's `Sdks`
+folder and `~/ciq/sdks`, and `wfb init` says how to install one; `wfb build`
+warns when a pruned SDK leaves it stale), `CIQ_SDK` and `PATH` in
 `/etc/sandbox-persistent.sh`, and an official Node 24.22.1 (when the `node`
 on `PATH` cannot run `.ts` files or predates 22.23.4/24.22.1/26.12.1, whose
 earlier releases are vulnerable and which `wfb` refuses) with `ts/`'s npm

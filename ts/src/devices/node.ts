@@ -1,30 +1,60 @@
-// Device files from the SDK's folders on disk (`NodeDeviceFiles.discover`).
-// Node only: the
-// browser bundle never imports this module.
+// Device files from the SDK's folders on disk (`NodeDeviceFiles.discover`),
+// and the SDK device reference beside them, extracted from the installed SDK
+// when it is missing or stale. Node only: the browser bundle never imports
+// this module.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cacheHome, canWriteAt, findSdk, type Sdk, sdkManagerHomes } from "../sdk.ts";
 import { DeviceError } from "./device.ts";
 import type { DeviceFiles } from "./files.ts";
+import { extractDeviceReference, referencePages, referenceVersion } from "./reference.ts";
 
 export { DeviceError };
 
 /** The repository root: `ts/src/devices/` is three levels below it. */
 export const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "../../../..");
 
+/** The two places an extracted reference lives: the checkout's `.cache/`, and the user's cache when the checkout is not writable. */
+const REFERENCE_HOMES = [join(REPO_ROOT, ".cache", "device-reference"), join(cacheHome(), "device-reference")];
+
 /**
  * One JSON page per device, extracted from the installed SDK's device
- * reference; `WFB_DEVICE_REFERENCE` names another folder of such pages (the
- * fixture device's, `ts/test/fixtures/devices/reference`, beside
- * `WFB_DEVICES` naming its device folder).
+ * reference: `WFB_DEVICE_REFERENCE` names a folder of such pages outright
+ * (the fixture device's, `ts/test/fixtures/devices/reference`, beside
+ * `WFB_DEVICES` naming its device folder); otherwise the first of the
+ * checkout's `.cache/device-reference/devices` and the user cache's that
+ * exists, else whichever of the two an extraction would write.
  */
-export const DEVICE_REFERENCE = process.env["WFB_DEVICE_REFERENCE"] || join(REPO_ROOT, ".cache", "device-reference", "devices");
+export function locateDeviceReference(): string {
+  const named = process.env["WFB_DEVICE_REFERENCE"];
+  if (named) return named;
+  const existing = REFERENCE_HOMES.map((home) => join(home, "devices")).find((dir) => existsSync(dir));
+  return existing ?? join(canWriteAt(REFERENCE_HOMES[0]!) ? REFERENCE_HOMES[0]! : REFERENCE_HOMES[1]!, "devices");
+}
 
-export const DEFAULT_DEVICE_ROOTS = [
-  join(homedir(), ".Garmin", "ConnectIQ", "Devices"),
-  join(homedir(), "Library", "Application Support", "Garmin", "ConnectIQ", "Devices"),
-];
+export const DEVICE_REFERENCE = locateDeviceReference();
+
+/**
+ * The reference to read: `reference` as it stands when `WFB_DEVICE_REFERENCE`
+ * names it, when no SDK with the pages is installed, or when it was extracted
+ * from that SDK's release; otherwise freshly extracted from the SDK -- into
+ * `reference`'s own folder when that can be written, else into the user's
+ * cache -- with a line on stderr saying so. About a second for the whole
+ * fleet.
+ */
+export function ensureDeviceReference(sdk: Sdk | null = findSdk(), reference: string = DEVICE_REFERENCE): string {
+  if (process.env["WFB_DEVICE_REFERENCE"] || sdk === null || !existsSync(referencePages(sdk.root))) return reference;
+  const home = dirname(reference);
+  if (existsSync(reference) && referenceVersion(home) === sdk.version) return reference;
+  const target = canWriteAt(home) ? home : REFERENCE_HOMES[1]!;
+  process.stderr.write(`wfb: extracting the device reference from SDK ${sdk.version} (${sdk.root}) into ${target}\n`);
+  extractDeviceReference(sdk.root, target, sdk.version);
+  return join(target, "devices");
+}
+
+/** The SDK Manager's `Devices/` folder on each OS. */
+export const DEFAULT_DEVICE_ROOTS = sdkManagerHomes().map((home) => join(home, "Devices"));
 
 /** The SDK device reference has not been generated yet. */
 export class DeviceReferenceMissing extends DeviceError {}
@@ -39,13 +69,13 @@ export class NodeDeviceFiles implements DeviceFiles {
   }
 
   /** The first of `override`, `WFB_DEVICES` and the SDK Manager's folders that holds devices. */
-  static discover(override?: string, referenceDir: string = DEVICE_REFERENCE): NodeDeviceFiles {
+  static discover(override?: string, referenceDir: string = ensureDeviceReference()): NodeDeviceFiles {
     const candidates = [override, process.env["WFB_DEVICES"], ...DEFAULT_DEVICE_ROOTS]
       .filter((path): path is string => Boolean(path));
     if (!existsSync(referenceDir)) {
       throw new DeviceReferenceMissing(
-        `no SDK device reference at ${referenceDir}.  It is generated from the installed SDK: ` +
-        "run ./tools/setup-env.sh, or node ts/tools/extract-device-reference.ts on its own.",
+        `no SDK device reference at ${referenceDir}.  It is extracted from the installed SDK's own device pages ` +
+        "the first time wfb needs it, so install the SDK (`wfb init` says how), or run node ts/tools/extract-device-reference.ts --sdk DIR.",
       );
     }
     for (const path of candidates) {
@@ -53,7 +83,7 @@ export class NodeDeviceFiles implements DeviceFiles {
     }
     throw new DeviceError(
       "no Connect IQ device definitions found.  They cannot be downloaded " +
-      "(api.gcs.garmin.com returns HTTP 401); run ./tools/setup-env.sh, " +
+      "(api.gcs.garmin.com returns HTTP 401): `wfb init` says how to get them, " +
       "or set WFB_DEVICES to a directory containing them.",
     );
   }

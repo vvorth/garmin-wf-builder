@@ -31,12 +31,14 @@ on the file `wfb new` writes for you here.
 
 The compiler needs Garmin's description of each watch, and a script can't
 download it because Garmin's server requires you to sign in. So get it once by
-hand:
+hand (`wfb init`, or `docker run --rm vvorth/garmin-wf-builder init`, prints
+these steps for your computer, with the download link for its operating
+system):
 
 1. Install Garmin's
    [Connect IQ SDK Manager](https://developer.garmin.com/connect-iq/sdk/), sign
-   in, and download the devices you build for. On macOS, download the newest
-   SDK there too.
+   in, and download the devices you build for. On macOS, and for Docker,
+   download the newest SDK there too.
 2. The SDK Manager saves them here:
    - macOS: `~/Library/Application Support/Garmin/ConnectIQ/Devices`
    - Linux: `~/.Garmin/ConnectIQ/Devices`
@@ -50,7 +52,10 @@ hand:
    - **Linux, downloaded on another machine:** copy that folder's contents
      into `vendor/devices/` in this repository. That folder is gitignored,
      because the files are your licensed copy.
-   - **Docker:** nothing to copy. Step 2 mounts the folder into the container.
+   - **Docker:** nothing to copy. Step 2 mounts the folder into the container,
+     with the SDK Manager's `Sdks` folder beside it: the SDK is licensed to
+     you by the agreement you accepted downloading it, so it is not in the
+     image either.
 
 **Optional:** the same SDK Manager install also has Garmin's own font files
 (next to `Devices`, in a `Fonts` directory). Free stand-ins work without
@@ -76,7 +81,7 @@ finds the one the SDK Manager installed. It also prints two `export` lines
 
 ```sh
 docker pull vvorth/garmin-wf-builder
-alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" -v wfb-keys:/keys vvorth/garmin-wf-builder'
+alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" -v wfb-keys:/keys -v wfb-cache:/cache vvorth/garmin-wf-builder'
 ```
 
 `vvorth/garmin-wf-builder` is the latest release; `docker build -t
@@ -84,7 +89,8 @@ garmin-wf-builder .` in a checkout builds the same image yourself.
 
 The container sees only the current directory, so run `wfb` from the folder
 that holds your face. The `wfb-keys` volume keeps your signing key between
-runs. See [`docs/container.md`](../container.md) for details.
+runs, and `wfb-cache` the compiler's copy and the device reference `wfb`
+makes from your SDK. See [`docs/container.md`](../container.md) for details.
 
 ### Step 3: make a face and build it
 

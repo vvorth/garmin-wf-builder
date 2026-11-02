@@ -64,6 +64,7 @@ wfb fonts     [DEVICE ...] [-d DEVICE]  # fonts per device: scalable (vector) an
 wfb sources                        # the data-source catalogue, and the icon names
 wfb complications                  # what an element's `on_hold:` may launch
 wfb schema    [--path]             # the JSON Schema, for editor setup
+wfb init      [--docker] [--download DIR --accept-license]  # how to get Garmin's SDK and your watches' definitions here
 wfb doctor                         # what is installed, what is missing, what to do
 wfb help      [command]            # every command's own help, from its own docstring
 ```

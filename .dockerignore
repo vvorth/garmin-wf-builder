@@ -20,7 +20,8 @@ ts/assets/icons/SymbolsNerdFont-Regular.ttf
 ts/assets/icons/LICENSE-nerd-fonts.txt
 # So are the system fonts.
 ts/assets/system-fonts/
-# The SDK device reference is extracted from the SDK in the image build.
+# Derived from the user's SDK at run time, never in the image: the device
+# reference, and the smoke test's pruned SDK.
 .cache/
 # Research records and their probes: tens of MB nothing in the image reads.
 docs/research/

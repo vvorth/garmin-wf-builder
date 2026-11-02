@@ -1,24 +1,31 @@
 #!/bin/sh
 # Container entrypoint for garmin-wf-builder.
 #
-# Three things have to be arranged before `wfb` can run, and each of them is a
-# trap that produces a confusing failure if it is left to chance (a fourth,
+# Four things have to be arranged before `wfb` can run, and each of them is a
+# trap that produces a confusing failure if it is left to chance (a fifth,
 # Garmin's own fonts, is optional and only earns a notice -- see below):
 #
-#   1. The device definitions cannot be baked into the image, so a missing mount
-#      must be explained rather than surfacing as "Invalid device id".
-#   2. `monkeyc` finds those definitions through Java's `user.home`, which comes
+#   1. The Connect IQ SDK is the user's own licensed copy, so it is not in the
+#      image: it is mounted at /sdk (the SDK Manager's Sdks folder, or one SDK),
+#      and a missing mount must be explained rather than surfacing as "no SDK".
+#      `wfb` picks the SDK inside the mount and, since the mount is read-only
+#      and `monkeyc` rewrites bin/default.jungle on every run, compiles from a
+#      copy of the compiler's files in the cache (below).
+#   2. The device definitions cannot be baked into the image either, so a
+#      missing mount must be explained rather than surfacing as "Invalid device
+#      id".
+#   3. `monkeyc` finds those definitions through Java's `user.home`, which comes
 #      from the *passwd entry* of the running uid -- not from $HOME.  Running
 #      with `--user` therefore breaks device discovery unless user.home is set
 #      explicitly, which is what JAVA_TOOL_OPTIONS does below.
-#   3. The developer key signs the .prg.  Generating one silently into a
+#   4. The developer key signs the .prg.  Generating one silently into a
 #      container layer would mean a different key on every run.
 set -eu
 
 # An escape hatch: anything that is obviously not a wfb subcommand runs directly,
 # so `docker run IMAGE npm test` and `docker run IMAGE sh` behave as expected.
 case "${1:-}" in
-    sh|bash|java|monkeyc|node|npm)
+    sh|bash|java|node|npm)
         exec "$@"
         ;;
 esac
@@ -39,37 +46,34 @@ export HOME="${wfb_home}"
 # Appended, not replaced, so a caller can still pass JVM options of their own.
 export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Duser.home=${wfb_home}"
 
-# ----------------------------------------------------------------- sdk -----
-# `monkeyc` regenerates $CIQ_SDK/bin/default.jungle from the installed device
-# list on every invocation, replacing the file, so the directory must be
-# writable.  The image hands /opt/ciq to uid 1000; anything else gets a private
-# copy.  It is ~26 MB, so this costs a fraction of a second and only happens when
-# the container is run as a different user.
-if [ ! -w "${CIQ_SDK}/bin" ]; then
-    private_sdk="${HOME}/ciq"
-    if [ ! -x "${private_sdk}/bin/monkeyc" ]; then
-        echo "wfb: ${CIQ_SDK} is not writable by uid $(id -u); copying it to ${private_sdk}" >&2
-        mkdir -p "${private_sdk}"
-        cp -a "${CIQ_SDK}/." "${private_sdk}/"
-    fi
-    CIQ_SDK="${private_sdk}"
-    export CIQ_SDK
-    PATH="${private_sdk}/bin:${PATH}"
-    export PATH
+# -------------------------------------------------------------- cache -------
+# The compiler's copy and the device reference extracted from the SDK's pages
+# live in $XDG_CACHE_HOME/wfb.  The image sets it to /cache; a volume there
+# keeps both between runs (a second or so and 26 MB per run otherwise), and
+# an unwritable /cache falls back to the home above.
+if [ ! -w "${XDG_CACHE_HOME:-/cache}" ]; then
+    export XDG_CACHE_HOME="${wfb_home}/.cache"
 fi
 
 # ------------------------------------------------------ what this needs -----
 needs_devices=0
+needs_sdk=0
 needs_key=0
 wants_fonts=0
 case "${1:-}" in
     build)
         needs_devices=1
+        needs_sdk=1
         needs_key=1
         wants_fonts=1
         for arg in "$@"; do
-            [ "$arg" = "--no-compile" ] && needs_key=0
+            [ "$arg" = "--no-compile" ] && needs_sdk=0 && needs_key=0
         done
+        ;;
+    export)
+        needs_devices=1
+        needs_sdk=1
+        needs_key=1
         ;;
     preview|validate)
         needs_devices=1
@@ -102,7 +106,7 @@ case "${1:-}" in
             set -- "$@" --allow-any-host
         fi
         ;;
-    devices)
+    devices|fonts)
         needs_devices=1
         ;;
     simulate)
@@ -126,6 +130,50 @@ EOF
         ;;
 esac
 
+# The SDK Manager's folders, as a user mounts them (macOS paths; `wfb init`
+# prints the Linux and Windows ones).
+mounts() {
+    cat <<EOF
+  docker run --rm \\
+    -v "\$PWD:/work" \\
+    -v "\$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:${CIQ_SDK}:ro" \\
+    -v "\$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:${WFB_DEVICES}:ro" \\
+    -v "\$HOME/Library/Application Support/Garmin/ConnectIQ/Fonts:${WFB_FONTS}:ro" \\
+    -v wfb-keys:/keys -v wfb-cache:/cache \\
+    IMAGE ${1:-build} ...
+EOF
+}
+
+# ---------------------------------------------------------------- sdk -------
+# An SDK root has bin/monkeybrains.jar; the SDK Manager's Sdks folder holds
+# one root per installed release.
+has_sdk() {
+    [ -f "${CIQ_SDK}/bin/monkeybrains.jar" ] && return 0
+    for root in "${CIQ_SDK}"/*/; do
+        [ -f "${root}bin/monkeybrains.jar" ] && return 0
+    done
+    return 1
+}
+if [ "${needs_sdk}" = "1" ] && ! has_sdk; then
+    cat >&2 <<EOF
+wfb: no Connect IQ SDK at ${CIQ_SDK}.
+
+The SDK is licensed to you by Garmin's Connect IQ Developer Agreement, which
+you accept by downloading it, so it is not in this image: mount the SDK
+Manager's Sdks folder (or one SDK) from the computer that installed it.
+\`docker run ... IMAGE init\` prints the steps for a computer that has not.
+
+  macOS   ~/Library/Application Support/Garmin/ConnectIQ/Sdks
+  Linux   ~/.Garmin/ConnectIQ/Sdks
+  Windows %APPDATA%\\Garmin\\ConnectIQ\\Sdks
+
+$(mounts "$1")
+
+See docs/container.md.
+EOF
+    exit 2
+fi
+
 # ------------------------------------------------------------ devices -------
 if [ "${needs_devices}" = "1" ]; then
     if [ ! -d "${WFB_DEVICES}" ] || [ -z "$(ls -A "${WFB_DEVICES}" 2>/dev/null)" ]; then
@@ -134,15 +182,14 @@ wfb: no Connect IQ device definitions at ${WFB_DEVICES}.
 
 They cannot be downloaded -- api.gcs.garmin.com returns HTTP 401 behind a Garmin
 SSO login -- so they are not in this image and must be mounted from a machine
-where the SDK Manager has installed them:
+where the SDK Manager has installed them. \`docker run ... IMAGE init\` prints
+the steps for a computer that has not.
 
   macOS   ~/Library/Application Support/Garmin/ConnectIQ/Devices
   Linux   ~/.Garmin/ConnectIQ/Devices
+  Windows %APPDATA%\\Garmin\\ConnectIQ\\Devices
 
-  docker run --rm \\
-    -v "\$PWD:/work" \\
-    -v "\$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \\
-    IMAGE ${1:-build} ...
+$(mounts "$1")
 
 See docs/container.md.
 EOF

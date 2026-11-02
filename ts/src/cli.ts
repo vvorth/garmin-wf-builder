@@ -11,13 +11,15 @@ import * as catalog from "./catalog.ts";
 import { COMMANDS, MAIN } from "./cli_help.ts";
 import * as complications from "./complications.ts";
 import { type Device, DeviceDatabase, DeviceError, type FontMetric } from "./devices/device.ts";
-import { DEVICE_REFERENCE, DeviceReferenceMissing, NodeDeviceFiles } from "./devices/node.ts";
+import { DEVICE_REFERENCE, DeviceReferenceMissing, ensureDeviceReference, NodeDeviceFiles } from "./devices/node.ts";
+import { referencePages } from "./devices/reference.ts";
 import { Bag, type Diagnostic } from "./diagnostics.ts";
 import { codeReport, planFor } from "./emit/monkeyc/profile.ts";
 import { bakeFonts } from "./emit/resources.ts";
 import { resolveRegistryKey } from "./fonts/files.ts";
 import { deviceNeededNames, garminFontRoot, NodeFontFiles } from "./fonts/node.ts";
 import * as icons from "./icons.ts";
+import * as init from "./init.ts";
 import type { ExprValue } from "./expr.ts";
 import type { ResolvedFace } from "./layout.ts";
 import type { MemoryStats } from "./lint.ts";
@@ -191,7 +193,7 @@ const COMMAND_LIST: readonly Command[] = [
     },
     { flags: ["--trace"], kind: "flag", help: "print a line (System.println) at every lifecycle and config-editor callback the face gets, with the watch's milliseconds -- read it with `wfb simulate --follow`, or on a watch from GARMIN/APPS/LOGS/<PRG NAME>.TXT (create it empty first); a build for measuring, not for wearing" },
     { flags: ["-j", "--jobs"], type: POSITIVE_INT, metavar: "N", help: `compile up to N devices at once (default: one per device, at most one per CPU and at most ${MAX_DEFAULT_JOBS})` },
-    { flags: ["--sdk"], help: "Connect IQ SDK root (default: $CIQ_SDK)" },
+    { flags: ["--sdk"], help: "Connect IQ SDK root, or a folder of them (default: $CIQ_SDK, else the SDK Manager's Sdks folder)" },
     { flags: ["--key"], help: "developer key .der (default: ~/ciq/developer_key.der)" },
     DEVICES_DIR,
   ], [DESIGN]),
@@ -200,7 +202,7 @@ const COMMAND_LIST: readonly Command[] = [
     { flags: ["--all-devices"], kind: "flag", help: "export every installed device that can run a watch face at the 3.1.0 API floor, instead of the design's targets" },
     { flags: ["--id"], type: APP_ID, metavar: "UUID", help: "the app id to export under instead of face: id: -- a Store beta app needs its own" },
     { flags: ["-o", "--output"], default: DEFAULT_EXPORT_OUTPUT, help: `export directory (default: ${DEFAULT_EXPORT_OUTPUT})` },
-    { flags: ["--sdk"], help: "Connect IQ SDK root (default: $CIQ_SDK)" },
+    { flags: ["--sdk"], help: "Connect IQ SDK root, or a folder of them (default: $CIQ_SDK, else the SDK Manager's Sdks folder)" },
     { flags: ["--key"], help: "developer key .der (default: ~/ciq/developer_key.der); every update of a Store app must be signed with the same key" },
     DEVICES_DIR,
   ], [DESIGN]),
@@ -234,7 +236,7 @@ const COMMAND_LIST: readonly Command[] = [
     { flags: ["--screenshot"], help: "capture the simulator window to this PNG" },
     { flags: ["-f", "--follow"], kind: "flag", help: "stay attached and print the face's console output (System.println) until Ctrl-C" },
     { flags: ["--trace"], kind: "flag", help: "print a line (System.println) at every lifecycle and config-editor callback the face gets, with the watch's milliseconds -- read it with `wfb simulate --follow`, or on a watch from GARMIN/APPS/LOGS/<PRG NAME>.TXT (create it empty first); a build for measuring, not for wearing" },
-    { flags: ["--sdk"], help: "Connect IQ SDK root (default: $CIQ_SDK)" },
+    { flags: ["--sdk"], help: "Connect IQ SDK root, or a folder of them (default: $CIQ_SDK, else the SDK Manager's Sdks folder)" },
     { flags: ["--key"], help: "developer key .der (default: ~/ciq/developer_key.der)" },
     DEVICES_DIR,
   ], [DESIGN]),
@@ -256,6 +258,13 @@ const COMMAND_LIST: readonly Command[] = [
     { flags: ["-d", "--device"], kind: "append", dest: "device_flags", metavar: "DEVICE", help: "another device to inspect (repeatable; alternative or addition to the positional form)" },
     DEVICES_DIR,
   ], [{ dest: "devices", many: true, metavar: "DEVICE", help: "device(s) to inspect (repeatable; default: all installed devices, summarised)" }]),
+  command("init", initCommand, [
+    { flags: ["--docker"], kind: "flag", help: "print the `docker run` line that mounts the SDK Manager's folders found here" },
+    { flags: ["--download"], metavar: "DIR", help: "fetch Garmin's SDK Manager for this computer into DIR (Linux and Windows; macOS has a disk image to download in a browser)" },
+    { flags: ["--accept-license"], kind: "flag", dest: "accept_license", help: "with --download: you accept Garmin's Connect IQ Developer Agreement, as downloading from Garmin's page does" },
+    DEVICES_DIR,
+    { flags: ["--fonts"], dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory, as for `wfb doctor`" },
+  ]),
   command("doctor", doctorCommand, [
     DEVICES_DIR,
     { flags: ["--fonts"], dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory (default: $WFB_FONTS, vendor/fonts/, or the SDK Manager's per-OS install location)" },
@@ -961,9 +970,17 @@ function doctorCommand(args: Namespace): number {
   if (nodeProblem !== null) fail("install a patched Node", [nodeProblem, "run tools/setup-env.sh, which installs one, or upgrade yours"]);
   out(`${existsSync(SCHEMA) ? ok : missing} schema           ${SCHEMA}`);
 
-  const haveReference = existsSync(DEVICE_REFERENCE) && statSync(DEVICE_REFERENCE).isDirectory();
-  out(`${haveReference ? ok : missing} device reference ${dirname(DEVICE_REFERENCE)}`);
-  if (!haveReference) fail("generate the SDK device reference", ["run tools/setup-env.sh, or node ts/tools/extract-device-reference.ts"]);
+  // The SDK first: the device reference is extracted from its doc pages when missing or stale.
+  const toolchain = Toolchain.discover();
+  const sdk = toolchain === null ? null : { root: toolchain.install, version: toolchain.version };
+  const reference = ensureDeviceReference(sdk);
+  const haveReference = existsSync(reference) && statSync(reference).isDirectory();
+  out(`${haveReference ? ok : missing} device reference ${dirname(reference)}`);
+  if (!haveReference) {
+    fail("extract the SDK device reference", sdk === null
+      ? ["it is extracted from the SDK's own device pages once an SDK is installed (`wfb init`)"]
+      : [`SDK ${sdk.version} at ${sdk.root} has no ${relativePages(sdk.root)}, so run`, "node ts/tools/extract-device-reference.ts --sdk DIR on a full SDK"]);
+  }
 
   const haveIcons = existsSync(ICON_FONT);
   out(`${haveIcons ? ok : missing} icon font        ${ICON_FONT}`);
@@ -985,7 +1002,7 @@ function doctorCommand(args: Namespace): number {
   }
 
   try {
-    const files = NodeDeviceFiles.discover((args["devices_dir"] as string | null) ?? undefined);
+    const files = NodeDeviceFiles.discover((args["devices_dir"] as string | null) ?? undefined, reference);
     const ids = files.ids();
     out(`${ok} devices          ${ids.length} installed: ${ids.slice(0, 4).join(", ")}${ids.length > 4 ? " ..." : ""}`);
     hint(files.root);
@@ -995,28 +1012,25 @@ function doctorCommand(args: Namespace): number {
       out(`${absent} devices          not checked: the device reference above is missing`);
     } else if (e instanceof DeviceError) {
       out(`${missing} devices`);
-      fail("install the device definitions", [
-        "they cannot be downloaded -- api.gcs.garmin.com returns HTTP 401.",
-        "copy them from a machine where the Connect IQ SDK",
-        "Manager has installed them:",
-        "  macOS  ~/Library/Application Support/Garmin/ConnectIQ/Devices",
-        "  Linux  ~/.Garmin/ConnectIQ/Devices",
-        "then set WFB_DEVICES to that directory.",
-      ]);
+      fail("install the device definitions", process.env["WFB_CONTAINER"] === "1"
+        ? ["they cannot be downloaded -- api.gcs.garmin.com returns HTTP 401 -- so mount the", `SDK Manager's Devices folder at ${process.env["WFB_DEVICES"] || "/devices"} (\`wfb init\` prints the mounts)`]
+        : ["they cannot be downloaded -- api.gcs.garmin.com returns HTTP 401; Garmin's SDK Manager", "downloads them for a signed-in account: `wfb init` says how, step by step,", "or set WFB_DEVICES to a folder of them copied from another machine."]);
     } else throw e;
   }
 
   let canCompile = false;
-  const toolchain = Toolchain.discover();
   if (toolchain === null) {
     out(`${missing} Connect IQ SDK`);
-    fail("install the Connect IQ SDK", ["set CIQ_SDK, or run tools/setup-env.sh"], false);
+    fail("install the Connect IQ SDK", process.env["WFB_CONTAINER"] === "1"
+      ? [`mount the SDK Manager's Sdks folder at ${process.env["CIQ_SDK"] || "/sdk"} (\`wfb init\` prints the mounts)`]
+      : ["Garmin's SDK Manager installs it: `wfb init` says how, or set CIQ_SDK to an SDK you have"], false);
   } else {
-    out(`${ok} Connect IQ SDK   ${toolchain.version}  (${toolchain.sdk})`);
-    const extracted = referenceSdkVersion();
-    if (extracted !== null && extracted !== toolchain.version) {
+    out(`${ok} Connect IQ SDK   ${toolchain.version}  (${toolchain.install})`);
+    if (toolchain.copied) hint(`read-only, so the compiler runs from a copy at ${toolchain.sdk}`);
+    const extracted = referenceSdkVersion(reference);
+    if (haveReference && extracted !== null && extracted !== toolchain.version) {
       out(`${missing} device reference extracted from SDK ${extracted}`);
-      fail("extract the device reference from this SDK", ["run tools/setup-env.sh, or node ts/tools/extract-device-reference.ts"], false);
+      fail("extract the device reference from this SDK", [`SDK ${toolchain.version} has no ${relativePages(toolchain.install)}, so run`, "node ts/tools/extract-device-reference.ts --sdk DIR on a full SDK"], false);
     }
     const keyDir = dirname(toolchain.key);
     canCompile = true;
@@ -1050,6 +1064,71 @@ function doctorCommand(args: Namespace): number {
   }
   out(`${term.style("not ready", ["red"], color)}: ${problems.join("; ")}`);
   return 1;
+}
+
+/** `doc/docs/Device_Reference`, as it sits under `root`, for a message. */
+function relativePages(root: string): string {
+  return referencePages(root).slice(root.length + 1);
+}
+
+async function initCommand(args: Namespace): Promise<number> {
+  const color = term.shouldColor(process.stdout);
+  const inContainer = process.env["WFB_CONTAINER"] === "1";
+  const host = init.detectHost(inContainer);
+  const ok = term.style("  ok ", ["green"], color);
+  const missing = term.style("MISSING", ["bold", "red"], color);
+  const absent = term.style(" none", ["yellow"], color);
+  const found = init.survey((args["devices_dir"] as string | null) ?? null, (args["fonts_dir"] as string | null) ?? null);
+
+  const download = args["download"] as string | null;
+  if (download) {
+    if (inContainer) {
+      error("the SDK Manager is a desktop application: download it on the computer running Docker (the links are below)");
+    } else if (host === "unknown" || host === "mac") {
+      error(host === "mac"
+        ? `on macOS the SDK Manager is a disk image to open in a browser: ${init.SDK_MANAGER_DOWNLOADS.mac}`
+        : "this computer's operating system is not one the SDK Manager runs on (macOS, Linux, Windows)");
+    } else if (!args["accept_license"]) {
+      error(`downloading the SDK Manager accepts Garmin's Connect IQ Developer Agreement (${init.SDK_PAGE}), as the`);
+      err("       Accept & Download button on that page does; pass --accept-license to download it here, or use the page.");
+    } else {
+      out(`downloading ${init.SDK_MANAGER_DOWNLOADS[host]} ...`);
+      try {
+        const path = await init.downloadSdkManager(host, download);
+        out(`${status("saved", color)} ${path}`);
+        out("unpack it, run the SDK Manager inside, sign in, and download the SDK and your watches; then `wfb doctor`.");
+        return 0;
+      } catch (e) {
+        error(`could not download the SDK Manager: ${(e as Error).message}`);
+      }
+    }
+    return 2;
+  }
+
+  out(`wfb ${VERSION} -- Garmin's SDK Manager puts the SDK and your watches' definitions on this computer`);
+  if (inContainer) {
+    out(`${found.sdk ? ok : missing} Connect IQ SDK   ${found.sdk ? `${found.sdk.version}  (${found.sdk.root})` : `nothing mounted at ${process.env["CIQ_SDK"] || "/sdk"}`}`);
+    out(`${found.devices ? ok : missing} devices          ${found.devices ? `${found.devices.count} at ${found.devices.root}` : `nothing mounted at ${process.env["WFB_DEVICES"] || "/devices"}`}`);
+    out(`${found.fonts ? ok : absent} Garmin fonts     ${found.fonts ?? `nothing mounted at ${process.env["WFB_FONTS"] || "/fonts"} (optional: previews use free stand-ins without them)`}`);
+  } else {
+    out(`${found.managerHome ? ok : absent} SDK Manager      ${found.managerHome ?? `not found (no ${init.MANAGER_HOMES().join(", ")})`}`);
+    out(`${found.sdk ? ok : missing} Connect IQ SDK   ${found.sdk ? `${found.sdk.version}  (${found.sdk.root})` : `looked in ${found.sdkLookedIn.join(", ")}`}`);
+    out(`${found.devices ? ok : missing} devices          ${found.devices ? `${found.devices.count} at ${found.devices.root}` : `looked in ${found.devicesLookedIn.join(", ")}`}`);
+    out(`${found.fonts ? ok : absent} Garmin fonts     ${found.fonts ?? "none (optional: previews use free stand-ins without them; the SDK Manager keeps them in Fonts/ beside Devices/)"}`);
+  }
+  out();
+  if (init.complete(found)) {
+    out(`${term.style("ready", ["green"], color)}: the SDK and the device definitions are in place; \`wfb doctor\` checks the rest.`);
+  } else {
+    out("To finish:");
+    for (const line of init.steps(found, host, inContainer)) out(`  ${line}`);
+  }
+  if (args["docker"] && !inContainer) {
+    out();
+    out("Docker, with this computer's folders mounted:");
+    for (const line of init.dockerLines(host, found.managerHome)) out(`  ${line}`);
+  }
+  return init.complete(found) ? 0 : 1;
 }
 
 /** Python's `os.access(dir, os.W_OK)`. */

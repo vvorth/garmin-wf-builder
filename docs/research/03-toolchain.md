@@ -271,6 +271,15 @@ Two obstacles, in order of severity:
    review of the Connect IQ licence agreement before redistribution, even
    privately); or run device-targeted builds only on a developer machine and
    restrict CI to host-language tests plus generated-code golden files.
+   **Resolved 2026-11-02:** the Connect IQ Developer Agreement (on the SDK
+   page, updated 2024-08-06) grants a "personal, revocable, non-assignable,
+   non-sublicensable and non-transferable license" and forbids to "upload
+   to or host on any website or server, sell, redistribute, or sublicense
+   the Program Materials in whole or in part". So neither the device files
+   nor the SDK itself may be published in the Docker image or a CI artefact
+   shared beyond the developer; the image mounts both from the user's SDK
+   Manager install, and CI downloads its own pruned SDK (`docs/lore/toolchain.md`,
+   "The Developer Agreement").
 2. **The simulator is a GUI app.** Screenshot regression needs a virtual display.
 
 The honest near-term position: **CI can fully test the compiler, schema, IR and

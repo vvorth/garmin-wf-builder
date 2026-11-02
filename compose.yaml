@@ -12,9 +12,17 @@ services:
     ports:
       - 8765:8765
     volumes:
-      - ./vendor/devices:/devices:ro
-      - ./vendor/fonts:/fonts:ro
+      # The SDK Manager's folders (macOS paths; Linux keeps them under
+      # ~/.Garmin/ConnectIQ): the SDK, the device definitions, and Garmin's
+      # own font files (optional). `docker run --rm garmin-wf-builder init`
+      # says how to get them.
+      - ~/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro
+      - ~/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro
+      - ~/Library/Application Support/Garmin/ConnectIQ/Fonts:/fonts:ro
       - wfb-keys:/keys:rw
+      # The compiler's writable copy and the device reference extracted from
+      # the SDK's pages, kept between runs (optional).
+      - wfb-cache:/cache:rw
 
     # deploy:
     #   resources:
@@ -22,8 +30,8 @@ services:
     #       memory: 2048M
     #     reservations:
     #       memory: 1G
-    
+
 volumes:
   wfb-keys:
     external: true
-
+  wfb-cache:

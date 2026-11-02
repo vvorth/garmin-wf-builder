@@ -69,7 +69,7 @@ function which(tool: string): string | null {
 }
 
 function macBundle(toolchain: Toolchain): string {
-  return join(toolchain.sdk, "bin", "ConnectIQ.app");
+  return join(toolchain.install, "bin", "ConnectIQ.app");
 }
 
 /** Start the simulator if it is not already up, and wait until it accepts a push. */
@@ -96,9 +96,9 @@ function launchMac(toolchain: Toolchain): void {
   const bundle = macBundle(toolchain);
   if (!existsSync(bundle)) {
     throw new SimulatorError(`${bundle} not found`, [
-      "CIQ_SDK should name the SDK Manager's own install:",
+      "the simulator is the SDK Manager's own install's:",
       "  ~/Library/Application Support/Garmin/ConnectIQ/Sdks/connectiq-sdk-mac-*",
-      "./tools/setup-env.sh prints the export for it",
+      "which wfb finds by itself when CIQ_SDK and --sdk name nothing else",
     ]);
   }
   const opened = spawnSync("open", ["-a", bundle], { encoding: "utf8" });
@@ -106,7 +106,7 @@ function launchMac(toolchain: Toolchain): void {
 }
 
 function launchLinux(toolchain: Toolchain): void {
-  const binary = join(toolchain.sdk, "bin", "simulator");
+  const binary = join(toolchain.install, "bin", "simulator");
   if (!existsSync(binary)) throw new SimulatorError(`${binary} not found`);
   if (!process.env["DISPLAY"]) {
     throw new SimulatorError("no DISPLAY is set, and the Connect IQ simulator is a GUI application", [
@@ -167,7 +167,7 @@ export async function push(toolchain: Toolchain, prg: string, deviceId: string, 
   await launch(toolchain);
   const log = join(dirname(prg), "simulator.log");
   const sink = openSync(log, "w");
-  const child = spawn(join(toolchain.sdk, "bin", "monkeydo"), [prg, deviceId], { stdio: ["ignore", sink, sink], detached: true });
+  const child = spawn(join(toolchain.install, "bin", "monkeydo"), [prg, deviceId], { stdio: ["ignore", sink, sink], detached: true });
   closeSync(sink);
   const session = new Session(child, log);
   const deadline = performance.now() + settle * 1000;
@@ -278,7 +278,7 @@ function screenshotX11(path: string): string {
 
 /** Shared libraries the simulator binary cannot resolve. */
 function missingLibraryHints(toolchain: Toolchain): string[] {
-  const binary = join(toolchain.sdk, "bin", "simulator");
+  const binary = join(toolchain.install, "bin", "simulator");
   if (!existsSync(binary) || which("ldd") === null) return [];
   const result = spawnSync("ldd", [binary], { encoding: "utf8" });
   const missing = [...new Set(result.stdout.split("\n").filter((l) => l.includes("not found")).map((l) => l.split("=>")[0]!.trim()))].sort();

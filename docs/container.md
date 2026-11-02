@@ -1,13 +1,17 @@
 # Running garmin-wf-builder as a container
 
 A container image that turns a YAML design into a signed, sideloadable Connect IQ
-`.prg` — with no Garmin SDK, no Java and no Node set up on the host.
+`.prg` — with no Java and no Node set up on the host. Garmin's own files, the
+Connect IQ SDK and your watches' device definitions, come from you: the
+Connect IQ SDK Manager puts them on your computer, and the container mounts
+its folders (macOS paths shown):
 
 ```sh
 docker run --rm \
   -v "$PWD:/work" \
+  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
-  -v wfb-keys:/keys \
+  -v wfb-keys:/keys -v wfb-cache:/cache \
   vvorth/garmin-wf-builder build examples/features/graph/face.yaml
 ```
 
@@ -16,7 +20,7 @@ build -t garmin-wf-builder .` in a checkout builds the same image, and the
 rest of this page uses that local name.
 
 (a `-v "<Fonts dir>:/fonts:ro"` mount is also accepted, and optional — see
-"Garmin's own font files" below.)
+"Garmin's own font files" below; so is `/cache`.)
 
 ```
 generated  /work/build/graph
@@ -26,6 +30,9 @@ built      graph-1.0.0-fr955.prg  3,417 B / 131,072 B (2.6%)
 ```
 
 The generated Monkey C is byte-identical to a host build of the same design.
+Not sure what you have? `docker run --rm garmin-wf-builder init` prints the
+steps for the computer running Docker, from the SDK Manager's download to
+the mounts.
 
 ---
 
@@ -34,66 +41,80 @@ The generated Monkey C is byte-identical to a host build of the same design.
 | | |
 |---|---|
 | **Docker** | any recent version, or Podman with `podman` in place of `docker`. On macOS it is tested with [OrbStack](https://orbstack.dev) |
-| **Disk** | ~600 MB for the image; the build downloads the 204 MB SDK once |
+| **Disk** | ~400 MB for the image |
+| **The Connect IQ SDK** | **required, and must come from you** — see below |
 | **Device definitions** | **required, and must come from you** — see below |
 | **Garmin's own font files** | optional — see below |
-| **Network** | only at image build time, for the SDK, the icon and system fonts, and the npm packages |
-| **Architecture** | `linux/amd64` and `linux/arm64`. The pruned SDK contains **no native binaries**, only shell scripts and JVM bytecode. CI builds each on its own architecture and smoke-tests it with the fixture device, which generates and previews but cannot compile, so a real `.prg` build is verified on `linux/amd64` only |
+| **Network** | only at image build time, for the icon and system fonts and the npm packages |
+| **Architecture** | `linux/amd64` and `linux/arm64`. The compiler is JVM bytecode, so the SDK Manager's SDK from any OS runs in either. CI builds each on its own architecture and smoke-tests it with the fixture device, which generates and previews but cannot compile, so a real `.prg` build is verified by hand |
 
-### The one thing you have to supply: device definitions
+### The two things you have to supply: the SDK and the device definitions
 
-The image cannot contain them, for two independent reasons.
+Both come from Garmin's [Connect IQ SDK
+Manager](https://developer.garmin.com/connect-iq/sdk/): install it once on
+a desktop machine, sign in with a Garmin account, download the newest SDK on
+its SDK tab and the watches you build for on its Devices tab. It keeps them,
+with Garmin's font files beside them, under one folder:
 
-**They cannot be downloaded.** The SDK Manager fetches them from
-`api.gcs.garmin.com/ciq-product-onboarding/devices`, which returns **HTTP 401** —
-it needs a Garmin SSO login that cannot be completed non-interactively. Without
-them every device-targeted build fails with `Invalid device id specified`.
-
-**They are your licensed copy of Garmin's files.** Baking them into a
-distributable image would be redistributing them, which is a question this
-project has not cleared.
-
-So install the SDK Manager once on a desktop machine, let it download the devices
-you target, and mount that directory read-only:
-
-| Host | Path |
+| Host | Folder |
 |---|---|
-| macOS | `~/Library/Application Support/Garmin/ConnectIQ/Devices` |
-| Linux | `~/.Garmin/ConnectIQ/Devices` |
-| Windows | `%APPDATA%\Garmin\ConnectIQ\Devices` |
+| macOS | `~/Library/Application Support/Garmin/ConnectIQ` |
+| Linux | `~/.Garmin/ConnectIQ` |
+| Windows | `%APPDATA%\Garmin\ConnectIQ` |
+
+with `Sdks/`, `Devices/` and `Fonts/` inside. Mount the first two read-only:
 
 ```sh
+-v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
 -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro"
 ```
 
-If the mount is missing, the container says so and points here rather than
-failing deep inside a build.
+`/sdk` may be the `Sdks` folder (the SDK the SDK Manager marks current is
+used, else the newest) or one SDK's own folder. If either mount is missing,
+the container says so and points here rather than failing deep inside a
+build, and `docker run --rm garmin-wf-builder init` prints every step.
+
+The image cannot contain them, for two independent reasons.
+
+**They are licensed to you, not to this project.** Downloading the SDK
+accepts Garmin's Connect IQ Developer Agreement, which grants a "personal,
+revocable, non-assignable, non-sublicensable and non-transferable license to
+use the Program Materials for the sole purpose of developing and testing
+Applications" and forbids to "upload to or host on any website or server,
+sell, redistribute, or sublicense the Program Materials in whole or in
+part". A published image is both hosting and redistribution, so the SDK —
+the compiler, its API database, the device reference pages — stays out of
+it, and so do the device files and Garmin's fonts, which the same agreement
+covers. `docs/lore/toolchain.md`, "The Developer Agreement", has the
+citations.
+
+**The device definitions cannot be downloaded at all.** The SDK Manager
+fetches them from `api.gcs.garmin.com/ciq-product-onboarding/devices`, which
+returns **HTTP 401** — it needs a Garmin SSO login that cannot be completed
+non-interactively. Without them every device-targeted build fails with
+`Invalid device id specified`. (The SDK itself downloads freely, which is
+how `tools/setup-env.sh` installs one on a Linux host: that is the
+developer's own download, under the same agreement.)
 
 ### Garmin's own font files (optional)
 
 Text measurement and previews use free stand-ins for Garmin's system fonts
 by default (`ts/src/data/font-registry.json`). If the same SDK Manager
-install
-that provided the device definitions also has Garmin's own font files —
-under its `Fonts` directory, next to `Devices` — mounting it at `/fonts`
+install that provided the device definitions also has Garmin's own font files
+— under its `Fonts` directory, next to `Devices` — mounting it at `/fonts`
 makes the container prefer the device's real file over the registry's
 stand-in, the same `garmin` > registry precedence `wfb doctor` reports on
 the host:
-
-| Host | Path |
-|---|---|
-| macOS | `~/Library/Application Support/Garmin/ConnectIQ/Fonts` |
-| Linux | `~/.Garmin/ConnectIQ/Fonts` |
-| Windows | `%APPDATA%\Garmin\ConnectIQ\Fonts` |
 
 ```sh
 -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Fonts:/fonts:ro"
 ```
 
 `WFB_FONTS=/fonts` is already set in the image; nothing to configure beyond
-the mount itself. Unlike the device definitions, this one is **optional** —
-without it, builds and previews fall back to the registry's fonts, which
-`ts/tools/fetch-system-fonts.ts` prefetched into the image at build time.
+the mount itself. Unlike the SDK and the device definitions, this one is
+**optional** — without it, builds and previews fall back to the registry's
+fonts, which `ts/tools/fetch-system-fonts.ts --registry` prefetched into the
+image at build time, every font the registry knows.
 
 **Not baked in, by design:** `.dockerignore` keeps all of `vendor/` out of
 the build context, `vendor/fonts/` included, because like the device
@@ -106,6 +127,29 @@ stops matching the device, `build`, `preview` and `validate` print a notice
 to stderr when `/fonts` is empty; set `WFB_NO_GARMIN_FONTS=1` to use the
 stand-ins on purpose without it. `wfb doctor` in the container gives the same
 mount hint (the image sets `WFB_CONTAINER=1` so it knows to).
+
+### The cache (optional)
+
+Two things are made from the mounted SDK at run time, and `/cache` keeps
+them between runs:
+
+- **A writable copy of the compiler.** `monkeyc` rewrites
+  `bin/default.jungle` on every run, and `/sdk` is mounted read-only, so
+  `wfb` copies the compiler's files (about 26 MB, nothing of the simulator
+  or the docs) to `/cache/wfb/sdk/<version>/` and compiles from there,
+  once per SDK release.
+- **The device reference**, the facts a device's own files omit (its real
+  palette size, its system fonts' pixel metrics), which `wfb` extracts from
+  the SDK's own device pages into `/cache/wfb/device-reference/` the first
+  time it is needed, and again when the SDK's release changes (about a
+  second for the whole fleet; `wfb` says so on stderr when it does).
+
+Without the mount both are remade on every run, into the container's
+temporary home: correct, a second or so slower.
+
+```sh
+-v wfb-cache:/cache
+```
 
 ### The developer key
 
@@ -138,6 +182,7 @@ The image's entrypoint is `wfb`, so the arguments are the CLI's. With no
 arguments it runs `studio` (below):
 
 ```sh
+docker run ... garmin-wf-builder init
 docker run ... garmin-wf-builder build     design.yaml [-d DEVICE] [--no-compile]
 docker run ... garmin-wf-builder validate  design.yaml [-d DEVICE]
 docker run ... garmin-wf-builder preview   design.yaml [-d DEVICE] [--scale N]
@@ -155,15 +200,21 @@ docker run --rm ... garmin-wf-builder node --version
 
 What each command needs mounted:
 
-| Command | `/work` | `/devices` | `/fonts` | `/keys` |
-|---|:--:|:--:|:--:|:--:|
-| `build` | ✔ | ✔ | optional | ✔ |
-| `build --no-compile` | ✔ | ✔ | optional | |
-| `preview` | ✔ | ✔ | optional | |
-| `validate` | ✔ | ✔ | | |
-| `devices`, `sources` | | ✔ | | |
-| `doctor` | | | optional | |
-| `studio` | | ✔ | optional | ✔ (for Build) |
+| Command | `/work` | `/sdk` | `/devices` | `/fonts` | `/keys` |
+|---|:--:|:--:|:--:|:--:|:--:|
+| `build` | ✔ | ✔ | ✔ | optional | ✔ |
+| `build --no-compile` | ✔ | | ✔ | optional | |
+| `export` | ✔ | ✔ | ✔ | | ✔ |
+| `preview` | ✔ | | ✔ | optional | |
+| `validate` | ✔ | | ✔ | | |
+| `devices`, `sources` | | | ✔ | | |
+| `init`, `doctor` | | optional | optional | optional | |
+| `studio` | | ✔ (for Build) | ✔ | optional | ✔ (for Build) |
+
+`/cache` is optional everywhere. `preview` and `validate` need no SDK to
+run, but with none mounted the device reference cannot be extracted either,
+so they read whatever reference the cache holds; mount the SDK once with
+`/cache` kept, or keep mounting it.
 
 ### The editor
 
@@ -172,8 +223,9 @@ arguments:
 
 ```sh
 docker run --rm -it -p 127.0.0.1:8765:8765 \
+  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
   -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
-  -v wfb-keys:/keys \
+  -v wfb-keys:/keys -v wfb-cache:/cache \
   garmin-wf-builder
 ```
 
@@ -212,11 +264,9 @@ If your uid is not 1000:
 docker run --user "$(id -u):$(id -g)" ...
 ```
 
-That works, at the cost of about a quarter-second on the first run: `monkeyc`
-regenerates `default.jungle` inside the SDK on every invocation, so the SDK tree
-has to be writable, and for a uid that does not own `/opt/ciq` the entrypoint
-copies the 26 MB tree into the container's temporary home first. It says so when
-it does.
+`/work`, `/keys` and `/cache` are world-writable in the image, so any uid
+can write its output, its key and its cache there; the SDK's copy and the
+device reference land in the cache whoever runs the container.
 
 A build directory left over from a run as a *different* uid cannot be replaced;
 remove it and re-run. The tool reports that as a diagnostic rather than a
@@ -286,43 +336,33 @@ reachable.
 (`npm ci`) on the official `node:24-trixie-slim` image and copies in `ts/`.
 Node runs its `.ts` sources directly, so nothing is compiled.
 
-**Stage 2** builds on stage 1 and runs its tools. `ts/tools/fetch-sdk.ts`
-downloads the SDK and strips it to the compiler: the full SDK is 309 MB;
-`doc/`, `resources/` and `samples/` are documentation, and `share/` plus the
-simulator, ERA, MonkeyMotion, the language server and the FIT graph tool are
-GUI and analysis programs the container does not run. What is left is
-**24 MB** and builds every target correctly; pruned files are skipped before
-they are unzipped. It keeps `doc/docs/Device_Reference/`, the one part of
-`doc/` that is data, aside: `ts/tools/extract-device-reference.ts` turns it
-into the device reference stage 3 copies into `.cache/device-reference/`.
-It also downloads the Nerd Fonts icon font with `ts/tools/fetch-icon-font.ts`
-and the registry's system-font stand-ins (free substitutes previews and
-width estimates use for Garmin's own system fonts) with
-`ts/tools/fetch-system-fonts.ts --all` for every device in the device
-reference (no device definitions exist at image build time), each checked
-against pinned SHA-256 hashes; stage 3 copies both into `ts/assets/icons/`
-and `ts/assets/system-fonts/`. Neither is in the repository, and
+**Stage 2** builds on stage 1 and runs two of its tools: `ts/tools/fetch-icon-font.ts`
+downloads the Nerd Fonts icon font, and `ts/tools/fetch-system-fonts.ts
+--registry` the registry's system-font stand-ins (free substitutes previews
+and width estimates use for Garmin's own system fonts), every font the
+registry knows, since there are no device definitions and no SDK at image
+build time to say which a device needs. Each is checked against a pinned
+SHA-256 hash; stage 3 copies both into `ts/assets/icons/` and
+`ts/assets/system-fonts/`. Neither is in the repository, and
 `.dockerignore` keeps a host copy out of the build context.
 
 **Stage 3** copies a headless JRE from `eclipse-temurin:21-jre-noble` onto
-the same `node:24-trixie-slim` base, then the pruned SDK, `ts/` with its
-`node_modules`, `runtime-lib/`, `schema/`, `examples/`, `docs/` (without
-`docs/research/`), `README.md`, `LICENSE` and the `wfb` launcher; the docs
-are there for `wfb studio`'s Help popup. The Debian base provides `bash`, which the SDK's `monkeyc`
-launcher needs; the developer key is generated with Node's own `crypto`, so
-no `openssl` is needed.
+the same `node:24-trixie-slim` base, then `ts/` with its `node_modules`,
+`runtime-lib/`, `schema/`, `examples/`, `docs/` (without `docs/research/`),
+`README.md`, `LICENSE` and the `wfb` launcher; the docs are there for `wfb
+studio`'s Help popup. `wfb` runs the compiler as the JVM on the SDK's
+`monkeybrains.jar` directly, so the SDK's own `bash` launcher is not needed;
+the developer key is generated with Node's own `crypto`, so no `openssl` is
+needed either. Nothing of Garmin's is in any stage.
 
-535 MB as built (2026-10-06): the JRE (159 MB), the Node base, the 24 MB
-SDK and `node_modules` with its development tools, so the image can run
-`ts/`'s tests and type check.
+About 400 MB as built: the JRE (159 MB), the Node base, the fonts and
+`node_modules` with its development tools, so the image can run `ts/`'s
+tests and type check.
 
 ### Build arguments
 
 | Argument | Default | Purpose |
 |---|---|---|
-| `SDK_VERSION` | empty: the newest | the release to fetch, looked up in Garmin's `sdks.json`; the one fetched is recorded at `/opt/ciq/SDK_VERSION` |
-| `SDK_FILE` | empty: from `SDK_VERSION` | the archive to download, named outright (a mirror without `sdks.json`) |
-| `SDK_BASE_URL` | Garmin's download host | override for an internal mirror |
 | `WFB_NERD_FONTS_BASE_URL` | the Nerd Fonts GitHub releases | override for a mirror of the icon font |
 | `WFB_FONTS_MIRROR` | empty | override the host of every registry system-font URL, for a mirror that reproduces the same paths |
 | `NODE_VERSION` | `24.22.1` | the `node` image tag for every stage; earlier than 22.23.4, 24.22.1 or 26.12.1 is vulnerable, and `wfb` refuses it |
@@ -339,22 +379,18 @@ docker build \
 
 The certificate is appended to the system trust store in every stage and
 handed to Node (`NODE_EXTRA_CA_CERTS`), whose `fetch` honours `HTTPS_PROXY`
-there (`NODE_USE_ENV_PROXY=1`), so the SDK and font downloads and the npm
-install all go through the proxy.
+there (`NODE_USE_ENV_PROXY=1`), so the font downloads and the npm install
+all go through the proxy.
 
 ### Upgrading the SDK
 
-A build fetches the newest SDK Garmin lists. Docker caches that step, so
-once a newer SDK is out, rebuild without the cache, or pin a release:
-
-```sh
-docker build --no-cache -t garmin-wf-builder .
-docker build --build-arg SDK_VERSION=9.2.0 -t garmin-wf-builder:9.2.0 .
-```
-
-Then re-run the test suite in the image before trusting it — the generated code
-is pinned by golden files, so an SDK change that alters behaviour will show up as
-a readable diff rather than as a surprise on the wrist.
+The SDK is yours, not the image's: download the newer release in the SDK
+Manager and the next run picks it up (the current one, else the newest, in
+the mounted `Sdks` folder), copies its compiler into the cache and extracts
+its device reference. `wfb build` records the release in `build-info.json`.
+Then re-run the test suite before trusting it — the generated code is pinned
+by golden files, so an SDK change that alters behaviour will show up as a
+readable diff rather than as a surprise on the wrist.
 
 ---
 
@@ -369,10 +405,12 @@ the symptom is `Invalid device id specified`, which looks like a missing mount.
 The entrypoint sets `-Duser.home=...` through `JAVA_TOOL_OPTIONS` and symlinks
 `<home>/.Garmin/ConnectIQ/Devices` at the mount.
 
-**`monkeyc` regenerates `$CIQ_SDK/bin/default.jungle` on every invocation**, and
+**`monkeyc` regenerates `<sdk>/bin/default.jungle` on every invocation**, and
 it replaces the file rather than truncating it — so the *directory* must be
-writable, not just the file. A read-only SDK mount fails with
-`Unable to generate default.jungle: Permission denied`.
+writable, not just the file. A read-only SDK fails with `Unable to generate
+default.jungle: Permission denied`, which is why `wfb` compiles from a copy
+of the compiler's files when the SDK's `bin/` is not writable (`compilerRoot`
+in `ts/src/sdk.ts`).
 
 ---
 
@@ -388,8 +426,14 @@ docker run --rm --workdir /opt/wfb/ts garmin-wf-builder npm test
 ```
 
 This project's own CI tests each image with `tools/image-smoke-test.sh`,
-which mounts the fixture device `wfbtest` at `/devices`, starts the
-toolchain, and generates and previews a face, compiling nothing.
+which fetches a pruned SDK once (Garmin's free download, by
+`ts/tools/fetch-sdk.ts --newest` in the image, into `.cache/smoke-sdk/`; it
+is the runner's own download and is never published), mounts it read-only
+at `/sdk` and the fixture device `wfbtest` at `/devices`, and checks that
+the toolchain starts, `wfb` compiles from a copy of the read-only SDK,
+extracts the device reference into the cache once, generates and previews a
+face, refuses a build with no `/sdk` with the mount hint, and serves the
+editor. It compiles nothing.
 
 To build for real in CI, the device definitions have to reach the runner
 somehow — a private artefact store or a self-hosted runner that has them. They

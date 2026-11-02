@@ -9,9 +9,11 @@ export const MAIN = `wfb -- build a Garmin Connect IQ watch face from a YAML des
     wfb build    design.yaml     # generate Monkey C, resources and manifest, then compile
 
 Run \`wfb help\` for the full command list, or \`wfb help <command>\` /
-\`wfb <command> help\` for one command's own help. \`wfb doctor\` reports what is installed and what to do about anything
-missing; \`wfb sources\`, \`wfb devices\` and \`wfb fonts\` list what a design
-may bind and which watches and fonts it may use.
+\`wfb <command> help\` for one command's own help. \`wfb init\` says how to get
+Garmin's SDK and your watches' definitions onto this computer, and \`wfb
+doctor\` reports what is installed and what to do about anything missing;
+\`wfb sources\`, \`wfb devices\` and \`wfb fonts\` list what a design may bind
+and which watches and fonts it may use.
 
 Every subcommand takes \`--color {auto,always,never}\` (default auto), either
 before or after the command name -- \`wfb --color never build x\` and \`wfb
@@ -172,7 +174,7 @@ loopback warns, since anyone who can reach the port can run builds.`,
 Reads the device files (\`~/.Garmin/ConnectIQ/Devices\` by default; see
 \`--devices-dir\`/\`WFB_DEVICES\`) and prints each device's screen, shape,
 display type, colour count, API level and watch-face memory limit. These
-files cannot be downloaded unauthenticated -- run \`wfb doctor\` for how
+files cannot be downloaded unauthenticated -- run \`wfb init\` for how
 to get them onto this machine.`,
   fonts: `list fonts available per device, or a detailed font breakdown for one or more
 
@@ -199,6 +201,28 @@ with a one-line note instead of font data, in either view. Naming an
 unknown device is a clean error (\`wfb devices\` lists what is installed)
 and nothing is printed, even when an earlier name on the command line
 is valid -- every name is resolved before anything is shown.`,
+  init: `say how to get Garmin's SDK and device definitions onto this computer
+
+Garmin's Connect IQ SDK Manager downloads the SDK and, for a signed-in
+Garmin account, the definitions of the watches you build for, with
+Garmin's own font files beside them. Neither can come with wfb: the
+device files download only to a signed-in account, and the SDK's licence
+(the Connect IQ Developer Agreement, accepted by downloading) is personal
+to the developer, so they are not in the repository or the Docker image.
+This command reports whether the SDK Manager, an SDK, the device
+definitions and the fonts are on this computer, and for whatever is not,
+prints the steps: the SDK Manager's download for this operating system,
+what to download in it, where it lands, and how wfb finds it there.
+
+Inside the container the steps are for the computer running Docker, and
+end with the \`docker run\` line that mounts the SDK Manager's folders;
+\`--docker\` prints that line on a host too, with this computer's folders
+filled in. On Linux and Windows \`--download DIR\` fetches the SDK
+Manager's archive into DIR, once \`--accept-license\` says you accept the
+agreement, as the download button on Garmin's page does.
+
+Exit status 0 once the SDK and the device definitions are both in
+place. \`wfb doctor\` is the full check of everything a build needs.`,
   doctor: `check the environment and say what is missing
 
 Written for someone -- or something -- arriving with no context: each failure

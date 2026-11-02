@@ -18,7 +18,7 @@ test("memory device files list only devices with a compiler.json", () => {
 
 test("discovery refuses a missing device reference, naming how to make it", () => {
   assert.throws(() => NodeDeviceFiles.discover(undefined, "/nonexistent/reference"),
-    (error: unknown) => error instanceof DeviceError && /setup-env\.sh/.test(error.message));
+    (error: unknown) => error instanceof DeviceError && /wfb init/.test(error.message));
 });
 
 // The installed SDK devices are this project's environment (tools/setup-env.sh),

@@ -11,11 +11,12 @@
 // Re-running is cheap: a key already installed with its pinned bytes is left
 // alone.
 //
-//   node ts/tools/fetch-system-fonts.ts [--device ID ...] [--all] [DEST]
+//   node ts/tools/fetch-system-fonts.ts [--device ID ...] [--all | --registry] [DEST]
 //
 // With no `--device`, every installed device's fonts; `--all`, every device
-// the SDK device reference has a file for (the Docker build, which has no
-// device definitions). `WFB_FONTS_MIRROR` swaps every source URL's scheme
+// the SDK device reference has a file for; `--registry`, every font the
+// registry knows (the Docker build, which has neither device definitions nor
+// an SDK). `WFB_FONTS_MIRROR` swaps every source URL's scheme
 // and host for a mirror's. Garmin's own font files are never installed here
 // (`vendor/fonts/` is the user's licensed copy); this only says how many
 // needed names that root already covers.
@@ -102,13 +103,25 @@ const describe = (ids: string[]): string => (ids.length <= 4 ? ids.join(", ") : 
 
 async function main(): Promise<number> {
   const { values, positionals } = parseArgs({
-    options: { device: { type: "string", multiple: true }, all: { type: "boolean", default: false } },
+    options: { device: { type: "string", multiple: true }, all: { type: "boolean", default: false }, registry: { type: "boolean", default: false } },
     allowPositionals: true,
   });
   const dest = positionals[0] ?? SYSTEM_FONTS_DEST;
   const devicesRoot = [process.env["WFB_DEVICES"], ...DEFAULT_DEVICE_ROOTS]
     .find((path): path is string => Boolean(path) && existsSync(path!) && readdirSync(path!).length > 0) ?? null;
   let ids: string[];
+  if (values.registry) {
+    const keys = Object.keys(FONTS).sort();
+    console.log(`prefetching every registry font (${keys.length}) into ${dest}`);
+    const result = await install(keys, dest);
+    const failed = keys.filter((key) => !result[key]);
+    if (failed.length > 0) {
+      console.error(`error: ${failed.length} font(s) not installed: ${failed.join(", ")}`);
+      return 1;
+    }
+    console.log(`installed ${keys.length} font(s)`);
+    return 0;
+  }
   if (values.all) {
     ids = existsSync(DEVICE_REFERENCE) ? readdirSync(DEVICE_REFERENCE).filter((n) => n.endsWith(".json")).map((n) => n.slice(0, -5)).sort() : [];
   } else {
