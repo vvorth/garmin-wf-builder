@@ -11,6 +11,13 @@ services:
     restart: unless-stopped
     ports:
       - 8765:8765
+    # environment:
+    #   # Let the image download Garmin's newest SDK when none is mounted
+    #   # (into /sdk when writable, else /cache). Setting this accepts the
+    #   # Connect IQ Developer Agreement, as downloading from Garmin's page does.
+    #   WFB_ACCEPT_LICENSE: "1"
+    #   # No daily check of Garmin's release list for a newer SDK.
+    #   WFB_NO_UPDATE_CHECK: "1"
     volumes:
       # The SDK Manager's folders (macOS paths; Linux keeps them under
       # ~/.Garmin/ConnectIQ): the SDK, the device definitions, and Garmin's

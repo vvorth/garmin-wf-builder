@@ -442,12 +442,27 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
 
 // -- commands --
 
+/**
+ * A line on stderr when a newer SDK is out than the one found. The
+ * container's commands that compile check (the entrypoint sets
+ * WFB_CONTAINER); `doctor` and `init` check anywhere. Never more than one
+ * fetch a day, never a word when offline (`checkForNewerSdk`).
+ */
+async function sdkUpdateNotice(toolchain: Toolchain | null, always = false): Promise<void> {
+  const inContainer = process.env["WFB_CONTAINER"] === "1";
+  if (toolchain === null || (!always && !inContainer)) return;
+  const newer = await init.checkForNewerSdk(toolchain.version);
+  if (newer !== null) err(init.updateNotice(toolchain.version, newer, inContainer));
+}
+
 async function buildCommand(args: Namespace): Promise<number> {
+  const toolchain = Toolchain.discover(args["sdk"] as string | null, args["key"] as string | null);
+  if (!args["no_compile"]) await sdkUpdateNotice(toolchain);
   const bag = new Bag();
   const result = await runBuild(args["design"] as string, {
     output: args["output"] as string, bag, devicesOnly: (args["devices"] as string[] | null) ?? null,
     db: discoverDb(args["devices_dir"] as string | null),
-    toolchain: Toolchain.discover(args["sdk"] as string | null, args["key"] as string | null),
+    toolchain,
     compilePrg: !args["no_compile"], profile: args["profile"] as number | null, trace: Boolean(args["trace"]), jobs: args["jobs"] as number | null,
   });
   const verboseFlag = Boolean(args["verbose"]);
@@ -478,11 +493,13 @@ async function exportCommand(args: Namespace): Promise<number> {
     error("--all-devices and -d/--device are mutually exclusive");
     return 1;
   }
+  const toolchain = Toolchain.discover(args["sdk"] as string | null, args["key"] as string | null);
+  await sdkUpdateNotice(toolchain);
   const bag = new Bag();
   const result = await exportApp(args["design"] as string, {
     output: args["output"] as string, bag, devicesOnly, allDevices: Boolean(args["all_devices"]), appId: (args["id"] as string | null) ?? null,
     db: discoverDb(args["devices_dir"] as string | null),
-    toolchain: Toolchain.discover(args["sdk"] as string | null, args["key"] as string | null),
+    toolchain,
   });
   const verboseFlag = Boolean(args["verbose"]);
   let shown = bag;
@@ -869,6 +886,7 @@ async function studioCommand(args: Namespace): Promise<number> {
     error(e.message);
     return 1;
   }
+  await sdkUpdateNotice(Toolchain.discover());
   await serve({
     host: args["host"] as string, allowHosts, allowAnyHost: args["allow_any_host"] === true,
     port: args["port"] as number, db,
@@ -952,7 +970,7 @@ function doctorSystemFonts(deviceIds: string[], devicesRoot: string, fonts: Node
   hint(`(${summary} font names) -- run node ts/tools/fetch-system-fonts.ts;`, "not blocking, falls back to a substitute face at build time");
 }
 
-function doctorCommand(args: Namespace): number {
+async function doctorCommand(args: Namespace): Promise<number> {
   const color = term.shouldColor(process.stdout);
   const ok = term.style("  ok ", ["green"], color);
   const missing = term.style("MISSING", ["bold", "red"], color);
@@ -1032,6 +1050,8 @@ function doctorCommand(args: Namespace): number {
   } else {
     out(`${ok} Connect IQ SDK   ${toolchain.version}  (${toolchain.install})`);
     if (toolchain.copied) hint(`read-only, so the compiler runs from a copy at ${toolchain.sdk}`);
+    const newer = await init.checkForNewerSdk(toolchain.version);
+    if (newer !== null) hint(`SDK ${newer.version} is available: ${init.updateNotice(toolchain.version, newer, process.env["WFB_CONTAINER"] === "1").split("; ")[1]}`);
     const extracted = referenceSdkVersion(reference);
     if (haveReference && extracted !== null && extracted !== toolchain.version) {
       out(`${missing} device reference extracted from SDK ${extracted}`);
@@ -1136,14 +1156,21 @@ async function initCommand(args: Namespace): Promise<number> {
     return 0;
   }
 
+  const newerLine = async (sdk: init.Survey["sdk"]): Promise<void> => {
+    if (sdk === null) return;
+    const newer = await init.checkForNewerSdk(sdk.version);
+    if (newer !== null) out(`${absent} newer SDK        ${newer.version} is out: ${init.updateNotice(sdk.version, newer, inContainer).split("; ")[1]}`);
+  };
   out(`wfb ${VERSION} -- Garmin's SDK Manager puts the SDK and your watches' definitions on this computer`);
   if (inContainer) {
     out(`${found.sdk ? ok : missing} Connect IQ SDK   ${found.sdk ? `${found.sdk.version}  (${found.sdk.root})` : `nothing mounted at ${process.env["CIQ_SDK"] || "/sdk"}`}`);
+    await newerLine(found.sdk);
     out(`${found.devices ? ok : missing} devices          ${found.devices ? `${found.devices.count} at ${found.devices.root}` : `nothing mounted at ${process.env["WFB_DEVICES"] || "/devices"}`}`);
     out(`${found.fonts ? ok : absent} Garmin fonts     ${found.fonts ?? `nothing mounted at ${process.env["WFB_FONTS"] || "/fonts"} (optional: previews use free stand-ins without them)`}`);
   } else {
     out(`${found.managerHome ? ok : absent} SDK Manager      ${found.managerHome ?? `not found (no ${init.MANAGER_HOMES().join(", ")})`}`);
     out(`${found.sdk ? ok : missing} Connect IQ SDK   ${found.sdk ? `${found.sdk.version}  (${found.sdk.root})` : `looked in ${found.sdkLookedIn.join(", ")}`}`);
+    await newerLine(found.sdk);
     out(`${found.devices ? ok : missing} devices          ${found.devices ? `${found.devices.count} at ${found.devices.root}` : `looked in ${found.devicesLookedIn.join(", ")}`}`);
     out(`${found.fonts ? ok : absent} Garmin fonts     ${found.fonts ?? "none (optional: previews use free stand-ins without them; the SDK Manager keeps them in Fonts/ beside Devices/)"}`);
   }

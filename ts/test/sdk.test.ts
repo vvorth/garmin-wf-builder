@@ -3,7 +3,7 @@
 // folder in the container).
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { compilerNeeds, compilerRoot, findSdk, monkeycCommand, prunedSdkKeeps, sdksIn, sdkVersion } from "../src/sdk.ts";
@@ -133,5 +133,55 @@ describe("the SDK download", { concurrency: true }, () => {
     assert.ok(!existsSync(join(dir, "connectiq-sdk-lin-9.3.0-x.tmp")));
     assert.throws(() => unpackSdk(zipSync({ "readme.txt": strToU8("x") }), dir, "not-an-sdk"), /monkeybrains\.jar/);
     assert.ok(!existsSync(join(dir, "not-an-sdk")) && !existsSync(join(dir, "not-an-sdk.tmp")));
+  });
+});
+
+describe("the SDK update check", { concurrency: true }, () => {
+  test("a newer Linux release is reported; the list is fetched once a day and never when it cannot be", async () => {
+    const { checkForNewerSdk, newerThan, updateNotice } = await import("../src/init.ts");
+    const list = [{ version: "9.3.0", linux: "a.zip" }, { version: "9.10.0", linux: "b.zip" }, { version: "9.11.0", mac: "c.dmg" }];
+    assert.equal(newerThan("9.3.0", list)?.version, "9.10.0");
+    assert.equal(newerThan("9.10.0", list), null, "the newest Linux release is what counts, not a Mac-only one");
+    assert.equal(newerThan("9.9.0", list)?.version, "9.10.0", "numeric, not lexical");
+
+    const saved = process.env["WFB_NO_UPDATE_CHECK"];
+    delete process.env["WFB_NO_UPDATE_CHECK"];
+    try {
+      const cacheFile = join(scratch(), "cache", "sdks.json");
+      let fetches = 0;
+      const fetchList = async (): Promise<typeof list> => { fetches++; return list; };
+      const day = 24 * 60 * 60 * 1000;
+      assert.equal((await checkForNewerSdk("9.3.0", { cacheFile, fetchList, now: 0 }))?.version, "9.10.0");
+      assert.ok(existsSync(cacheFile));
+      assert.equal((await checkForNewerSdk("9.3.0", { cacheFile, fetchList, now: Date.now() }))?.version, "9.10.0");
+      assert.equal(fetches, 1, "the day-old copy answers");
+      assert.equal((await checkForNewerSdk("9.3.0", { cacheFile, fetchList, now: Date.now() + 2 * day }))?.version, "9.10.0");
+      assert.equal(fetches, 2, "a stale copy is fetched again");
+      const failing = async (): Promise<typeof list> => { throw new Error("offline"); };
+      assert.equal(await checkForNewerSdk("9.3.0", { cacheFile: join(scratch(), "none.json"), fetchList: failing }), null, "offline: no notice, no error");
+      process.env["WFB_NO_UPDATE_CHECK"] = "1";
+      assert.equal(await checkForNewerSdk("9.3.0", { cacheFile, fetchList }), null);
+      assert.ok(updateNotice("9.3.0", list[1]!, true).includes("WFB_ACCEPT_LICENSE=1"));
+      assert.ok(updateNotice("9.3.0", list[1]!, false).includes("--download-sdk"));
+    } finally {
+      if (saved === undefined) delete process.env["WFB_NO_UPDATE_CHECK"]; else process.env["WFB_NO_UPDATE_CHECK"] = saved;
+    }
+  });
+
+  test("in the container the download lands in the mounted folder when writable, else in the cache's sdks/", async () => {
+    const { sdkDownloadFolder } = await import("../src/init.ts");
+    const { downloadedSdks } = await import("../src/sdk.ts");
+    const dir = scratch();
+    const saved = process.env["CIQ_SDK"];
+    try {
+      process.env["CIQ_SDK"] = join(dir, "sdk");
+      mkdirSync(join(dir, "sdk"));
+      assert.equal(sdkDownloadFolder(true), join(dir, "sdk"));
+      // A read-only mount (root in a test can write anywhere, so the answer is injected).
+      assert.equal(sdkDownloadFolder(true, () => false), downloadedSdks());
+      assert.equal(sdkDownloadFolder(false, () => false), join(homedir(), ".Garmin", "ConnectIQ", "Sdks"), "a Linux host: the SDK Manager's folder");
+    } finally {
+      if (saved === undefined) delete process.env["CIQ_SDK"]; else process.env["CIQ_SDK"] = saved;
+    }
   });
 });

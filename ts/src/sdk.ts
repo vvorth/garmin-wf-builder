@@ -72,18 +72,23 @@ function currentSdk(home: string, installed: Sdk[]): Sdk | null {
   return installed.find((sdk) => sdk.root === named || basename(sdk.root) === leaf) ?? null;
 }
 
+/** Where `wfb init --download-sdk` puts an SDK when it cannot write where one is looked for: the cache's own `sdks/`. */
+export const downloadedSdks = (): string => join(cacheHome(), "sdks");
+
 /** Where an SDK is looked for, in order; each may be an SDK root or a folder of them. */
 export function sdkCandidates(override: string | null = null): string[] {
   const dirs = [override, process.env["CIQ_SDK"]].filter((dir): dir is string => Boolean(dir)).map(expandHome);
   for (const home of sdkManagerHomes()) dirs.push(join(home, "Sdks"));
-  dirs.push(join(homedir(), "ciq", "sdks"));
+  dirs.push(join(homedir(), "ciq", "sdks"), downloadedSdks());
   return dirs;
 }
 
 /**
  * The SDK to compile with: the first of `override`, `CIQ_SDK`, the SDK
- * Manager's `Sdks/` folder (its current SDK, else the newest) and
- * `~/ciq/sdks` (where `tools/setup-env.sh` installs one) that holds one.
+ * Manager's `Sdks/` folder (its current SDK, else the newest), `~/ciq/sdks`
+ * (where `tools/setup-env.sh` installs one) and the cache's `sdks/` (where
+ * `wfb init --download-sdk` puts one it could put nowhere better) that
+ * holds one.
  */
 export function findSdk(override: string | null = null): Sdk | null {
   for (const dir of sdkCandidates(override)) {

@@ -231,6 +231,12 @@ into the current directory on Linux and Windows. \`--into DIR\` changes
 where either lands. The device definitions have no such download: they
 come from the SDK Manager, signed in.
 
+With an SDK found, this command and \`wfb doctor\` also say when Garmin
+lists a newer one (in the container, so do the commands that compile).
+Garmin's release list is fetched at most once a day, with a short
+timeout, and silence is the answer offline; \`WFB_NO_UPDATE_CHECK=1\`
+turns the check off.
+
 Exit status 0 once the SDK and the device definitions are both in
 place. \`wfb doctor\` is the full check of everything a build needs.`,
   doctor: `check the environment and say what is missing

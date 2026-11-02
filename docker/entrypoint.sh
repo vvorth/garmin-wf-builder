@@ -7,10 +7,13 @@
 #
 #   1. The Connect IQ SDK is the user's own licensed copy, so it is not in the
 #      image: it is mounted at /sdk (the SDK Manager's Sdks folder, or one SDK),
-#      and a missing mount must be explained rather than surfacing as "no SDK".
-#      `wfb` picks the SDK inside the mount and, since the mount is read-only
-#      and `monkeyc` rewrites bin/default.jungle on every run, compiles from a
-#      copy of the compiler's files in the cache (below).
+#      or downloaded from Garmin on the user's say-so (WFB_ACCEPT_LICENSE=1, or
+#      a yes at a terminal) into that folder or the cache, and a missing SDK
+#      must be explained rather than surfacing as "no SDK". `wfb` picks the SDK
+#      and, when its folder is read-only (`monkeyc` rewrites bin/default.jungle
+#      on every run), compiles from a copy of the compiler's files in the cache
+#      (below). The commands that compile also say when Garmin has a newer SDK
+#      than the one found (once a day; WFB_NO_UPDATE_CHECK=1 turns it off).
 #   2. The device definitions cannot be baked into the image either, so a
 #      missing mount must be explained rather than surfacing as "Invalid device
 #      id".
@@ -58,6 +61,7 @@ fi
 # ------------------------------------------------------ what this needs -----
 needs_devices=0
 needs_sdk=0
+wants_sdk=0
 needs_key=0
 wants_fonts=0
 case "${1:-}" in
@@ -82,7 +86,8 @@ case "${1:-}" in
     studio)
         needs_devices=1
         wants_fonts=1
-        # the editor's Build runs `wfb build`, which signs with this key
+        # the editor's Build runs `wfb build`, which compiles with the SDK and signs with this key
+        wants_sdk=1
         needs_key=1
         # Inside the container the server must listen beyond its own
         # loopback for a published port to reach it, and it is reached by
@@ -146,21 +151,49 @@ EOF
 
 # ---------------------------------------------------------------- sdk -------
 # An SDK root has bin/monkeybrains.jar; the SDK Manager's Sdks folder holds
-# one root per installed release.
+# one root per installed release, and so does the cache's sdks/ when a run
+# downloaded one (`wfb` looks in both: ts/src/sdk.ts).
 has_sdk() {
-    [ -f "${CIQ_SDK}/bin/monkeybrains.jar" ] && return 0
-    for root in "${CIQ_SDK}"/*/; do
-        [ -f "${root}bin/monkeybrains.jar" ] && return 0
+    for dir in "${CIQ_SDK}" "${XDG_CACHE_HOME}/wfb/sdks"; do
+        [ -f "${dir}/bin/monkeybrains.jar" ] && return 0
+        for root in "${dir}"/*/; do
+            [ -f "${root}bin/monkeybrains.jar" ] && return 0
+        done
     done
     return 1
 }
-if [ "${needs_sdk}" = "1" ] && ! has_sdk; then
-    cat >&2 <<EOF
+# Downloading the SDK accepts Garmin's Connect IQ Developer Agreement, so it
+# happens only when the user says so: WFB_ACCEPT_LICENSE=1, or a yes at a
+# terminal. It lands in the folder mounted at /sdk when that is writable, else
+# in the cache (a /cache volume keeps it).
+download_sdk() {
+    if [ "${WFB_ACCEPT_LICENSE:-}" != "1" ]; then
+        [ -t 0 ] && [ -t 2 ] || return 1
+        printf 'wfb: no Connect IQ SDK at %s. Download the newest from Garmin now?\n' "${CIQ_SDK}" >&2
+        printf '     Downloading it accepts the Connect IQ Developer Agreement (https://developer.garmin.com/connect-iq/sdk/). [y/N] ' >&2
+        read -r answer
+        case "${answer}" in
+            y|Y|yes|YES) ;;
+            *) return 1 ;;
+        esac
+    else
+        echo "wfb: no Connect IQ SDK at ${CIQ_SDK}; WFB_ACCEPT_LICENSE=1, so downloading the newest from Garmin" >&2
+    fi
+    wfb init --download-sdk --accept-license >&2
+}
+if { [ "${needs_sdk}" = "1" ] || [ "${wants_sdk}" = "1" ]; } && ! has_sdk; then
+    if download_sdk; then
+        :
+    elif [ "${needs_sdk}" = "1" ]; then
+        cat >&2 <<EOF
 wfb: no Connect IQ SDK at ${CIQ_SDK}.
 
 The SDK is licensed to you by Garmin's Connect IQ Developer Agreement, which
-you accept by downloading it, so it is not in this image: mount the SDK
-Manager's Sdks folder (or one SDK) from the computer that installed it.
+you accept by downloading it, so it is not in this image. Either mount the SDK
+Manager's Sdks folder (or one SDK) from the computer that installed it, or
+let this image download the newest from Garmin: run it with
+-e WFB_ACCEPT_LICENSE=1 (or answer yes at a terminal, with -it), and it lands
+in the folder mounted at /sdk, or in /cache when none is.
 \`docker run ... IMAGE init\` prints the steps for a computer that has not.
 
   macOS   ~/Library/Application Support/Garmin/ConnectIQ/Sdks
@@ -171,7 +204,10 @@ $(mounts "$1")
 
 See docs/container.md.
 EOF
-    exit 2
+        exit 2
+    else
+        echo "wfb: no Connect IQ SDK at ${CIQ_SDK}: the editor's Build needs one (mount the SDK Manager's Sdks folder, or run with -e WFB_ACCEPT_LICENSE=1 to download it)" >&2
+    fi
 fi
 
 # ------------------------------------------------------------ devices -------

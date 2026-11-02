@@ -19,7 +19,7 @@ const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 interface Run { code: number; stdout: string; stderr: string; bytes: Buffer }
 
 function wfb(args: string[], { cwd = REPO_ROOT, env = {} }: { cwd?: string; env?: Record<string, string | undefined> } = {}): Run {
-  const done = spawnSync(process.execPath, [CLI, ...args], { cwd, env: { ...process.env, WFB_NO_GARMIN_FONTS: "1", ...env }, maxBuffer: 64 * 1024 * 1024 });
+  const done = spawnSync(process.execPath, [CLI, ...args], { cwd, env: { ...process.env, WFB_NO_GARMIN_FONTS: "1", WFB_NO_UPDATE_CHECK: "1", ...env }, maxBuffer: 64 * 1024 * 1024 });
   return { code: done.status ?? -1, stdout: done.stdout.toString(), stderr: done.stderr.toString(), bytes: done.stdout };
 }
 

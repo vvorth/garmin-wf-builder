@@ -13,7 +13,8 @@
 # read-only SDK and compiles from a copy of it, extracts the device reference
 # from the SDK's pages into the cache (and not again when the cache is kept),
 # the slice fixture generates a project and renders a preview, a missing /sdk
-# is refused with the mount hint, and the default command serves the editor
+# is refused with the mount hint unless WFB_ACCEPT_LICENSE=1 lets the image
+# download one (into /cache here), and the default command serves the editor
 # to a request addressed by any host name. `monkeyc` does not know `wfbtest`,
 # so a compiled .prg needs real devices and is not tested here.
 set -euo pipefail
@@ -94,13 +95,24 @@ fi
 run_extracting doctor | grep -q 'runs from a copy at /cache/wfb/sdk/'
 test -f "$cache"/wfb/sdk/*/bin/monkeybrains.jar
 
-# No SDK mounted: a build is refused with the mount, not a stack trace.
+# No SDK mounted and no say-so: a build is refused with the mount and the switch, not a stack trace.
 if docker run --rm -v "$work:/work" -v "$fixtures/devices:/devices:ro" -e WFB_NO_GARMIN_FONTS=1 "$image" build face.yaml 2>"$work/no-sdk.txt"; then
     echo "a build with no SDK mounted succeeded" >&2
     exit 1
 fi
 grep -q 'no Connect IQ SDK at /sdk' "$work/no-sdk.txt"
 grep -q 'Sdks:/sdk:ro' "$work/no-sdk.txt"
+grep -q 'WFB_ACCEPT_LICENSE=1' "$work/no-sdk.txt"
+# With the say-so, the image downloads Garmin's newest SDK into /cache before compiling (which then fails: monkeyc does not know wfbtest).
+docker run --rm -v "$work:/work" -v "$cache:/cache" -v "$fixtures/devices:/devices:ro" -v "$fixtures/devices/reference:/reference:ro" \
+    -e WFB_DEVICE_REFERENCE=/reference -e WFB_NO_GARMIN_FONTS=1 -e WFB_ACCEPT_LICENSE=1 "$image" build face.yaml >"$work/auto.txt" 2>&1 || true
+grep -q 'WFB_ACCEPT_LICENSE=1, so downloading' "$work/auto.txt"
+grep -q '^installed SDK' "$work/auto.txt"
+test -f "$cache"/wfb/sdks/connectiq-sdk-lin-*/bin/monkeybrains.jar
+# and finds it there on the next run, without the mount.
+docker run --rm -v "$cache:/cache" -v "$fixtures/devices:/devices:ro" -v "$fixtures/devices/reference:/reference:ro" \
+    -e WFB_DEVICE_REFERENCE=/reference -e WFB_NO_GARMIN_FONTS=1 "$image" doctor | grep -q 'Connect IQ SDK   9.*/cache/wfb/sdks/'
+
 # `init` in the container names the host's steps and the mounts (and exits 1: nothing is mounted).
 init_out=$(docker run --rm "$image" init || true)
 grep -q 'connectiq-sdk-manager.dmg' <<<"$init_out"

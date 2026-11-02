@@ -7,13 +7,13 @@
 // machine (the Linux SDK into the SDK Manager's folder, where `wfb` and the
 // SDK Manager both look), once the user has accepted Garmin's agreement.
 // Node only.
-import { chmodSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { unzipSync } from "fflate";
 import { DEFAULT_DEVICE_ROOTS } from "./devices/node.ts";
 import { garminFontRoot } from "./fonts/node.ts";
-import { expandHome, findSdk, isSdkRoot, type Sdk, sdkCandidates, sdkManagerHome, sdkManagerHomes, sdkVersion } from "./sdk.ts";
+import { cacheHome, canWriteAt, downloadedSdks, expandHome, findSdk, isSdkRoot, type Sdk, sdkCandidates, sdkManagerHome, sdkManagerHomes, sdkVersion } from "./sdk.ts";
 
 /** Every SDK Manager folder this machine could have, for a report of where things were looked for. */
 export const MANAGER_HOMES = sdkManagerHomes;
@@ -212,13 +212,66 @@ export async function listSdks(baseUrl: string = process.env["SDK_BASE_URL"] || 
 }
 
 /**
- * Where `--download-sdk` puts the SDK: `CIQ_SDK` in the container (the
- * mounted folder), else the SDK Manager's own `Sdks` folder on Linux, so
- * the SDK Manager and `wfb` both see it.
+ * Where `--download-sdk` puts the SDK: in the container the folder mounted
+ * at `CIQ_SDK` when it can be written, else the cache's `sdks/` (kept by a
+ * `/cache` volume, and where `findSdk` looks); on a Linux host the SDK
+ * Manager's own `Sdks` folder, so the SDK Manager and `wfb` both see it.
  */
-export function sdkDownloadFolder(inContainer: boolean): string {
-  if (inContainer && process.env["CIQ_SDK"]) return process.env["CIQ_SDK"];
+export function sdkDownloadFolder(inContainer: boolean, writable: (path: string) => boolean = canWriteAt): string {
+  if (inContainer) return process.env["CIQ_SDK"] && writable(process.env["CIQ_SDK"]) ? process.env["CIQ_SDK"] : downloadedSdks();
   return join(homedir(), ".Garmin", "ConnectIQ", "Sdks");
+}
+
+/** A release newer than `current`: the newest Linux release in `releases` when it is, else `null`. */
+export function newerThan(current: string, releases: SdkRelease[]): (SdkRelease & { linux: string }) | null {
+  const newest = pickLinuxSdk(releases);
+  return newest !== null && newest.version.localeCompare(current, "en", { numeric: true }) > 0 ? newest : null;
+}
+
+/** How long a fetched `sdks.json` answers the update check before it is fetched again. */
+export const UPDATE_CHECK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a newer SDK than `current` is out, by Garmin's `sdks.json`:
+ * fetched at most once a day (the copy kept at `<cache>/sdks.json`), with a
+ * short timeout, and `null` -- no notice -- when it cannot be fetched, so
+ * an offline machine is never slowed or nagged. `WFB_NO_UPDATE_CHECK=1`
+ * turns the check off altogether.
+ */
+export async function checkForNewerSdk(current: string, {
+  cacheFile = join(cacheHome(), "sdks.json"), maxAgeMs = UPDATE_CHECK_MAX_AGE_MS, timeoutMs = 3000, now = Date.now(),
+  fetchList = async (): Promise<SdkRelease[]> => {
+    const baseUrl = process.env["SDK_BASE_URL"] || SDK_DOWNLOADS;
+    const response = await fetch(`${baseUrl}/sdks.json`, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return (await response.json()) as SdkRelease[];
+  },
+}: { cacheFile?: string; maxAgeMs?: number; timeoutMs?: number; now?: number; fetchList?: () => Promise<SdkRelease[]> } = {}): Promise<(SdkRelease & { linux: string }) | null> {
+  if (process.env["WFB_NO_UPDATE_CHECK"] === "1") return null;
+  let releases: SdkRelease[] | null = null;
+  try {
+    if (existsSync(cacheFile) && now - statSync(cacheFile).mtimeMs < maxAgeMs) releases = JSON.parse(readFileSync(cacheFile, "utf8")) as SdkRelease[];
+  } catch {
+    releases = null;
+  }
+  if (releases === null) {
+    try {
+      releases = await fetchList();
+      mkdirSync(dirname(cacheFile), { recursive: true });
+      writeFileSync(cacheFile, JSON.stringify(releases));
+    } catch {
+      return null;
+    }
+  }
+  return newerThan(current, releases);
+}
+
+/** The one-line notice for a newer SDK, for stderr. */
+export function updateNotice(current: string, newer: SdkRelease, inContainer: boolean): string {
+  const how = inContainer
+    ? "download it with the SDK Manager, or run the image with -e WFB_ACCEPT_LICENSE=1 and no SDK mounted to fetch it"
+    : "download it with the SDK Manager, or `wfb init --download-sdk --accept-license` on Linux";
+  return `wfb: Connect IQ SDK ${newer.version} is available (installed: ${current}); ${how}`;
 }
 
 /**
