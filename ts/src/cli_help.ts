@@ -217,9 +217,19 @@ what to download in it, where it lands, and how wfb finds it there.
 Inside the container the steps are for the computer running Docker, and
 end with the \`docker run\` line that mounts the SDK Manager's folders;
 \`--docker\` prints that line on a host too, with this computer's folders
-filled in. On Linux and Windows \`--download DIR\` fetches the SDK
-Manager's archive into DIR, once \`--accept-license\` says you accept the
-agreement, as the download button on Garmin's page does.
+filled in.
+
+Two of Garmin's downloads are free of the sign-in, and this command can
+fetch them once \`--accept-license\` says you accept the agreement, as the
+download button on Garmin's page does. \`--download-sdk\` fetches the
+newest Linux SDK (or \`--sdk-version X.Y.Z\`) into the SDK Manager's
+\`Sdks\` folder on a Linux host, or into the folder mounted at /sdk in the
+container (mount it read-write for that run), laid out as the SDK Manager
+lays one out, so both find it; the SDK Manager is then needed only for
+the watches. \`--download-manager\` fetches the SDK Manager's archive
+into the current directory on Linux and Windows. \`--into DIR\` changes
+where either lands. The device definitions have no such download: they
+come from the SDK Manager, signed in.
 
 Exit status 0 once the SDK and the device definitions are both in
 place. \`wfb doctor\` is the full check of everything a build needs.`,

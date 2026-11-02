@@ -70,15 +70,13 @@ describe("the command line", { concurrency: true }, () => {
     assert.ok(readyText.includes("ready") && readyText.includes("9.3.0") && readyText.includes("1 at "), readyText);
     assert.ok(readyText.includes("docker run --rm") && readyText.includes(":/sdk:ro"), readyText);
 
-    const gated = wfb(["init", "--download", join(home, "dl")], { env: { HOME: home, WFB_CONTAINER: undefined } });
-    if (process.platform === "linux") {
-      assert.equal(gated.code, 2);
+    for (const flag of ["--download-manager", "--download-sdk"]) {
+      const gated = wfb(["init", flag, "--into", join(home, "dl")], { env: { HOME: home, WFB_CONTAINER: undefined } });
+      assert.equal(gated.code, 2, flag);
       assert.ok(gated.stderr.includes("--accept-license") && gated.stderr.includes("Developer Agreement"), gated.stderr);
-    } else {
-      assert.equal(gated.code, 2);
     }
     assert.ok(!existsSync(join(home, "dl")));
-    const container = wfb(["init", "--download", join(home, "dl"), "--accept-license"], { env: { HOME: home, WFB_CONTAINER: "1" } });
+    const container = wfb(["init", "--download-manager", "--into", join(home, "dl"), "--accept-license"], { env: { HOME: home, WFB_CONTAINER: "1" } });
     assert.equal(container.code, 2);
     assert.ok(container.stderr.includes("desktop application"), container.stderr);
   });

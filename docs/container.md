@@ -74,6 +74,21 @@ used, else the newest) or one SDK's own folder. If either mount is missing,
 the container says so and points here rather than failing deep inside a
 build, and `docker run --rm garmin-wf-builder init` prints every step.
 
+**No SDK Manager on the Docker host?** The SDK itself downloads without a
+sign-in, and the container can fetch it: mount the folder it should land
+in read-write for that one run, and accept Garmin's agreement as the
+download button on its page would:
+
+```sh
+mkdir -p "$HOME/.Garmin/ConnectIQ/Sdks"
+docker run --rm -v "$HOME/.Garmin/ConnectIQ/Sdks:/sdk" garmin-wf-builder init --download-sdk --accept-license
+```
+
+It lands as `connectiq-sdk-lin-<version>-<date>-<hash>/`, the layout the
+SDK Manager uses, so a later SDK Manager install sees it too. Then mount
+the folder read-only as above. The device definitions have no such
+download: only the SDK Manager, signed in, provides them.
+
 The image cannot contain them, for two independent reasons.
 
 **They are licensed to you, not to this project.** Downloading the SDK
@@ -208,7 +223,7 @@ What each command needs mounted:
 | `preview` | ✔ | | ✔ | optional | |
 | `validate` | ✔ | | ✔ | | |
 | `devices`, `sources` | | | ✔ | | |
-| `init`, `doctor` | | optional | optional | optional | |
+| `init`, `doctor` | | optional (`init --download-sdk` writes into it) | optional | optional | |
 | `studio` | | ✔ (for Build) | ✔ | optional | ✔ (for Build) |
 
 `/cache` is optional everywhere. `preview` and `validate` need no SDK to

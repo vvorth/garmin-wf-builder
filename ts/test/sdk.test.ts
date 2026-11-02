@@ -102,3 +102,36 @@ describe("the SDK on disk", { concurrency: true }, () => {
     assert.ok(command[0]!.endsWith("java"));
   });
 });
+
+describe("the SDK download", { concurrency: true }, () => {
+  test("the newest Linux release is picked, or the one asked for, and none when Garmin lists none", async () => {
+    const { pickLinuxSdk, unpackSdk } = await import("../src/init.ts");
+    const list = [
+      { version: "9.2.0", linux: "connectiq-sdk-lin-9.2.0-a.zip", mac: "m.dmg" },
+      { version: "9.10.0", linux: "connectiq-sdk-lin-9.10.0-c.zip" },
+      { version: "9.3.0", linux: "connectiq-sdk-lin-9.3.0-b.zip" },
+      { version: "9.11.0", mac: "connectiq-sdk-mac-9.11.0-d.dmg" },
+    ];
+    assert.equal(pickLinuxSdk(list)?.version, "9.10.0", "numeric order, and a release with no Linux archive is skipped");
+    assert.equal(pickLinuxSdk(list, "9.2.0")?.linux, "connectiq-sdk-lin-9.2.0-a.zip");
+    assert.equal(pickLinuxSdk(list, "9.11.0"), null);
+    assert.equal(pickLinuxSdk([]), null);
+
+    // An archive unpacks as the SDK Manager lays one out, bin/ programs executable, nothing left half-made.
+    const { zipSync, strToU8 } = await import("fflate");
+    const dir = scratch();
+    const archive = zipSync({
+      "bin/monkeybrains.jar": strToU8("jar"), "bin/version.txt": strToU8("9.3.0\n"), "bin/monkeyc": strToU8("#!/bin/bash\n"),
+      "bin/api.db": strToU8("db"), "doc/docs/Device_Reference/fr955.html": strToU8("<html></html>"),
+    });
+    const sdk = unpackSdk(archive, dir, "connectiq-sdk-lin-9.3.0-x");
+    assert.equal(sdk.root, join(dir, "connectiq-sdk-lin-9.3.0-x"));
+    assert.equal(sdk.version, "9.3.0");
+    assert.ok(statSync(join(sdk.root, "bin", "monkeyc")).mode & 0o111, "monkeyc is executable");
+    assert.ok(!(statSync(join(sdk.root, "bin", "api.db")).mode & 0o111), "a data file is not");
+    assert.ok(existsSync(join(sdk.root, "doc", "docs", "Device_Reference", "fr955.html")));
+    assert.ok(!existsSync(join(dir, "connectiq-sdk-lin-9.3.0-x.tmp")));
+    assert.throws(() => unpackSdk(zipSync({ "readme.txt": strToU8("x") }), dir, "not-an-sdk"), /monkeybrains\.jar/);
+    assert.ok(!existsSync(join(dir, "not-an-sdk")) && !existsSync(join(dir, "not-an-sdk.tmp")));
+  });
+});

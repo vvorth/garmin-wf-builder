@@ -25,26 +25,21 @@ import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { unzipSync } from "fflate";
+import { listSdks, pickLinuxSdk, SDK_DOWNLOADS } from "../src/init.ts";
 import { prunedSdkKeeps } from "../src/sdk.ts";
 
 const EXECUTABLE = ["monkeyc", "monkeydo"];
-const BASE_URL = process.env["SDK_BASE_URL"] || "https://developer.garmin.com/downloads/connect-iq/sdks";
+const BASE_URL = process.env["SDK_BASE_URL"] || SDK_DOWNLOADS;
 
 const { values, positionals } = parseArgs({
   options: { newest: { type: "boolean", default: false }, version: { type: "string" } },
   allowPositionals: true,
 });
 
-interface Release { version: string; linux?: string }
-
 /** The Linux archive of the newest release in `sdks.json`, or of `version`. */
 async function newestArchive(version: string | undefined): Promise<string> {
-  const response = await fetch(`${BASE_URL}/sdks.json`, { signal: AbortSignal.timeout(60_000) });
-  if (!response.ok) throw new Error(`HTTP ${response.status} for ${BASE_URL}/sdks.json`);
-  const releases = ((await response.json()) as Release[]).filter((r) => r.linux && (!version || r.version === version));
-  releases.sort((a, b) => a.version.localeCompare(b.version, "en", { numeric: true }));
-  const chosen = releases.at(-1);
-  if (chosen === undefined) throw new Error(version ? `sdks.json lists no Linux SDK ${version}` : "sdks.json lists no Linux SDK");
+  const chosen = pickLinuxSdk(await listSdks(BASE_URL), version);
+  if (chosen === null) throw new Error(version ? `sdks.json lists no Linux SDK ${version}` : "sdks.json lists no Linux SDK");
   return `${BASE_URL}/${chosen.linux}`;
 }
 

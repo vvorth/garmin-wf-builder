@@ -1,15 +1,19 @@
 // `wfb init`: what Garmin's SDK Manager has to put on this machine before
 // `wfb` can compile -- the Connect IQ SDK and the device definitions, with
 // Garmin's font files beside them -- whether it is there, and how to get it
-// there. Garmin's server hands out the SDK Manager freely but the device
-// files only to a signed-in account, and the SDK's licence is personal, so
-// this command can only point: it never installs any of them. Node only.
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { platform } from "node:os";
-import { basename, join } from "node:path";
+// there. Garmin's server hands out the SDK Manager and the SDK itself
+// freely but the device files only to a signed-in account, so this command
+// points, and downloads at most the two free ones onto the user's own
+// machine (the Linux SDK into the SDK Manager's folder, where `wfb` and the
+// SDK Manager both look), once the user has accepted Garmin's agreement.
+// Node only.
+import { chmodSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, platform } from "node:os";
+import { basename, dirname, join } from "node:path";
+import { unzipSync } from "fflate";
 import { DEFAULT_DEVICE_ROOTS } from "./devices/node.ts";
 import { garminFontRoot } from "./fonts/node.ts";
-import { findSdk, type Sdk, sdkCandidates, sdkManagerHome, sdkManagerHomes } from "./sdk.ts";
+import { expandHome, findSdk, isSdkRoot, type Sdk, sdkCandidates, sdkManagerHome, sdkManagerHomes, sdkVersion } from "./sdk.ts";
 
 /** Every SDK Manager folder this machine could have, for a report of where things were looked for. */
 export const MANAGER_HOMES = sdkManagerHomes;
@@ -135,7 +139,17 @@ export function steps(found: Survey, host: Host, inContainer: boolean): string[]
       "   licenses the SDK to you alone, for developing and testing: that is why neither the SDK nor",
       "   the device files are part of this project or its image.",
     );
-    if (!inContainer && host !== "unknown" && host !== "mac") lines.push("   `wfb init --download DIR --accept-license` fetches it into DIR for you.");
+    if (host === "linux") {
+      lines.push("   `wfb init --download-manager --accept-license` fetches it here; `wfb init --download-sdk --accept-license`",
+        "   fetches the SDK itself into the SDK Manager's folder, leaving the SDK Manager only the watches.");
+    } else if (host === "windows") {
+      lines.push("   `wfb init --download-manager --accept-license` fetches it here.");
+    }
+    if (inContainer && found.sdk === null) {
+      lines.push("   The container can fetch the SDK itself: mount an empty folder read-write at /sdk and run",
+        "   `docker run --rm -v \"$HOME/.Garmin/ConnectIQ/Sdks:/sdk\" vvorth/garmin-wf-builder init --download-sdk --accept-license`,",
+        "   then mount that folder read-only as below. The watches still come from the SDK Manager.");
+    }
   }
   if (found.sdk === null || found.devices === null) {
     const wants = found.sdk === null && found.devices === null ? "the newest SDK on its SDK tab and, on its Devices tab, every watch you build for"
@@ -155,17 +169,103 @@ export function steps(found: Survey, host: Host, inContainer: boolean): string[]
   return lines;
 }
 
+/** `url`'s bytes, `log` told the size first. */
+async function fetchBytes(url: string, log: (line: string) => void): Promise<Uint8Array> {
+  const response = await fetch(url, { signal: AbortSignal.timeout(900_000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+  const length = Number(response.headers.get("content-length"));
+  log(`downloading ${url}${length > 0 ? ` (${Math.round(length / (1024 * 1024))} MB)` : ""} ...`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
 /**
  * Fetch the SDK Manager's archive for `host` into `dir` and return its
  * path. The caller has shown the agreement notice and had it accepted.
  */
-export async function downloadSdkManager(host: Exclude<Host, "unknown">, dir: string): Promise<string> {
+export async function downloadSdkManager(host: Exclude<Host, "unknown">, dir: string, log: (line: string) => void = () => {}): Promise<string> {
   const url = SDK_MANAGER_DOWNLOADS[host];
-  const response = await fetch(url, { signal: AbortSignal.timeout(600_000) });
-  if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  const bytes = await fetchBytes(url, log);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, basename(new URL(url).pathname));
   writeFileSync(path, bytes);
   return path;
+}
+
+/** Garmin's SDK downloads; `SDK_BASE_URL` names a mirror that reproduces the same paths. */
+export const SDK_DOWNLOADS = "https://developer.garmin.com/downloads/connect-iq/sdks";
+
+/** One entry of Garmin's `sdks.json`: a release and its archive per OS. */
+export interface SdkRelease { version: string; release?: string; linux?: string; mac?: string; windows?: string }
+
+/** The newest release with a Linux archive, or the one `version` names; `null` when the list has none. */
+export function pickLinuxSdk(releases: SdkRelease[], version?: string): (SdkRelease & { linux: string }) | null {
+  const linux = releases.filter((r): r is SdkRelease & { linux: string } => Boolean(r.linux) && (!version || r.version === version));
+  linux.sort((a, b) => a.version.localeCompare(b.version, "en", { numeric: true }));
+  return linux.at(-1) ?? null;
+}
+
+/** Garmin's list of SDK releases. */
+export async function listSdks(baseUrl: string = process.env["SDK_BASE_URL"] || SDK_DOWNLOADS): Promise<SdkRelease[]> {
+  const response = await fetch(`${baseUrl}/sdks.json`, { signal: AbortSignal.timeout(60_000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status} for ${baseUrl}/sdks.json`);
+  return (await response.json()) as SdkRelease[];
+}
+
+/**
+ * Where `--download-sdk` puts the SDK: `CIQ_SDK` in the container (the
+ * mounted folder), else the SDK Manager's own `Sdks` folder on Linux, so
+ * the SDK Manager and `wfb` both see it.
+ */
+export function sdkDownloadFolder(inContainer: boolean): string {
+  if (inContainer && process.env["CIQ_SDK"]) return process.env["CIQ_SDK"];
+  return join(homedir(), ".Garmin", "ConnectIQ", "Sdks");
+}
+
+/**
+ * Unpack an SDK archive as the SDK Manager lays one out: `folder/<name>/`
+ * with the archive's own tree inside and the `bin/` programs executable.
+ * Built beside the target and renamed into place, so an interrupted run
+ * leaves nothing half-made.
+ */
+export function unpackSdk(archive: Uint8Array, folder: string, name: string): Sdk {
+  const root = join(folder, name);
+  const staging = `${root}.tmp`;
+  rmSync(staging, { recursive: true, force: true });
+  const files = unzipSync(archive, { filter: (file) => !file.name.endsWith("/") });
+  for (const [path, content] of Object.entries(files)) {
+    const target = join(staging, path);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, content);
+    if (path.startsWith("bin/") && !path.slice(4).includes("/") && !/\.[a-z0-9]+$/i.test(path)) chmodSync(target, 0o755);
+  }
+  if (!isSdkRoot(staging)) {
+    rmSync(staging, { recursive: true, force: true });
+    throw new Error("the archive holds no bin/monkeybrains.jar: not a Connect IQ SDK");
+  }
+  rmSync(root, { recursive: true, force: true });
+  renameSync(staging, root);
+  return { root, version: sdkVersion(root) };
+}
+
+/**
+ * Download the newest Linux SDK (or `version`) into `folder` and return
+ * it; one already there is left alone. The caller has shown the agreement
+ * notice and had it accepted. The whole SDK, as `tools/setup-env.sh`
+ * installs it: the compiler, the docs the device reference is extracted
+ * from, the simulator for a desktop that can run it.
+ */
+export async function downloadSdk(folder: string, { version, log = () => {} }: { version?: string | undefined; log?: (line: string) => void } = {}): Promise<Sdk> {
+  const release = pickLinuxSdk(await listSdks(), version);
+  if (release === null) throw new Error(version ? `Garmin lists no Linux SDK ${version}` : "Garmin lists no Linux SDK");
+  const name = release.linux.replace(/\.zip$/, "");
+  const target = join(expandHome(folder), name);
+  if (isSdkRoot(target)) {
+    log(`SDK ${release.version} is already at ${target}`);
+    return { root: target, version: sdkVersion(target) };
+  }
+  const baseUrl = process.env["SDK_BASE_URL"] || SDK_DOWNLOADS;
+  const archive = await fetchBytes(`${baseUrl}/${release.linux}`, log);
+  log(`unpacking into ${target} ...`);
+  mkdirSync(expandHome(folder), { recursive: true });
+  return unpackSdk(archive, expandHome(folder), name);
 }

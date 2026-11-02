@@ -104,6 +104,13 @@ grep -q 'Sdks:/sdk:ro' "$work/no-sdk.txt"
 init_out=$(docker run --rm "$image" init || true)
 grep -q 'connectiq-sdk-manager.dmg' <<<"$init_out"
 grep -q 'Sdks:/sdk:ro' <<<"$init_out"
+grep -q 'init --download-sdk --accept-license' <<<"$init_out"
+# A download without the agreement accepted fetches nothing.
+if docker run --rm -v "$cache:/sdk" "$image" init --download-sdk 2>"$work/gate.txt"; then
+    echo "init --download-sdk ran without --accept-license" >&2
+    exit 1
+fi
+grep -q 'accept-license' "$work/gate.txt"
 
 # No arguments: the editor, on every address and answering any name.
 studio=$(docker run -d -p 127.0.0.1::8765 \

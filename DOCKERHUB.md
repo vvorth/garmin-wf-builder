@@ -59,7 +59,13 @@ the watches you target on its Devices tab, and mount its folders read-only:
 
 If a mount is missing, the container says so instead of failing deep in a
 build, and `docker run --rm vvorth/garmin-wf-builder init` prints every
-step for the computer running Docker.
+step for the computer running Docker. The SDK alone downloads without a
+sign-in, and the container can fetch it into a folder you mount read-write
+for that run, once you accept Garmin's agreement:
+
+```sh
+docker run --rm -v "$HOME/.Garmin/ConnectIQ/Sdks:/sdk" vvorth/garmin-wf-builder init --download-sdk --accept-license
+```
 
 ## Quick start
 
@@ -139,7 +145,7 @@ volumes:
 | Path | What | Needed by |
 | --- | --- | --- |
 | `/work` | your project directory; the working directory | `build`, `preview`, `validate` |
-| `/sdk` | the SDK Manager's `Sdks` folder (or one SDK), read-only | `build`, `export`, and Build in `studio` |
+| `/sdk` | the SDK Manager's `Sdks` folder (or one SDK), read-only; read-write for `init --download-sdk` to fill it | `build`, `export`, and Build in `studio` |
 | `/devices` | Garmin's device definitions, read-only | everything but `init` and `doctor` |
 | `/keys` | the developer signing key, `developer_key.der` | `build`, `export`, and Build in `studio` |
 | `/fonts` | optional: Garmin's own font files (the SDK Manager's `Fonts` folder, next to `Devices`) | `build`, `preview`, `studio` |

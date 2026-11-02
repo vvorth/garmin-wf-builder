@@ -318,7 +318,11 @@ licence folder and is only ever the downloader's own copy (the smoke test's
 runner); and the device definitions and Garmin's fonts, which the same
 agreement covers, stay out for the same reason as well as the 401 below.
 Downloading the SDK on one's own machine (`tools/setup-env.sh` on Linux,
-the SDK Manager elsewhere) is the ordinary use the agreement grants.
+`wfb init --download-sdk --accept-license` on a Linux host or in the
+container into the folder mounted at `/sdk`, the SDK Manager elsewhere) is
+the ordinary use the agreement grants; each download is the user's own
+acceptance, which is why `--accept-license` is required and nothing is
+fetched without it.
 Images published before 2026-11-02 (`26.10.0`–`26.10.2`, the `dev` tags of
 October 2026) contained the pruned SDK and are the project owner's to
 withdraw.

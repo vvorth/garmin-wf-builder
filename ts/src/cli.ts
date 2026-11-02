@@ -20,6 +20,7 @@ import { resolveRegistryKey } from "./fonts/files.ts";
 import { deviceNeededNames, garminFontRoot, NodeFontFiles } from "./fonts/node.ts";
 import * as icons from "./icons.ts";
 import * as init from "./init.ts";
+import { canWriteAt, findSdk } from "./sdk.ts";
 import type { ExprValue } from "./expr.ts";
 import type { ResolvedFace } from "./layout.ts";
 import type { MemoryStats } from "./lint.ts";
@@ -260,8 +261,11 @@ const COMMAND_LIST: readonly Command[] = [
   ], [{ dest: "devices", many: true, metavar: "DEVICE", help: "device(s) to inspect (repeatable; default: all installed devices, summarised)" }]),
   command("init", initCommand, [
     { flags: ["--docker"], kind: "flag", help: "print the `docker run` line that mounts the SDK Manager's folders found here" },
-    { flags: ["--download"], metavar: "DIR", help: "fetch Garmin's SDK Manager for this computer into DIR (Linux and Windows; macOS has a disk image to download in a browser)" },
-    { flags: ["--accept-license"], kind: "flag", dest: "accept_license", help: "with --download: you accept Garmin's Connect IQ Developer Agreement, as downloading from Garmin's page does" },
+    { flags: ["--download-sdk"], kind: "flag", dest: "download_sdk", help: "fetch the newest Connect IQ SDK from Garmin into the SDK Manager's Sdks folder (Linux, the container included: there into the folder mounted at /sdk), where wfb finds it; the SDK Manager is then needed only for the watches" },
+    { flags: ["--download-manager"], kind: "flag", dest: "download_manager", help: "fetch Garmin's SDK Manager for this computer into the current directory (Linux and Windows; macOS has a disk image to download in a browser)" },
+    { flags: ["--into"], metavar: "DIR", help: "where a download lands instead of its default folder" },
+    { flags: ["--sdk-version"], dest: "sdk_version", metavar: "X.Y.Z", help: "with --download-sdk: this release instead of the newest" },
+    { flags: ["--accept-license"], kind: "flag", dest: "accept_license", help: "with a download: you accept Garmin's Connect IQ Developer Agreement, as downloading from Garmin's page does" },
     DEVICES_DIR,
     { flags: ["--fonts"], dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory, as for `wfb doctor`" },
   ]),
@@ -1080,29 +1084,55 @@ async function initCommand(args: Namespace): Promise<number> {
   const absent = term.style(" none", ["yellow"], color);
   const found = init.survey((args["devices_dir"] as string | null) ?? null, (args["fonts_dir"] as string | null) ?? null);
 
-  const download = args["download"] as string | null;
-  if (download) {
-    if (inContainer) {
-      error("the SDK Manager is a desktop application: download it on the computer running Docker (the links are below)");
-    } else if (host === "unknown" || host === "mac") {
-      error(host === "mac"
-        ? `on macOS the SDK Manager is a disk image to open in a browser: ${init.SDK_MANAGER_DOWNLOADS.mac}`
-        : "this computer's operating system is not one the SDK Manager runs on (macOS, Linux, Windows)");
-    } else if (!args["accept_license"]) {
-      error(`downloading the SDK Manager accepts Garmin's Connect IQ Developer Agreement (${init.SDK_PAGE}), as the`);
-      err("       Accept & Download button on that page does; pass --accept-license to download it here, or use the page.");
-    } else {
-      out(`downloading ${init.SDK_MANAGER_DOWNLOADS[host]} ...`);
+  const into = args["into"] as string | null;
+  if (args["download_sdk"] || args["download_manager"]) {
+    if (!args["accept_license"]) {
+      error(`downloading from Garmin accepts its Connect IQ Developer Agreement (${init.SDK_PAGE}), as the`);
+      err("       Accept & Download button on that page does; pass --accept-license to download here, or use the page.");
+      return 2;
+    }
+    if (args["download_sdk"]) {
+      // The container is Linux whatever the host is; the mounted /sdk is where it lands.
+      if (!inContainer && host !== "linux") {
+        error(host === "unknown" ? "the SDK download here is the Linux SDK; on this computer, use the SDK Manager"
+          : `on ${init.HOST_NAMES[host]} the SDK Manager installs the SDK: ${init.SDK_MANAGER_DOWNLOADS[host]}`);
+        return 2;
+      }
+      const folder = into ?? init.sdkDownloadFolder(inContainer);
+      if (!canWriteAt(folder)) {
+        error(`${folder} is not writable${inContainer ? ": mount the folder the SDK should land in read-write at that path for this one run" : ""}`);
+        return 2;
+      }
       try {
-        const path = await init.downloadSdkManager(host, download);
-        out(`${status("saved", color)} ${path}`);
-        out("unpack it, run the SDK Manager inside, sign in, and download the SDK and your watches; then `wfb doctor`.");
-        return 0;
+        const sdk = await init.downloadSdk(folder, { version: (args["sdk_version"] as string | null) ?? undefined, log: out });
+        out(`${status("installed", color)} SDK ${sdk.version} at ${sdk.root}`);
+        out(findSdk()?.root === sdk.root ? "wfb finds it there." : `set CIQ_SDK=${folder}, or pass --sdk ${folder}, for wfb to use it.`);
       } catch (e) {
-        error(`could not download the SDK Manager: ${(e as Error).message}`);
+        error(`could not download the SDK: ${(e as Error).message}`);
+        return 2;
       }
     }
-    return 2;
+    if (args["download_manager"]) {
+      if (inContainer) {
+        error("the SDK Manager is a desktop application: download it on the computer running Docker (the links are below)");
+        return 2;
+      }
+      if (host === "unknown" || host === "mac") {
+        error(host === "mac"
+          ? `on macOS the SDK Manager is a disk image to open in a browser: ${init.SDK_MANAGER_DOWNLOADS.mac}`
+          : "this computer's operating system is not one the SDK Manager runs on (macOS, Linux, Windows)");
+        return 2;
+      }
+      try {
+        const path = await init.downloadSdkManager(host, into ?? process.cwd(), out);
+        out(`${status("saved", color)} ${path}`);
+        out("unpack it, run the SDK Manager inside, sign in, and download your watches (and the SDK, unless --download-sdk did); then `wfb doctor`.");
+      } catch (e) {
+        error(`could not download the SDK Manager: ${(e as Error).message}`);
+        return 2;
+      }
+    }
+    return 0;
   }
 
   out(`wfb ${VERSION} -- Garmin's SDK Manager puts the SDK and your watches' definitions on this computer`);

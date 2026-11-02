@@ -38,7 +38,10 @@ system):
 1. Install Garmin's
    [Connect IQ SDK Manager](https://developer.garmin.com/connect-iq/sdk/), sign
    in, and download the devices you build for. On macOS, and for Docker,
-   download the newest SDK there too.
+   download the newest SDK there too (on a Linux host, `wfb init
+   --download-sdk --accept-license` fetches the SDK into the SDK Manager's
+   folder instead, the container included; the watches always come from
+   the SDK Manager).
 2. The SDK Manager saves them here:
    - macOS: `~/Library/Application Support/Garmin/ConnectIQ/Devices`
    - Linux: `~/.Garmin/ConnectIQ/Devices`
