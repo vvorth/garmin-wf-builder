@@ -85,13 +85,9 @@ export function survey(devicesDir: string | null = null, fontsDir: string | null
 /** Whether `survey` has what compiling needs: an SDK and device definitions. */
 export const complete = (found: Survey): boolean => found.sdk !== null && found.devices !== null;
 
-/** The container's mounts for the SDK Manager's folder `home` (a path, or a shell's `$HOME`-relative spelling). */
+/** The container's mount for the SDK Manager's folder `home` (a path, or a shell's `$HOME`-relative spelling): Sdks, Devices and Fonts in one. */
 function mounts(home: string): string[] {
-  return [
-    `-v "${home}/Sdks:/sdk:ro"`,
-    `-v "${home}/Devices:/devices:ro"`,
-    `-v "${home}/Fonts:/fonts:ro"`,
-  ];
+  return [`-v "${home}:/vendor:ro"`];
 }
 
 /**
@@ -149,9 +145,9 @@ export function steps(found: Survey, host: Host, inContainer: boolean): string[]
       lines.push("   `wfb init --download-manager --accept-license` fetches it here.");
     }
     if (inContainer && found.sdk === null) {
-      lines.push("   The container can fetch the SDK itself: mount an empty folder read-write at /sdk and run",
-        "   `docker run --rm -v \"$HOME/.Garmin/ConnectIQ/Sdks:/sdk\" vvorth/garmin-wf-builder init --download-sdk --accept-license`,",
-        "   then mount that folder read-only as below. The watches still come from the SDK Manager.");
+      lines.push("   The container can fetch the SDK itself: mount an empty folder read-write at /vendor/Sdks and run",
+        "   `docker run --rm -v \"$HOME/.Garmin/ConnectIQ/Sdks:/vendor/Sdks\" vvorth/garmin-wf-builder init --download-sdk --accept-license`,",
+        "   then mount as below. The watches still come from the SDK Manager.");
     }
   }
   if (found.sdk === null || found.devices === null) {
@@ -164,7 +160,7 @@ export function steps(found: Survey, host: Host, inContainer: boolean): string[]
       "with the SDK in Sdks/, the watches in Devices/ and Garmin's font files in Fonts/.");
   }
   if (inContainer) {
-    step("Mount those folders when you run the image:", ...dockerLines(host, null).map((line) => (line === "" ? "" : `  ${line}`)));
+    step("Mount that folder when you run the image (its Sdks, Devices and Fonts come with it):", ...dockerLines(host, null).map((line) => (line === "" ? "" : `  ${line}`)));
     lines.push("   Then `docker run ... vvorth/garmin-wf-builder doctor` checks everything is in place.");
   } else {
     step("Run `wfb doctor`: it checks everything is in place and names what is not.");

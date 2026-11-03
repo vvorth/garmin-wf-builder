@@ -111,7 +111,7 @@ export async function doctorReport({ devicesDir = null, fontsDir = null }: Docto
   const garminFonts: DoctorReport["garminFonts"] = { root: fontsRoot, files: fontsRoot === null ? [] : filesUnder(fontsRoot), hints: [] };
   if (fontsRoot === null) {
     garminFonts.hints = inContainer
-      ? ["mount the SDK Manager's Fonts directory:", `  -v <SDK Manager's Fonts dir>:${process.env["WFB_FONTS"] || "/fonts"}:ro`, "-- see docs/container.md"]
+      ? ["mount the SDK Manager's folder at /vendor, or its Fonts directory:", `  -v <SDK Manager's Fonts dir>:${process.env["WFB_FONTS"] || "/vendor/Fonts"}:ro`, "-- see docs/container.md"]
       : ["copy the SDK Manager's Fonts directory into vendor/fonts/,", "or set WFB_FONTS / pass --fonts DIR -- see docs/container.md"];
   }
 
@@ -128,7 +128,7 @@ export async function doctorReport({ devicesDir = null, fontsDir = null }: Docto
     } else if (e instanceof DeviceError) {
       devices.error = e.message;
       devices.hints = inContainer
-        ? ["they cannot be downloaded -- api.gcs.garmin.com returns HTTP 401 -- so mount the", `SDK Manager's Devices folder at ${process.env["WFB_DEVICES"] || "/devices"} (\`wfb init\` prints the mounts)`]
+        ? ["they cannot be downloaded -- api.gcs.garmin.com returns HTTP 401 -- so mount the", `SDK Manager's folder at /vendor, or its Devices folder at ${process.env["WFB_DEVICES"] || "/vendor/Devices"} (\`wfb init\` prints the mount)`]
         : ["they cannot be downloaded -- api.gcs.garmin.com returns HTTP 401; Garmin's SDK Manager", "downloads them for a signed-in account: `wfb init` says how, step by step,", "or set WFB_DEVICES to a folder of them copied from another machine."];
       fail("install the device definitions");
     } else throw e;
@@ -141,7 +141,7 @@ export async function doctorReport({ devicesDir = null, fontsDir = null }: Docto
   let canCompile = false;
   if (toolchain === null) {
     sdkHints = inContainer
-      ? [`mount the SDK Manager's Sdks folder at ${process.env["CIQ_SDK"] || "/sdk"} (\`wfb init\` prints the mounts)`]
+      ? [`mount the SDK Manager's folder at /vendor, or its Sdks folder at ${process.env["CIQ_SDK"] || "/vendor/Sdks"} (\`wfb init\` prints the mount)`]
       : ["Garmin's SDK Manager installs it: `wfb init` says how, or set CIQ_SDK to an SDK you have"];
     fail("install the Connect IQ SDK", false);
   } else {

@@ -874,8 +874,8 @@ Developer Agreement, which the download accepts, as its SDK page carries
 it (or links the page, when the page could not be read); once you tick
 that you accept it, **Download and install** fetches the SDK (about 200 MB,
 with its progress shown) into the SDK Manager's own folder on a Linux
-computer or the folder mounted at `/sdk` in the container (or `/cache`,
-when `/sdk` cannot be written), and **Reload** then opens the editor with
+computer or `/vendor/Sdks` in the container (or `/cache`, when that cannot
+be written), and **Reload** then opens the editor with
 what the SDK knows about each watch. **Later** closes the dialog for this
 load. On macOS and Windows the SDK Manager installs the SDK, and the
 dialog shows its links instead. Doctor's **Install SDK x.y.z…** installs a

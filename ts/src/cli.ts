@@ -1046,7 +1046,7 @@ async function initCommand(args: Namespace): Promise<number> {
       return 2;
     }
     if (args["download_sdk"]) {
-      // The container is Linux whatever the host is; the mounted /sdk is where it lands.
+      // The container is Linux whatever the host is; the mounted Sdks folder is where it lands.
       if (!inContainer && host !== "linux") {
         error(host === "unknown" ? "the SDK download here is the Linux SDK; on this computer, use the SDK Manager"
           : `on ${init.HOST_NAMES[host]} the SDK Manager installs the SDK: ${init.SDK_MANAGER_DOWNLOADS[host]}`);
@@ -1096,10 +1096,10 @@ async function initCommand(args: Namespace): Promise<number> {
   };
   out(`wfb ${VERSION} -- Garmin's SDK Manager puts the SDK and your watches' definitions on this computer`);
   if (inContainer) {
-    out(`${found.sdk ? ok : missing} Connect IQ SDK   ${found.sdk ? `${found.sdk.version}  (${found.sdk.root})` : `nothing mounted at ${process.env["CIQ_SDK"] || "/sdk"}`}`);
+    out(`${found.sdk ? ok : missing} Connect IQ SDK   ${found.sdk ? `${found.sdk.version}  (${found.sdk.root})` : `nothing mounted at ${process.env["CIQ_SDK"] || "/vendor/Sdks"}`}`);
     await newerLine(found.sdk);
-    out(`${found.devices ? ok : missing} devices          ${found.devices ? `${found.devices.count} at ${found.devices.root}` : `nothing mounted at ${process.env["WFB_DEVICES"] || "/devices"}`}`);
-    out(`${found.fonts ? ok : absent} Garmin fonts     ${found.fonts ?? `nothing mounted at ${process.env["WFB_FONTS"] || "/fonts"} (optional: previews use free stand-ins without them)`}`);
+    out(`${found.devices ? ok : missing} devices          ${found.devices ? `${found.devices.count} at ${found.devices.root}` : `nothing mounted at ${process.env["WFB_DEVICES"] || "/vendor/Devices"}`}`);
+    out(`${found.fonts ? ok : absent} Garmin fonts     ${found.fonts ?? `nothing mounted at ${process.env["WFB_FONTS"] || "/vendor/Fonts"} (optional: previews use free stand-ins without them)`}`);
   } else {
     out(`${found.managerHome ? ok : absent} SDK Manager      ${found.managerHome ?? `not found (no ${init.MANAGER_HOMES().join(", ")})`}`);
     out(`${found.sdk ? ok : missing} Connect IQ SDK   ${found.sdk ? `${found.sdk.version}  (${found.sdk.root})` : `looked in ${found.sdkLookedIn.join(", ")}`}`);

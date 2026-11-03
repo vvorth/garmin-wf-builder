@@ -223,7 +223,7 @@ Two of Garmin's downloads are free of the sign-in, and this command can
 fetch them once \`--accept-license\` says you accept the agreement, as the
 download button on Garmin's page does. \`--download-sdk\` fetches the
 newest Linux SDK (or \`--sdk-version X.Y.Z\`) into the SDK Manager's
-\`Sdks\` folder on a Linux host, or into the folder mounted at /sdk in the
+\`Sdks\` folder on a Linux host, or into the folder mounted at /vendor/Sdks in the
 container (mount it read-write for that run), laid out as the SDK Manager
 lays one out, so both find it; the SDK Manager is then needed only for
 the watches. \`--download-manager\` fetches the SDK Manager's archive

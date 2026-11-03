@@ -49,7 +49,9 @@ redistributed in an image, and the device definitions, which download only
 to a signed-in Garmin account. So they are not in the image. Install the
 [Connect IQ SDK Manager](https://developer.garmin.com/connect-iq/sdk/) once
 on a desktop machine, sign in, download the newest SDK on its SDK tab and
-the watches you target on its Devices tab, and mount its folders read-only:
+the watches you target on its Devices tab, and mount its folder read-only
+at `/vendor` (its `Sdks`, `Devices` and `Fonts` come with it; each can also
+be mounted on its own at `/vendor/Sdks`, `/vendor/Devices`, `/vendor/Fonts`):
 
 | Host | The SDK Manager's folder (with `Sdks`, `Devices` and `Fonts` inside) |
 | --- | --- |
@@ -63,12 +65,12 @@ step for the computer running Docker. The SDK alone downloads without a
 sign-in: with none mounted, the editor's own dialog offers to fetch
 Garmin's newest once you accept Garmin's agreement there, and a build does
 the same when you answer yes at a terminal or run with `-e
-WFB_ACCEPT_LICENSE=1`. It lands in `/sdk` when that is writable, else in
-the `/cache` volume, and later runs find it there. By hand, into a folder
+WFB_ACCEPT_LICENSE=1`. It lands in `/vendor/Sdks` when that is writable,
+else in the `/cache` volume, and later runs find it there. By hand, into a folder
 of your own:
 
 ```sh
-docker run --rm -v "$HOME/.Garmin/ConnectIQ/Sdks:/sdk" vvorth/garmin-wf-builder init --download-sdk --accept-license
+docker run --rm -v "$HOME/.Garmin/ConnectIQ/Sdks:/vendor/Sdks" vvorth/garmin-wf-builder init --download-sdk --accept-license
 ```
 
 When Garmin lists a newer SDK than the one in use, builds say so in one
@@ -78,7 +80,7 @@ sign-in, and the container can fetch it into a folder you mount read-write
 for that run, once you accept Garmin's agreement:
 
 ```sh
-docker run --rm -v "$HOME/.Garmin/ConnectIQ/Sdks:/sdk" vvorth/garmin-wf-builder init --download-sdk --accept-license
+docker run --rm -v "$HOME/.Garmin/ConnectIQ/Sdks:/vendor/Sdks" vvorth/garmin-wf-builder init --download-sdk --accept-license
 ```
 
 ## Quick start
@@ -90,8 +92,7 @@ docker volume create wfb-keys
 
 docker run --rm \
   -v "$PWD:/work" \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
+  -v "$HOME/Library/Application Support/Garmin/ConnectIQ:/vendor:ro" \
   -v wfb-keys:/keys -v wfb-cache:/cache \
   vvorth/garmin-wf-builder:latest build my-face.yaml
 ```
@@ -99,7 +100,7 @@ docker run --rm \
 The `.prg` files land in `./build/`. As a shell alias:
 
 ```sh
-alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" -v wfb-keys:/keys -v wfb-cache:/cache vvorth/garmin-wf-builder:latest'
+alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ:/vendor:ro" -v wfb-keys:/keys -v wfb-cache:/cache vvorth/garmin-wf-builder:latest'
 wfb doctor               # everything in place?
 wfb new "My Face"        # writes my-face.yaml from a template
 wfb preview my-face.yaml # build/preview/<watch>.png
@@ -115,8 +116,7 @@ With no command, the image serves the editor on port `8765`:
 
 ```sh
 docker run --rm -it -p 127.0.0.1:8765:8765 \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
+  -v "$HOME/Library/Application Support/Garmin/ConnectIQ:/vendor:ro" \
   -v wfb-keys:/keys -v wfb-cache:/cache \
   vvorth/garmin-wf-builder:latest
 ```
@@ -149,9 +149,7 @@ services:
     # environment:
     #   WFB_ACCEPT_LICENSE: "1"   # download Garmin's SDK when none is mounted (accepts its agreement)
     volumes:
-      - /path/to/ConnectIQ/Sdks:/sdk:ro
-      - /path/to/ConnectIQ/Devices:/devices:ro
-      - /path/to/ConnectIQ/Fonts:/fonts:ro   # optional
+      - /path/to/Garmin/ConnectIQ:/vendor:ro   # Sdks, Devices and Fonts inside
       - wfb-keys:/keys
       - wfb-cache:/cache                     # optional
 
@@ -165,10 +163,11 @@ volumes:
 | Path | What | Needed by |
 | --- | --- | --- |
 | `/work` | your project directory; the working directory | `build`, `preview`, `validate` |
-| `/sdk` | the SDK Manager's `Sdks` folder (or one SDK), read-only; read-write for `init --download-sdk` to fill it | `build`, `export`, and Build in `studio` |
-| `/devices` | Garmin's device definitions, read-only | everything but `init` and `doctor` |
+| `/vendor` | the SDK Manager's folder, read-only: `Sdks`, `Devices` and `Fonts` inside; read-write for a download to land in `Sdks` | everything but `init` and `doctor` |
+| `/vendor/Sdks` | the SDK Manager's `Sdks` folder (or one SDK) on its own | `build`, `export`, and Build in `studio` |
+| `/vendor/Devices` | Garmin's device definitions on their own | everything but `init` and `doctor` |
+| `/vendor/Fonts` | optional: Garmin's own font files on their own | `build`, `preview`, `studio` |
 | `/keys` | the developer signing key, `developer_key.der` | `build`, `export`, and Build in `studio` |
-| `/fonts` | optional: Garmin's own font files (the SDK Manager's `Fonts` folder, next to `Devices`) | `build`, `preview`, `studio` |
 | `/cache` | optional: the compiler's writable copy and the device reference, both made from the SDK; without the mount they are remade each run, a second or so | every command |
 
 **The signing key.** The first build generates a 4096-bit key at
@@ -176,7 +175,7 @@ volumes:
 the same key, and back it up. To use a key you already have, mount it:
 `-v "$HOME/ciq/developer_key.der:/keys/developer_key.der:ro"`.
 
-**Fonts.** Without `/fonts`, text is measured and previewed with free
+**Fonts.** Without Garmin's fonts, text is measured and previewed with free
 stand-ins that will not match the watch exactly, and the container prints a
 notice. Set `WFB_NO_GARMIN_FONTS=1` to use the stand-ins without it.
 

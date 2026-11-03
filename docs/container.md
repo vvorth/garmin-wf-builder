@@ -9,8 +9,7 @@ its folders (macOS paths shown):
 ```sh
 docker run --rm \
   -v "$PWD:/work" \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
+  -v "$HOME/Library/Application Support/Garmin/ConnectIQ:/vendor:ro" \
   -v wfb-keys:/keys -v wfb-cache:/cache \
   vvorth/garmin-wf-builder build examples/features/graph/face.yaml
 ```
@@ -19,8 +18,8 @@ The image is published on Docker Hub ("Published images" below); `docker
 build -t garmin-wf-builder .` in a checkout builds the same image, and the
 rest of this page uses that local name.
 
-(a `-v "<Fonts dir>:/fonts:ro"` mount is also accepted, and optional — see
-"Garmin's own font files" below; so is `/cache`.)
+(The one `/vendor` mount brings the SDK Manager's `Sdks`, `Devices` and
+`Fonts` folders together; `/cache` is optional — below.)
 
 ```
 generated  /work/build/graph
@@ -62,17 +61,22 @@ with Garmin's font files beside them, under one folder:
 | Linux | `~/.Garmin/ConnectIQ` |
 | Windows | `%APPDATA%\Garmin\ConnectIQ` |
 
-with `Sdks/`, `Devices/` and `Fonts/` inside. Mount the first two read-only:
+with `Sdks/`, `Devices/` and `Fonts/` inside. Mount that folder read-only
+at `/vendor`:
 
 ```sh
--v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
--v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro"
+-v "$HOME/Library/Application Support/Garmin/ConnectIQ:/vendor:ro"
 ```
 
-`/sdk` may be the `Sdks` folder (the SDK the SDK Manager marks current is
-used, else the newest) or one SDK's own folder. If either mount is missing,
-the container says so and points here rather than failing deep inside a
-build, and `docker run --rm garmin-wf-builder init` prints every step.
+The image reads the SDK at `/vendor/Sdks` (the SDK the SDK Manager marks
+current is used, else the newest; one SDK's own folder mounted there works
+too), the device definitions at `/vendor/Devices` and Garmin's fonts at
+`/vendor/Fonts`, so the three can also be mounted one by one, from
+wherever they are (`-v "<dir>:/vendor/Devices:ro"`); an image from before
+November 2026 took `/sdk`, `/devices` and `/fonts`, which still work. If
+the SDK or the devices are missing, the container says so and points here
+rather than failing deep inside a build, and `docker run --rm
+garmin-wf-builder init` prints every step.
 
 **No SDK Manager on the Docker host?** The SDK itself downloads without a
 sign-in, and the image fetches Garmin's newest once you say so, since
@@ -84,7 +88,8 @@ about the watches (`docs/guide/studio.md`, "Doctor, and the SDK"). A
 command that compiles (`build`, `export`) asks at the terminal (`docker run
 -it ...`), or downloads at once with `-e WFB_ACCEPT_LICENSE=1`, which also
 has the editor fetch the SDK as it starts; Compose users set it once. It
-lands in the folder mounted at `/sdk` when that is writable, else in
+lands in `/vendor/Sdks` when that is writable (mount the SDK Manager's
+folder read-write for that, and the SDK Manager sees it too), else in
 `/cache` (so a cache volume keeps it), as
 `connectiq-sdk-lin-<version>-<date>-<hash>/`, the layout the SDK Manager
 uses, so a later SDK Manager install sees it too, and every later run finds
@@ -92,7 +97,7 @@ it there. The same download by hand, into a folder of your choosing:
 
 ```sh
 mkdir -p "$HOME/.Garmin/ConnectIQ/Sdks"
-docker run --rm -v "$HOME/.Garmin/ConnectIQ/Sdks:/sdk" garmin-wf-builder init --download-sdk --accept-license
+docker run --rm -v "$HOME/.Garmin/ConnectIQ/Sdks:/vendor/Sdks" garmin-wf-builder init --download-sdk --accept-license
 ```
 
 The device definitions have no such download: only the SDK Manager,
@@ -134,17 +139,17 @@ developer's own download, under the same agreement.)
 Text measurement and previews use free stand-ins for Garmin's system fonts
 by default (`ts/src/data/font-registry.json`). If the same SDK Manager
 install that provided the device definitions also has Garmin's own font files
-— under its `Fonts` directory, next to `Devices` — mounting it at `/fonts`
-makes the container prefer the device's real file over the registry's
-stand-in, the same `garmin` > registry precedence `wfb doctor` reports on
-the host:
+— under its `Fonts` directory, next to `Devices` — the `/vendor` mount
+brings them along, and the container prefers the device's real file over
+the registry's stand-in, the same `garmin` > registry precedence `wfb
+doctor` reports on the host. Mounted on their own:
 
 ```sh
--v "$HOME/Library/Application Support/Garmin/ConnectIQ/Fonts:/fonts:ro"
+-v "$HOME/Library/Application Support/Garmin/ConnectIQ/Fonts:/vendor/Fonts:ro"
 ```
 
-`WFB_FONTS=/fonts` is already set in the image; nothing to configure beyond
-the mount itself. Unlike the SDK and the device definitions, this one is
+`WFB_FONTS=/vendor/Fonts` is already set in the image; nothing to configure
+beyond the mount itself. Unlike the SDK and the device definitions, this one is
 **optional** — without it, builds and previews fall back to the registry's
 fonts, which `ts/tools/fetch-system-fonts.ts --registry` prefetched into the
 image at build time, every font the registry knows.
@@ -154,10 +159,10 @@ the build context, `vendor/fonts/` included, because like the device
 definitions they are your licensed copy and the image is meant to be
 distributable; a macOS SDK Manager install is outside the build context
 anyway. So a populated `vendor/fonts/` on the host does nothing for the
-container until it is mounted (`-v "$PWD/vendor/fonts:/fonts:ro"` works as
-well as the SDK Manager's directory). Since a preview without them quietly
-stops matching the device, `build`, `preview` and `validate` print a notice
-to stderr when `/fonts` is empty; set `WFB_NO_GARMIN_FONTS=1` to use the
+container until it is mounted (`-v "$PWD/vendor/fonts:/vendor/Fonts:ro"`
+works as well as the SDK Manager's directory). Since a preview without them
+quietly stops matching the device, `build`, `preview` and `validate` print
+a notice to stderr when `/vendor/Fonts` is empty; set `WFB_NO_GARMIN_FONTS=1` to use the
 stand-ins on purpose without it. `wfb doctor` in the container gives the same
 mount hint (the image sets `WFB_CONTAINER=1` so it knows to).
 
@@ -167,7 +172,7 @@ Two things are made from the mounted SDK at run time, and `/cache` keeps
 them between runs:
 
 - **A writable copy of the compiler.** `monkeyc` rewrites
-  `bin/default.jungle` on every run, and `/sdk` is mounted read-only, so
+  `bin/default.jungle` on every run, and `/vendor` is mounted read-only, so
   `wfb` copies the compiler's files (about 26 MB, nothing of the simulator
   or the docs) to `/cache/wfb/sdk/<version>/` and compiles from there,
   once per SDK release.
@@ -233,7 +238,7 @@ docker run --rm ... garmin-wf-builder node --version
 
 What each command needs mounted:
 
-| Command | `/work` | `/sdk` | `/devices` | `/fonts` | `/keys` |
+| Command | `/work` | `/vendor/Sdks` | `/vendor/Devices` | `/vendor/Fonts` | `/keys` |
 |---|:--:|:--:|:--:|:--:|:--:|
 | `build` | ✔ | ✔ | ✔ | optional | ✔ |
 | `build --no-compile` | ✔ | | ✔ | optional | |
@@ -244,7 +249,8 @@ What each command needs mounted:
 | `init`, `doctor` | | optional (`init --download-sdk` writes into it) | optional | optional | |
 | `studio` | | for Build (or its dialog installs one) | ✔ | optional | ✔ (for Build) |
 
-`/cache` is optional everywhere. `preview` and `validate` need no SDK to
+(One `/vendor` mount of the SDK Manager's folder fills the three middle
+columns at once.) `/cache` is optional everywhere. `preview` and `validate` need no SDK to
 run, but with none mounted the device reference cannot be extracted either,
 so they read whatever reference the cache holds; mount the SDK once with
 `/cache` kept, or keep mounting it.
@@ -256,8 +262,7 @@ arguments:
 
 ```sh
 docker run --rm -it -p 127.0.0.1:8765:8765 \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
+  -v "$HOME/Library/Application Support/Garmin/ConnectIQ:/vendor:ro" \
   -v wfb-keys:/keys -v wfb-cache:/cache \
   garmin-wf-builder
 ```
@@ -266,8 +271,8 @@ Then open `http://127.0.0.1:8765/` in a browser on the host. The faces and
 their history are kept in that browser ([where the faces
 are](guide/studio.md#where-the-faces-are)), and go in by upload and come out
 by download, so the editor needs no `/work` mount. Its Build signs with the
-key at `/keys`, as `build` does. It starts with no `/sdk` mounted: its
-dialog then installs the SDK from Garmin into `/sdk` or `/cache`, and its
+key at `/keys`, as `build` does. It starts with no SDK mounted: its
+dialog then installs the SDK from Garmin into `/vendor/Sdks` or `/cache`, and its
 **Doctor** shows what the container has (the SDK, the watches, the fonts).
 
 Inside the container the server cannot know the address or the name it is
@@ -329,7 +334,7 @@ the libraries would therefore buy nothing but ~800 MB.
 Use `wfb preview` instead:
 
 ```sh
-docker run --rm -v "$PWD:/work" -v "$DEVICES:/devices:ro" \
+docker run --rm -v "$PWD:/work" -v "$GARMIN:/vendor:ro" \
   garmin-wf-builder preview examples/features/graph/face.yaml --scale 3
 ```
 
@@ -464,10 +469,12 @@ This project's own CI tests each image with `tools/image-smoke-test.sh`,
 which fetches a pruned SDK once (Garmin's free download, by
 `ts/tools/fetch-sdk.ts --newest` in the image, into `.cache/smoke-sdk/`; it
 is the runner's own download and is never published), mounts it read-only
-at `/sdk` and the fixture device `wfbtest` at `/devices`, and checks that
+at `/vendor/Sdks` and the fixture device `wfbtest` at `/vendor/Devices` (and
+both at once under one `/vendor`, and at the older `/sdk` and `/devices`),
+and checks that
 the toolchain starts, `wfb` compiles from a copy of the read-only SDK,
 extracts the device reference into the cache once, generates and previews a
-face, refuses a build with no `/sdk` and no `WFB_ACCEPT_LICENSE` with the
+face, refuses a build with no SDK and no `WFB_ACCEPT_LICENSE` with the
 mount hint, downloads the SDK into `/cache` with it, starts the editor with
 no SDK at all, and serves the editor. It compiles nothing.
 

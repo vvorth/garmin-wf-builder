@@ -55,7 +55,7 @@ describe("the command line", { concurrency: true }, () => {
 
     const inContainer = plain(wfb(["init"], { env: { WFB_DEVICES: join(home, "nothing-here"), HOME: home, CIQ_SDK: join(home, "no-sdk"), WFB_CONTAINER: "1" } }).stdout);
     assert.ok(inContainer.includes(`nothing mounted at ${join(home, "nothing-here")}`) && inContainer.includes(`nothing mounted at ${join(home, "no-sdk")}`), inContainer);
-    for (const needle of ["connectiq-sdk-manager.dmg", "connectiq-sdk-manager-linux.zip", "connectiq-sdk-manager-windows.zip", "Sdks:/sdk:ro", "Devices:/devices:ro", "wfb-cache:/cache", "%APPDATA%"]) {
+    for (const needle of ["connectiq-sdk-manager.dmg", "connectiq-sdk-manager-linux.zip", "connectiq-sdk-manager-windows.zip", "ConnectIQ:/vendor:ro", "wfb-cache:/cache", "%APPDATA%"]) {
       assert.ok(inContainer.includes(needle), needle);
     }
 
@@ -68,7 +68,7 @@ describe("the command line", { concurrency: true }, () => {
     assert.equal(ready.code, 0, ready.stdout + ready.stderr);
     const readyText = plain(ready.stdout);
     assert.ok(readyText.includes("ready") && readyText.includes("9.3.0") && readyText.includes("1 at "), readyText);
-    assert.ok(readyText.includes("docker run --rm") && readyText.includes(":/sdk:ro"), readyText);
+    assert.ok(readyText.includes("docker run --rm") && readyText.includes(":/vendor:ro"), readyText);
 
     for (const flag of ["--download-manager", "--download-sdk"]) {
       const gated = wfb(["init", flag, "--into", join(home, "dl")], { env: { HOME: home, WFB_CONTAINER: undefined } });

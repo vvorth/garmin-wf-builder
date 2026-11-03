@@ -312,14 +312,14 @@ third-party notices (LGPL, Apache 2.0, OpenSSL, libpng and others).
 
 Consequences, all built: the Docker image carries no part of the SDK --
 not the compiler, not the API database, not the device reference derived
-from its pages -- and mounts the user's SDK Manager install at `/sdk`
+from its pages -- and mounts the user's SDK Manager folder at `/vendor`
 (`docs/container.md`); a pruned SDK (`ts/tools/fetch-sdk.ts`) keeps the
 licence folder and is only ever the downloader's own copy (the smoke test's
 runner); and the device definitions and Garmin's fonts, which the same
 agreement covers, stay out for the same reason as well as the 401 below.
 Downloading the SDK on one's own machine (`tools/setup-env.sh` on Linux,
 `wfb init --download-sdk --accept-license` on a Linux host or in the
-container into the folder mounted at `/sdk`, the SDK Manager elsewhere) is
+container into `/vendor/Sdks`, the SDK Manager elsewhere) is
 the ordinary use the agreement grants; each download is the user's own
 acceptance, which is why `--accept-license` is required and nothing is
 fetched without it.

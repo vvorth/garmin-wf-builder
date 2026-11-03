@@ -6,7 +6,9 @@
 # Garmin's own fonts, is optional and only earns a notice -- see below):
 #
 #   1. The Connect IQ SDK is the user's own licensed copy, so it is not in the
-#      image: it is mounted at /sdk (the SDK Manager's Sdks folder, or one SDK),
+#      image: it is mounted at /vendor/Sdks (the SDK Manager's whole folder at
+#      /vendor brings it with the devices and fonts; or its Sdks folder, or one
+#      SDK, mounted there),
 #      or downloaded from Garmin on the user's say-so (WFB_ACCEPT_LICENSE=1, or
 #      a yes at a terminal) into that folder or the cache, and a missing SDK
 #      must be explained rather than surfacing as "no SDK". `wfb` picks the SDK
@@ -33,10 +35,31 @@ case "${1:-}" in
         ;;
 esac
 
+# ------------------------------------------------------------- mounts -------
+# The image's paths are the SDK Manager's folder at /vendor, with Sdks, Devices
+# and Fonts inside, so one mount covers all three.  An image before 2026-11
+# took /sdk, /devices and /fonts, and a checkout's vendor/ folder spells them
+# in lower case: a folder found non-empty at one of those stands in for an
+# empty one at the image's path.
+first_nonempty() {
+    for dir in "$@"; do
+        if [ -d "${dir}" ] && [ -n "$(ls -A "${dir}" 2>/dev/null)" ]; then
+            echo "${dir}"
+            return 0
+        fi
+    done
+    echo "$1"
+}
+WFB_VENDOR="${WFB_VENDOR:-/vendor}"
+CIQ_SDK="$(first_nonempty "${CIQ_SDK:-${WFB_VENDOR}/Sdks}" "${WFB_VENDOR}/sdks" /sdk)"
+WFB_DEVICES="$(first_nonempty "${WFB_DEVICES:-${WFB_VENDOR}/Devices}" "${WFB_VENDOR}/devices" /devices)"
+WFB_FONTS="$(first_nonempty "${WFB_FONTS:-${WFB_VENDOR}/Fonts}" "${WFB_VENDOR}/fonts" /fonts)"
+export WFB_VENDOR CIQ_SDK WFB_DEVICES WFB_FONTS
+
 # --------------------------------------------------------------- home -------
 # Pick a writable home, and point the JVM at it.  `monkeyc` looks for device
 # definitions under <user.home>/.Garmin/ConnectIQ/Devices, so this is what makes
-# the -v ...:/devices mount visible to the compiler.
+# the devices mount visible to the compiler.
 wfb_home="${HOME:-}"
 if [ -z "${wfb_home}" ] || [ ! -w "${wfb_home}" ]; then
     wfb_home=/tmp/wfb-home
@@ -135,15 +158,13 @@ EOF
         ;;
 esac
 
-# The SDK Manager's folders, as a user mounts them (macOS paths; `wfb init`
+# The SDK Manager's folder, as a user mounts it (the macOS path; `wfb init`
 # prints the Linux and Windows ones).
 mounts() {
     cat <<EOF
   docker run --rm \\
     -v "\$PWD:/work" \\
-    -v "\$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:${CIQ_SDK}:ro" \\
-    -v "\$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:${WFB_DEVICES}:ro" \\
-    -v "\$HOME/Library/Application Support/Garmin/ConnectIQ/Fonts:${WFB_FONTS}:ro" \\
+    -v "\$HOME/Library/Application Support/Garmin/ConnectIQ:${WFB_VENDOR}:ro" \\
     -v wfb-keys:/keys -v wfb-cache:/cache \\
     IMAGE ${1:-build} ...
 EOF
@@ -164,8 +185,8 @@ has_sdk() {
 }
 # Downloading the SDK accepts Garmin's Connect IQ Developer Agreement, so it
 # happens only when the user says so: WFB_ACCEPT_LICENSE=1, or a yes at a
-# terminal. It lands in the folder mounted at /sdk when that is writable, else
-# in the cache (a /cache volume keeps it).
+# terminal. It lands in the Sdks folder when that is writable, else in the
+# cache (a /cache volume keeps it).
 download_sdk() {
     if [ "${WFB_ACCEPT_LICENSE:-}" != "1" ]; then
         [ -t 0 ] && [ -t 2 ] || return 1
@@ -190,15 +211,15 @@ wfb: no Connect IQ SDK at ${CIQ_SDK}.
 
 The SDK is licensed to you by Garmin's Connect IQ Developer Agreement, which
 you accept by downloading it, so it is not in this image. Either mount the SDK
-Manager's Sdks folder (or one SDK) from the computer that installed it, or
-let this image download the newest from Garmin: run it with
--e WFB_ACCEPT_LICENSE=1 (or answer yes at a terminal, with -it), and it lands
-in the folder mounted at /sdk, or in /cache when none is.
+Manager's folder (its Sdks, Devices and Fonts inside) at ${WFB_VENDOR} from the
+computer that installed it, or let this image download the newest from
+Garmin: run it with -e WFB_ACCEPT_LICENSE=1 (or answer yes at a terminal,
+with -it), and it lands in ${CIQ_SDK} when that can be written, else in /cache.
 \`docker run ... IMAGE init\` prints the steps for a computer that has not.
 
-  macOS   ~/Library/Application Support/Garmin/ConnectIQ/Sdks
-  Linux   ~/.Garmin/ConnectIQ/Sdks
-  Windows %APPDATA%\\Garmin\\ConnectIQ\\Sdks
+  macOS   ~/Library/Application Support/Garmin/ConnectIQ
+  Linux   ~/.Garmin/ConnectIQ
+  Windows %APPDATA%\\Garmin\\ConnectIQ
 
 $(mounts "$1")
 
@@ -216,12 +237,13 @@ wfb: no Connect IQ device definitions at ${WFB_DEVICES}.
 
 They cannot be downloaded -- api.gcs.garmin.com returns HTTP 401 behind a Garmin
 SSO login -- so they are not in this image and must be mounted from a machine
-where the SDK Manager has installed them. \`docker run ... IMAGE init\` prints
-the steps for a computer that has not.
+where the SDK Manager has installed them: its folder (Devices inside, with
+Sdks and Fonts) at ${WFB_VENDOR}, or its Devices folder at ${WFB_DEVICES}.
+\`docker run ... IMAGE init\` prints the steps for a computer that has not.
 
-  macOS   ~/Library/Application Support/Garmin/ConnectIQ/Devices
-  Linux   ~/.Garmin/ConnectIQ/Devices
-  Windows %APPDATA%\\Garmin\\ConnectIQ\\Devices
+  macOS   ~/Library/Application Support/Garmin/ConnectIQ
+  Linux   ~/.Garmin/ConnectIQ
+  Windows %APPDATA%\\Garmin\\ConnectIQ
 
 $(mounts "$1")
 
@@ -241,7 +263,8 @@ if [ "${wants_fonts}" = "1" ] && [ "${WFB_NO_GARMIN_FONTS:-}" != "1" ] \
     cat >&2 <<EOF
 wfb: no Garmin font files at ${WFB_FONTS}, so text is measured and previewed
      with free stand-ins that will not match the device exactly.  Mount the
-     SDK Manager's Fonts directory to use the real ones:
+     SDK Manager's whole folder at ${WFB_VENDOR}, or its Fonts folder, to use
+     the real ones:
 
   macOS   -v "\$HOME/Library/Application Support/Garmin/ConnectIQ/Fonts:${WFB_FONTS}:ro"
   Linux   -v "\$HOME/.Garmin/ConnectIQ/Fonts:${WFB_FONTS}:ro"

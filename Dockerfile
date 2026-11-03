@@ -8,15 +8,19 @@
 #   * The **Connect IQ SDK is not in the image.**  Garmin licenses it to the
 #     developer who downloads it (the Connect IQ Developer Agreement, accepted
 #     by downloading, forbids hosting or redistributing it), so it is mounted
-#     at run time at /sdk: the SDK Manager's Sdks folder, or one SDK.  The
+#     at run time: the SDK Manager's whole folder at /vendor (its Sdks,
+#     Devices and Fonts inside), or its Sdks folder, or one SDK, at
+#     /vendor/Sdks.  The
 #     image holds everything else a build needs: Node, a headless JRE, `wfb`,
 #     the Nerd Fonts icon font and the free stand-ins for Garmin's system fonts
 #     (downloaded in the build by ts/tools/fetch-icon-font.ts and
 #     ts/tools/fetch-system-fonts.ts; neither is part of the repository).
 #   * The **device definitions cannot be downloaded** -- api.gcs.garmin.com
 #     returns HTTP 401 behind Garmin SSO -- and are the user's licensed copy too,
-#     so they are mounted at run time at /devices.  Garmin's own font files
-#     (optional, rank above the registry) mount the same way, at /fonts.
+#     so they are mounted at run time, at /vendor/Devices.  Garmin's own font
+#     files (optional, rank above the registry) mount the same way, at
+#     /vendor/Fonts.  The one /vendor mount of the SDK Manager's folder covers
+#     all three; the entrypoint also takes the older /sdk, /devices and /fonts.
 #   * The **simulator is not included**.  It is a GTK/WebKit GUI application that
 #     segfaults on app load under Xvfb even with its libraries supplied, and does
 #     so with an unmodified SDK sample.  `wfb preview` renders from the same
@@ -25,16 +29,14 @@
 # Build:
 #   docker build -t garmin-wf-builder .
 #
-# Run (macOS paths; `docker run --rm garmin-wf-builder init` prints the others):
+# Run (macOS path; `docker run --rm garmin-wf-builder init` prints the others):
 #   docker run --rm \
 #     -v "$PWD:/work" \
-#     -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
-#     -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
-#     -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Fonts:/fonts:ro" \
+#     -v "$HOME/Library/Application Support/Garmin/ConnectIQ:/vendor:ro" \
 #     -v wfb-keys:/keys -v wfb-cache:/cache \
 #     garmin-wf-builder build examples/features/graph/face.yaml
 #
-#   The /fonts and /cache mounts are optional -- see docs/container.md.
+#   The /cache mount is optional -- see docs/container.md.
 
 ARG NODE_VERSION=24.22.1
 ARG DEBIAN_SUITE=trixie
@@ -111,15 +113,18 @@ LABEL org.opencontainers.image.title="garmin-wf-builder" \
 # and nothing is compiled from Java source.
 COPY --from=eclipse-temurin:21-jre-noble /opt/java/openjdk /opt/java/openjdk
 
-# CIQ_SDK is where `wfb` looks for the mounted SDK (the SDK Manager's Sdks
-# folder, or one SDK root); XDG_CACHE_HOME is where it keeps the compiler's
-# writable copy and the device reference it extracts from the SDK's pages.
+# /vendor is the SDK Manager's folder as mounted, with its Sdks, Devices and
+# Fonts inside: CIQ_SDK is where `wfb` looks for the SDK (that folder, or one
+# SDK root), WFB_DEVICES and WFB_FONTS for the device definitions and Garmin's
+# fonts; XDG_CACHE_HOME is where it keeps the compiler's writable copy and the
+# device reference it extracts from the SDK's pages.
 ENV JAVA_HOME=/opt/java/openjdk \
     PATH=/opt/java/openjdk/bin:$PATH \
-    CIQ_SDK=/sdk \
+    WFB_VENDOR=/vendor \
+    CIQ_SDK=/vendor/Sdks \
     XDG_CACHE_HOME=/cache \
-    WFB_DEVICES=/devices \
-    WFB_FONTS=/fonts \
+    WFB_DEVICES=/vendor/Devices \
+    WFB_FONTS=/vendor/Fonts \
     WFB_KEY=/keys/developer_key.der \
     WFB_CONTAINER=1
 
@@ -146,7 +151,7 @@ COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN set -eux; \
     chmod +x /usr/local/bin/entrypoint.sh /opt/wfb/wfb; \
     ln -s /opt/wfb/wfb /usr/local/bin/wfb; \
-    mkdir -p /sdk /devices /fonts /keys /cache /work; \
+    mkdir -p /vendor/Sdks /vendor/Devices /vendor/Fonts /sdk /devices /fonts /keys /cache /work; \
     chmod 1777 /keys /cache /work
 
 # The image writes only to the mounted project directory, the cache, a

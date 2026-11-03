@@ -55,16 +55,16 @@ system):
    - **Linux, downloaded on another machine:** copy that folder's contents
      into `vendor/devices/` in this repository. That folder is gitignored,
      because the files are your licensed copy.
-   - **Docker:** nothing to copy. Step 2 mounts the folder into the container,
-     with the SDK Manager's `Sdks` folder beside it: the SDK is licensed to
-     you by the agreement you accepted downloading it, so it is not in the
-     image either.
+   - **Docker:** nothing to copy. Step 2 mounts the SDK Manager's whole
+     folder into the container, the SDK in its `Sdks` beside the devices:
+     the SDK is licensed to you by the agreement you accepted downloading
+     it, so it is not in the image either.
 
 **Optional:** the same SDK Manager install also has Garmin's own font files
 (next to `Devices`, in a `Fonts` directory). Free stand-ins work without
 them. On macOS `wfb` reads that `Fonts` directory in place; on Linux, put
-them at `vendor/fonts/` the same way (or mount `Fonts` at `/fonts` for
-Docker) — `wfb doctor` says which one a build would use.
+them at `vendor/fonts/` the same way (for Docker, the SDK Manager's folder
+mounted at `/vendor` brings them) — `wfb doctor` says which one a build would use.
 
 ### Step 2: install
 
@@ -84,7 +84,7 @@ finds the one the SDK Manager installed. It also prints two `export` lines
 
 ```sh
 docker pull vvorth/garmin-wf-builder
-alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" -v wfb-keys:/keys -v wfb-cache:/cache vvorth/garmin-wf-builder'
+alias wfb='docker run --rm -v "$PWD:/work" -v "$HOME/Library/Application Support/Garmin/ConnectIQ:/vendor:ro" -v wfb-keys:/keys -v wfb-cache:/cache vvorth/garmin-wf-builder'
 ```
 
 `vvorth/garmin-wf-builder` is the latest release; `docker build -t

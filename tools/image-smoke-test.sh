@@ -6,13 +6,14 @@
 # CI runs it on every image before anything is published
 # (.github/workflows/docker.yml). The fixture device `wfbtest`
 # (ts/test/fixtures/devices/) stands in for the device definitions a user
-# mounts at /devices, and a pruned SDK -- Garmin's free download, fetched once
-# by the image's own ts/tools/fetch-sdk.ts into .cache/smoke-sdk/ (or
-# WFB_SMOKE_SDK) -- for the one a user mounts at /sdk. The test covers what runs
+# mounts at /vendor/Devices, and a pruned SDK -- Garmin's free download, fetched
+# once by the image's own ts/tools/fetch-sdk.ts into .cache/smoke-sdk/ (or
+# WFB_SMOKE_SDK) -- for the one a user mounts at /vendor/Sdks (both at once by
+# mounting the SDK Manager's folder at /vendor). The test covers what runs
 # on the fixture alone: the toolchain starts (Node, the JRE), `wfb` finds the
 # read-only SDK and compiles from a copy of it, extracts the device reference
 # from the SDK's pages into the cache (and not again when the cache is kept),
-# the slice fixture generates a project and renders a preview, a missing /sdk
+# the slice fixture generates a project and renders a preview, a missing SDK
 # is refused with the mount hint unless WFB_ACCEPT_LICENSE=1 lets the image
 # download one (into /cache here), the editor starts with no SDK and says so
 # over its API, and the default command serves the editor to a request
@@ -55,8 +56,8 @@ test -d "$sdk/doc/docs/Device_Reference"
 run() {
     docker run --rm \
         -v "$work:/work" \
-        -v "$sdk:/sdk:ro" \
-        -v "$fixtures/devices:/devices:ro" \
+        -v "$sdk:/vendor/Sdks:ro" \
+        -v "$fixtures/devices:/vendor/Devices:ro" \
         -v "$fixtures/devices/reference:/reference:ro" \
         -e WFB_DEVICE_REFERENCE=/reference \
         -e WFB_NO_GARMIN_FONTS=1 \
@@ -66,9 +67,9 @@ run() {
 run_extracting() {
     docker run --rm \
         -v "$work:/work" \
-        -v "$sdk:/sdk:ro" \
+        -v "$sdk:/vendor/Sdks:ro" \
         -v "$cache:/cache" \
-        -v "$fixtures/devices:/devices:ro" \
+        -v "$fixtures/devices:/vendor/Devices:ro" \
         -e WFB_NO_GARMIN_FONTS=1 \
         "$image" "$@"
 }
@@ -117,37 +118,53 @@ expect_ok 'runs from a copy at /cache/wfb/sdk/' run_extracting doctor
 test -f "$cache"/wfb/sdk/*/bin/monkeybrains.jar
 
 # No SDK mounted and no say-so: a build is refused with the mount and the switch, not a stack trace.
-if docker run --rm -v "$work:/work" -v "$fixtures/devices:/devices:ro" -e WFB_NO_GARMIN_FONTS=1 "$image" build face.yaml 2>"$work/no-sdk.txt"; then
+if docker run --rm -v "$work:/work" -v "$fixtures/devices:/vendor/Devices:ro" -e WFB_NO_GARMIN_FONTS=1 "$image" build face.yaml 2>"$work/no-sdk.txt"; then
     echo "a build with no SDK mounted succeeded" >&2
     exit 1
 fi
-grep -q 'no Connect IQ SDK at /sdk' "$work/no-sdk.txt"
-grep -q 'Sdks:/sdk:ro' "$work/no-sdk.txt"
+grep -q 'no Connect IQ SDK at /vendor/Sdks' "$work/no-sdk.txt"
+grep -q 'ConnectIQ:/vendor:ro' "$work/no-sdk.txt"
 grep -q 'WFB_ACCEPT_LICENSE=1' "$work/no-sdk.txt"
 # With the say-so, the image downloads Garmin's newest SDK into /cache before compiling (which then fails: monkeyc does not know wfbtest).
-docker run --rm -v "$work:/work" -v "$cache:/cache" -v "$fixtures/devices:/devices:ro" -v "$fixtures/devices/reference:/reference:ro" \
+docker run --rm -v "$work:/work" -v "$cache:/cache" -v "$fixtures/devices:/vendor/Devices:ro" -v "$fixtures/devices/reference:/reference:ro" \
     -e WFB_DEVICE_REFERENCE=/reference -e WFB_NO_GARMIN_FONTS=1 -e WFB_ACCEPT_LICENSE=1 "$image" build face.yaml >"$work/auto.txt" 2>&1 || true
 grep -q 'WFB_ACCEPT_LICENSE=1, so downloading' "$work/auto.txt"
 grep -q '^installed SDK' "$work/auto.txt"
 test -f "$cache"/wfb/sdks/connectiq-sdk-lin-*/bin/monkeybrains.jar
 # and finds it there on the next run, without the mount.
-expect_ok 'Connect IQ SDK   9.*/cache/wfb/sdks/' docker run --rm -v "$cache:/cache" -v "$fixtures/devices:/devices:ro" -v "$fixtures/devices/reference:/reference:ro" \
+expect_ok 'Connect IQ SDK   9.*/cache/wfb/sdks/' docker run --rm -v "$cache:/cache" -v "$fixtures/devices:/vendor/Devices:ro" -v "$fixtures/devices/reference:/reference:ro" \
     -e WFB_DEVICE_REFERENCE=/reference -e WFB_NO_GARMIN_FONTS=1 "$image" doctor
 
 # `init` in the container names the host's steps and the mounts (and exits 1: nothing is mounted).
 init_out=$(docker run --rm "$image" init || true)
 grep -q 'connectiq-sdk-manager.dmg' <<<"$init_out"
-grep -q 'Sdks:/sdk:ro' <<<"$init_out"
+grep -q 'ConnectIQ:/vendor:ro' <<<"$init_out"
 grep -q 'init --download-sdk --accept-license' <<<"$init_out"
 # A download without the agreement accepted fetches nothing.
-if docker run --rm -v "$cache:/sdk" "$image" init --download-sdk 2>"$work/gate.txt"; then
+if docker run --rm -v "$cache:/vendor/Sdks" "$image" init --download-sdk 2>"$work/gate.txt"; then
     echo "init --download-sdk ran without --accept-license" >&2
     exit 1
 fi
 grep -q 'accept-license' "$work/gate.txt"
 
+# One mount of the SDK Manager's folder brings the SDK, the devices and the fonts at once.
+garmin="$(mktemp -d)"
+mkdir -p "$garmin/Fonts"
+cp -R "$fixtures/devices" "$garmin/Devices"
+rm -rf "$garmin/Devices/reference" "$garmin/Devices/README.md"
+mkdir -p "$garmin/Sdks"
+cp -R "$sdk" "$garmin/Sdks/connectiq-sdk-lin-smoke"
+chmod -R a+rX "$garmin"
+expect_ok '^ready' docker run --rm -v "$garmin:/vendor:ro" -v "$fixtures/devices/reference:/reference:ro" -e WFB_DEVICE_REFERENCE=/reference -e WFB_NO_GARMIN_FONTS=1 "$image" doctor
+grep -q 'Connect IQ SDK   9.*/vendor/Sdks/connectiq-sdk-lin-smoke' "$work/out.txt"
+grep -q '/vendor/Devices' "$work/out.txt"
+rm -rf "$garmin"
+# The paths an image before 2026-11 took still work.
+expect_ok '^ready' docker run --rm -v "$sdk:/sdk:ro" -v "$fixtures/devices:/devices:ro" -v "$fixtures/devices/reference:/reference:ro" -e WFB_DEVICE_REFERENCE=/reference -e WFB_NO_GARMIN_FONTS=1 "$image" doctor
+grep -q 'Connect IQ SDK   9.*(/sdk)' "$work/out.txt"
+
 # The editor starts with no SDK at all: its page's dialog installs one, so the server only reports that none is there.
-bare=$(docker run -d -p 127.0.0.1::8765 -v "$fixtures/devices:/devices:ro" -e WFB_NO_GARMIN_FONTS=1 -e WFB_NO_UPDATE_CHECK=1 "$image")
+bare=$(docker run -d -p 127.0.0.1::8765 -v "$fixtures/devices:/vendor/Devices:ro" -e WFB_NO_GARMIN_FONTS=1 -e WFB_NO_UPDATE_CHECK=1 "$image")
 bare_port=$(docker port "$bare" 8765/tcp | head -1 | sed 's/.*://')
 for _ in $(seq 1 30); do
     curl -fsS -o /dev/null "http://127.0.0.1:$bare_port/api/sdk" && break
@@ -162,8 +179,8 @@ docker rm -f "$bare" >/dev/null
 
 # No arguments: the editor, on every address and answering any name.
 studio=$(docker run -d -p 127.0.0.1::8765 \
-    -v "$sdk:/sdk:ro" \
-    -v "$fixtures/devices:/devices:ro" \
+    -v "$sdk:/vendor/Sdks:ro" \
+    -v "$fixtures/devices:/vendor/Devices:ro" \
     -v "$fixtures/devices/reference:/reference:ro" \
     -e WFB_DEVICE_REFERENCE=/reference \
     -e WFB_NO_GARMIN_FONTS=1 \

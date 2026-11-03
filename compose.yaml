@@ -13,19 +13,17 @@ services:
       - 8765:8765
     # environment:
     #   # Let the image download Garmin's newest SDK when none is mounted
-    #   # (into /sdk when writable, else /cache). Setting this accepts the
+    #   # (into /vendor/Sdks when writable, else /cache). Setting this accepts the
     #   # Connect IQ Developer Agreement, as downloading from Garmin's page does.
     #   WFB_ACCEPT_LICENSE: "1"
     #   # No daily check of Garmin's release list for a newer SDK.
     #   WFB_NO_UPDATE_CHECK: "1"
     volumes:
-      # The SDK Manager's folders (macOS paths; Linux keeps them under
-      # ~/.Garmin/ConnectIQ): the SDK, the device definitions, and Garmin's
-      # own font files (optional). `docker run --rm garmin-wf-builder init`
-      # says how to get them.
-      - ~/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro
-      - ~/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro
-      - ~/Library/Application Support/Garmin/ConnectIQ/Fonts:/fonts:ro
+      # The SDK Manager's folder (the macOS path; Linux keeps it at
+      # ~/.Garmin/ConnectIQ), with the SDK (Sdks), the device definitions
+      # (Devices) and Garmin's own font files (Fonts, optional) inside.
+      # `docker run --rm garmin-wf-builder init` says how to get them.
+      - ~/Library/Application Support/Garmin/ConnectIQ:/vendor:ro
       - wfb-keys:/keys:rw
       # The compiler's writable copy and the device reference extracted from
       # the SDK's pages, kept between runs (optional).

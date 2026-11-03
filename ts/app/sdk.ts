@@ -35,9 +35,8 @@ export function ManagerLinks({ status }: { status: SdkStatus }): VNode {
         <a href=${m.downloads[os]} target="_blank" rel="noopener">${m.downloads[os]!.split("/").pop()}</a>
         <div class="dim small">keeps its files under <code>${m.folders[os]}</code> (Sdks, Devices, Fonts)</div></li>`)}
     </ul>
-    ${status.inContainer ? html`<div class="dim small">Mount those folders into the container: <code>Sdks</code> at <code>/sdk</code>,
-      <code>Devices</code> at <code>/devices</code>, <code>Fonts</code> at <code>/fonts</code> (read-only). The devices cannot be
-      downloaded by anything but the SDK Manager, signed in.</div>` : null}
+    ${status.inContainer ? html`<div class="dim small">Mount that folder into the container at <code>/vendor</code> (read-only): its <code>Sdks</code>,
+      <code>Devices</code> and <code>Fonts</code> come with it. The devices cannot be downloaded by anything but the SDK Manager, signed in.</div>` : null}
   </div>`;
 }
 
@@ -95,11 +94,11 @@ export function SdkDialog({ status: initial, reason, onClose }: SdkDialogProps):
   const done = download !== null && download.phase === "done";
   return html`<${Modal} title=${title} onClose=${onClose} className="sdk">
     <div class="modal-body">
-      ${reason === "missing" ? html`<div>No Connect IQ SDK was found on this computer${status.inContainer ? " (nothing is mounted at /sdk)" : ""}.
+      ${reason === "missing" ? html`<div>No Connect IQ SDK was found on this computer${status.inContainer ? " (nothing is mounted at /vendor/Sdks)" : ""}.
           The editor works without it, but <strong>Build</strong> needs Garmin's compiler, which the SDK holds.</div>`
         : html`<div>Garmin lists SDK <strong>${status.newer?.version}</strong>; installed is ${status.sdk?.version}.</div>`}
       ${status.canDownload ? html`
-        <div>The SDK downloads from Garmin without a sign-in, into <code>${status.downloadFolder}</code>${status.inContainer ? " (mount a volume there, or at /cache, to keep it)" : ""}.
+        <div>The SDK downloads from Garmin without a sign-in, into <code>${status.downloadFolder}</code>${status.inContainer ? " (mount the SDK Manager's folder read-write at /vendor, or a volume at /cache, to keep it)" : ""}.
           Downloading it accepts Garmin's Connect IQ Developer Agreement, which licenses the SDK to you alone, for developing and testing:</div>
         ${agreement === "loading" ? html`<div class="dim">Fetching the agreement from Garmin's page…</div>` : null}
         ${agreement !== null && agreement !== "loading" && agreement !== "unavailable" ? html`

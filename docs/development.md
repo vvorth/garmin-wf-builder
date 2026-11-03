@@ -39,8 +39,7 @@ to get the folders):
 
 ```sh
 docker run --rm -v "$PWD:/work" \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks:/sdk:ro" \
-  -v "$HOME/Library/Application Support/Garmin/ConnectIQ/Devices:/devices:ro" \
+  -v "$HOME/Library/Application Support/Garmin/ConnectIQ:/vendor:ro" \
   -v wfb-keys:/keys -v wfb-cache:/cache \
   vvorth/garmin-wf-builder build examples/features/graph/face.yaml
 ```
@@ -859,7 +858,7 @@ clean-up and the Docker Hub page, each of which otherwise warns and fails
 on its own).
 
 `tools/image-smoke-test.sh IMAGE` runs the image with the fixture device
-mounted at `/devices` and a pruned SDK at `/sdk` (Garmin's free download,
+mounted at `/vendor/Devices` and a pruned SDK at `/vendor/Sdks` (Garmin's free download,
 fetched once by `ts/tools/fetch-sdk.ts --newest` in the image into
 `.cache/smoke-sdk/`, the runner's own copy and never published): `wfb
 --version`, `java -version`, `wfb init` and `wfb doctor` reporting ready
