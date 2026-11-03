@@ -73,9 +73,10 @@ export class NodeDeviceFiles implements DeviceFiles {
    * that holds devices. A missing device reference is refused, unless
    * `allowMissingReference`: the editor opens without one (an SDK not yet
    * installed) and reads every device without its page, as a device the
-   * reference lacks is read anyway.
+   * reference lacks is read anyway. `allowEmpty`: with no devices anywhere,
+   * the first candidate, empty (the editor opens and says so).
    */
-  static discover(override?: string, referenceDir: string = ensureDeviceReference(), { allowMissingReference = false } = {}): NodeDeviceFiles {
+  static discover(override?: string, referenceDir: string = ensureDeviceReference(), { allowMissingReference = false, allowEmpty = false } = {}): NodeDeviceFiles {
     const candidates = [override, process.env["WFB_DEVICES"], ...DEFAULT_DEVICE_ROOTS]
       .filter((path): path is string => Boolean(path));
     if (!existsSync(referenceDir) && !allowMissingReference) {
@@ -87,6 +88,7 @@ export class NodeDeviceFiles implements DeviceFiles {
     for (const path of candidates) {
       if (existsSync(path) && readdirSync(path).length > 0) return new NodeDeviceFiles(path, referenceDir);
     }
+    if (allowEmpty && candidates.length > 0) return new NodeDeviceFiles(candidates[0]!, referenceDir);
     throw new DeviceError(
       "no Connect IQ device definitions found.  They cannot be downloaded " +
       "(api.gcs.garmin.com returns HTTP 401): `wfb init` says how to get them, " +
@@ -95,6 +97,7 @@ export class NodeDeviceFiles implements DeviceFiles {
   }
 
   ids(): string[] {
+    if (!existsSync(this.root)) return [];
     return readdirSync(this.root).filter((id) => existsSync(join(this.root, id, "compiler.json"))).sort();
   }
 

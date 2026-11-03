@@ -69,7 +69,7 @@ export function SdkDialog({ status: initial, reason, onClose }: SdkDialogProps):
   const busy = download !== null && (download.phase === "downloading" || download.phase === "unpacking");
 
   useEffect(() => {
-    if (!status.canDownload) { setAgreement(null); return; }
+    if (!status.canDownload || (reason === "missing" && status.sdk !== null)) { setAgreement(null); return; }
     let live = true;
     getJson<Agreement>("api/sdk/agreement").then((a) => live && setAgreement(a), () => live && setAgreement("unavailable"));
     return () => { live = false; };
@@ -90,14 +90,26 @@ export function SdkDialog({ status: initial, reason, onClose }: SdkDialogProps):
     } catch (e) { setError(String((e as Error).message)); }
   };
 
-  const title = reason === "update" ? `A newer SDK: ${status.newer?.version ?? ""}` : "The Connect IQ SDK is needed";
+  const noDevices = reason === "missing" && status.devices.count === 0;
+  const noSdk = reason === "update" || status.sdk === null;
+  const title = reason === "update" ? `A newer SDK: ${status.newer?.version ?? ""}`
+    : noSdk && noDevices ? "The Connect IQ SDK and the watches' definitions are needed"
+    : noDevices ? "The watches' definitions are needed" : "The Connect IQ SDK is needed";
   const done = download !== null && download.phase === "done";
   return html`<${Modal} title=${title} onClose=${onClose} className="sdk">
     <div class="modal-body">
-      ${reason === "missing" ? html`<div>No Connect IQ SDK was found on this computer${status.inContainer ? " (nothing is mounted at /vendor/Sdks)" : ""}.
+      ${noDevices ? html`<div class="devices-missing">
+        <div><strong>No device definitions</strong> were found${status.inContainer ? ` (nothing at <code>${status.devices.root}</code>)` : ""}: Garmin's description of each
+          watch, which the editor needs to show a face on one. They download only to a Garmin account signed in to the SDK Manager,
+          so no program can fetch them for you.</div>
+        <${ManagerLinks} status=${status} />
+        <div class="dim small">${status.inContainer ? "Once the SDK Manager has the watches, restart the container with that folder mounted and reload this page."
+          : "Once the SDK Manager has the watches, reload this page: the editor reads them where the SDK Manager keeps them."}</div>
+      </div>` : null}
+      ${noSdk ? (reason === "missing" ? html`<div>No Connect IQ SDK was found on this computer${status.inContainer ? " (nothing is mounted at /vendor/Sdks)" : ""}.
           The editor works without it, but <strong>Build</strong> needs Garmin's compiler, which the SDK holds.</div>`
-        : html`<div>Garmin lists SDK <strong>${status.newer?.version}</strong>; installed is ${status.sdk?.version}.</div>`}
-      ${status.canDownload ? html`
+        : html`<div>Garmin lists SDK <strong>${status.newer?.version}</strong>; installed is ${status.sdk?.version}.</div>`) : null}
+      ${noSdk && status.canDownload ? html`
         <div>The SDK downloads from Garmin without a sign-in, into <code>${status.downloadFolder}</code>${status.inContainer ? " (mount the SDK Manager's folder read-write at /vendor, or a volume at /cache, to keep it)" : ""}.
           Downloading it accepts Garmin's Connect IQ Developer Agreement, which licenses the SDK to you alone, for developing and testing:</div>
         ${agreement === "loading" ? html`<div class="dim">Fetching the agreement from Garmin's page…</div>` : null}
@@ -119,13 +131,13 @@ export function SdkDialog({ status: initial, reason, onClose }: SdkDialogProps):
           ${download.phase === "failed" ? html`<div class="error-text">The download failed: ${download.message}</div>` : null}
         </div>` : null}
         ${error ? html`<div class="error-text">${error}</div>` : null}`
-      : html`<div>On this computer the SDK Manager installs the SDK; the editor finds it where the SDK Manager puts it.</div>
-        <${ManagerLinks} status=${status} />`}
+      : noSdk ? html`<div>On this computer the SDK Manager installs the SDK; the editor finds it where the SDK Manager puts it.</div>
+        ${noDevices ? null : html`<${ManagerLinks} status=${status} />`}` : null}
     </div>
     <div class="modal-foot">
       ${done ? html`<button class="primary" onClick=${() => location.reload()}>Reload</button>`
-        : html`<button onClick=${onClose}>${status.canDownload ? "Later" : "Close"}</button>
-          ${status.canDownload ? html`<button class="primary" disabled=${!accepted || busy || agreement === "loading"} onClick=${install}>
+        : html`<button onClick=${onClose}>${noSdk && status.canDownload ? "Later" : "Close"}</button>
+          ${noSdk && status.canDownload ? html`<button class="primary" disabled=${!accepted || busy || agreement === "loading"} onClick=${install}>
             ${busy ? "Installing…" : `Download and install${status.newer && reason === "update" ? ` SDK ${status.newer.version}` : " the SDK"}`}</button>` : null}`}
     </div>
   </${Modal}>`;
@@ -229,7 +241,7 @@ export function EnvHost({ devices }: { devices: readonly Pick<DeviceInfo, "id" |
   useEffect(() => { opening = setDialog; return () => { opening = null; }; }, []);
   useEffect(() => {
     let live = true;
-    sdkStatus().then((s) => { if (live && s.sdk === null) setDialog({ kind: "sdk", status: s, reason: "missing" }); }, () => {});
+    sdkStatus().then((s) => { if (live && (s.sdk === null || s.devices.count === 0)) setDialog({ kind: "sdk", status: s, reason: "missing" }); }, () => {});
     return () => { live = false; };
   }, []);
   if (dialog === null) return null;

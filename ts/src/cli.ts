@@ -885,7 +885,7 @@ async function studioCommand(args: Namespace): Promise<number> {
   const devicesDir = (args["devices_dir"] as string | null) ?? null;
   const fontsDir = (args["fonts_dir"] as string | null) ?? null;
   const openDb = (): DeviceDatabase =>
-    new DeviceDatabase(NodeDeviceFiles.discover(devicesDir ?? undefined, ensureDeviceReference(), { allowMissingReference: true }), new NodeFontFiles(fontsDir));
+    new DeviceDatabase(NodeDeviceFiles.discover(devicesDir ?? undefined, ensureDeviceReference(), { allowMissingReference: true, allowEmpty: true }), new NodeFontFiles(fontsDir));
   let db: DeviceDatabase;
   try {
     db = openDb();

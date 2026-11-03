@@ -271,8 +271,10 @@ Then open `http://127.0.0.1:8765/` in a browser on the host. The faces and
 their history are kept in that browser ([where the faces
 are](guide/studio.md#where-the-faces-are)), and go in by upload and come out
 by download, so the editor needs no `/work` mount. Its Build signs with the
-key at `/keys`, as `build` does. It starts with no SDK mounted: its
-dialog then installs the SDK from Garmin into `/vendor/Sdks` or `/cache`, and its
+key at `/keys`, as `build` does. It starts with no SDK and no devices
+mounted (an empty folder at `/vendor` included): its dialog then installs
+the SDK from Garmin into `/vendor/Sdks` or `/cache` and says how to get
+the devices, and its
 **Doctor** shows what the container has (the SDK, the watches, the fonts).
 
 Inside the container the server cannot know the address or the name it is

@@ -801,6 +801,8 @@ export interface SdkStatus {
   manager: { downloads: Record<string, string>; folders: Record<string, string>; names: Record<string, string>; page: string };
   /** A reload would show what an SDK installed by the editor gave the devices. */
   reloadNeeded: boolean;
+  /** The device definitions' folder and how many watches it holds: none, and the editor says how to get them. */
+  devices: { root: string; count: number };
 }
 
 /** Garmin's Connect IQ Developer Agreement, as its SDK page carries it. */

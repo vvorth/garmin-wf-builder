@@ -17,8 +17,9 @@ const serverStub = (answers: Record<string, unknown>): string => `
       };
     `;
 
-const status = (sdk: { version: string; install: string; copied: boolean } | null, canDownload = true): unknown => ({
+const status = (sdk: { version: string; install: string; copied: boolean } | null, canDownload = true, deviceCount = 3): unknown => ({
   sdk, newer: null, download: null, canDownload, downloadFolder: "/home/me/.Garmin/ConnectIQ/Sdks", inContainer: false, reloadNeeded: false,
+  devices: { root: "/vendor/Devices", count: deviceCount },
   manager: {
     downloads: { mac: "https://x/connectiq-sdk-manager.dmg", linux: "https://x/connectiq-sdk-manager-linux.zip", windows: "https://x/connectiq-sdk-manager-windows.zip" },
     folders: { mac: "~/Library/Application Support/Garmin/ConnectIQ", linux: "~/.Garmin/ConnectIQ", windows: "%APPDATA%\\Garmin\\ConnectIQ" },
@@ -52,6 +53,19 @@ test("with an SDK the dialog stays closed, and on a host that cannot download th
       out([app.textContent.includes("the SDK Manager installs the SDK"), app.textContent.includes("connectiq-sdk-manager.dmg"), button("Download and install") === undefined]);
     `, serverStub({ "api/sdk": status(null, false) }));
   assert.deepEqual(mac, [[true, true, true]]);
+});
+
+test("with no watches, the dialog says so and points at the SDK Manager; with an SDK as well there is no download to offer", async () => {
+  const printed = await page(faceFixture(), "#/", `
+      const text = () => app.textContent;
+      out([text().includes("The watches' definitions are needed"), text().includes("No device definitions"), text().includes("connectiq-sdk-manager-linux.zip"),
+           button("Download and install") === undefined, fetched.some(([, p]) => p === "api/sdk/agreement")]);
+    `, serverStub({ "api/sdk": status({ version: "9.3.0", install: "/sdk", copied: false }, true, 0), "api/sdk/agreement": agreement }));
+  assert.deepEqual(printed, [[true, true, true, true, false]]);
+  const both = await page(faceFixture(), "#/", `
+      out([app.textContent.includes("The Connect IQ SDK and the watches' definitions are needed"), button("Download and install") !== undefined]);
+    `, serverStub({ "api/sdk": status(null, true, 0), "api/sdk/agreement": agreement }));
+  assert.deepEqual(both, [[true, true]]);
 });
 
 test("Doctor shows the report with the devices and fonts behind their counts, and names a newer SDK", async () => {

@@ -344,6 +344,7 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
       download: installer.state, canDownload, downloadFolder: sdkDownloadFolder(inContainer), inContainer,
       manager: { downloads: SDK_MANAGER_DOWNLOADS, folders: SDK_MANAGER_FOLDERS, names: HOST_NAMES, page: SDK_PAGE },
       reloadNeeded: installer.installed,
+      devices: { root: (db.files as { root?: string }).root ?? "", count: db.ids().length },
     };
   };
   // WFB_ACCEPT_LICENSE=1 is the user's acceptance given up front: with no SDK, fetch one as the server starts.

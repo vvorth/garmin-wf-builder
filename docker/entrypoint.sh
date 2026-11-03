@@ -64,10 +64,10 @@ wfb_home="${HOME:-}"
 if [ -z "${wfb_home}" ] || [ ! -w "${wfb_home}" ]; then
     wfb_home=/tmp/wfb-home
 fi
+# `-sfn`: the link is remade on every start, so one left dangling (a restart
+# with the devices gone from the mount) is replaced, not complained about.
 mkdir -p "${wfb_home}/.Garmin/ConnectIQ"
-if [ ! -e "${wfb_home}/.Garmin/ConnectIQ/Devices" ]; then
-    ln -s "${WFB_DEVICES}" "${wfb_home}/.Garmin/ConnectIQ/Devices"
-fi
+ln -sfn "${WFB_DEVICES}" "${wfb_home}/.Garmin/ConnectIQ/Devices"
 export HOME="${wfb_home}"
 # Appended, not replaced, so a caller can still pass JVM options of their own.
 export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Duser.home=${wfb_home}"
@@ -106,12 +106,16 @@ case "${1:-}" in
         wants_fonts=1
         ;;
     studio)
-        needs_devices=1
         wants_fonts=1
-        # The editor starts without an SDK: its own dialog says so and installs
-        # one (the server downloads it once the agreement is accepted there, or
-        # at start with WFB_ACCEPT_LICENSE=1). Its Build signs with this key.
+        # The editor starts without an SDK, and without the device definitions:
+        # its own dialog says what is missing and installs the SDK (the server
+        # downloads it once the agreement is accepted there, or at start with
+        # WFB_ACCEPT_LICENSE=1); the devices it can only point at the SDK
+        # Manager for. Its Build signs with this key.
         needs_key=1
+        if [ ! -d "${WFB_DEVICES}" ] || [ -z "$(ls -A "${WFB_DEVICES}" 2>/dev/null)" ]; then
+            echo "wfb: no Connect IQ device definitions at ${WFB_DEVICES}; the editor starts and says how to get them" >&2
+        fi
         # Inside the container the server must listen beyond its own
         # loopback for a published port to reach it, and it is reached by
         # whatever name the host, a proxy or an orchestrator gives it, which

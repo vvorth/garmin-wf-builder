@@ -123,8 +123,9 @@ docker run --rm -it -p 127.0.0.1:8765:8765 \
 
 Open <http://127.0.0.1:8765/>. Faces are kept in your browser and come in and
 out by upload and download, so the editor needs no `/work` mount. With no
-SDK mounted the editor still opens: a dialog offers to download Garmin's
-SDK once you accept its agreement there, and **Doctor** in the top bar
+SDK or no devices mounted the editor still opens: a dialog offers to
+download Garmin's SDK once you accept its agreement there, says how to get
+the devices from the SDK Manager, and **Doctor** in the top bar
 shows what the container has (the SDK, the watches, the fonts) and
 installs a newer SDK when Garmin lists one.
 

@@ -866,9 +866,15 @@ again** runs the checks once more and asks Garmin for its newest SDK;
 **SDK Manager downloads…** lists the SDK Manager's download for each
 operating system, where it keeps its files, and Garmin's SDK page.
 
-**The SDK.** The editor opens without one, but **Build** needs Garmin's
-compiler, which the SDK holds. So on every load that finds no SDK, a dialog
-says so. On a Linux computer, and in the container, it offers to download
+**The SDK, and the watches.** The editor opens without either, but
+**Build** needs Garmin's compiler, which the SDK holds, and showing a face
+on a watch needs that watch's definition. So on every load that finds no
+SDK or no device definitions, a dialog says so. For the devices it can
+only point: they download to a signed-in Garmin account in the SDK
+Manager, so the dialog shows the SDK Manager's downloads and where it
+keeps its files (in the container, the folder to mount at `/vendor`), and
+asks for a reload, or a restart with the mount, once they are there. For
+the SDK it does more. On a Linux computer, and in the container, it offers to download
 the newest SDK from Garmin there and then: it shows Garmin's Connect IQ
 Developer Agreement, which the download accepts, as its SDK page carries
 it (or links the page, when the page could not be read); once you tick

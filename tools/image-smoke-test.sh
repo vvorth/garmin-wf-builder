@@ -163,8 +163,10 @@ rm -rf "$garmin"
 expect_ok '^ready' docker run --rm -v "$sdk:/sdk:ro" -v "$fixtures/devices:/devices:ro" -v "$fixtures/devices/reference:/reference:ro" -e WFB_DEVICE_REFERENCE=/reference -e WFB_NO_GARMIN_FONTS=1 "$image" doctor
 grep -q 'Connect IQ SDK   9.*(/sdk)' "$work/out.txt"
 
-# The editor starts with no SDK at all: its page's dialog installs one, so the server only reports that none is there.
-bare=$(docker run -d -p 127.0.0.1::8765 -v "$fixtures/devices:/vendor/Devices:ro" -e WFB_NO_GARMIN_FONTS=1 -e WFB_NO_UPDATE_CHECK=1 "$image")
+# The editor starts with nothing mounted at all (an empty folder at /vendor hides the image's own): its page's dialog
+# installs the SDK and points at the SDK Manager for the watches, so the server only reports that neither is there.
+mkdir -p "$work/empty-vendor"
+bare=$(docker run -d -p 127.0.0.1::8765 -v "$work/empty-vendor:/vendor" -e WFB_NO_GARMIN_FONTS=1 -e WFB_NO_UPDATE_CHECK=1 "$image")
 bare_port=$(docker port "$bare" 8765/tcp | head -1 | sed 's/.*://')
 for _ in $(seq 1 30); do
     curl -fsS -o /dev/null "http://127.0.0.1:$bare_port/api/sdk" && break
@@ -173,6 +175,7 @@ done
 curl -fsS "http://127.0.0.1:$bare_port/api/sdk" >"$work/sdk.json"
 grep -q '"sdk":null' "$work/sdk.json"
 grep -q '"canDownload":true' "$work/sdk.json"
+grep -q '"devices":{"root":"/vendor/Devices","count":0}' "$work/sdk.json"
 curl -fsS "http://127.0.0.1:$bare_port/api/doctor" >"$work/doctor.json"
 grep -q '"verdict":' "$work/doctor.json"
 docker rm -f "$bare" >/dev/null
