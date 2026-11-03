@@ -27,16 +27,15 @@ const mb = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(0)} MB`
 export function ManagerLinks({ status }: { status: SdkStatus }): VNode {
   const m = status.manager;
   return html`<div class="manager-links">
-    <div>Garmin's Connect IQ SDK Manager downloads the SDK and, for a signed-in Garmin account, the
+    <p>Garmin's Connect IQ SDK Manager downloads the SDK and, for a signed-in Garmin account, the
       definitions of the watches you build for, with Garmin's font files beside them. Downloading
-      it accepts Garmin's Connect IQ Developer Agreement, on <a href=${m.page} target="_blank" rel="noopener">its SDK page</a>.</div>
-    <ul class="choices">
-      ${Object.keys(m.downloads).map((os) => html`<li><strong>${m.names[os]}</strong>
-        <a href=${m.downloads[os]} target="_blank" rel="noopener">${m.downloads[os]!.split("/").pop()}</a>
-        <div class="dim small">keeps its files under <code>${m.folders[os]}</code> (Sdks, Devices, Fonts)</div></li>`)}
+      it accepts Garmin's Connect IQ Developer Agreement, on <a href=${m.page} target="_blank" rel="noopener">its SDK page</a>.</p>
+    <ul class="downloads">
+      ${Object.keys(m.downloads).map((os) => html`<li>
+        <div class="os"><strong>${m.names[os]}</strong>${" "}<a href=${m.downloads[os]} target="_blank" rel="noopener">${m.downloads[os]!.split("/").pop()}</a></div>
+        <div class="dim small">keeps its files under <code>${m.folders[os]}</code>, with <code>Sdks</code>, <code>Devices</code> and <code>Fonts</code> inside</div></li>`)}
     </ul>
-    ${status.inContainer ? html`<div class="dim small">Mount that folder into the container at <code>/vendor</code> (read-only): its <code>Sdks</code>,
-      <code>Devices</code> and <code>Fonts</code> come with it. The devices cannot be downloaded by anything but the SDK Manager, signed in.</div>` : null}
+    ${status.inContainer ? html`<p class="dim small">Mount that folder into the container at <code>/vendor</code>, read-only: its <code>Sdks</code>, <code>Devices</code> and <code>Fonts</code> come with it.</p>` : null}
   </div>`;
 }
 
@@ -95,16 +94,17 @@ export function SdkDialog({ status: initial, reason, onClose }: SdkDialogProps):
   const title = reason === "update" ? `A newer SDK: ${status.newer?.version ?? ""}`
     : noSdk && noDevices ? "The Connect IQ SDK and the watches' definitions are needed"
     : noDevices ? "The watches' definitions are needed" : "The Connect IQ SDK is needed";
-  const done = download !== null && download.phase === "done";
+  // An install's end, in this dialog: a download the server finished earlier (before this load) is not this dialog's to report.
+  const done = noSdk && download !== null && download.phase === "done";
   return html`<${Modal} title=${title} onClose=${onClose} className="sdk">
     <div class="modal-body">
-      ${noDevices ? html`<div class="devices-missing">
-        <div><strong>No device definitions</strong> were found${status.inContainer ? ` (nothing at <code>${status.devices.root}</code>)` : ""}: Garmin's description of each
-          watch, which the editor needs to show a face on one. They download only to a Garmin account signed in to the SDK Manager,
-          so no program can fetch them for you.</div>
+      ${noDevices ? html`<div class=${"devices-missing" + (noSdk ? " then-sdk" : "")}>
+        <p><strong>No device definitions</strong> were found${status.inContainer ? html` (nothing at <code>${status.devices.root}</code>)` : null}: Garmin's
+          description of each watch, which the editor needs to show a face on one. They download only to a Garmin account signed in
+          to the SDK Manager, so no program can fetch them for you.</p>
         <${ManagerLinks} status=${status} />
-        <div class="dim small">${status.inContainer ? "Once the SDK Manager has the watches, restart the container with that folder mounted and reload this page."
-          : "Once the SDK Manager has the watches, reload this page: the editor reads them where the SDK Manager keeps them."}</div>
+        <p class="dim small">${status.inContainer ? "Once the SDK Manager has the watches, restart the container with that folder mounted, then reload this page."
+          : "Once the SDK Manager has the watches, reload this page: the editor reads them where the SDK Manager keeps them."}</p>
       </div>` : null}
       ${noSdk ? (reason === "missing" ? html`<div>No Connect IQ SDK was found on this computer${status.inContainer ? " (nothing is mounted at /vendor/Sdks)" : ""}.
           The editor works without it, but <strong>Build</strong> needs Garmin's compiler, which the SDK holds.</div>`
