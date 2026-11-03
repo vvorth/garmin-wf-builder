@@ -866,8 +866,9 @@ fetched once by `ts/tools/fetch-sdk.ts --newest` in the image into
 with the compiler copied out of the read-only mount, the slice fixture
 retargeted at `wfbtest` through `wfb build --no-compile` and `wfb preview`,
 the device reference extracted from the SDK into `/cache` once and not
-again, a build with no `/sdk` refused with the mount hint, and the editor
-served. `monkeyc` does not know `wfbtest`, so no `.prg` is compiled in CI.
+again, a build with no `/sdk` refused with the mount hint unless
+`WFB_ACCEPT_LICENSE=1` has the image download the SDK into `/cache`, the
+editor started with no SDK at all, and the editor served. `monkeyc` does not know `wfbtest`, so no `.prg` is compiled in CI.
 
 `check.yml` runs on Node 24.22.1 or a later 24, with **no Garmin file at all**: Garmin's device
 definitions are the owner's licensed copy and are never in the repository

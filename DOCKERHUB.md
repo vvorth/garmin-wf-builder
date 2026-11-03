@@ -60,6 +60,20 @@ the watches you target on its Devices tab, and mount its folders read-only:
 If a mount is missing, the container says so instead of failing deep in a
 build, and `docker run --rm vvorth/garmin-wf-builder init` prints every
 step for the computer running Docker. The SDK alone downloads without a
+sign-in: with none mounted, the editor's own dialog offers to fetch
+Garmin's newest once you accept Garmin's agreement there, and a build does
+the same when you answer yes at a terminal or run with `-e
+WFB_ACCEPT_LICENSE=1`. It lands in `/sdk` when that is writable, else in
+the `/cache` volume, and later runs find it there. By hand, into a folder
+of your own:
+
+```sh
+docker run --rm -v "$HOME/.Garmin/ConnectIQ/Sdks:/sdk" vvorth/garmin-wf-builder init --download-sdk --accept-license
+```
+
+When Garmin lists a newer SDK than the one in use, builds say so in one
+line and the editor's Doctor offers to install it (checked at most once a
+day; `-e WFB_NO_UPDATE_CHECK=1` turns it off). The SDK alone downloads without a
 sign-in, and the container can fetch it into a folder you mount read-write
 for that run, once you accept Garmin's agreement:
 
@@ -108,7 +122,11 @@ docker run --rm -it -p 127.0.0.1:8765:8765 \
 ```
 
 Open <http://127.0.0.1:8765/>. Faces are kept in your browser and come in and
-out by upload and download, so the editor needs no `/work` mount.
+out by upload and download, so the editor needs no `/work` mount. With no
+SDK mounted the editor still opens: a dialog offers to download Garmin's
+SDK once you accept its agreement there, and **Doctor** in the top bar
+shows what the container has (the SDK, the watches, the fonts) and
+installs a newer SDK when Garmin lists one.
 
 In the container the editor listens on every address and answers requests
 addressed by any host name, so it works behind whatever name a proxy or your
@@ -128,6 +146,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8765:8765"
+    # environment:
+    #   WFB_ACCEPT_LICENSE: "1"   # download Garmin's SDK when none is mounted (accepts its agreement)
     volumes:
       - /path/to/ConnectIQ/Sdks:/sdk:ro
       - /path/to/ConnectIQ/Devices:/devices:ro

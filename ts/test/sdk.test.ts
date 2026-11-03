@@ -185,3 +185,29 @@ describe("the SDK update check", { concurrency: true }, () => {
     }
   });
 });
+
+describe("the Developer Agreement", { concurrency: true }, () => {
+  test("is read out of Garmin's SDK page, headings and list items kept, and fetched once a day", async () => {
+    const { agreementFromPage, fetchAgreement } = await import("../src/init.ts");
+    const paragraphs = Array.from({ length: 12 }, (_, i) => `<p class="disclaimer">Clause ${i} of the agreement, long enough to count.</p>`).join("");
+    const html = `<html><body><h2>Connect IQ SDK</h2><p>By downloading any of the following SDKs, you accept our license agreement.</p>
+      <p class="disclaimer">Updated August 6, 2024</p><div class="legal-block"><p class="disclaimer">This Connect IQ Developer Agreement (the &quot;<strong>Agreement</strong>&quot;) governs your use.</p>
+      <h5><strong>I. Development of Applications using the SDK</strong></h5><ul><li>a. <strong>License.</strong> A limited, personal licence.</li><li>b. Restrictions.</li></ul>${paragraphs}</div>
+      <h3>Get the Connect IQ 9.3.0 SDK</h3><p>Not the agreement.</p></body></html>`;
+    const agreement = agreementFromPage(html);
+    assert.ok(agreement !== null);
+    assert.equal(agreement.updated, "Updated August 6, 2024");
+    assert.ok(agreement.text.startsWith('This Connect IQ Developer Agreement (the "Agreement") governs your use.'));
+    assert.ok(agreement.text.includes("\n\nI. DEVELOPMENT OF APPLICATIONS USING THE SDK\n\n- a. License. A limited, personal licence.\n\n- b. Restrictions."));
+    assert.ok(!agreement.text.includes("Not the agreement") && !agreement.text.includes("you accept our license agreement"));
+    assert.equal(agreementFromPage("<html><body><p>Updated August 6, 2024</p><p>short</p></body></html>"), null, "a page without the agreement's shape gives nothing");
+
+    const cacheFile = join(scratch(), "developer-agreement.json");
+    let fetches = 0;
+    const fetchPage = async (): Promise<string> => { fetches++; return html; };
+    assert.equal((await fetchAgreement({ cacheFile, fetchPage, now: 0 }))?.updated, "Updated August 6, 2024");
+    assert.equal((await fetchAgreement({ cacheFile, fetchPage, now: Date.now() }))?.updated, "Updated August 6, 2024");
+    assert.equal(fetches, 1, "the day-old copy answers");
+    assert.equal(await fetchAgreement({ cacheFile: join(scratch(), "none.json"), fetchPage: async () => { throw new Error("offline"); } }), null);
+  });
+});

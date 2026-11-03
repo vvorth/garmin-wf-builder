@@ -68,11 +68,17 @@ export class NodeDeviceFiles implements DeviceFiles {
     this.referenceDir = referenceDir;
   }
 
-  /** The first of `override`, `WFB_DEVICES` and the SDK Manager's folders that holds devices. */
-  static discover(override?: string, referenceDir: string = ensureDeviceReference()): NodeDeviceFiles {
+  /**
+   * The first of `override`, `WFB_DEVICES` and the SDK Manager's folders
+   * that holds devices. A missing device reference is refused, unless
+   * `allowMissingReference`: the editor opens without one (an SDK not yet
+   * installed) and reads every device without its page, as a device the
+   * reference lacks is read anyway.
+   */
+  static discover(override?: string, referenceDir: string = ensureDeviceReference(), { allowMissingReference = false } = {}): NodeDeviceFiles {
     const candidates = [override, process.env["WFB_DEVICES"], ...DEFAULT_DEVICE_ROOTS]
       .filter((path): path is string => Boolean(path));
-    if (!existsSync(referenceDir)) {
+    if (!existsSync(referenceDir) && !allowMissingReference) {
       throw new DeviceReferenceMissing(
         `no SDK device reference at ${referenceDir}.  It is extracted from the installed SDK's own device pages ` +
         "the first time wfb needs it, so install the SDK (`wfb init` says how), or run node ts/tools/extract-device-reference.ts --sdk DIR.",
@@ -107,6 +113,7 @@ export class NodeDeviceFiles implements DeviceFiles {
   }
 
   referenceIds(): string[] {
+    if (!existsSync(this.referenceDir)) return [];
     return readdirSync(this.referenceDir).filter((name) => name.endsWith(".json")).map((name) => name.slice(0, -5)).sort();
   }
 }

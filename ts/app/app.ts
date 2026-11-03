@@ -19,6 +19,7 @@ import { Layers } from "./layers.ts";
 import { YamlPane } from "./yaml.ts";
 import { AskHost, BuildDialog, CalibrateDialog, Modal, ask } from "./dialogs.ts";
 import { HelpDialog } from "./help.ts";
+import { EnvHost, openDoctor } from "./sdk.ts";
 import { SHORTCUTS } from "./keys.ts";
 import { MAX_ZOOM, MIN_ZOOM, screenMm } from "./zoom.ts";
 import { FacePanel, Inspector } from "./panels.ts";
@@ -144,7 +145,8 @@ function Home(): VNode {
   const blurb = home.templates.find((t) => t.name === template)?.blurb;
   return html`
     <div class="home">
-      <h1>wfb studio <button class="help-open" onClick=${() => setHelp(true)} title="The README and the guide">Help</button></h1>
+      <h1>wfb studio <button class="help-open" onClick=${() => setHelp(true)} title="The README and the guide">Help</button>
+        <button class="help-open" onClick=${openDoctor} title="What is installed: the SDK, the watches, the fonts">Doctor</button></h1>
       <div class="dim">Create a watch face, or open one to edit. Download it to save.</div>
       ${help ? html`<${HelpDialog} start="README.md" onClose=${() => setHelp(false)} />` : null}
       <div class="cards">
@@ -542,6 +544,7 @@ function TopBar({ doc }: { doc: Summary }): VNode {
     ${counts.error ? html`<button class="errors" onClick=${showErrors} title="Show the errors in Diagnostics">
         ${counts.error} error${counts.error > 1 ? "s" : ""}</button>` : null}
     <button title="The README and the guide" onClick=${() => store.setUi({ dialog: "help" })}>Help</button>
+    <button title="What is installed: the SDK, the watches, the fonts" onClick=${openDoctor}>Doctor</button>
     <button class="keys-help" title="Keyboard shortcuts (?)" onClick=${() => store.setUi({ dialog: "keys" })}>?</button>
     <button disabled=${!doc.loads} title=${doc.loads ? "Build a .prg for one watch" : "the face does not load"}
             onClick=${() => store.setUi({ dialog: "build" })}>Build…</button>
@@ -904,9 +907,11 @@ function Shell(): VNode {
   const store = useEditorStore();
   const docId = useStore((s) => s.docId);
   const messages = useStore((s) => s.messages);
+  const vocab = useStore((s) => s.vocab);
   const toast = messages.toast;
   return html`
     ${docId ? html`<${Editor} />` : html`<${Home} />`}
+    <${EnvHost} devices=${vocab?.devices ?? []} />
     ${toast ? html`<div class=${"toast " + toast.kind} role=${toast.kind === "error" ? "alert" : "status"}
                         onClick=${() => store.dismissToast()}>${toast.message}</div>` : null}
     <${MessageLog} log=${messages.log} unseen=${messages.unseen} onOpen=${() => store.seenMessages()}

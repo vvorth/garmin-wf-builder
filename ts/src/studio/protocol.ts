@@ -776,6 +776,69 @@ export interface Renamed {
   name: string;
 }
 
+// -- the environment, from the server (`app/sdk.ts` asks `api/sdk`, `api/doctor`) --
+
+/** Where a download of the SDK is, for the page to show. */
+export interface SdkDownload {
+  phase: "downloading" | "unpacking" | "done" | "failed";
+  received: number;
+  total: number | null;
+  version: string | null;
+  message: string;
+}
+
+/** `GET /api/sdk`'s answer. */
+export interface SdkStatus {
+  sdk: { version: string; install: string; copied: boolean } | null;
+  newer: { version: string } | null;
+  download: SdkDownload | null;
+  /** The newest Linux SDK can be fetched here: a Linux host, or the container. */
+  canDownload: boolean;
+  /** Where a download lands. */
+  downloadFolder: string;
+  inContainer: boolean;
+  /** The SDK Manager: its download per OS, its folder per OS, and Garmin's SDK page. */
+  manager: { downloads: Record<string, string>; folders: Record<string, string>; names: Record<string, string>; page: string };
+  /** A reload would show what an SDK installed by the editor gave the devices. */
+  reloadNeeded: boolean;
+}
+
+/** Garmin's Connect IQ Developer Agreement, as its SDK page carries it. */
+export interface Agreement {
+  /** The page it is on. */
+  url: string;
+  /** "Updated August 6, 2024", as the page says. */
+  updated: string;
+  /** The agreement as plain text: headings in capitals, list items dashed, paragraphs apart. */
+  text: string;
+}
+
+export interface DoctorReport {
+  wfb: string;
+  node: { version: string; path: string; problem: string | null };
+  schema: { path: string; ok: boolean };
+  /** The SDK device reference: `dir` as shown (the folder, or the one `WFB_DEVICE_REFERENCE` names). */
+  reference: { dir: string; ok: boolean; sdkVersion: string | null; hints: string[] };
+  iconFont: { path: string; ok: boolean };
+  /** Garmin's own font files: the root found and every file under it (relative paths), or none, with how to get them. */
+  garminFonts: { root: string | null; files: string[]; hints: string[] };
+  /** The device definitions: their folder and ids, or why none were found. */
+  devices: { root: string | null; ids: string[]; error: string | null; hints: string[] };
+  /** The registry's stand-ins for the devices' system fonts, when the devices were read. */
+  systemFonts: { lacking: string[]; summary: string; hints: string[] } | null;
+  sdk: { version: string; install: string; compiler: string; copied: boolean } | null;
+  sdkHints: string[];
+  /** A newer SDK Garmin lists, and how to get it. */
+  newerSdk: { version: string; how: string } | null;
+  /** The device reference came from another SDK release than the one found. */
+  referenceStale: { extracted: string; hints: string[] } | null;
+  key: { path: string; state: "present" | "will-generate" | "missing"; hints: string[] } | null;
+  verdict: "ready" | "partial" | "not ready";
+  /** The fixes, one per problem; a `partial` verdict's are not blocking. */
+  problems: string[];
+  inContainer: boolean;
+}
+
 /** The server's answer to a build: with `ok`, the `.prg` is at `download`. */
 export interface BuildResult {
   ok: boolean;

@@ -19,6 +19,7 @@ import { bakeFonts } from "./emit/resources.ts";
 import { resolveRegistryKey } from "./fonts/files.ts";
 import { deviceNeededNames, garminFontRoot, NodeFontFiles } from "./fonts/node.ts";
 import * as icons from "./icons.ts";
+import { doctorReport } from "./doctor.ts";
 import * as init from "./init.ts";
 import { canWriteAt, findSdk } from "./sdk.ts";
 import type { ExprValue } from "./expr.ts";
@@ -878,9 +879,16 @@ async function studioCommand(args: Namespace): Promise<number> {
     error((e as Error).message);
     return 1;
   }
+  // The editor opens without an SDK (and so, perhaps, without the device
+  // reference): its own dialog installs one, after which the server reads
+  // the devices again with the reference the SDK gave.
+  const devicesDir = (args["devices_dir"] as string | null) ?? null;
+  const fontsDir = (args["fonts_dir"] as string | null) ?? null;
+  const openDb = (): DeviceDatabase =>
+    new DeviceDatabase(NodeDeviceFiles.discover(devicesDir ?? undefined, ensureDeviceReference(), { allowMissingReference: true }), new NodeFontFiles(fontsDir));
   let db: DeviceDatabase;
   try {
-    db = discoverDb(args["devices_dir"] as string | null, args["fonts_dir"] as string | null);
+    db = openDb();
   } catch (e) {
     if (!(e instanceof DeviceError)) throw e;
     error(e.message);
@@ -889,8 +897,7 @@ async function studioCommand(args: Namespace): Promise<number> {
   await sdkUpdateNotice(Toolchain.discover());
   await serve({
     host: args["host"] as string, allowHosts, allowAnyHost: args["allow_any_host"] === true,
-    port: args["port"] as number, db,
-    fontsDir: (args["fonts_dir"] as string | null) ?? null,
+    port: args["port"] as number, db, reopenDb: openDb, devicesDir, fontsDir,
   });
   return 0;
 }
@@ -939,155 +946,81 @@ function newCommand(args: Namespace): number {
 /** How far `doctor`'s explanatory lines are indented: under the detail column. */
 const DOCTOR_INDENT = " ".repeat(19);
 
-function doctorSystemFonts(deviceIds: string[], devicesRoot: string, fonts: NodeFontFiles, ok: string, absent: string,
-  hint: (...lines: string[]) => void): void {
-  // "unmapped" is a deliberate registry decision (a CJK/RTL-only face), never missing.
-  const tierOf = new Map<string, string>();
-  const lacking: string[] = [];
-  for (const deviceId of deviceIds) {
-    let deviceMissing = false;
-    for (const [name, face] of deviceNeededNames(deviceId, devicesRoot)) {
-      if (!tierOf.has(name)) {
-        if (fonts.root !== null && fonts.garminAnyPath(name) !== undefined) tierOf.set(name, "garmin");
-        else {
-          const key = resolveRegistryKey(name, face);
-          tierOf.set(name, key === null ? "unmapped" : fonts.tierFor(key) ?? "missing");
-        }
-      }
-      if (tierOf.get(name) === "missing") deviceMissing = true;
-    }
-    if (deviceMissing) lacking.push(deviceId);
-  }
-  const counts = new Map<string, number>();
-  for (const tier of tierOf.values()) counts.set(tier, (counts.get(tier) ?? 0) + 1);
-  const summary = ["garmin", "installed", "cached", "missing", "unmapped"].filter((l) => counts.get(l)).map((l) => `${counts.get(l)} ${l}`).join(", ");
-  if (lacking.length === 0) {
-    out(`${ok} system fonts     all ${deviceIds.length} devices covered (${summary} font names)`);
-    return;
-  }
-  const shown = lacking.slice(0, 4).join(", ") + (lacking.length > 4 ? " ..." : "");
-  out(`${absent} system fonts     ${lacking.length} of ${deviceIds.length} devices lack a stand-in: ${shown}`);
-  hint(`(${summary} font names) -- run node ts/tools/fetch-system-fonts.ts;`, "not blocking, falls back to a substitute face at build time");
-}
-
+/** `wfb doctor`: the report (`doctorReport`) printed, one line per check and its hints beneath. */
 async function doctorCommand(args: Namespace): Promise<number> {
   const color = term.shouldColor(process.stdout);
   const ok = term.style("  ok ", ["green"], color);
   const missing = term.style("MISSING", ["bold", "red"], color);
   const absent = term.style(" none", ["yellow"], color);
-  const problems: string[] = [];
-  let blocking = 0;
   const hint = (...lines: string[]): void => {
     for (const line of lines) out(DOCTOR_INDENT + line);
   };
-  const fail = (fix: string, hints: string[], blocks = true): void => {
-    hint(...hints);
-    problems.push(fix);
-    if (blocks) blocking++;
-  };
+  const r = await doctorReport({ devicesDir: (args["devices_dir"] as string | null) ?? null, fontsDir: (args["fonts_dir"] as string | null) ?? null });
 
-  out(`wfb ${VERSION}`);
-  const nodeProblem = nodeRefusal(process.versions.node);
-  out(`${nodeProblem === null ? ok : missing} node             ${process.versions.node}  (${process.execPath})`);
-  if (nodeProblem !== null) fail("install a patched Node", [nodeProblem, "run tools/setup-env.sh, which installs one, or upgrade yours"]);
-  out(`${existsSync(SCHEMA) ? ok : missing} schema           ${SCHEMA}`);
-
-  // The SDK first: the device reference is extracted from its doc pages when missing or stale.
-  const toolchain = Toolchain.discover();
-  const sdk = toolchain === null ? null : { root: toolchain.install, version: toolchain.version };
-  const reference = ensureDeviceReference(sdk);
-  const haveReference = existsSync(reference) && statSync(reference).isDirectory();
-  // A reference named outright (WFB_DEVICE_REFERENCE) is shown as named; an extracted one by its folder.
-  out(`${haveReference ? ok : missing} device reference ${process.env["WFB_DEVICE_REFERENCE"] ? reference : dirname(reference)}`);
-  if (!haveReference) {
-    fail("extract the SDK device reference", sdk === null
-      ? ["it is extracted from the SDK's own device pages once an SDK is installed (`wfb init`)"]
-      : [`SDK ${sdk.version} at ${sdk.root} has no ${relativePages(sdk.root)}, so run`, "node ts/tools/extract-device-reference.ts --sdk DIR on a full SDK"]);
-  }
-
-  const haveIcons = existsSync(ICON_FONT);
-  out(`${haveIcons ? ok : missing} icon font        ${ICON_FONT}`);
-  if (!haveIcons) fail("install the icon font", ["run tools/setup-env.sh, or node ts/tools/fetch-icon-font.ts"]);
-
-  // Garmin's own font files: optional, and never downloaded here.
-  const fontsDir = (args["fonts_dir"] as string | null) ?? null;
-  const fontsRoot = garminFontRoot(fontsDir);
-  if (fontsRoot !== null) {
-    out(`${ok} Garmin fonts     ${fontsRoot}  (previews draw exact glyph shapes)`);
+  out(`wfb ${r.wfb}`);
+  out(`${r.node.problem === null ? ok : missing} node             ${r.node.version}  (${r.node.path})`);
+  if (r.node.problem !== null) hint(r.node.problem, "run tools/setup-env.sh, which installs one, or upgrade yours");
+  out(`${r.schema.ok ? ok : missing} schema           ${r.schema.path}`);
+  out(`${r.reference.ok ? ok : missing} device reference ${r.reference.dir}`);
+  hint(...r.reference.hints);
+  out(`${r.iconFont.ok ? ok : missing} icon font        ${r.iconFont.path}`);
+  if (!r.iconFont.ok) hint("run tools/setup-env.sh, or node ts/tools/fetch-icon-font.ts");
+  if (r.garminFonts.root !== null) {
+    out(`${ok} Garmin fonts     ${r.garminFonts.root}  (${r.garminFonts.files.length} files; previews draw exact glyph shapes)`);
   } else {
     out(`${absent} Garmin fonts     not found (optional; previews draw stand-in typefaces for any face the registry has no exact match for)`);
-    if (process.env["WFB_CONTAINER"] === "1") {
-      const mount = process.env["WFB_FONTS"] || "/fonts";
-      hint("mount the SDK Manager's Fonts directory:", `  -v <SDK Manager's Fonts dir>:${mount}:ro`, "-- see docs/container.md");
-    } else {
-      hint("copy the SDK Manager's Fonts directory into vendor/fonts/,", "or set WFB_FONTS / pass --fonts DIR -- see docs/container.md");
-    }
+    hint(...r.garminFonts.hints);
   }
-
-  try {
-    const files = NodeDeviceFiles.discover((args["devices_dir"] as string | null) ?? undefined, reference);
-    const ids = files.ids();
+  if (r.devices.root !== null) {
+    const ids = r.devices.ids;
     out(`${ok} devices          ${ids.length} installed: ${ids.slice(0, 4).join(", ")}${ids.length > 4 ? " ..." : ""}`);
-    hint(files.root);
-    doctorSystemFonts(ids, files.root, new NodeFontFiles(fontsDir), ok, absent, hint);
-  } catch (e) {
-    if (e instanceof DeviceReferenceMissing) {
-      out(`${absent} devices          not checked: the device reference above is missing`);
-    } else if (e instanceof DeviceError) {
-      out(`${missing} devices`);
-      fail("install the device definitions", process.env["WFB_CONTAINER"] === "1"
-        ? ["they cannot be downloaded -- api.gcs.garmin.com returns HTTP 401 -- so mount the", `SDK Manager's Devices folder at ${process.env["WFB_DEVICES"] || "/devices"} (\`wfb init\` prints the mounts)`]
-        : ["they cannot be downloaded -- api.gcs.garmin.com returns HTTP 401; Garmin's SDK Manager", "downloads them for a signed-in account: `wfb init` says how, step by step,", "or set WFB_DEVICES to a folder of them copied from another machine."]);
-    } else throw e;
-  }
-
-  let canCompile = false;
-  if (toolchain === null) {
-    out(`${missing} Connect IQ SDK`);
-    fail("install the Connect IQ SDK", process.env["WFB_CONTAINER"] === "1"
-      ? [`mount the SDK Manager's Sdks folder at ${process.env["CIQ_SDK"] || "/sdk"} (\`wfb init\` prints the mounts)`]
-      : ["Garmin's SDK Manager installs it: `wfb init` says how, or set CIQ_SDK to an SDK you have"], false);
+    hint(r.devices.root);
+  } else if (r.devices.hints.length === 0) {
+    out(`${absent} devices          ${r.devices.error}`);
   } else {
-    out(`${ok} Connect IQ SDK   ${toolchain.version}  (${toolchain.install})`);
-    if (toolchain.copied) hint(`read-only, so the compiler runs from a copy at ${toolchain.sdk}`);
-    const newer = await init.checkForNewerSdk(toolchain.version);
-    if (newer !== null) hint(`SDK ${newer.version} is available: ${init.updateNotice(toolchain.version, newer, process.env["WFB_CONTAINER"] === "1").split("; ")[1]}`);
-    const extracted = referenceSdkVersion(reference);
-    if (haveReference && extracted !== null && extracted !== toolchain.version) {
-      out(`${missing} device reference extracted from SDK ${extracted}`);
-      fail("extract the device reference from this SDK", [`SDK ${toolchain.version} has no ${relativePages(toolchain.install)}, so run`, "node ts/tools/extract-device-reference.ts --sdk DIR on a full SDK"], false);
+    out(`${missing} devices`);
+    hint(...r.devices.hints);
+  }
+  if (r.systemFonts !== null) {
+    const f = r.systemFonts;
+    if (f.lacking.length === 0) out(`${ok} system fonts     all ${r.devices.ids.length} devices covered (${f.summary} font names)`);
+    else {
+      out(`${absent} system fonts     ${f.lacking.length} of ${r.devices.ids.length} devices lack a stand-in: ${f.lacking.slice(0, 4).join(", ")}${f.lacking.length > 4 ? " ..." : ""}`);
+      hint(...f.hints);
     }
-    const keyDir = dirname(toolchain.key);
-    canCompile = true;
-    if (existsSync(toolchain.key)) {
-      out(`${ok} developer key    ${toolchain.key}`);
-    } else if (writable(keyDir)) {
-      // The first build that needs a key creates it.
-      out(`${ok} developer key    will be generated at ${toolchain.key}`);
-    } else {
-      canCompile = false;
-      out(`${missing} developer key    expected at ${toolchain.key},`);
-      fail("generate a developer key", [
-        `and ${keyDir} is not writable.  Create one with:`,
-        "  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \\",
-        "    -out key.pem",
-        "  openssl pkcs8 -topk8 -inform PEM -outform DER \\",
-        `    -in key.pem -out ${toolchain.key} -nocrypt`,
-      ], false);
+  }
+  if (r.sdk === null) {
+    out(`${missing} Connect IQ SDK`);
+    hint(...r.sdkHints);
+  } else {
+    out(`${ok} Connect IQ SDK   ${r.sdk.version}  (${r.sdk.install})`);
+    if (r.sdk.copied) hint(`read-only, so the compiler runs from a copy at ${r.sdk.compiler}`);
+    if (r.newerSdk !== null) hint(`SDK ${r.newerSdk.version} is available: ${r.newerSdk.how}`);
+    if (r.referenceStale !== null) {
+      out(`${missing} device reference extracted from SDK ${r.referenceStale.extracted}`);
+      hint(...r.referenceStale.hints);
+    }
+  }
+  if (r.key !== null) {
+    if (r.key.state === "present") out(`${ok} developer key    ${r.key.path}`);
+    else if (r.key.state === "will-generate") out(`${ok} developer key    will be generated at ${r.key.path}`);
+    else {
+      out(`${missing} developer key    expected at ${r.key.path},`);
+      hint(...r.key.hints);
     }
   }
 
   out();
-  if (blocking === 0 && canCompile) {
+  if (r.verdict === "ready") {
     out(`${term.style("ready", ["green"], color)}: validate, preview and build all work.`);
     return 0;
   }
-  if (blocking === 0) {
+  if (r.verdict === "partial") {
     out(`${term.style("partial", ["yellow"], color)}: validate and preview work; \`wfb build\` cannot compile yet.`);
-    out("         fix: " + problems.join("; "));
+    out("         fix: " + r.problems.join("; "));
     return 0;
   }
-  out(`${term.style("not ready", ["red"], color)}: ${problems.join("; ")}`);
+  out(`${term.style("not ready", ["red"], color)}: ${r.problems.join("; ")}`);
   return 1;
 }
 

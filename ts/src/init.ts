@@ -12,6 +12,7 @@ import { homedir, platform } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { unzipSync } from "fflate";
 import { DEFAULT_DEVICE_ROOTS } from "./devices/node.ts";
+import type { Agreement } from "./studio/protocol.ts";
 import { garminFontRoot } from "./fonts/node.ts";
 import { cacheHome, canWriteAt, downloadedSdks, expandHome, findSdk, isSdkRoot, type Sdk, sdkCandidates, sdkManagerHome, sdkManagerHomes, sdkVersion } from "./sdk.ts";
 
@@ -39,6 +40,8 @@ export const SDK_MANAGER_FOLDERS: Record<Exclude<Host, "unknown">, string> = {
 };
 
 export const HOST_NAMES: Record<Exclude<Host, "unknown">, string> = { mac: "macOS", linux: "Linux", windows: "Windows" };
+
+export type { Agreement };
 
 export function detectHost(inContainer: boolean, os: string = platform()): Host {
   if (inContainer) return "unknown";
@@ -169,13 +172,33 @@ export function steps(found: Survey, host: Host, inContainer: boolean): string[]
   return lines;
 }
 
-/** `url`'s bytes, `log` told the size first. */
-async function fetchBytes(url: string, log: (line: string) => void): Promise<Uint8Array> {
+/** How far a download is: the bytes so far, and the whole when the server said. */
+export type Progress = (received: number, total: number | null) => void;
+
+/** `url`'s bytes, `log` told the size first and `progress` each chunk. */
+async function fetchBytes(url: string, log: (line: string) => void, progress: Progress = () => {}): Promise<Uint8Array> {
   const response = await fetch(url, { signal: AbortSignal.timeout(900_000) });
-  if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+  if (!response.ok || response.body === null) throw new Error(`HTTP ${response.status} for ${url}`);
   const length = Number(response.headers.get("content-length"));
-  log(`downloading ${url}${length > 0 ? ` (${Math.round(length / (1024 * 1024))} MB)` : ""} ...`);
-  return new Uint8Array(await response.arrayBuffer());
+  const total = length > 0 ? length : null;
+  log(`downloading ${url}${total !== null ? ` (${Math.round(total / (1024 * 1024))} MB)` : ""} ...`);
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  const reader = response.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    progress(received, total);
+  }
+  const bytes = new Uint8Array(received);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.length;
+  }
+  return bytes;
 }
 
 /**
@@ -307,7 +330,9 @@ export function unpackSdk(archive: Uint8Array, folder: string, name: string): Sd
  * installs it: the compiler, the docs the device reference is extracted
  * from, the simulator for a desktop that can run it.
  */
-export async function downloadSdk(folder: string, { version, log = () => {} }: { version?: string | undefined; log?: (line: string) => void } = {}): Promise<Sdk> {
+export async function downloadSdk(folder: string, { version, log = () => {}, progress = () => {}, unpacking = () => {} }: {
+  version?: string | undefined; log?: (line: string) => void; progress?: Progress; unpacking?: () => void;
+} = {}): Promise<Sdk> {
   const release = pickLinuxSdk(await listSdks(), version);
   if (release === null) throw new Error(version ? `Garmin lists no Linux SDK ${version}` : "Garmin lists no Linux SDK");
   const name = release.linux.replace(/\.zip$/, "");
@@ -317,8 +342,63 @@ export async function downloadSdk(folder: string, { version, log = () => {} }: {
     return { root: target, version: sdkVersion(target) };
   }
   const baseUrl = process.env["SDK_BASE_URL"] || SDK_DOWNLOADS;
-  const archive = await fetchBytes(`${baseUrl}/${release.linux}`, log);
+  const archive = await fetchBytes(`${baseUrl}/${release.linux}`, log, progress);
   log(`unpacking into ${target} ...`);
+  unpacking();
   mkdirSync(expandHome(folder), { recursive: true });
   return unpackSdk(archive, expandHome(folder), name);
+}
+
+
+const strip = (fragment: string): string => fragment.replace(/<[^>]+>/g, "").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * The agreement out of the SDK page's HTML: from the "Updated" line under
+ * the "Connect IQ SDK" heading to the SDK downloads that follow it, or
+ * `null` when the page no longer has that shape (then the dialog links the
+ * page instead of quoting it).
+ */
+export function agreementFromPage(html: string, url: string = SDK_PAGE): Agreement | null {
+  const start = html.search(/<p[^>]*>\s*Updated [A-Z][a-z]+ \d{1,2}, \d{4}\s*<\/p>/);
+  if (start < 0) return null;
+  const rest = html.slice(start);
+  const end = rest.search(/<h3[^>]*>\s*Get the Connect IQ/);
+  const section = end < 0 ? rest : rest.slice(0, end);
+  const updated = strip(/<p[^>]*>([^<]*)<\/p>/.exec(section)![1]!);
+  const lines: string[] = [];
+  for (const [, tag, inner] of section.matchAll(/<(h[1-6]|p|li)[^>]*>([\s\S]*?)<\/\1>/g)) {
+    const text = strip(inner!);
+    if (text === "" || text === updated) continue;
+    lines.push(tag!.startsWith("h") ? text.toUpperCase() : tag === "li" ? `- ${text}` : text);
+  }
+  if (lines.length < 10) return null;
+  return { url, updated, text: lines.join("\n\n") };
+}
+
+/**
+ * The agreement from Garmin's page, fetched at most once a day (the copy
+ * kept at `<cache>/developer-agreement.json`), or `null` when it cannot be.
+ */
+export async function fetchAgreement({
+  cacheFile = join(cacheHome(), "developer-agreement.json"), maxAgeMs = UPDATE_CHECK_MAX_AGE_MS, timeoutMs = 10_000, now = Date.now(),
+  fetchPage = async (): Promise<string> => {
+    const response = await fetch(SDK_PAGE, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.text();
+  },
+}: { cacheFile?: string; maxAgeMs?: number; timeoutMs?: number; now?: number; fetchPage?: () => Promise<string> } = {}): Promise<Agreement | null> {
+  try {
+    if (existsSync(cacheFile) && now - statSync(cacheFile).mtimeMs < maxAgeMs) return JSON.parse(readFileSync(cacheFile, "utf8")) as Agreement;
+  } catch {
+    // refetched below
+  }
+  try {
+    const agreement = agreementFromPage(await fetchPage());
+    if (agreement === null) return null;
+    mkdirSync(dirname(cacheFile), { recursive: true });
+    writeFileSync(cacheFile, JSON.stringify(agreement));
+    return agreement;
+  } catch {
+    return null;
+  }
 }

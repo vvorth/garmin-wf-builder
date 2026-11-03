@@ -14,8 +14,9 @@
 # from the SDK's pages into the cache (and not again when the cache is kept),
 # the slice fixture generates a project and renders a preview, a missing /sdk
 # is refused with the mount hint unless WFB_ACCEPT_LICENSE=1 lets the image
-# download one (into /cache here), and the default command serves the editor
-# to a request addressed by any host name. `monkeyc` does not know `wfbtest`,
+# download one (into /cache here), the editor starts with no SDK and says so
+# over its API, and the default command serves the editor to a request
+# addressed by any host name. `monkeyc` does not know `wfbtest`,
 # so a compiled .prg needs real devices and is not tested here.
 set -euo pipefail
 
@@ -124,6 +125,18 @@ if docker run --rm -v "$cache:/sdk" "$image" init --download-sdk 2>"$work/gate.t
     exit 1
 fi
 grep -q 'accept-license' "$work/gate.txt"
+
+# The editor starts with no SDK at all: its page's dialog installs one, so the server only reports that none is there.
+bare=$(docker run -d -p 127.0.0.1::8765 -v "$fixtures/devices:/devices:ro" -e WFB_NO_GARMIN_FONTS=1 -e WFB_NO_UPDATE_CHECK=1 "$image")
+bare_port=$(docker port "$bare" 8765/tcp | head -1 | sed 's/.*://')
+for _ in $(seq 1 30); do
+    curl -fsS -o /dev/null "http://127.0.0.1:$bare_port/api/sdk" && break
+    sleep 1
+done
+curl -fsS "http://127.0.0.1:$bare_port/api/sdk" | grep -q '"sdk":null'
+curl -fsS "http://127.0.0.1:$bare_port/api/sdk" | grep -q '"canDownload":true'
+curl -fsS "http://127.0.0.1:$bare_port/api/doctor" | grep -q '"verdict":'
+docker rm -f "$bare" >/dev/null
 
 # No arguments: the editor, on every address and answering any name.
 studio=$(docker run -d -p 127.0.0.1::8765 \

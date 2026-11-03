@@ -212,8 +212,9 @@ function standIn(face: { summary: any; vocabulary: any; home: any; devices?: any
  * The whole page loaded at `route` over a stand-in worker, then `body` run
  * (every request the page makes is in `requests`): what it printed.
  */
-export async function page(face: { summary: any; vocabulary: any; home: any; devices?: any[] }, route: string, body: string): Promise<any[]> {
+export async function page(face: { summary: any; vocabulary: any; home: any; devices?: any[] }, route: string, body: string, prelude = ""): Promise<any[]> {
   return printed(`${standIn(face, route)}
+      ${prelude}
       await import(${JSON.stringify(appUri("main.ts"))});
       await settle(); await settle();
       const cls = (e) => e.attributes.class || "";

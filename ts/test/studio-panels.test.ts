@@ -852,6 +852,28 @@ test("the server bundles the page as /dist/app.js: one module rendering into #ap
   }
 });
 
+test("the server reports the SDK, the doctor's findings, and the agreement a download needs", async () => {
+  const server = await start({ host: "127.0.0.1", port: 0, db, fontsDir: null });
+  const url = (path: string): string => `http://127.0.0.1:${server.port}${path}`;
+  try {
+    const sdk = await (await fetch(url("/api/sdk"))).json() as { sdk: unknown; canDownload: boolean; manager: { downloads: Record<string, string>; page: string } };
+    assert.ok("sdk" in sdk && typeof sdk.canDownload === "boolean");
+    assert.match(sdk.manager.downloads["linux"] ?? "", /connectiq-sdk-manager-linux\.zip$/);
+    assert.match(sdk.manager.page, /developer\.garmin\.com/);
+    const doctor = await (await fetch(url("/api/doctor"))).json() as { verdict: string; devices: { ids: string[] }; garminFonts: { files: string[] } };
+    assert.ok(["ready", "partial", "not ready"].includes(doctor.verdict));
+    assert.ok(doctor.devices.ids.length > 0);
+    assert.ok(Array.isArray(doctor.garminFonts.files));
+    // A download without the agreement accepted is refused, and nothing starts.
+    const refused = await fetch(url("/api/sdk/download"), { method: "POST", headers: { "Content-Type": "application/json", Origin: `http://127.0.0.1:${server.port}` }, body: "{}" });
+    assert.equal(refused.status, 400);
+    const after = await (await fetch(url("/api/sdk"))).json() as { download: unknown };
+    assert.equal(after.download, null);
+  } finally {
+    await server.close();
+  }
+});
+
 test("the server sends the app, the device digest, a device's extras, and refuses a second build", async () => {
   const server = await start({ host: "127.0.0.1", port: 0, db, fontsDir: null });
   const url = (path: string): string => `http://127.0.0.1:${server.port}${path}`;

@@ -21,7 +21,15 @@
 //   read-only, for the Help popup;
 // - `POST /api/build?device=&stem=`: a face's bundle in, built with
 //   `monkeyc`, its log and memory out; `GET /api/builds/<id>` its `.prg`,
-//   for the newest builds.
+//   for the newest builds;
+// - `GET /api/sdk`: the SDK found (or none), whether Garmin lists a newer
+//   one (`?refresh=1` asks Garmin again), a download under way, and where
+//   the SDK Manager's downloads are; `GET /api/sdk/agreement`: Garmin's
+//   Connect IQ Developer Agreement as its SDK page carries it; `POST
+//   /api/sdk/download` (`{accept: true, version?}`): fetch the newest
+//   Linux SDK (or `version`) into the folder `wfb init --download-sdk`
+//   uses, the devices read again with the reference it gives, once it is in;
+// - `GET /api/doctor`: `wfb doctor` as data.
 //
 // Every path the page and its workers ask for is relative, so the editor
 // also works behind a proxy serving it under a sub-path (which strips it).
@@ -43,11 +51,13 @@ import { type FontFile, type FontFiles, locate } from "../fonts/files.ts";
 import { NodeFontFiles } from "../fonts/node.ts";
 import { ICON_FONT, SCHEMA } from "../node.ts";
 import { prgName } from "../build.ts";
+import { doctorReport } from "../doctor.ts";
+import { checkForNewerSdk, detectHost, downloadSdk, fetchAgreement, HOST_NAMES, SDK_MANAGER_DOWNLOADS, SDK_MANAGER_FOLDERS, SDK_PAGE, sdkDownloadFolder } from "../init.ts";
 import { build as runBuild, Toolchain } from "../node_build.ts";
 import { formatFixed } from "../py.ts";
 import { MAX_UPLOAD_BYTES } from "./bundle.ts";
 import { devices as listDevices } from "./inspect.ts";
-import type { BuildResult } from "./protocol.ts";
+import type { BuildResult, SdkDownload, SdkStatus } from "./protocol.ts";
 
 const TS = join(REPO_ROOT, "ts");
 const APP = join(TS, "app");
@@ -235,7 +245,50 @@ interface Options {
   allowAnyHost?: boolean;
   port: number;
   db: DeviceDatabase;
+  /** The devices read again, once an SDK installed from the editor gives them their reference. */
+  reopenDb?: () => DeviceDatabase;
+  devicesDir?: string | null;
   fontsDir: string | null;
+}
+
+/** Garmin's newest SDK fetched in the background; one at a time. */
+class SdkInstaller {
+  state: SdkDownload | null = null;
+  installed = false;
+  private readonly folder: string;
+  private readonly onInstalled: () => void;
+  constructor(folder: string, onInstalled: () => void) {
+    this.folder = folder;
+    this.onInstalled = onInstalled;
+  }
+
+  get busy(): boolean {
+    return this.state !== null && (this.state.phase === "downloading" || this.state.phase === "unpacking");
+  }
+
+  /** Begin, unless one is under way. */
+  start(version?: string): boolean {
+    if (this.busy) return false;
+    const state: SdkDownload = { phase: "downloading", received: 0, total: null, version: version ?? null, message: "" };
+    this.state = state;
+    downloadSdk(this.folder, {
+      version,
+      log: (line) => { state.message = line; console.log(`wfb: ${line}`); },
+      progress: (received, total) => { state.received = received; state.total = total; },
+      unpacking: () => { state.phase = "unpacking"; },
+    }).then((sdk) => {
+      state.phase = "done";
+      state.version = sdk.version;
+      state.message = `installed SDK ${sdk.version} at ${sdk.root}`;
+      this.installed = true;
+      this.onInstalled();
+    }, (error: unknown) => {
+      state.phase = "failed";
+      state.message = (error as Error).message;
+      console.error(`wfb: the SDK download failed: ${state.message}`);
+    });
+    return true;
+  }
 }
 
 /** Run the server until Ctrl-C. */
@@ -262,10 +315,42 @@ export async function serve(options: Options): Promise<void> {
 }
 
 /** The server listening (`port` 0: any free port); `close` stops it and removes its builds. */
-export async function start({ host, allowHosts = [], allowAnyHost = false, port, db, fontsDir }: Options): Promise<{ port: number; close: () => Promise<void> }> {
+export async function start({ host, allowHosts = [], allowAnyHost = false, port, db: initialDb, reopenDb, devicesDir = null, fontsDir }: Options): Promise<{ port: number; close: () => Promise<void> }> {
+  let db = initialDb;
   const fonts = new NodeFontFiles(fontsDir);
   let digested: Buffer | null = null;
   const extrasCache = new Map<string, Buffer>();
+  const inContainer = process.env["WFB_CONTAINER"] === "1";
+  const hostOs = detectHost(inContainer);
+  // The container is Linux whatever runs it, and the Linux SDK is what Garmin lets a script fetch.
+  const canDownload = inContainer || hostOs === "linux";
+  const installer = new SdkInstaller(sdkDownloadFolder(inContainer), () => {
+    // The SDK gives the devices their reference: read them again, and send fresh digests.
+    if (reopenDb === undefined) return;
+    try {
+      db = reopenDb();
+      digested = null;
+      extrasCache.clear();
+    } catch (error) {
+      console.error(`wfb: the devices could not be read again: ${(error as Error).message}`);
+    }
+  });
+  const sdkStatus = async (refresh: boolean): Promise<SdkStatus> => {
+    const toolchain = Toolchain.discover();
+    const newer = toolchain === null ? null : await checkForNewerSdk(toolchain.version, refresh ? { maxAgeMs: 0 } : {});
+    return {
+      sdk: toolchain === null ? null : { version: toolchain.version, install: toolchain.install, copied: toolchain.copied },
+      newer: newer === null ? null : { version: newer.version },
+      download: installer.state, canDownload, downloadFolder: sdkDownloadFolder(inContainer), inContainer,
+      manager: { downloads: SDK_MANAGER_DOWNLOADS, folders: SDK_MANAGER_FOLDERS, names: HOST_NAMES, page: SDK_PAGE },
+      reloadNeeded: installer.installed,
+    };
+  };
+  // WFB_ACCEPT_LICENSE=1 is the user's acceptance given up front: with no SDK, fetch one as the server starts.
+  if (process.env["WFB_ACCEPT_LICENSE"] === "1" && canDownload && Toolchain.discover() === null) {
+    console.log("wfb: no Connect IQ SDK found; WFB_ACCEPT_LICENSE=1, so downloading the newest from Garmin");
+    installer.start();
+  }
   const builds = new Map<string, Built>();
   const names = allowAnyHost ? null : hostNames(host, allowHosts);
   let building = false;
@@ -349,6 +434,21 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
         return HELP.test(relative) ? sendFile(response, REPO_ROOT, relative) : sendJson(response, 404, { error: "not found" });
       }
       if (path === "/api/schema") return send(response, 200, readFileSync(SCHEMA), "application/schema+json");
+      if (path === "/api/sdk") return sendJson(response, 200, await sdkStatus(url.searchParams.get("refresh") === "1"));
+      if (path === "/api/sdk/agreement") {
+        const agreement = await fetchAgreement();
+        return agreement === null
+          ? sendJson(response, 404, { error: `the agreement could not be read from Garmin's page; it is at ${SDK_PAGE}`, url: SDK_PAGE })
+          : sendJson(response, 200, agreement);
+      }
+      if (path === "/api/sdk/download" && request.method === "POST") {
+        const body = JSON.parse(Buffer.from(await readBody(request)).toString("utf8") || "{}") as { accept?: unknown; version?: unknown };
+        if (body.accept !== true) return sendJson(response, 400, { error: "the download needs Garmin's Connect IQ Developer Agreement accepted (accept: true)" });
+        if (!canDownload) return sendJson(response, 403, { error: `the Linux SDK is what can be fetched here; on ${hostOs === "unknown" ? "this computer" : HOST_NAMES[hostOs]} the SDK Manager installs the SDK` });
+        if (!installer.start(typeof body.version === "string" ? body.version : undefined)) return sendJson(response, 409, { error: "an SDK download is already under way" });
+        return sendJson(response, 202, { started: true });
+      }
+      if (path === "/api/doctor") return sendJson(response, 200, await doctorReport({ devicesDir, fontsDir }));
       if (path === "/api/icon-font") {
         if (!existsSync(ICON_FONT)) return sendJson(response, 404, { error: "the icon font is not installed: run ./tools/setup-env.sh" });
         return send(response, 200, readFileSync(ICON_FONT), "font/ttf", { "Cache-Control": "private, max-age=86400" });

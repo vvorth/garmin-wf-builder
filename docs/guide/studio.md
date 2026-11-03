@@ -854,6 +854,38 @@ A face that does not load is not built: mend its errors first. One build
 runs at a time. The build signs with the same developer key `wfb build`
 does; in the container, mount `/keys` for it.
 
+## Doctor, and the SDK
+
+**Doctor** (in the top bar, and beside the title on the faces page) runs
+`wfb doctor` on the computer the editor runs on and shows every check: the
+Connect IQ SDK and where it is, the device definitions with the list of
+watches behind the count, Garmin's own font files with the list of files
+behind theirs, the registry's stand-ins, the icon font, the device
+reference and the developer key, with the fix for anything missing. **Check
+again** runs the checks once more and asks Garmin for its newest SDK;
+**SDK Manager downloads…** lists the SDK Manager's download for each
+operating system, where it keeps its files, and Garmin's SDK page.
+
+**The SDK.** The editor opens without one, but **Build** needs Garmin's
+compiler, which the SDK holds. So on every load that finds no SDK, a dialog
+says so. On a Linux computer, and in the container, it offers to download
+the newest SDK from Garmin there and then: it shows Garmin's Connect IQ
+Developer Agreement, which the download accepts, as its SDK page carries
+it (or links the page, when the page could not be read); once you tick
+that you accept it, **Download and install** fetches the SDK (about 200 MB,
+with its progress shown) into the SDK Manager's own folder on a Linux
+computer or the folder mounted at `/sdk` in the container (or `/cache`,
+when `/sdk` cannot be written), and **Reload** then opens the editor with
+what the SDK knows about each watch. **Later** closes the dialog for this
+load. On macOS and Windows the SDK Manager installs the SDK, and the
+dialog shows its links instead. Doctor's **Install SDK x.y.z…** installs a
+newer release the same way, when Garmin lists one; the editor finds the
+newest installed.
+
+The device definitions have no such download: only the SDK Manager,
+signed in to a Garmin account, provides them ([getting
+started](getting-started.md)).
+
 ## History
 
 Every change is recorded as you make it, so closing the tab or stopping

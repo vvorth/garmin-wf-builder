@@ -75,19 +75,37 @@ the container says so and points here rather than failing deep inside a
 build, and `docker run --rm garmin-wf-builder init` prints every step.
 
 **No SDK Manager on the Docker host?** The SDK itself downloads without a
-sign-in, and the container can fetch it: mount the folder it should land
-in read-write for that one run, and accept Garmin's agreement as the
-download button on its page would:
+sign-in, and the image fetches Garmin's newest once you say so, since
+downloading it accepts Garmin's agreement as the download button on its
+page would. **The editor** starts without an SDK and, on every load that
+finds none, shows a dialog with the agreement to read and accept and a
+**Download and install** button; a reload then shows what the SDK knows
+about the watches (`docs/guide/studio.md`, "Doctor, and the SDK"). A
+command that compiles (`build`, `export`) asks at the terminal (`docker run
+-it ...`), or downloads at once with `-e WFB_ACCEPT_LICENSE=1`, which also
+has the editor fetch the SDK as it starts; Compose users set it once. It
+lands in the folder mounted at `/sdk` when that is writable, else in
+`/cache` (so a cache volume keeps it), as
+`connectiq-sdk-lin-<version>-<date>-<hash>/`, the layout the SDK Manager
+uses, so a later SDK Manager install sees it too, and every later run finds
+it there. The same download by hand, into a folder of your choosing:
 
 ```sh
 mkdir -p "$HOME/.Garmin/ConnectIQ/Sdks"
 docker run --rm -v "$HOME/.Garmin/ConnectIQ/Sdks:/sdk" garmin-wf-builder init --download-sdk --accept-license
 ```
 
-It lands as `connectiq-sdk-lin-<version>-<date>-<hash>/`, the layout the
-SDK Manager uses, so a later SDK Manager install sees it too. Then mount
-the folder read-only as above. The device definitions have no such
-download: only the SDK Manager, signed in, provides them.
+The device definitions have no such download: only the SDK Manager,
+signed in, provides them.
+
+**A newer SDK.** The commands that compile, and `init` and `doctor`, print
+one line on stderr when Garmin lists a newer SDK than the one found, and
+the editor's Doctor names it with an **Install SDK x.y.z…** button. The
+release list is fetched at most once a day (the copy sits in `/cache`),
+with a short timeout, and nothing is said offline; `-e
+WFB_NO_UPDATE_CHECK=1` turns the check off. To take the newer one, download
+it in the SDK Manager, install it from Doctor, or run once with
+`WFB_ACCEPT_LICENSE=1` and the old SDK not mounted.
 
 The image cannot contain them, for two independent reasons.
 
@@ -224,7 +242,7 @@ What each command needs mounted:
 | `validate` | ✔ | | ✔ | | |
 | `devices`, `sources` | | | ✔ | | |
 | `init`, `doctor` | | optional (`init --download-sdk` writes into it) | optional | optional | |
-| `studio` | | ✔ (for Build) | ✔ | optional | ✔ (for Build) |
+| `studio` | | for Build (or its dialog installs one) | ✔ | optional | ✔ (for Build) |
 
 `/cache` is optional everywhere. `preview` and `validate` need no SDK to
 run, but with none mounted the device reference cannot be extracted either,
@@ -248,7 +266,9 @@ Then open `http://127.0.0.1:8765/` in a browser on the host. The faces and
 their history are kept in that browser ([where the faces
 are](guide/studio.md#where-the-faces-are)), and go in by upload and come out
 by download, so the editor needs no `/work` mount. Its Build signs with the
-key at `/keys`, as `build` does.
+key at `/keys`, as `build` does. It starts with no `/sdk` mounted: its
+dialog then installs the SDK from Garmin into `/sdk` or `/cache`, and its
+**Doctor** shows what the container has (the SDK, the watches, the fonts).
 
 Inside the container the server cannot know the address or the name it is
 reached by: the host, a reverse proxy or an orchestrator decides both. So the
@@ -447,8 +467,9 @@ is the runner's own download and is never published), mounts it read-only
 at `/sdk` and the fixture device `wfbtest` at `/devices`, and checks that
 the toolchain starts, `wfb` compiles from a copy of the read-only SDK,
 extracts the device reference into the cache once, generates and previews a
-face, refuses a build with no `/sdk` with the mount hint, and serves the
-editor. It compiles nothing.
+face, refuses a build with no `/sdk` and no `WFB_ACCEPT_LICENSE` with the
+mount hint, downloads the SDK into `/cache` with it, starts the editor with
+no SDK at all, and serves the editor. It compiles nothing.
 
 To build for real in CI, the device definitions have to reach the runner
 somehow — a private artefact store or a self-hosted runner that has them. They

@@ -90,6 +90,7 @@ jobs:
             test/page-face.test.ts
             test/page-layers.test.ts
             test/page-modules.test.ts
+            test/page-sdk.test.ts
             test/page-store.test.ts
             test/palette.test.ts
             test/prg-name.test.ts

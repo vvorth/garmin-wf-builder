@@ -61,7 +61,6 @@ fi
 # ------------------------------------------------------ what this needs -----
 needs_devices=0
 needs_sdk=0
-wants_sdk=0
 needs_key=0
 wants_fonts=0
 case "${1:-}" in
@@ -86,8 +85,9 @@ case "${1:-}" in
     studio)
         needs_devices=1
         wants_fonts=1
-        # the editor's Build runs `wfb build`, which compiles with the SDK and signs with this key
-        wants_sdk=1
+        # The editor starts without an SDK: its own dialog says so and installs
+        # one (the server downloads it once the agreement is accepted there, or
+        # at start with WFB_ACCEPT_LICENSE=1). Its Build signs with this key.
         needs_key=1
         # Inside the container the server must listen beyond its own
         # loopback for a published port to reach it, and it is reached by
@@ -181,10 +181,10 @@ download_sdk() {
     fi
     wfb init --download-sdk --accept-license >&2
 }
-if { [ "${needs_sdk}" = "1" ] || [ "${wants_sdk}" = "1" ]; } && ! has_sdk; then
+if [ "${needs_sdk}" = "1" ] && ! has_sdk; then
     if download_sdk; then
         :
-    elif [ "${needs_sdk}" = "1" ]; then
+    else
         cat >&2 <<EOF
 wfb: no Connect IQ SDK at ${CIQ_SDK}.
 
@@ -205,8 +205,6 @@ $(mounts "$1")
 See docs/container.md.
 EOF
         exit 2
-    else
-        echo "wfb: no Connect IQ SDK at ${CIQ_SDK}: the editor's Build needs one (mount the SDK Manager's Sdks folder, or run with -e WFB_ACCEPT_LICENSE=1 to download it)" >&2
     fi
 fi
 
