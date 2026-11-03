@@ -73,27 +73,47 @@ run_extracting() {
         "$image" "$@"
 }
 
+# `expect PATTERN cmd...`: the command's output (both streams) kept whole and
+# shown, then searched. Never `cmd | grep -q`: grep stops at the first match,
+# the writer gets a broken pipe, and pipefail fails the line.
+expect() {
+    local pattern=$1
+    shift
+    "$@" >"$work/out.txt" 2>&1 || true
+    cat "$work/out.txt" >&2
+    grep -q -- "$pattern" "$work/out.txt"
+}
+# The same for a command that must succeed as well.
+expect_ok() {
+    local pattern=$1
+    shift
+    "$@" >"$work/out.txt" 2>&1
+    cat "$work/out.txt" >&2
+    grep -q -- "$pattern" "$work/out.txt"
+}
+
 set -x
 run --version
 run java -version
-run init | tee /dev/stderr | grep -q '^ready'
-run doctor | tee /dev/stderr | grep -q 'read-only, so the compiler runs from a copy'
-run doctor | grep -q '^ready'
+expect_ok '^ready' run init
+expect_ok 'read-only, so the compiler runs from a copy' run doctor
+expect_ok '^ready' run doctor
 run build --no-compile face.yaml
 test -f "$work/build/slice/manifest.xml"
 run preview face.yaml -o build/preview
 test -s "$work/build/preview/wfbtest.png"
 
 # The device reference: extracted from the mounted SDK's pages the first time, kept in /cache after.
-run_extracting devices 2>&1 | tee /dev/stderr | grep -q 'extracting the device reference from SDK'
+expect_ok 'extracting the device reference from SDK' run_extracting devices
 test -d "$cache/wfb/device-reference/devices"
 test -n "$(ls "$cache/wfb/device-reference/devices")"
-if run_extracting devices 2>&1 | grep -q 'extracting the device reference'; then
+run_extracting devices >"$work/out.txt" 2>&1
+if grep -q 'extracting the device reference' "$work/out.txt"; then
     echo "the cached device reference was extracted again" >&2
     exit 1
 fi
 # The compiler's copy sits in the same cache, made by the first command that compiles (doctor discovers the toolchain).
-run_extracting doctor | grep -q 'runs from a copy at /cache/wfb/sdk/'
+expect_ok 'runs from a copy at /cache/wfb/sdk/' run_extracting doctor
 test -f "$cache"/wfb/sdk/*/bin/monkeybrains.jar
 
 # No SDK mounted and no say-so: a build is refused with the mount and the switch, not a stack trace.
@@ -111,8 +131,8 @@ grep -q 'WFB_ACCEPT_LICENSE=1, so downloading' "$work/auto.txt"
 grep -q '^installed SDK' "$work/auto.txt"
 test -f "$cache"/wfb/sdks/connectiq-sdk-lin-*/bin/monkeybrains.jar
 # and finds it there on the next run, without the mount.
-docker run --rm -v "$cache:/cache" -v "$fixtures/devices:/devices:ro" -v "$fixtures/devices/reference:/reference:ro" \
-    -e WFB_DEVICE_REFERENCE=/reference -e WFB_NO_GARMIN_FONTS=1 "$image" doctor | grep -q 'Connect IQ SDK   9.*/cache/wfb/sdks/'
+expect_ok 'Connect IQ SDK   9.*/cache/wfb/sdks/' docker run --rm -v "$cache:/cache" -v "$fixtures/devices:/devices:ro" -v "$fixtures/devices/reference:/reference:ro" \
+    -e WFB_DEVICE_REFERENCE=/reference -e WFB_NO_GARMIN_FONTS=1 "$image" doctor
 
 # `init` in the container names the host's steps and the mounts (and exits 1: nothing is mounted).
 init_out=$(docker run --rm "$image" init || true)
@@ -133,9 +153,11 @@ for _ in $(seq 1 30); do
     curl -fsS -o /dev/null "http://127.0.0.1:$bare_port/api/sdk" && break
     sleep 1
 done
-curl -fsS "http://127.0.0.1:$bare_port/api/sdk" | grep -q '"sdk":null'
-curl -fsS "http://127.0.0.1:$bare_port/api/sdk" | grep -q '"canDownload":true'
-curl -fsS "http://127.0.0.1:$bare_port/api/doctor" | grep -q '"verdict":'
+curl -fsS "http://127.0.0.1:$bare_port/api/sdk" >"$work/sdk.json"
+grep -q '"sdk":null' "$work/sdk.json"
+grep -q '"canDownload":true' "$work/sdk.json"
+curl -fsS "http://127.0.0.1:$bare_port/api/doctor" >"$work/doctor.json"
+grep -q '"verdict":' "$work/doctor.json"
 docker rm -f "$bare" >/dev/null
 
 # No arguments: the editor, on every address and answering any name.
@@ -152,4 +174,5 @@ for _ in $(seq 1 30); do
     sleep 1
 done
 curl -fsS -o /dev/null -H 'Host: studio.example' "http://127.0.0.1:$port/"
-docker logs "$studio" 2>&1 | grep -q 'wfb studio on'
+docker logs "$studio" >"$work/studio.txt" 2>&1
+grep -q 'wfb studio on' "$work/studio.txt"
