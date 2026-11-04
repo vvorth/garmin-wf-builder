@@ -2759,11 +2759,6 @@
   "activity.sleep_score": "complication.sleep_score",
   "device.next_calendar_event": "complication.calendar_events"
  },
- "weather_condition_sources": [
-  "weather.condition",
-  "weather.condition_today",
-  "weather.condition_tomorrow"
- ],
  "watchface_permissions": [
   "Background",
   "Communications",

@@ -115,8 +115,8 @@ export function emitIconGlyphs(face: Face, viaChar: ReadonlySet<string> = new Se
     + "spelling) -> drawn glyph, for a dynamic (`icon: {for:}`) icon.\n"
     + "\n"
     + "Generated directly from the icon catalogue (ts/src/data/icons.json) (plus any per-choice\n"
-    + "override) -- see ts/src/icons.ts for why this table,\n"
-    + "rather than WfbWeather.mc, is where a name becomes a character.");
+    + "override) -- see ts/src/icons.ts for why this table is where a name\n"
+    + "becomes a character.");
   w.block("module IconGlyphs", () => {
     w.block("function glyph(name as String) as String", () => {
       w.block("switch (name)", () => {
@@ -132,58 +132,82 @@ export function emitIconGlyphs(face: Face, viaChar: ReadonlySet<string> = new Se
         w.line(`default: return "${icons.FALLBACK_CODEPOINT}";`);
       });
     });
-    for (const name of iconLevels(face)) emitLevelFunction(w, icons.LEVEL_ICONS.get(name)!);
-    for (const name of iconCounts(face)) emitCountFunction(w, icons.COUNT_ICONS.get(name)!);
+    for (const name of iconRules(face)) emitRuleFunction(w, icons.RULES.get(name)!);
   });
   return { path: "source/IconGlyphs.mc", text: w.render() };
 }
 
 /**
- * `<name>Level(value)`: a 0-100 reading to the catalogue name of its step, the
- * plain icon without one. Each name is a literal, never built from the band:
- * `IconGlyphs.glyph` switches on it, and the SDK does not say whether a
- * `switch` compares strings by value.
+ * `<name>Icon(value)`: a reading to the catalogue name of the glyph `rule`
+ * draws for it, the plain icon without one. Each name is a literal, never
+ * built from the band: `IconGlyphs.glyph` switches on it, and the SDK does
+ * not say whether a `switch` compares strings by value.
  */
-function emitLevelFunction(w: Writer, level: icons.LevelIcon): void {
-  const bands = level.steps.length;
+function emitRuleFunction(w: Writer, rule: icons.IconRule): void {
+  const signature = `function ${icons.ruleFunction(rule)}(value as Lang.Numeric or Null) as String`;
   w.blank();
-  w.doc(`The '${level.name}' icon for a 0-100 reading: ${bands} equal bands, the\n`
-    + `reading truncated to one ('${level.steps[0]}' below 100/${bands}, 100 the top),\n`
-    + `and '${level.plain}' without a reading.`);
-  w.block(`function ${icons.levelFunction(level)}(value as Lang.Numeric or Null) as String`, () => {
-    w.block("if (value == null)", () => w.line(`return "${level.plain}";`));
-    w.line(`var band = (value * ${bands} / 100).toNumber();`);
-    w.block("if (band <= 0)", () => w.line(`return "${level.steps[0]}";`));
+  if (rule.kind === "table") {
+    w.doc(`The '${rule.name}' icon for a reading: each value the table names to its\n`
+      + `icon, and '${rule.plain}' for any other value or without a reading.`);
+    w.block(signature, () => {
+      w.block("if (value == null)", () => w.line(`return "${rule.plain}";`));
+      w.block("switch (value)", () => {
+        for (const [value, name] of [...rule.map].sort(([a], [b]) => a - b)) w.line(`case ${value}: return "${name}";`);
+        w.line(`default: return "${rule.plain}";`);
+      });
+    });
+    return;
+  }
+  if (rule.thresholds !== null) {
+    const bands = thresholdBands(rule);
+    const last = rule.steps[rule.steps.length - 1]!;
+    const said = bands.map(({ said, name }) => `'${name}' ${said}`).join(", ");
+    w.doc(`The '${rule.name}' icon for a count: ${said}, and '${last}'\n`
+      + (last === rule.plain ? "for any other count or without a reading." : `for any other count, and '${rule.plain}' without a reading.`));
+    w.block(signature, () => {
+      for (const { test, name } of bands) w.block(`if (value instanceof Lang.Number && ${test})`, () => w.line(`return "${name}";`));
+      if (last !== rule.plain) w.block("if (value instanceof Lang.Number)", () => w.line(`return "${last}";`));
+      w.line(`return "${rule.plain}";`);
+    });
+    return;
+  }
+  const bands = rule.steps.length;
+  const [lo, hi] = rule.range!;
+  const span = String(hi - lo);
+  const offset = lo === 0 ? "value" : `(value - ${String(lo)})`;
+  // The band maths takes `cyclic` (icons.levelBand); no rule in the table uses it yet, so no chooser is written for it.
+  if (rule.cyclic) throw new Error(`${rule.name}: no IconGlyphs chooser for a cyclic range`);
+  const first = lo === 0 ? `${span}/${bands}` : `${String(lo)}+${span}/${bands}`;
+  w.doc(`The '${rule.name}' icon for a ${String(lo)}-${String(hi)} reading: ${bands} equal bands, the\n`
+    + `reading truncated to one ('${rule.steps[0]}' below ${first}, ${String(hi)} the top),\n`
+    + `and '${rule.plain}' without a reading.`);
+  w.block(signature, () => {
+    w.block("if (value == null)", () => w.line(`return "${rule.plain}";`));
+    w.line(`var band = (${offset} * ${bands} / ${span}).toNumber();`);
+    w.block("if (band <= 0)", () => w.line(`return "${rule.steps[0]}";`));
     w.block("switch (band)", () => {
-      level.steps.slice(1, -1).forEach((name, i) => w.line(`case ${i + 1}: return "${name}";`));
-      w.line(`default: return "${level.steps[bands - 1]}";`);
+      rule.steps.slice(1, -1).forEach((name, i) => w.line(`case ${i + 1}: return "${name}";`));
+      w.line(`default: return "${rule.steps[bands - 1]}";`);
     });
   });
 }
 
-/** Every level icon whose step the watch chooses in this design. */
-export function iconLevels(face: Face): string[] {
-  const names = new Set<string>();
-  for (const [, run] of kinds.faceTextRuns(face)) for (const name of run.levels) names.add(name);
-  return [...names].sort();
+/**
+ * A thresholds rule's bands below its last, in order: the comparison a
+ * Number reading passes in each (after failing the ones before), how the
+ * band reads, and the name it draws. A band one value wide is that value.
+ */
+export function thresholdBands(rule: icons.IconRule): { test: string; said: string; name: string }[] {
+  return icons.thresholdRanges(rule).map((band) => ({
+    test: band.upper - band.lower === 1 ? `value == ${band.lower}` : `value < ${band.upper}`, said: icons.thresholdSaid(band), name: band.name,
+  }));
 }
 
-/** `<name>Count(value)`: a count to the catalogue name of its icon, the empty one at exactly 0. */
-function emitCountFunction(w: Writer, count: icons.CountIcon): void {
-  w.blank();
-  w.doc(`The '${count.name}' icon for a count: '${count.zero}' at 0, and '${count.plain}'\n`
-    + "for any other count or without a reading.");
-  w.block(`function ${icons.countFunction(count)}(value as Lang.Numeric or Null) as String`, () => {
-    w.block("if (value instanceof Lang.Number && value == 0)", () => w.line(`return "${count.zero}";`));
-    w.line(`return "${count.plain}";`);
-  });
-}
-
-/** Every count icon whose glyph the watch chooses in this design. */
-export function iconCounts(face: Face): string[] {
+/** Every icon rule whose chooser the watch calls in this design, in the rule table's order. */
+export function iconRules(face: Face): string[] {
   const names = new Set<string>();
-  for (const [, run] of kinds.faceTextRuns(face)) for (const name of run.counts) names.add(name);
-  return [...names].sort();
+  for (const [, run] of kinds.faceTextRuns(face)) for (const name of run.rules) names.add(name);
+  return [...icons.RULES.keys()].filter((name) => names.has(name));
 }
 
 /** Python's `sorted()` of strings. */

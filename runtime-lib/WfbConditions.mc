@@ -4,8 +4,8 @@ import Toybox.Weather;
 //! The weather condition a slot's temperature icon follows. A temperature
 //! complication's value carries no condition, so the icon reads one beside
 //! it: the current temperature the current condition, today's high and low
-//! today's overall forecast. Kept out of WfbWeather.mc so a face that only
-//! maps conditions to icons does not carry these readers.
+//! today's overall forecast. A face carries this module only when a slot's
+//! icon reads a condition beside its own reading.
 //!
 //! Each read sits inside `Toybox has :Weather`, not after an early return on
 //! its negation: SDK 9.3.0's monkeyc only accepts a symbol newer than a
@@ -31,7 +31,9 @@ module WfbConditions {
     }
 
     //! `condition`'s icon name, or `fallback` when there is no condition.
+    //! `IconGlyphs.weatherIcon` is generated per project from the weather icon
+    //! rule (ts/src/data/icons.json), alongside any face that calls this.
     function iconOr(condition as Number?, fallback as String) as String {
-        return (condition != null) ? WfbWeather.chooseIcon(condition) : fallback;
+        return (condition != null) ? IconGlyphs.weatherIcon(condition) : fallback;
     }
 }

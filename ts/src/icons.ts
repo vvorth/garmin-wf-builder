@@ -1,7 +1,7 @@
-// Icons: the catalogue's names, codepoint spellings, and the weather and
-// complication icon tables. Baking
-// and measuring a glyph come with the font stage. The tables are
-// `data/icons.json`, exported by tools/export_tables.py.
+// Icons: the catalogue's names, codepoint spellings, the icon rules (an
+// icon that follows a reading) and the complication icon table. Baking and
+// measuring a glyph come with the font stage. The tables are
+// `data/icons.json`.
 //
 // Whether the icon font has a codepoint is read from its character map,
 // handed in as a set (`setIconFontGlyphs`): Node reads the installed font,
@@ -80,8 +80,6 @@ export function resolveCodepoint(name: string): string | null {
 }
 
 const UNIT_WORD: Readonly<Record<string, string>> = { "%r": "pctr", "%": "pct", px: "px", pt: "pt" };
-
-export const DYNAMIC_WEATHER_TAG = "weather";
 
 /** `degrees` as a turn in [0, 360): what a font key and a bake are told. */
 export function normalTurn(degrees: number): number {
@@ -230,98 +228,130 @@ export function fontKey(length: Length | null, glyphKey: string, antialias = fal
   return `icon_${unitValue}_${glyphId}${turnId}${antialias ? "_aa" : ""}`;
 }
 
-/** `Weather.CONDITION_*` to the catalogue name its glyph comes from. */
-export const GARMIN_WEATHER_CONDITION_ICON: ReadonlyMap<number, string> =
-  new Map(Object.entries(data.garmin_weather_condition_icon).map(([k, v]) => [Number(k), v]));
-
-/** Every weather glyph, sorted by code point. */
-export const WEATHER_GLYPH_SET: string = [...new Set([...GARMIN_WEATHER_CONDITION_ICON.values()].map((n) => CATALOG.get(n)!.codepoint))]
-  .sort((a, b) => a.codePointAt(0)! - b.codePointAt(0)!).join("");
-
-/** The catalogue name `WfbWeather.chooseIcon` returns for `condition`, or `weather_unknown`. */
-export function chooseWeatherIcon(condition: unknown): string {
-  if (typeof condition !== "number") return "weather_unknown";
-  return GARMIN_WEATHER_CONDITION_ICON.get(Math.trunc(condition)) ?? "weather_unknown";
-}
-
 export const WEATHER_BAKE_REFERENCE_GLYPH: string = CATALOG.get("weather_rainy")!.codepoint;
 
 /** Each complication type with a catalogue icon of its own. */
 export const COMPLICATION_ICON: ReadonlyMap<string, string> = new Map(Object.entries(data.complication_icon));
 
 /**
- * An icon that fills with a 0-100 reading: `steps[i]` stands for the i-th of
- * `steps.length` equal bands, and `plain` is drawn while there is no reading.
- * The watch picks the step with `IconGlyphs.<name>Level`, generated from this.
+ * An icon that follows a reading: a rule from `data/icons.json`'s `rules`.
+ * A `steps` rule orders its glyphs along a numeric reading, split into equal
+ * bands over `range` or at `thresholds`; a `table` rule maps an
+ * enumeration's values to names one by one. `plain` is drawn without a
+ * reading, and, for a table, for a value the map does not name. The watch
+ * chooses with `IconGlyphs.<name>Icon`, generated from this.
  */
-export interface LevelIcon {
+export interface IconRule {
   readonly name: string;
+  readonly kind: "steps" | "table";
+  /** What the reading is, as the editor names it. */
+  readonly label: string;
   readonly plain: string;
+  /** The sources whose reading the rule follows, as `icon: {for:}` and a slot's type name them. */
+  readonly sources: readonly string[];
+  /** A steps rule's glyphs, lowest band first; empty for a table. */
   readonly steps: readonly string[];
+  /** Equal bands over `[lo, hi]`; `null` where `thresholds` splits them, and for a table. */
+  readonly range: readonly [number, number] | null;
+  /** `range` wraps round: band 0 is centred on `lo` and takes the half-band either side of it. */
+  readonly cyclic: boolean;
+  /** Band k is the count of thresholds at or below the reading; `null` where `range` splits them, and for a table. */
+  readonly thresholds: readonly number[] | null;
+  /** A table rule's value to catalogue name; empty for a steps rule. */
+  readonly map: ReadonlyMap<number, string>;
+  /** A complication source that carries none of the rule's reading itself, to the source read beside it. */
+  readonly follows: ReadonlyMap<string, string>;
 }
 
-export const LEVEL_ICONS: ReadonlyMap<string, LevelIcon> = new Map([
-  ["battery", { name: "battery", plain: "battery", steps: Array.from({ length: 5 }, (_, i) => `battery_level_${i}`) }],
-  ["solar", { name: "solar", plain: "solar", steps: Array.from({ length: 9 }, (_, i) => `solar_level_${i}`) }],
-]);
-
-/** The source each level icon follows on a plain `icon: {for:}`. */
-export const LEVEL_SOURCES: ReadonlyMap<string, string> = new Map([
-  ["complication.battery", "battery"], ["complication.solar_input", "solar"], ["system.battery", "battery"],
-]);
-
-/** The band a 0-100 reading falls in, of `bands` equal ones: truncated, as the watch's `toNumber()` truncates, then clamped. */
-export function levelBand(value: number, bands: number): number {
-  return Math.min(bands - 1, Math.max(0, Math.trunc((value * bands) / 100)));
+interface RuleJson {
+  kind: "steps" | "table"; label: string; plain: string; sources: string[];
+  steps?: string[]; range?: [number, number]; cyclic?: boolean; thresholds?: number[];
+  map?: Record<string, string>; follows?: Record<string, string>;
 }
 
-/** The catalogue name `level` draws for `reading`: its plain icon without a number. */
-export function levelIconName(level: LevelIcon, reading: unknown): string {
-  if (typeof reading !== "number" && !(reading instanceof WholeFloat)) return level.plain;
-  return level.steps[levelBand(num(reading), level.steps.length)]!;
+/** Every icon rule, in the table's order: the order `IconGlyphs` defines their choosers in. */
+export const RULES: ReadonlyMap<string, IconRule> = new Map(Object.entries(data.rules as unknown as Record<string, RuleJson>).map(([name, r]) => [name, {
+  name, kind: r.kind, label: r.label, plain: r.plain, sources: r.sources, steps: r.steps ?? [], range: r.range ?? null,
+  cyclic: r.cyclic ?? false, thresholds: r.thresholds ?? null,
+  map: new Map(Object.entries(r.map ?? {}).map(([k, v]) => [Number(k), v])), follows: new Map(Object.entries(r.follows ?? {})),
+}]));
+
+/** The rule each source's reading follows. */
+export const RULE_OF_SOURCE: ReadonlyMap<string, IconRule> = new Map([...RULES.values()].flatMap((rule) => rule.sources.map((s) => [s, rule] as const)));
+
+/** A source whose icon follows a rule's reading taken beside it (a temperature the weather condition): the rule and the source read. */
+export const RULE_FOLLOWED: ReadonlyMap<string, { rule: IconRule; source: string }> =
+  new Map([...RULES.values()].flatMap((rule) => [...rule.follows].map(([s, source]) => [s, { rule, source }] as const)));
+
+/**
+ * The band a reading falls in, of a steps rule's `steps.length`. Over a
+ * range: truncated, as the watch's `toNumber()` truncates, then clamped, or,
+ * cyclic, shifted half a band and wrapped round. At thresholds: how many are
+ * at or below the reading.
+ */
+export function levelBand(rule: Pick<IconRule, "steps" | "range" | "cyclic" | "thresholds">, value: number): number {
+  const bands = rule.steps.length;
+  if (rule.range === null) return (rule.thresholds ?? []).filter((t) => t <= value).length;
+  const [lo, hi] = rule.range;
+  if (rule.cyclic) return ((Math.trunc(((value - lo) / (hi - lo)) * bands + 0.5) % bands) + bands) % bands;
+  return Math.min(bands - 1, Math.max(0, Math.trunc(((value - lo) * bands) / (hi - lo))));
 }
 
-/** The name of the generated `IconGlyphs` function choosing `level`'s step. */
-export function levelFunction(level: LevelIcon): string {
-  return `${level.name}Level`;
+/** A reading as a steps rule bands it: a number (a whole float too), a boolean as 0 or 1; `null` for no reading. */
+function numericReading(reading: unknown): number | null {
+  if (typeof reading === "number") return reading;
+  if (reading instanceof WholeFloat) return num(reading);
+  if (typeof reading === "boolean") return reading ? 1 : 0;
+  return null;
 }
 
-/** Every glyph `level` can draw, its plain one included: catalogue name to glyph. */
-export function levelGlyphTable(level: LevelIcon): Map<string, string> {
-  return new Map([level.plain, ...level.steps].map((name) => [name, CATALOG.get(name)!.codepoint]));
+/** The catalogue name `rule` draws for `reading`: its plain icon without one, and for a value a table does not name. */
+export function ruleIconName(rule: IconRule, reading: unknown): string {
+  const value = numericReading(reading);
+  if (value === null) return rule.plain;
+  if (rule.kind === "table") return typeof reading === "boolean" ? rule.plain : rule.map.get(Math.trunc(value)) ?? rule.plain;
+  return rule.steps[levelBand(rule, value)]!;
+}
+
+/** The name of the generated `IconGlyphs` function choosing `rule`'s glyph. */
+export function ruleFunction(rule: IconRule): string {
+  return `${rule.name}Icon`;
+}
+
+/** Every catalogue name `rule` can draw, its plain one first. */
+export function ruleNames(rule: IconRule): string[] {
+  return [...new Set([rule.plain, ...(rule.kind === "table" ? rule.map.values() : rule.steps)])];
+}
+
+/** Every glyph `rule` can draw, its plain one included: catalogue name to glyph. */
+export function ruleGlyphTable(rule: IconRule): Map<string, string> {
+  return new Map(ruleNames(rule).map((name) => [name, CATALOG.get(name)!.codepoint]));
 }
 
 /**
- * An icon that empties at zero: `zero` for a count of 0, `plain` for any other
- * count and without a reading. The watch picks it with `IconGlyphs.<name>Count`,
- * generated from this.
+ * A steps rule split at thresholds: a comparison per threshold, which a
+ * slot's icon method writes inline rather than calling the generated chooser.
  */
-export interface CountIcon {
-  readonly name: string;
-  readonly plain: string;
-  readonly zero: string;
+export function choosesInline(rule: IconRule): boolean {
+  return rule.thresholds !== null;
 }
 
-export const COUNT_ICONS: ReadonlyMap<string, CountIcon> = new Map([
-  ["notification", { name: "notification", plain: "notification", zero: "notification_none" }],
-]);
-
-/** The source each count icon follows on a plain `icon: {for:}`. */
-export const COUNT_SOURCES: ReadonlyMap<string, string> = new Map([
-  ["complication.notification_count", "notification"], ["device.notification_count", "notification"],
-]);
-
-/** The catalogue name `count` draws for `reading`: its empty icon at exactly 0, else its plain one. */
-export function countIconName(count: CountIcon, reading: unknown): string {
-  return reading === 0 || (reading instanceof WholeFloat && num(reading) === 0) ? count.zero : count.plain;
+/**
+ * A thresholds rule's bands below its last, in order: each from `lower` up
+ * to, not including, `upper`, and the name it draws. A count, or a boolean
+ * read as 0 or 1, is never below 0, so the first band starts there.
+ */
+export function thresholdRanges(rule: IconRule): { lower: number; upper: number; name: string }[] {
+  const thresholds = rule.thresholds ?? [];
+  return thresholds.map((upper, k) => ({ lower: k === 0 ? 0 : thresholds[k - 1]!, upper, name: rule.steps[k]! }));
 }
 
-/** The name of the generated `IconGlyphs` function choosing `count`'s glyph. */
-export function countFunction(count: CountIcon): string {
-  return `${count.name}Count`;
+/** How a thresholds band reads: `at 0` for a band one value wide, else `below <upper>`. */
+export function thresholdSaid(band: { lower: number; upper: number }): string {
+  return band.upper - band.lower === 1 ? `at ${band.lower}` : `below ${band.upper}`;
 }
 
-/** Both glyphs `count` can draw: catalogue name to glyph. */
-export function countGlyphTable(count: CountIcon): Map<string, string> {
-  return new Map([count.plain, count.zero].map((name) => [name, CATALOG.get(name)!.codepoint]));
+/** The rule complication type `type`'s icon follows: its `complication.<type>` source's, or that of the reading it reads beside it. */
+export function complicationRule(type: string): IconRule | undefined {
+  return RULE_OF_SOURCE.get(`complication.${type}`) ?? RULE_FOLLOWED.get(`complication.${type}`)?.rule;
 }

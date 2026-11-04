@@ -399,8 +399,9 @@ Instead:
   per-choice override), then `IconGlyphs.glyph()` turns the name (or a
   `U+XXXX` override's canonical spelling) into a character, exactly
   the same "which name, then which glyph" split a dynamic weather icon uses.
-  **A weather type's icon follows a weather condition** (`WfbWeather.
-  chooseIcon`, the same mapping as `icon: {for: weather.condition}`):
+  **A weather type's icon follows a weather condition** (the weather icon
+  rule's generated `IconGlyphs.weatherIcon`, the same mapping as
+  `icon: {for: weather.condition}`):
   `current_weather` and `forecast_weather_1day`/`2day`/`3day` their own
   pulled condition (the forecast day's predicted one),
   `current_temperature` the current condition (`weather.condition`), and

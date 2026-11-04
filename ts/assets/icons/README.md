@@ -55,10 +55,10 @@ weather alike, not a separate table per kind, and not a separate table on the
 Monkey C side either: `source/IconGlyphs.mc` (generated fresh each build, see
 `ts/src/emit/monkeyc/app.ts`) is where a catalogue name becomes a drawn character
 on-device, for every icon, so adding a name here is what a dynamic
-(`icon_for:`) lookup sees too. A new weather condition also needs an entry in
-`GARMIN_WEATHER_CONDITION_ICON` in `ts/src/icons.ts` mapping the raw `Weather.CONDITION_*`
-value to that `CATALOG` name, and its on-device twin,
-`runtime-lib/WfbWeather.mc`'s `chooseIcon()`.
+(`icon: {for:}`) lookup sees too. A new weather condition also needs an
+entry in the weather rule's `map` (`rules` in the same file) mapping the raw
+`Weather.CONDITION_*` value to that catalogue name; the on-device chooser,
+`IconGlyphs.weatherIcon()`, is generated from it.
 
 Write a new entry's codepoint as a JSON escape -- `"\uXXXX"`, or for a
 codepoint above U+FFFF its UTF-16 surrogate pair, `"\uDB80\uDED1"` -- not

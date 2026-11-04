@@ -9,7 +9,6 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { REPO_ROOT } from "../src/devices/node.ts";
 import { type ArcCall, drawProgress, drawSpan, mcMod, pillowArc, roundAway, roundHalfUp, rotatedX, rotatedY, toNumber } from "../src/draw/barrel.ts";
-import { CATALOG, GARMIN_WEATHER_CONDITION_ICON } from "../src/icons.ts";
 import { garminArc } from "../src/layout.ts";
 import { previewOptions, render } from "../src/preview.ts";
 import { resolved } from "./designs.ts";
@@ -245,19 +244,4 @@ test("the preview of a barely started step arc has no fill", () => {
     for (let i = 0; i < data.length && !green; i += 4) green = data[i] === 0 && data[i + 1] === 255 && data[i + 2] === 0;
     assert.equal(green, expectFill, String(steps));
   }
-});
-
-// -- WfbWeather.mc: the hand-written twin of GARMIN_WEATHER_CONDITION_ICON --
-
-test("WfbWeather.mc names the catalogue's icon for every condition, and only ASCII", () => {
-  const text = raw("WfbWeather.mc");
-  const cases = new Map([...text.matchAll(/case (\d+): return "(\w+)";/g)].map((m) => [Number(m[1]), m[2]!]));
-  assert.deepEqual([...cases.keys()].sort((a, b) => a - b), Array.from({ length: 54 }, (_, i) => i));
-  for (const [condition, name] of cases) {
-    assert.equal(name, GARMIN_WEATHER_CONDITION_ICON.get(condition), `condition ${condition}`);
-    assert.ok(CATALOG.has(name), name);
-  }
-  assert.equal(/default: return "(\w+)";/.exec(text)![1], "weather_unknown");
-  assert.equal(/condition == null[\s\S]*?\n\s*return "(\w+)";/.exec(text)![1], "weather_unknown");
-  assert.ok([...text].every((c) => c.charCodeAt(0) < 128));
 });

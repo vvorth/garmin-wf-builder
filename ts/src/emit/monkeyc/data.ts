@@ -8,6 +8,7 @@ import { configField, dataHoldMethod, dataIconMethod, elementMethodName } from "
 import type { ResolvedFace } from "../../layout.ts";
 import type { Writer as WriterType } from "../writer.ts";
 import { Writer } from "../writer.ts";
+import { thresholdBands } from "./app.ts";
 import { dataElements, type EditorSlot, header, type SourceFile } from "./common.ts";
 import type { ReadPlan } from "./readplan.ts";
 
@@ -356,7 +357,7 @@ export function emitDataHoldMethod(w: WriterType, elementId: string, slot: strin
   w.block(`function ${dataHoldMethod(elementId)}() as ${returnType}`, () => w.line(`return ${field};`));
 }
 
-/** The `WfbConditions` function reading each `complications.ICON_CONDITION` source. */
+/** The `WfbConditions` function reading each source an icon rule `follows` beside a complication's own reading. */
 const CONDITION_READER: ReadonlyMap<string, string> = new Map([["weather.condition", "current"], ["weather.condition_today", "today"]]);
 
 /** `iconFor<Id>(t)`: slot `slotName`'s picked type to its icon's catalogue name, for element `elementId`. */
@@ -364,9 +365,8 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
   const slot = resolved.face.config_data.get(slotName)!;
   const mapped = slot.icons;
   const names = slot.choices !== "any" ? slot.choices : sortedNames(mapped.keys());
-  const follows = slot.conditionIcons;
-  const zero = slot.zeroIcons;
-  const level = slot.levelIcons;
+  const rules = slot.rules;
+  const followed = (name: string) => icons.RULE_FOLLOWED.get(`complication.${name}`);
   w.blank();
   w.doc(`\`${elementId}\`'s icon, chosen from the wearer's picked type -- not from\n`
     + "the reading, so it still shows on a frame the reading could not be pulled.\n"
@@ -376,27 +376,28 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
   w.block(`private function ${dataIconMethod(elementId)}(t as Complications.Type,\n            pulled as Complications.Complication?) as String?`, () => {
     // a target without the module, or older than a type below, needs the switch inside a check of its own
     w.blockIf(guards.complications ? "if (Toybox has :Complications)" : null, () => {
-      if (zero.size > 0 || level.size > 0 || [...follows].some((name) => complications.ICON_CONDITION.get(name) === null)) w.line("var value = (pulled != null) ? pulled.value : null;");
+      if ([...rules.keys()].some((name) => followed(name) === undefined)) w.line("var value = (pulled != null) ? pulled.value : null;");
       w.block("switch (t)", () => {
         for (const name of names) {
           const icon = mapped.get(name);
           if (icon === undefined) continue;
           const ctype = complications.TYPES.get(name)!;
-          const source = complications.ICON_CONDITION.get(name);
-          if (follows.has(name) && source !== null && source !== undefined) {
-            // A temperature carries no condition: read the one it follows beside it.
-            const reader = CONDITION_READER.get(source);
-            if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${source}`);
-            w.line(`case Complications.${ctype.constant}: return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");`);
-          } else if (zero.has(name)) {
-            w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number && value == 0) ? "${icons.COUNT_ICONS.get(complications.ICON_WHEN_ZERO.get(name)!)!.zero}" : "${icon.key}";`);
-          } else if (level.has(name)) {
-            const fn = icons.levelFunction(icons.LEVEL_ICONS.get(complications.ICON_LEVEL.get(name)!)!);
-            w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? IconGlyphs.${fn}(value) : "${icon.key}";`);
-          } else if (follows.has(name)) {
-            w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? WfbWeather.chooseIcon(value) : "${icon.key}";`);
-          } else {
+          const rule = rules.get(name);
+          const follows = followed(name);
+          if (rule === undefined) {
             w.line(`case Complications.${ctype.constant}: return "${icon.key}";`);
+          } else if (follows !== undefined) {
+            // The type carries none of the rule's reading: read the one it follows beside it.
+            const reader = CONDITION_READER.get(follows.source);
+            if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${follows.source}`);
+            w.line(`case Complications.${ctype.constant}: return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");`);
+          } else if (icons.choosesInline(rule)) {
+            const last = rule.steps[rule.steps.length - 1]!;
+            const chain = thresholdBands(rule).map(({ test, name: step }) => `(value instanceof Lang.Number && ${test}) ? "${step}" : `).join("");
+            const rest = last === icon.key ? `"${icon.key}"` : `(value instanceof Lang.Number) ? "${last}" : "${icon.key}"`;
+            w.line(`case Complications.${ctype.constant}: return ${chain}${rest};`);
+          } else {
+            w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? IconGlyphs.${icons.ruleFunction(rule)}(value) : "${icon.key}";`);
           }
         }
         w.line("default: return null;");

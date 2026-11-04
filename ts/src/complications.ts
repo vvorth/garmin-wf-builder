@@ -40,20 +40,6 @@ export const PRESENTATION: ReadonlyMap<string, readonly [string, string]> =
 /** The longest reading `short: true` aims for, in characters. */
 export const SHORT_LENGTH: number = data.short_length;
 export const READING: ReadonlyMap<string, string> = new Map(Object.entries(data.reading));
-/**
- * The weather condition each weather type's icon follows: `null` for the
- * type's own value (a `Weather.CONDITION_*`), else the `weather.*` source
- * read beside it: a temperature has no condition of its own, so the current
- * one shows the current condition and today's high/low today's.
- */
-export const ICON_CONDITION: ReadonlyMap<string, string | null> = new Map([
-  ["current_weather", null], ["forecast_weather_1day", null], ["forecast_weather_2day", null], ["forecast_weather_3day", null],
-  ["current_temperature", "weather.condition"], ["high_low_temperature", "weather.condition_today"],
-]);
-/** A count type whose icon empties at zero: the `icons.COUNT_ICONS` entry it follows. */
-export const ICON_WHEN_ZERO: ReadonlyMap<string, string> = new Map([["notification_count", "notification"]]);
-/** A type whose icon fills with its 0-100 reading: the `icons.LEVEL_ICONS` entry it follows. */
-export const ICON_LEVEL: ReadonlyMap<string, string> = new Map([["battery", "battery"], ["solar_input", "solar"]]);
 export const COUNT_UNIT: ReadonlyMap<string, string> = new Map(Object.entries(data.count_unit));
 /** What a `data` element's `prefix: true` writes before a type's reading; a type missing here has none. */
 export const PREFIX: ReadonlyMap<string, string> = new Map(Object.entries(data.prefix));

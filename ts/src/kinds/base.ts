@@ -55,10 +55,8 @@ export class TextRun {
   icon: IconFont | null = null;
   /** The runtime glyph chooser's table, key to glyph. */
   glyph_table: Map<string, string> | null = null;
-  /** The `icons.LEVEL_ICONS` names whose step the watch chooses for this run. */
-  levels: readonly string[] = [];
-  /** The `icons.COUNT_ICONS` names whose glyph the watch chooses for this run. */
-  counts: readonly string[] = [];
+  /** The `icons.RULES` names whose generated chooser (`IconGlyphs.<name>Icon`) picks this run's glyph on the watch. */
+  rules: readonly string[] = [];
 
   constructor(label: string, font: string, init: Partial<Omit<TextRun, "label" | "font">> = {}) {
     this.label = label;

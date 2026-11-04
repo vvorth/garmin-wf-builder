@@ -97,7 +97,7 @@ test("a temperature pick's icon follows a weather condition, read beside it", ()
   const icon = method(view(text), "iconForGlyph");
   assert.match(icon, /CURRENT_TEMPERATURE: return WfbConditions.iconOr\(WfbConditions.current\(\), "temperature"\);/);
   assert.match(icon, /HIGH_LOW_TEMPERATURE: return WfbConditions.iconOr\(WfbConditions.today\(\), "temperature_range"\);/);
-  assert.match(icon, /FORECAST_WEATHER_2DAY: return \(value instanceof Lang.Number\) \? WfbWeather.chooseIcon\(value\) : "weather";/);
+  assert.match(icon, /FORECAST_WEATHER_2DAY: return \(value instanceof Lang.Number\) \? IconGlyphs.weatherIcon\(value\) : "weather";/);
 });
 
 test("a pick's glyph is justified by its own advance, not the reference glyph's", () => {

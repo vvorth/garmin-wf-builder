@@ -14,7 +14,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 |---|---|---|---|
 | `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) |
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
-| `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow`, a level icon's source (`system.battery`, `complication.battery`, `complication.solar_input`) or a count's (`device.notification_count`, `complication.notification_count`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
+| `icon: {for:}` | a source an icon rule follows: `weather.condition`/`.condition_today`/`.condition_tomorrow` and the weather complications, a level icon's source (`system.battery`, `complication.battery`, `complication.solar_input`) or a count's (`device.notification_count`, `complication.notification_count`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `slot:` (instead of `icon:`) | a `config: slots:` name | — | [A slot's icon: `slot:`](#a-slots-icon-slot) — the icon of the wearer's pick |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
 | `rotate:` | `Angle`, clockwise | `0deg` (upright) | [A turned icon: `rotate:`](#a-turned-icon-rotate) |
@@ -114,7 +114,7 @@ set too, named after their MDI glyphs (`weather_partly_rainy`,
 `weather_snowy_heavy`), except dust, sand, volcanic ash and the unknown
 condition, which MDI lacks and the font's Weather Icons set supplies. Each
 reads the same by day and by night, so a condition has one icon at any hour.
-`GARMIN_WEATHER_CONDITION_ICON` in `ts/src/icons.ts` maps every
+The weather rule's `map` in `ts/src/data/icons.json` maps every
 `Toybox.Weather.CONDITION_*` value (0–53) to one of these.
 
 **Beyond the named icons**, the icon font has on the order of ten thousand
@@ -247,24 +247,35 @@ weather_now:
   color: color.text
 ```
 
-It accepts a bare `weather.condition*` source (see `wfb sources`), a
-[level icon's](#a-level-icon) source or a [count icon's](#a-count-icon) —
-not an expression over one (`weather.condition + 1` is rejected; the lookup
-needs the raw `Weather.CONDITION_*` value, the raw 0-100 reading or the raw
-count). The generated code
-resolves the glyph in two steps, mirroring `ts/src/icons.ts` exactly: `WfbWeather.
-chooseIcon()` (a hand-written barrel function) turns the
-condition into a catalogue *name*, and `IconGlyphs.glyph()` — generated fresh
-each build directly from the icon catalogue, not hand-written — turns that
-name into the actual character. A weather condition is not a special case on
-the device side any more than it is in the catalogue: the same `IconGlyphs`
-table is where any dynamic icon's name becomes a glyph. Because the actual
+It accepts a bare source that an **icon rule** follows — not an expression
+over one (`weather.condition + 1` is rejected; the lookup needs the raw
+reading). The rules are one table, `rules` in `ts/src/data/icons.json`,
+each naming the sources it follows and how it turns their reading into a
+catalogue name:
+
+| Rule | Kind | Sources | Glyphs |
+|---|---|---|---|
+| `weather` | table: each `Weather.CONDITION_*` value to its icon, `weather_unknown` for any other | `weather.condition`, `.condition_today`, `.condition_tomorrow`; `complication.current_weather`, `.forecast_weather_1day`/`_2day`/`_3day` | the `weather_*` icons |
+| `battery` | steps over 0–100 | `system.battery`, `complication.battery` | [a level icon](#a-level-icon) |
+| `solar` | steps over 0–100 | `complication.solar_input` | [a level icon](#a-level-icon) |
+| `notification` | steps at a threshold of 1 | `device.notification_count`, `complication.notification_count` | [a count icon](#a-count-icon) |
+
+The generated code resolves the glyph in two steps, mirroring
+`ts/src/icons.ts` exactly: `IconGlyphs.<rule>Icon()` (`weatherIcon`,
+`batteryIcon`, …), generated from the rule, turns the reading into a
+catalogue *name*, and `IconGlyphs.glyph()` — generated fresh each build
+directly from the icon catalogue, not hand-written — turns that name into
+the actual character. A weather condition is not a special case on the
+device side any more than it is in the catalogue: every rule's chooser is
+generated the same way, only for the rules a face uses, and the same
+`IconGlyphs` table is where any dynamic icon's name becomes a glyph.
+An unaccepted `for:` source is an error that lists every accepted one. Because the actual
 glyph is not known until runtime, its font bakes *every* glyph the lookup
 could return rather than one — still cheap: baking is still a small per-glyph
 bitmap, just several of them sharing one font instead of one glyph having its
 own.
 
-**Without a reading, a dynamic icon draws its family's plain glyph.** A
+**Without a reading, a dynamic icon draws its rule's plain glyph.** A
 weather icon with no condition (nothing synced yet) draws `weather_unknown`,
 Weather Icons' `N/A` box, the same glyph `CONDITION_UNKNOWN` gets; a
 [level icon](#a-level-icon) draws its plain icon and a
@@ -307,8 +318,9 @@ solar:
   the plain icon, baked at `size:`.
 * **A slot choice with an authored `icon:` keeps it**, as a weather or a
   notification count choice does.
-* `IconGlyphs.<metric>Level()`, generated beside `IconGlyphs.glyph()`,
-  turns the reading into the step's catalogue name on the watch; the
+* `IconGlyphs.<rule>Icon()` (`batteryIcon`, `solarIcon`), generated
+  beside `IconGlyphs.glyph()` from the rule, turns the reading into the
+  step's catalogue name on the watch; the
   preview draws the same step from the sample reading.
 * The steps are catalogue names too, so `icon: solar_level_4` draws one
   step on its own.
@@ -348,8 +360,8 @@ notifications:
   is always there.
 * **Both glyphs fit the same `size:` square**, so the icon empties in
   place; the font holds both.
-* `IconGlyphs.notificationCount()`, generated beside `IconGlyphs.glyph()`,
-  picks the name on the watch; the preview draws the same one from the
+* `IconGlyphs.notificationIcon()`, generated beside `IconGlyphs.glyph()`
+  from the rule, picks the name on the watch; the preview draws the same one from the
   sample count (`--sample notification_count=0` shows the empty bubble).
 * To show the count itself, draw `{device.notification_count}` as text
   beside it with `visible: device.notification_count > 0`: the number goes

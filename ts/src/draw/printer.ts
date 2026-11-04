@@ -59,9 +59,7 @@ export function strCode(s: Str, aod: AodStyle = NO_AOD): string {
     case "Concat": return s.parts.map((part) => strCode(part, aod)).join(" + ");
     case "IconChoice": {
       const local = localName(s.value.sources[0]!);
-      if (s.level !== null) return `IconGlyphs.glyph(IconGlyphs.${icons.levelFunction(icons.LEVEL_ICONS.get(s.level)!)}(${local}))`;
-      if (s.count !== null) return `IconGlyphs.glyph(IconGlyphs.${icons.countFunction(icons.COUNT_ICONS.get(s.count)!)}(${local}))`;
-      return `IconGlyphs.glyph(WfbWeather.chooseIcon(${local}))`;
+      return `IconGlyphs.glyph(IconGlyphs.${icons.ruleFunction(icons.RULES.get(s.rule)!)}(${local}))`;
     }
     case "PerCopy": return strCode(s.printed, aod);
     case "Local": return s.name;

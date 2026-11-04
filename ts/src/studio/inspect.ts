@@ -710,18 +710,19 @@ function complicationType(name: string): ComplicationType {
 /** The readings whose text the device supplies or names at length: they can outrun a slot. */
 const LONG_READINGS: ReadonlySet<string> = new Set(["condition", "high_low", "training_status"]);
 
+/** What an icon rule does with a slot's reading, as a capability says it. */
+function ruleSaid(rule: icons.IconRule): string {
+  if (rule.kind === "table") return `it follows the ${rule.label.toLowerCase()} condition`;
+  return rule.range !== null ? "it fills with the reading" : "it empties when there is nothing to count";
+}
+
 /** What a slot showing type `name` supports beyond its reading, each said as a hover says it. */
 export function capabilities(name: string): Capability[] {
   const out: Capability[] = [];
   const graph = series.SLOT_SERIES.get(name);
   if (graph !== undefined) out.push({ kind: "graph", detail: `graph: a graph on this slot plots ${graph.span}` });
-  if (complications.ICON_CONDITION.has(name)) {
-    out.push({ kind: "dynamic_icon", detail: "dynamic icon: it follows the weather condition" });
-  } else if (complications.ICON_WHEN_ZERO.has(name)) {
-    out.push({ kind: "dynamic_icon", detail: "dynamic icon: it empties when there is nothing to count" });
-  } else if (complications.ICON_LEVEL.has(name)) {
-    out.push({ kind: "dynamic_icon", detail: "dynamic icon: it fills with the reading" });
-  }
+  const rule = icons.complicationRule(name);
+  if (rule !== undefined) out.push({ kind: "dynamic_icon", detail: `dynamic icon: ${ruleSaid(rule)}` });
   const scale = complications.SCALE.get(name);
   if (scale !== undefined) {
     const across = scale.kind === "goal" ? "from 0 to the watch's own goal"

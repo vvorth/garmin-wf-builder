@@ -366,61 +366,140 @@
    "description": "weather: unknown (Weather Icons weather-na)"
   }
  },
- "garmin_weather_condition_icon": {
-  "0": "weather_sunny",
-  "1": "weather_partly_cloudy",
-  "2": "weather_cloudy",
-  "3": "weather_rainy",
-  "4": "weather_snowy",
-  "5": "weather_windy",
-  "6": "weather_lightning_rainy",
-  "7": "weather_snowy_rainy",
-  "8": "weather_fog",
-  "9": "weather_hazy",
-  "10": "weather_hail",
-  "11": "weather_partly_rainy",
-  "12": "weather_partly_snowy_rainy",
-  "13": "weather_partly_snowy_rainy",
-  "14": "weather_partly_rainy",
-  "15": "weather_pouring",
-  "16": "weather_partly_snowy",
-  "17": "weather_snowy_heavy",
-  "18": "weather_partly_snowy_rainy",
-  "19": "weather_snowy_rainy",
-  "20": "weather_cloudy",
-  "21": "weather_snowy_rainy",
-  "22": "weather_partly_cloudy",
-  "23": "weather_partly_cloudy",
-  "24": "weather_partly_rainy",
-  "25": "weather_rainy",
-  "26": "weather_pouring",
-  "27": "weather_partly_rainy",
-  "28": "weather_partly_lightning",
-  "29": "weather_fog",
-  "30": "weather_dust",
-  "31": "weather_partly_rainy",
-  "32": "weather_tornado",
-  "33": "weather_cloudy_alert",
-  "34": "weather_snowy_heavy",
-  "35": "weather_sandstorm",
-  "36": "weather_windy",
-  "37": "weather_sandstorm",
-  "38": "weather_volcano",
-  "39": "weather_hazy",
-  "40": "weather_partly_cloudy",
-  "41": "weather_hurricane",
-  "42": "weather_lightning_rainy",
-  "43": "weather_partly_snowy",
-  "44": "weather_partly_snowy_rainy",
-  "45": "weather_partly_rainy",
-  "46": "weather_partly_snowy",
-  "47": "weather_partly_snowy_rainy",
-  "48": "weather_snowy_heavy",
-  "49": "weather_snowy_rainy",
-  "50": "weather_snowy",
-  "51": "weather_snowy_heavy",
-  "52": "weather_partly_cloudy",
-  "53": "weather_unknown"
+ "rules": {
+  "battery": {
+   "kind": "steps",
+   "label": "Battery",
+   "plain": "battery",
+   "sources": [
+    "system.battery",
+    "complication.battery"
+   ],
+   "range": [
+    0,
+    100
+   ],
+   "steps": [
+    "battery_level_0",
+    "battery_level_1",
+    "battery_level_2",
+    "battery_level_3",
+    "battery_level_4"
+   ]
+  },
+  "solar": {
+   "kind": "steps",
+   "label": "Solar input",
+   "plain": "solar",
+   "sources": [
+    "complication.solar_input"
+   ],
+   "range": [
+    0,
+    100
+   ],
+   "steps": [
+    "solar_level_0",
+    "solar_level_1",
+    "solar_level_2",
+    "solar_level_3",
+    "solar_level_4",
+    "solar_level_5",
+    "solar_level_6",
+    "solar_level_7",
+    "solar_level_8"
+   ]
+  },
+  "notification": {
+   "kind": "steps",
+   "label": "Notifications",
+   "plain": "notification",
+   "sources": [
+    "device.notification_count",
+    "complication.notification_count"
+   ],
+   "thresholds": [
+    1
+   ],
+   "steps": [
+    "notification_none",
+    "notification"
+   ]
+  },
+  "weather": {
+   "kind": "table",
+   "label": "Weather",
+   "plain": "weather_unknown",
+   "sources": [
+    "weather.condition",
+    "weather.condition_today",
+    "weather.condition_tomorrow",
+    "complication.current_weather",
+    "complication.forecast_weather_1day",
+    "complication.forecast_weather_2day",
+    "complication.forecast_weather_3day"
+   ],
+   "map": {
+    "0": "weather_sunny",
+    "1": "weather_partly_cloudy",
+    "2": "weather_cloudy",
+    "3": "weather_rainy",
+    "4": "weather_snowy",
+    "5": "weather_windy",
+    "6": "weather_lightning_rainy",
+    "7": "weather_snowy_rainy",
+    "8": "weather_fog",
+    "9": "weather_hazy",
+    "10": "weather_hail",
+    "11": "weather_partly_rainy",
+    "12": "weather_partly_snowy_rainy",
+    "13": "weather_partly_snowy_rainy",
+    "14": "weather_partly_rainy",
+    "15": "weather_pouring",
+    "16": "weather_partly_snowy",
+    "17": "weather_snowy_heavy",
+    "18": "weather_partly_snowy_rainy",
+    "19": "weather_snowy_rainy",
+    "20": "weather_cloudy",
+    "21": "weather_snowy_rainy",
+    "22": "weather_partly_cloudy",
+    "23": "weather_partly_cloudy",
+    "24": "weather_partly_rainy",
+    "25": "weather_rainy",
+    "26": "weather_pouring",
+    "27": "weather_partly_rainy",
+    "28": "weather_partly_lightning",
+    "29": "weather_fog",
+    "30": "weather_dust",
+    "31": "weather_partly_rainy",
+    "32": "weather_tornado",
+    "33": "weather_cloudy_alert",
+    "34": "weather_snowy_heavy",
+    "35": "weather_sandstorm",
+    "36": "weather_windy",
+    "37": "weather_sandstorm",
+    "38": "weather_volcano",
+    "39": "weather_hazy",
+    "40": "weather_partly_cloudy",
+    "41": "weather_hurricane",
+    "42": "weather_lightning_rainy",
+    "43": "weather_partly_snowy",
+    "44": "weather_partly_snowy_rainy",
+    "45": "weather_partly_rainy",
+    "46": "weather_partly_snowy",
+    "47": "weather_partly_snowy_rainy",
+    "48": "weather_snowy_heavy",
+    "49": "weather_snowy_rainy",
+    "50": "weather_snowy",
+    "51": "weather_snowy_heavy",
+    "52": "weather_partly_cloudy",
+    "53": "weather_unknown"
+   },
+   "follows": {
+    "complication.current_temperature": "weather.condition",
+    "complication.high_low_temperature": "weather.condition_today"
+   }
+  }
  },
  "complication_icon": {
   "battery": "battery",

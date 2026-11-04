@@ -73,8 +73,9 @@ or AOD-related has been observed on a watch or in the simulator.
   a 0-100 level (`system.battery`, `complication.battery`,
   `complication.solar_input`) or empties at zero (`device.notification_count`,
   `complication.notification_count`); without a reading it draws the
-  family's plain glyph, `weather_unknown` for a condition (generated
-  `IconGlyphs.mc`, `runtime-lib/WfbWeather.mc`). `docs/guide/icons.md`.
+  rule's plain glyph, `weather_unknown` for a condition; every rule is one
+  entry in `icons.json`'s `rules`, and its chooser is generated
+  (`IconGlyphs.<rule>Icon` in `IconGlyphs.mc`). `docs/guide/icons.md`.
 - **`system.awake`** — a boolean source, `false` while the watch sleeps
   (the view's `_sleeping`, the flag `seconds: awake` reads), so `visible:
   system.awake` hides a digital seconds readout asleep; `wfb preview

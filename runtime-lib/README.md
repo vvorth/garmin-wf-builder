@@ -16,7 +16,7 @@ unused helper costs nothing.
 | `WfbMath.mc` | `min`, `max`, `clamp`, `abs`, `percent` — the expression language's function set |
 | `WfbTime.mc` | 12/24-hour conversion following `DeviceSettings.is24Hour`, and AM/PM |
 | `WfbArc.mc` | arc geometry over `setPenWidth` + `drawArc` — a `progress` ring's track, a plain `shape: arc`, and a pattern's `arc` part all draw through the one `drawSpan` |
-| `WfbWeather.mc` | `chooseIcon(condition)` — maps a `Weather.Condition` to a catalogue icon *name* (never a glyph; see `source/IconGlyphs.mc`, generated per project) |
+| `WfbConditions.mc` | the weather condition a slot's temperature icon reads beside its reading (`current`, `today`), and `iconOr`, which names its icon through the generated `IconGlyphs.weatherIcon` or falls back to the type's own |
 | `WfbComplications.mc` | safe complication subscribe (`subscribe`) and pull (`valueOf`) — every `complication.*` read goes through `valueOf`, called fresh each frame like any other reader; `subscribe` is not a cache, see the file's own header |
 | `WfbReading.mc` | a `complication_slot`'s reading as text: counts with `K`, a time of day, a duration, a pace, a temperature, an elevation, a distance, a pressure, whole hours, `26/17`, and the `short:` unit drop. The generated `source/SlotText.mc` picks one per complication type; ts/src/complications.ts's `formatReading` is the host twin the preview draws with |
 | `WfbSeries.mc` | heart-rate acquisition and time-binning, drawing (line/area/bars) and generic array min/max for a `graph` element — the per-series array loop (`day.steps` vs. `day.calories`) is generated, because Monkey C offers no way to pass a field name |

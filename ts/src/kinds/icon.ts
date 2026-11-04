@@ -1,6 +1,5 @@
 // `type: icon`: one glyph drawn from a baked icon font, static or chosen at
 // runtime from a bound value (`icon: {for:}`): its build half.
-import * as catalog from "../catalog.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
@@ -32,25 +31,34 @@ function buildGlyphIcon(b: Builder, node: Node, spec: Node, common: Common, plac
   return IconElement.create({ ...common, icon: raw.toUpperCase(), codepoint: character, ...placement });
 }
 
-/** What `icon: {for:}` accepts: a weather condition, a level icon's source, or a count icon's. */
+/** What `icon: {for:}` accepts: every source an icon rule follows. */
 function forSources(): string[] {
-  return [...catalog.WEATHER_CONDITION_SOURCES, ...icons.LEVEL_SOURCES.keys(), ...icons.COUNT_SOURCES.keys()].sort();
+  return [...icons.RULE_OF_SOURCE.keys()].sort();
 }
 
-/** A dynamic icon's font tag: one font per glyph set, shared by every element of a size. */
-function dynamicTag(element: IconElement): string {
-  const level = element.level, count = element.count;
-  if (level !== null) return `level_${level.name}`;
-  if (count !== null) return `count_${count.name}`;
-  return icons.DYNAMIC_WEATHER_TAG;
+/**
+ * A dynamic icon's font tag: one font per rule and size, shared by every
+ * element following it. A steps rule's tag says how it splits the reading
+ * (`level_<name>` over a range, `count_<name>` at thresholds); a table's is
+ * its name.
+ */
+function dynamicTag(rule: icons.IconRule): string {
+  if (rule.kind === "table") return rule.name;
+  return `${rule.range !== null ? "level" : "count"}_${rule.name}`;
 }
 
-/** The glyph a dynamic icon's font is measured by. */
-function dynamicReference(element: IconElement): string {
-  const level = element.level, count = element.count;
-  if (level !== null) return icons.CATALOG.get(level.steps[0]!)!.codepoint;
-  if (count !== null) return icons.CATALOG.get(count.plain)!.codepoint;
-  return icons.WEATHER_BAKE_REFERENCE_GLYPH;
+/** The glyph a dynamic icon's font is measured and sized by. */
+function dynamicReference(rule: icons.IconRule): string {
+  if (rule.kind === "table") return icons.WEATHER_BAKE_REFERENCE_GLYPH;
+  return icons.CATALOG.get(rule.range !== null ? rule.steps[0]! : rule.plain)!.codepoint;
+}
+
+/** What a dynamic icon's generated comment says its rule does with the reading. */
+function choiceSaid(rule: icons.IconRule): string {
+  if (rule.kind === "table") return `a name ('${rule.plain}' without a reading) -> a glyph`;
+  if (rule.range !== null) return `a step, '${rule.plain}' without a reading`;
+  const bands = icons.thresholdRanges(rule).map((band) => `'${band.name}' ${icons.thresholdSaid(band)}`).join(", ");
+  return `${bands}, else '${rule.steps[rule.steps.length - 1]}'`;
 }
 
 class IconKind extends ElementKind<IconElement> {
@@ -69,8 +77,8 @@ class IconKind extends ElementKind<IconElement> {
       measureCodepoint = slotReferenceGlyph(r.face.config_data.get(element.slot)) ?? icons.FALLBACK_CODEPOINT;
     } else if (element.isDynamic) {
       // The real glyph is chosen on the device; every glyph fits a `size:` square, so measure one.
-      key = icons.fontKey(element.size, dynamicTag(element), element.resolved_antialias, element.turn);
-      measureCodepoint = dynamicReference(element);
+      key = icons.fontKey(element.size, dynamicTag(element.rule!), element.resolved_antialias, element.turn);
+      measureCodepoint = dynamicReference(element.rule!);
     } else {
       key = icons.fontKey(element.size, element.codepoint, element.resolved_antialias, element.turn);
       measureCodepoint = element.codepoint;
@@ -94,26 +102,20 @@ class IconKind extends ElementKind<IconElement> {
       return run !== null ? [run] : [];
     }
     let glyphKey: string, glyphs: string, reference: string, table: Map<string, string> | null = null;
-    const level = element.level, count = element.count;
-    if (level !== null || count !== null) {
-      // The glyph follows the reading, so the font holds every one it can be: each step and the plain icon, or both of a count's.
-      table = level !== null ? icons.levelGlyphTable(level) : icons.countGlyphTable(count!);
-      glyphKey = dynamicTag(element);
+    const rule = element.rule;
+    if (rule !== null) {
+      // The glyph follows the reading, so the font holds every one the rule can draw, its plain one included.
+      table = icons.ruleGlyphTable(rule);
+      glyphKey = dynamicTag(rule);
       glyphs = [...new Set(table.values())].sort(comparePoints).join("");
-      reference = dynamicReference(element);
-    } else if (element.isDynamic) {
-      // The glyph is chosen on the device, so the font holds every one it could be.
-      glyphKey = icons.DYNAMIC_WEATHER_TAG;
-      glyphs = icons.WEATHER_GLYPH_SET;
-      reference = icons.WEATHER_BAKE_REFERENCE_GLYPH;
-      table = new Map([...new Set(icons.GARMIN_WEATHER_CONDITION_ICON.values())].map((name) => [name, icons.CATALOG.get(name)!.codepoint]));
+      reference = dynamicReference(rule);
     } else {
       glyphKey = glyphs = reference = element.codepoint;
     }
     const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias, element.turn);
     return [new TextRun(element.id, key, {
       span: element.span, icon: new IconFont(element.size, glyphs, reference, element.resolved_antialias, element.turn), glyph_table: table,
-      levels: level !== null ? [level.name] : [], counts: count !== null ? [count.name] : [],
+      rules: rule !== null ? [rule.name] : [],
     })];
   }
 
@@ -226,13 +228,9 @@ class IconKind extends ElementKind<IconElement> {
     const ops: Op[] = [LoadFont("font", `_${fontField(p.font_key)}`, { note: "the icon font resource failed to load" }), Blank()];
     let glyph: Str;
     if (element.value_for !== null) {
-      const level = element.level, count = element.count;
-      ops.push(Comment(level !== null
-        ? `${quoted(element.value_for.text)} -> a step, '${level.plain}' without a reading (IconGlyphs)`
-        : count !== null
-          ? `${quoted(element.value_for.text)} -> '${count.zero}' at 0, else '${count.plain}' (IconGlyphs)`
-          : `${quoted(element.value_for.text)} -> a name (WfbWeather, 'weather_unknown' without a reading) -> a glyph (IconGlyphs)`));
-      glyph = IconChoice(element.value_for, level !== null ? level.name : null, count !== null ? count.name : null);
+      const rule = element.rule!;
+      ops.push(Comment(`${quoted(element.value_for.text)} -> ${choiceSaid(rule)} (IconGlyphs)`));
+      glyph = IconChoice(element.value_for, rule.name);
     } else {
       ops.push(Comment(quoted(element.icon)));
       glyph = StrLit(element.codepoint);
@@ -258,10 +256,7 @@ class IconKind extends ElementKind<IconElement> {
     return [[`${prefix}_CX`, p.center[0], note], [`${prefix}_CY`, p.center[1], note]];
   }
 
-  /**
-   * A dynamic icon draws its family's plain glyph while the reading is absent:
-   * a level's plain icon, a count's filled one, `weather_unknown` for a condition.
-   */
+  /** A dynamic icon draws its rule's plain glyph while the reading is absent. */
   override drawsWhileAbsent(element: IconElement): boolean {
     return element.isDynamic;
   }
@@ -274,9 +269,9 @@ class IconKind extends ElementKind<IconElement> {
     const element = (placed as PlacedIcon).element;
     if (element.slot !== null) return `the icon of slot ${quoted(element.slot)}'s pick`;
     if (element.value_for !== null) {
-      if (element.level !== null) return `an icon filling with ${quoted(element.value_for.text)}`;
-      if (element.count !== null) return `an icon emptying when ${quoted(element.value_for.text)} is 0`;
-      return `an icon chosen at runtime from ${quoted(element.value_for.text)}`;
+      const rule = element.rule!, source = quoted(element.value_for.text);
+      if (rule.kind === "table") return `an icon chosen at runtime from ${source}`;
+      return rule.range !== null ? `an icon filling with ${source}` : `an icon emptying when ${source} is 0`;
     }
     return `the ${quoted(element.icon)} icon`;
   }

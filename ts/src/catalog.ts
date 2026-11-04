@@ -78,9 +78,6 @@ export const CATALOG: Catalogue<Source> = new Catalogue(Object.entries(data.sour
 /** The paths superseded by `complication.*`, so an old design is told the replacement. */
 export const RENAMED_SOURCES: ReadonlyMap<string, string> = new Map(Object.entries(data.renamed_sources));
 
-/** The only sources `icon: {for:}` may bind to: a Weather.CONDITION_* value. */
-export const WEATHER_CONDITION_SOURCES: ReadonlySet<string> = new Set(data.weather_condition_sources);
-
 /** Permissions a watch face may declare (Core_Topics/Manifest_and_Permissions.html, the "Watch Face" column). */
 export const WATCHFACE_PERMISSIONS: ReadonlySet<string> = new Set(data.watchface_permissions);
 

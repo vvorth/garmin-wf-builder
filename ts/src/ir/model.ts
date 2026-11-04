@@ -6,7 +6,6 @@
 // them. A class is built with `Class.create({...})`: its defaults first,
 // then the given fields, as a dataclass's constructor does.
 import * as catalog from "../catalog.ts";
-import * as complications from "../complications.ts";
 import type { Device } from "../devices/device.ts";
 import type { Span } from "../diagnostics.ts";
 import type * as expr from "../expr.ts";
@@ -337,19 +336,20 @@ export class ConfigDataSlot {
   get allowAny(): boolean { return this.choices === "any"; }
   get field(): string { return configField(`data_${this.name}`); }
 
-  /** The weather types whose icon follows a condition (`complications.ICON_CONDITION`): every one left on its catalogue icon. */
-  get conditionIcons(): Set<string> {
-    return new Set([...this.icons.keys()].filter((name) => complications.ICON_CONDITION.has(name) && !this.icon_overrides.has(name)));
-  }
-
-  /** The count types whose icon empties at zero (`complications.ICON_WHEN_ZERO`): every one left on its catalogue icon. */
-  get zeroIcons(): Set<string> {
-    return new Set([...this.icons.keys()].filter((name) => complications.ICON_WHEN_ZERO.has(name) && !this.icon_overrides.has(name)));
-  }
-
-  /** The types whose icon fills with the reading (`complications.ICON_LEVEL`): every one left on its catalogue icon. */
-  get levelIcons(): Set<string> {
-    return new Set([...this.icons.keys()].filter((name) => complications.ICON_LEVEL.has(name) && !this.icon_overrides.has(name)));
+  /**
+   * The icon rules a shown type's icon follows, by type: the rule of its
+   * `complication.<type>` source, or of the reading it reads beside it (a
+   * temperature the weather condition). Every type left on its catalogue
+   * icon; one the author gave an icon of their own keeps that one.
+   */
+  get rules(): Map<string, icons.IconRule> {
+    const out = new Map<string, icons.IconRule>();
+    for (const name of this.icons.keys()) {
+      if (this.icon_overrides.has(name)) continue;
+      const rule = icons.complicationRule(name);
+      if (rule !== undefined) out.set(name, rule);
+    }
+    return out;
   }
 
   /** Complication type to icon, for every choice that ends up with one. */
@@ -832,18 +832,10 @@ export class IconElement extends Element {
     return this.value_for !== null;
   }
 
-  /** The level icon `icon: {for:}` follows (`icons.LEVEL_SOURCES`), or `null`. */
-  get level(): icons.LevelIcon | null {
+  /** The icon rule `icon: {for:}` follows (`icons.RULE_OF_SOURCE`), or `null`. */
+  get rule(): icons.IconRule | null {
     const source = this.value_for?.sources[0];
-    const name = source !== undefined ? icons.LEVEL_SOURCES.get(source) : undefined;
-    return name !== undefined ? icons.LEVEL_ICONS.get(name)! : null;
-  }
-
-  /** The count icon `icon: {for:}` follows (`icons.COUNT_SOURCES`), emptying at zero, or `null`. */
-  get count(): icons.CountIcon | null {
-    const source = this.value_for?.sources[0];
-    const name = source !== undefined ? icons.COUNT_SOURCES.get(source) : undefined;
-    return name !== undefined ? icons.COUNT_ICONS.get(name)! : null;
+    return (source !== undefined ? icons.RULE_OF_SOURCE.get(source) : undefined) ?? null;
   }
 
   protected override ownRoles(): [string, Expression][] {

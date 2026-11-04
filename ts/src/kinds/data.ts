@@ -132,18 +132,21 @@ export function slotIconFontKey(slotName: string, size: Length | null, antialias
   return icons.fontKey(size, `slot_${slotName}`, antialias, turn);
 }
 
-/** The sample frame's icon for `shown`: its catalogue glyph, a weather type's for the sample condition it follows, a count's empty one at 0, or a level type's step. */
+/**
+ * The sample frame's icon for `shown`: its catalogue glyph, or, for a type
+ * whose icon follows a rule, the rule's glyph for the sample reading (a
+ * temperature's for the sample condition it reads beside it). As on the
+ * watch, a reading that is not a whole number draws the type's own icon.
+ */
 export function slotSampleGlyph(slot: ConfigDataSlot, shown: string, sample: unknown): string | null {
   const icon = slot.icons.get(shown);
   if (icon === undefined) return null;
-  const follows = complications.ICON_CONDITION.get(shown);
-  const condition = follows === undefined || follows === null ? sample : SAMPLE.get(follows);
-  if (slot.conditionIcons.has(shown) && typeof condition === "number" && Number.isInteger(condition)) {
-    return icons.CATALOG.get(icons.GARMIN_WEATHER_CONDITION_ICON.get(condition) ?? "weather_unknown")!.codepoint;
-  }
-  if (slot.zeroIcons.has(shown) && sample === 0) return icons.CATALOG.get(icons.COUNT_ICONS.get(complications.ICON_WHEN_ZERO.get(shown)!)!.zero)!.codepoint;
-  if (slot.levelIcons.has(shown)) return icons.CATALOG.get(icons.levelIconName(icons.LEVEL_ICONS.get(complications.ICON_LEVEL.get(shown)!)!, sample))!.codepoint;
-  return icon.codepoint;
+  const rule = slot.rules.get(shown);
+  if (rule === undefined) return icon.codepoint;
+  const followed = icons.RULE_FOLLOWED.get(`complication.${shown}`);
+  const reading = followed !== undefined ? SAMPLE.get(followed.source) : sample;
+  if (typeof reading !== "number" || !Number.isInteger(reading)) return icon.codepoint;
+  return icons.CATALOG.get(icons.ruleIconName(rule, reading))!.codepoint;
 }
 
 /** The sample reading a slot showing `shown` draws on the host. */
@@ -210,28 +213,19 @@ export function slotIconRun(label: string, face: Face, slotName: string, size: L
   const mapped = slot.icons;
   const codepoints = new Set([...mapped.values()].map((si) => si.codepoint));
   const table = new Map([...mapped.values()].map((si): [string, string] => [si.key, si.codepoint]));
-  if (slot.conditionIcons.size > 0) {
-    // A weather choice's icon follows the pulled condition, so the font needs every condition's glyph.
-    for (const c of icons.WEATHER_GLYPH_SET) codepoints.add(c);
-    for (const name of icons.GARMIN_WEATHER_CONDITION_ICON.values()) table.set(name, icons.CATALOG.get(name)!.codepoint);
-  }
-  for (const shown of slot.zeroIcons) {
-    // A count's icon empties at zero, so the font needs that glyph too.
-    const name = icons.COUNT_ICONS.get(complications.ICON_WHEN_ZERO.get(shown)!)!.zero;
-    codepoints.add(icons.CATALOG.get(name)!.codepoint);
-    table.set(name, icons.CATALOG.get(name)!.codepoint);
-  }
-  const levels = [...new Set([...slot.levelIcons].map((shown) => complications.ICON_LEVEL.get(shown)!))].sort();
-  for (const level of levels) {
-    // A level type's icon fills with the reading, so the font needs every step.
-    for (const [name, glyph] of icons.levelGlyphTable(icons.LEVEL_ICONS.get(level)!)) {
+  // A type whose icon follows a rule can draw any of the rule's glyphs, so the font needs every one.
+  const used = new Set(slot.rules.values());
+  const rules = [...icons.RULES.values()].filter((rule) => used.has(rule));
+  for (const rule of rules) {
+    for (const [name, glyph] of icons.ruleGlyphTable(rule)) {
       codepoints.add(glyph);
       table.set(name, glyph);
     }
   }
   const glyphs = [...codepoints].sort(comparePoints).join("");
   return new TextRun(label, key ?? slotIconFontKey(slotName, size, antialias, turn as number), {
-    span, icon: new IconFont(size, glyphs, reference, antialias, turn), glyph_table: table, levels,
+    span, icon: new IconFont(size, glyphs, reference, antialias, turn), glyph_table: table,
+    rules: rules.filter((rule) => !icons.choosesInline(rule)).map((rule) => rule.name),
   });
 }
 

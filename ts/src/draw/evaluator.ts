@@ -228,9 +228,7 @@ export function strValue(s: Str, values: Values, env: ReadonlyMap<string, LocalV
     }
     case "IconChoice": {
       const reading = s.value.ast !== null ? expr.evaluate(s.value.ast, values) : null;
-      if (s.level !== null) return icons.CATALOG.get(icons.levelIconName(icons.LEVEL_ICONS.get(s.level)!, reading))!.codepoint;
-      if (s.count !== null) return icons.CATALOG.get(icons.countIconName(icons.COUNT_ICONS.get(s.count)!, reading))!.codepoint;
-      return icons.CATALOG.get(icons.chooseWeatherIcon(reading))!.codepoint;
+      return icons.CATALOG.get(icons.ruleIconName(icons.RULES.get(s.rule)!, reading))!.codepoint;
     }
     case "PerCopy": return s.texts[Math.trunc(val(env.get(s.var) as WatchNumber))]!;
     case "Local": return (env.get(s.name) ?? null) as string | null;

@@ -6,7 +6,7 @@ import { WholeFloat } from "../src/edit/yaml.ts";
 import { ICON_FONT } from "../src/emit/resources.ts";
 import { bake } from "../src/fonts/bake.ts";
 import { BODY_BATTERY_SEGMENTS_FROM_PX, SOLAR_ARCS_FROM_PX } from "../src/fonts/composite.ts";
-import { CATALOG, fontHas, LEVEL_ICONS, levelBand, levelIconName } from "../src/icons.ts";
+import { CATALOG, fontHas, levelBand, RULES, ruleIconName } from "../src/icons.ts";
 import { slotSampleGlyph } from "../src/kinds/data.ts";
 import { bakeSize } from "../src/emit/resources.ts";
 import { readFontFile } from "../src/node.ts";
@@ -46,13 +46,13 @@ function lit(text: string, sample: [string, number][], pick: string | null = nul
 
 test("a level band is the reading truncated into equal bands, 100 in the top one", () => {
   // Nine bands of 11.1: 11 is still the first, 12 the second.
-  assert.deepEqual([0, 11, 12, 50, 88, 89, 99, 100].map((v) => levelBand(v, 9)), [0, 0, 1, 4, 7, 8, 8, 8]);
-  assert.equal(levelBand(-3, 9), 0, "clamped below");
-  assert.equal(levelBand(140, 9), 8, "clamped above");
-  const solar = LEVEL_ICONS.get("solar")!;
-  assert.equal(levelIconName(solar, null), "solar", "no reading: the plain icon");
-  assert.equal(levelIconName(solar, 0), "solar_level_0");
-  assert.equal(levelIconName(solar, 100), "solar_level_8");
+  const solar = RULES.get("solar")!;
+  assert.deepEqual([0, 11, 12, 50, 88, 89, 99, 100].map((v) => levelBand(solar, v)), [0, 0, 1, 4, 7, 8, 8, 8]);
+  assert.equal(levelBand(solar, -3), 0, "clamped below");
+  assert.equal(levelBand(solar, 140), 8, "clamped above");
+  assert.equal(ruleIconName(solar, null), "solar", "no reading: the plain icon");
+  assert.equal(ruleIconName(solar, 0), "solar_level_0");
+  assert.equal(ruleIconName(solar, 100), "solar_level_8");
 });
 
 test("a solar input pick's icon fills with the reading, unless the author chose one", () => {
@@ -63,17 +63,17 @@ test("a solar input pick's icon fills with the reading, unless the author chose 
   assert.equal(slotSampleGlyph(slot, "solar_input", 100), glyph("solar_level_8"));
   assert.equal(slotSampleGlyph(slot, "solar_input", null), glyph("solar"), "no reading: the plain sun");
   assert.match(method(view(text), "iconForGlyph"),
-    /SOLAR_INPUT: return \(value instanceof Lang.Number\) \? IconGlyphs.solarLevel\(value\) : "solar";/);
+    /SOLAR_INPUT: return \(value instanceof Lang.Number\) \? IconGlyphs.solarIcon\(value\) : "solar";/);
   const glyphs = generated(text).get("source/IconGlyphs.mc")!;
-  assert.match(glyphs, /function solarLevel\(value as Lang.Numeric or Null\) as String/);
+  assert.match(glyphs, /function solarIcon\(value as Lang.Numeric or Null\) as String/);
   assert.match(glyphs, /var band = \(value \* 9 \/ 100\)\.toNumber\(\);/);
-  for (const name of LEVEL_ICONS.get("solar")!.steps) assert.match(glyphs, new RegExp(`case "${name}": return`));
+  for (const name of RULES.get("solar")!.steps) assert.match(glyphs, new RegExp(`case "${name}": return`));
   assert.notEqual(lit(text, [], "solar_input"), lit(text, [], "steps"));
 
   const authored = slotted("[steps, { type: solar_input, icon: { codepoint: \"U+F04CE\" } }]");
   assert.equal(slotSampleGlyph(face(authored).config_data.get("left")!, "solar_input", 0), "\u{F04CE}");
   assert.match(method(view(authored), "iconForGlyph"), /SOLAR_INPUT: return "U\+F04CE";/);
-  assert.doesNotMatch(generated(authored).get("source/IconGlyphs.mc")!, /solarLevel/, "no level function nobody calls");
+  assert.doesNotMatch(generated(authored).get("source/IconGlyphs.mc")!, /solarIcon/, "no level function nobody calls");
 });
 
 /** The square's eight symmetries, as maps of a pixel in an `n`-wide tile. */
@@ -84,7 +84,7 @@ const SYMMETRIES: ((x: number, y: number, n: number) => [number, number])[] = [
 
 /** Each solar step baked at nominal `size`: its tile's pixels (1 for ink), and the tile's box. */
 function solarTiles(size: number): { across: number; pixels: Map<string, number[]>; boxes: Map<string, number[]> } {
-  const steps = LEVEL_ICONS.get("solar")!.steps;
+  const steps = RULES.get("solar")!.steps;
   const font = bake(readFontFile(ICON_FONT), { name: "solar", size, glyphs: steps.map(glyph).join("") });
   const sheet = font.sheet!, pixels = new Map<string, number[]>(), boxes = new Map<string, number[]>();
   for (const name of steps) {
@@ -101,7 +101,7 @@ const rim = (pixels: number[], n: number, share: number): number[] =>
   pixels.map((v, i) => (v && Math.hypot((i % n) + 0.5 - n / 2, Math.floor(i / n) + 0.5 - n / 2) > (share * n) / 2 ? 1 : 0));
 
 test("each solar step is a carved disc in the same square, every arc or tooth the same pixels", () => {
-  const steps = LEVEL_ICONS.get("solar")!.steps;
+  const steps = RULES.get("solar")!.steps;
   for (const name of steps) assert.ok(fontHas(glyph(name)), `${name} is in the icon font, composed`);
   const tiers = new Set<string>();
   for (let size = 12; size <= 52; size++) {
@@ -149,14 +149,14 @@ test("a fixed solar_level_8 behind the live icon is its track, pixel for pixel",
 });
 
 test("a slot without a solar choice has no level function", () => {
-  assert.doesNotMatch(generated(slotted("[steps, stress]")).get("source/IconGlyphs.mc")!, /Level\(/);
+  assert.doesNotMatch(generated(slotted("[steps, stress]")).get("source/IconGlyphs.mc")!, /Icon\(/);
 });
 
 test("icon: {for: complication.solar_input} fills with the reading and draws the plain sun without one", () => {
   const text = fixed("complication.solar_input");
   assert.deepEqual(errors(text), []);
   const draw = method(view(text), "drawGlyph");
-  assert.match(draw, /IconGlyphs.glyph\(IconGlyphs.solarLevel\(complicationSolarInput\)\)/);
+  assert.match(draw, /IconGlyphs.glyph\(IconGlyphs.solarIcon\(complicationSolarInput\)\)/);
   assert.doesNotMatch(draw, /complicationSolarInput == null/, "no reading draws the plain icon, not nothing");
   const empty = lit(text, [["complication.solar_input", 0]]), half = lit(text, [["complication.solar_input", 50]]);
   const full = lit(text, [["complication.solar_input", 100]]), none = lit(text, []);
@@ -167,11 +167,11 @@ test("icon: {for: complication.solar_input} fills with the reading and draws the
 });
 
 test("a battery's five bands are 20 wide: 0-19 empty, 80-100 full", () => {
-  const battery = LEVEL_ICONS.get("battery")!;
-  assert.deepEqual([0, 19, 20, 39, 40, 79, 80, 100].map((v) => levelIconName(battery, v)),
+  const battery = RULES.get("battery")!;
+  assert.deepEqual([0, 19, 20, 39, 40, 79, 80, 100].map((v) => ruleIconName(battery, v)),
     ["battery_level_0", "battery_level_0", "battery_level_1", "battery_level_1", "battery_level_2", "battery_level_3", "battery_level_4", "battery_level_4"]);
-  assert.equal(levelIconName(battery, new WholeFloat(68)), "battery_level_3", "system.battery is a Float");
-  assert.equal(levelIconName(battery, null), "battery");
+  assert.equal(ruleIconName(battery, new WholeFloat(68)), "battery_level_3", "system.battery is a Float");
+  assert.equal(ruleIconName(battery, null), "battery");
   assert.equal(glyph("battery_level_0"), "\u{F244}");
   assert.equal(glyph("battery_level_4"), "\u{F240}");
 });
@@ -183,7 +183,7 @@ test("a battery pick's icon fills with the charge", () => {
   assert.equal(slotSampleGlyph(slot, "battery", 20), glyph("battery_level_1"));
   assert.equal(slotSampleGlyph(slot, "battery", null), glyph("battery"));
   assert.match(method(view(text), "iconForGlyph"),
-    /COMPLICATION_TYPE_BATTERY: return \(value instanceof Lang.Number\) \? IconGlyphs.batteryLevel\(value\) : "battery";/);
+    /COMPLICATION_TYPE_BATTERY: return \(value instanceof Lang.Number\) \? IconGlyphs.batteryIcon\(value\) : "battery";/);
   assert.match(generated(text).get("source/IconGlyphs.mc")!, /var band = \(value \* 5 \/ 100\)\.toNumber\(\);/);
 });
 
@@ -198,8 +198,8 @@ test("icon: {for: system.battery} and {for: complication.battery} share one font
 `;
   assert.deepEqual(errors(text), []);
   const v = view(text);
-  assert.match(method(v, "drawGlyph"), /IconGlyphs.glyph\(IconGlyphs.batteryLevel\(systemBattery\)\)/);
-  assert.match(method(v, "drawOther"), /IconGlyphs.glyph\(IconGlyphs.batteryLevel\(complicationBattery\)\)/);
+  assert.match(method(v, "drawGlyph"), /IconGlyphs.glyph\(IconGlyphs.batteryIcon\(systemBattery\)\)/);
+  assert.match(method(v, "drawOther"), /IconGlyphs.glyph\(IconGlyphs.batteryIcon\(complicationBattery\)\)/);
   const r = resolved(text);
   const keys = r.items.filter((p) => p.id === "glyph" || p.id === "other").map((p) => (p as unknown as { font_key: string }).font_key);
   assert.equal(new Set(keys).size, 1, keys.join(", "));
@@ -209,7 +209,7 @@ test("icon: {for: system.battery} and {for: complication.battery} share one font
 test("icon: {for:} still refuses arithmetic over a level source", () => {
   const found = errors(fixed("complication.solar_input / 2"));
   assert.equal(found.length, 1);
-  assert.match(found[0]!.message, /complication.battery, complication.notification_count, complication.solar_input, device.notification_count, system.battery, weather.condition,/);
+  assert.match(found[0]!.message, /complication.battery, complication.current_weather, complication.forecast_weather_1day, complication.forecast_weather_2day, complication.forecast_weather_3day, complication.notification_count, complication.solar_input, device.notification_count, system.battery, weather.condition,/);
 });
 
 /** The 4-connected pieces of a `w`-wide tile's ink, each as its pixel indices. */
