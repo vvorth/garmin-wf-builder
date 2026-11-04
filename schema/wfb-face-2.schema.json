@@ -2657,7 +2657,7 @@
           "description": "A 'config: slots:' name, instead of 'icon:': the glyph is the icon of whatever the wearer picked for that slot, chosen on the watch from the picked type (a weather type's from the pulled condition), with the slot's per-choice 'icon:' overrides. 'on_hold:' then accepts 'auto' only, which opens the pick's glance."
         },
         "icon": {
-          "description": "Which glyph: a name from the built-in icon catalogue (`wfb sources` lists them), {codepoint: 'U+XXXX'} for any glyph in the vendored icon font the catalogue does not name, or {for: <source>} to choose the glyph at runtime from a bound value: a source an icon rule follows -- a weather condition (weather.condition*, or a weather complication), a level icon's source (system.battery, complication.battery, complication.solar_input), whose icon fills with its 0-100 reading, or a count's (device.notification_count, complication.notification_count), whose icon empties at zero. Without a reading the rule's plain glyph draws. A bitmap-font glyph, drawn with drawText.",
+          "description": "Which glyph: a name from the built-in icon catalogue (`wfb sources` lists them), {codepoint: 'U+XXXX'} for any glyph in the vendored icon font the catalogue does not name, or {for: <source>} to choose the glyph at runtime from a bound value: a source an icon rule follows -- a weather condition (weather.condition*, or a weather complication), a level icon's source (system.battery, complication.battery, complication.solar_input), whose icon fills with its 0-100 reading, or a count's (device.notification_count, complication.notification_count), whose icon empties at zero. Without a reading the rule's plain glyph draws, unless 'absent:' says otherwise. A bitmap-font glyph, drawn with drawText.",
           "oneOf": [
             {
               "type": "string",
@@ -2738,6 +2738,46 @@
         },
         "unsupported": {
           "$ref": "#/$defs/unsupported"
+        },
+        "absent": {
+          "description": "What an icon that follows data draws while its reading is absent; only with 'icon: {for:}' or 'slot:' (a fixed icon has no reading). Omitted, the icon's plain glyph draws (weather_unknown for a condition, a level's or count's plain icon). 'hide' draws nothing. {icon: <name>} or {icon: {codepoint: 'U+XXXX'}} draws that glyph instead. With 'slot:' it applies when the pick's reading is absent. An icon draws a glyph, so {text:} and {value:} are refused.",
+          "oneOf": [
+            {
+              "const": "hide"
+            },
+            {
+              "type": "object",
+              "required": [
+                "icon"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "icon": {
+                  "description": "The glyph drawn instead: a catalogue name, or {codepoint: 'U+XXXX'} for a glyph in the vendored icon font the catalogue does not name.",
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "A catalogue name. A codepoint is written {codepoint: 'U+XXXX'}, not as a string."
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "codepoint"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "codepoint": {
+                          "type": "string",
+                          "pattern": "^[Uu]\\+[0-9A-Fa-f]{1,6}$",
+                          "description": "A codepoint in the vendored icon font, in Unicode's own notation: 1 to 6 hex digits. Checked against the font's character map at build time."
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
         }
       }
     },

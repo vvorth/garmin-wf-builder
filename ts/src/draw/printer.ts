@@ -63,6 +63,7 @@ export function strCode(s: Str, aod: AodStyle = NO_AOD): string {
     }
     case "PerCopy": return strCode(s.printed, aod);
     case "Local": return s.name;
+    case "StrPick": return `(${condCode(s.cond, aod)}) ? ${strCode(s.then, aod)} : ${strCode(s.otherwise, aod)}`;
   }
 }
 
@@ -147,6 +148,12 @@ function printOp(w: Writer, op: Op, aod: AodStyle): void {
       w.line(op.guarded ? `var iconName = ((Toybox has :Complications) && chosenId != null) ? ${op.method}(chosenId.getType(), pulled) : null;`
         : `var iconName = ${op.method}(chosenId.getType(), pulled);`);
       w.line("var iconGlyph = (iconName != null) ? IconGlyphs.glyph(iconName) : null;");
+      if (op.absent !== null) {
+        const glyph = op.absent.glyph;
+        w.comment(`${op.absent.shown} -- ${glyph !== null ? "drawn instead" : "no icon"} while the pick has no reading`);
+        w.block("if (iconGlyph != null && (pulled == null || pulled.value == null))",
+          () => w.line(`iconGlyph = ${glyph !== null ? stringLiteral(glyph) : "null"};`));
+      }
       w.blank();
       break;
     case "IconStep": {

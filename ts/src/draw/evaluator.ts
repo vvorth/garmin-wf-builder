@@ -231,6 +231,7 @@ export function strValue(s: Str, values: Values, env: ReadonlyMap<string, LocalV
       return icons.CATALOG.get(icons.ruleIconName(icons.RULES.get(s.rule)!, reading))!.codepoint;
     }
     case "PerCopy": return s.texts[Math.trunc(val(env.get(s.var) as WatchNumber))]!;
+    case "StrPick": return strValue(condValue(s.cond, aod, env, values) ? s.then : s.otherwise, values, env, aod);
     case "Local": return (env.get(s.name) ?? null) as string | null;
   }
 }
@@ -372,6 +373,10 @@ export class Evaluator {
       case "SlotIcon":
         this.locals.set("iconFont", r.resolved.fonts.get(op.key) ? op.key : null);
         this.locals.set("iconGlyph", op.glyph);
+        if (op.absent !== null && op.glyph !== null) {
+          const pulled = this.locals.get("pulled");
+          if (!(pulled instanceof Pulled) || pulled.value === null || pulled.value === undefined) this.locals.set("iconGlyph", op.absent.glyph);
+        }
         break;
       case "IconStep": {
         const key = icons.stepKey(op.key, Math.trunc(this.n(op.index)));

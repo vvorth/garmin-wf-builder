@@ -820,6 +820,13 @@ export class IconElement extends Element {
   rotate: Angle | null = null;
   /** `slot:`, a `config: slots:` name: the glyph follows the wearer's pick. */
   slot: string | null = null;
+  /**
+   * `absent:` on an icon that follows data: `hide`, `icon` (draw `absent_icon`
+   * instead), or `null` for the rule's plain glyph.
+   */
+  absent: "hide" | "icon" | null = null;
+  /** `absent: {icon:}`'s glyph: the catalogue name or `U+XXXX` as written, and its character. */
+  absent_icon: { name: string; codepoint: string } | null = null;
 
   static create(init: Partial<IconElement>): IconElement { return make(IconElement, init); }
 

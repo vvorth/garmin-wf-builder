@@ -4,17 +4,20 @@ import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
 import { type Element, type Face, HOLD_AUTO, IconElement } from "../ir/model.ts";
-import { configDataIds, configField, dataIconMethod } from "../ir/naming.ts";
-import { comparePoints, resolveSlotReference, slotIconFontKey, slotIconRun, slotReferenceGlyph, slotSample, slotSampleGlyph } from "./data.ts";
+import { configDataIds, configField, dataIconMethod, localName } from "../ir/naming.ts";
+import {
+  comparePoints, resolveSlotReference, slotIconFontKey, slotIconRun, slotReferenceGlyph, slotSample, slotSampleGlyph, withSubstitute,
+} from "./data.ts";
 import * as icons from "../icons.ts";
 import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
 import { quoted, str } from "../py.ts";
+import * as vocab from "../vocab.ts";
 import * as units from "../units.ts";
 import { Box, roundPx as round } from "../units.ts";
 import { type Common, ElementKind, IconFont, register, TextRun } from "./base.ts";
 import {
   AodDimmed, AodRestyled, Blank, Comment, Const, type DrawContext, Font, Glyph, IconChoice, If, IfNotNull, IsPulsing, LoadFont, Local,
-  LocalsSet, type Op, type Paint, Return, RingColor, SetColor, Shifted, SlotIcon, SlotPull, type Str, StrLit,
+  LocalsSet, type Op, type Paint, Present, Return, RingColor, SetColor, Shifted, SlotIcon, SlotPull, type Str, StrLit, StrPick,
 } from "../draw/program.ts";
 import { constPrefix, fontField } from "../emit/monkeyc/common.ts";
 import type { Constants } from "../emit/monkeyc/layout_constants.ts";
@@ -61,6 +64,52 @@ function choiceSaid(rule: icons.IconRule): string {
   return `${bands}, else '${rule.steps[rule.steps.length - 1]}'`;
 }
 
+/**
+ * The glyph `absent: {icon:}` draws instead of the rule's while the reading is
+ * absent, or `null`: none was written, or the reading can never be absent.
+ */
+function substituteGlyph(element: IconElement): string | null {
+  if (element.absent !== "icon" || element.absent_icon === null) return null;
+  if (element.slot === null && !(element.value_for?.nullable ?? false)) return null;
+  return element.absent_icon.codepoint;
+}
+
+/** `absent:` on an icon: `hide`, or `{icon: <name or {codepoint:}>}` drawn instead; only an icon that follows data has a reading to lose. */
+function buildAbsent(b: Builder, node: Node, element: IconElement): void {
+  if (!node.has("absent")) return;
+  const raw = node.get("absent");
+  const span = b.doc.span(node, "absent");
+  if (element.slot === null && element.value_for === null) {
+    // A `for:` refused already has its error; any other icon is fixed.
+    const icon = node.get("icon");
+    if (!(icon instanceof Map && icon.has("for"))) {
+      b.bag.error("when-absent", `${element.id}: 'absent:' needs an icon that follows data ('icon: {for:}' or 'slot:')`, span, {
+        notes: ["a fixed icon has no reading, so it is never absent -- drop 'absent:', or use 'visible:' to hide it"],
+      });
+    }
+    return;
+  }
+  if (raw === "hide") {
+    element.absent = "hide";
+  } else if (raw instanceof Map) {
+    const spec = raw.get("icon");
+    let name: string, codepoint: string | null;
+    if (spec instanceof Map) {
+      name = str(spec.get("codepoint")).toUpperCase();
+      codepoint = b.resolveIconGlyph(str(spec.get("codepoint")), b.doc.span(spec, "codepoint") ?? b.doc.span(raw, "icon"));
+    } else {
+      name = str(spec);
+      codepoint = b.resolveIconName(name, b.doc.span(raw, "icon") ?? span);
+    }
+    if (codepoint === null) return;
+    element.absent = "icon";
+    element.absent_icon = { name, codepoint };
+  } else {
+    throw new Error("the schema allows 'absent: hide' or {icon:} on an icon");
+  }
+  if (element.value_for !== null) b.checkAbsence(node, element, element.value_for, element.absent, null, null, "icon");
+}
+
 class IconKind extends ElementKind<IconElement> {
   readonly name = "icon";
   readonly irClass = IconElement;
@@ -83,6 +132,8 @@ class IconKind extends ElementKind<IconElement> {
       key = icons.fontKey(element.size, element.codepoint, element.resolved_antialias, element.turn);
       measureCodepoint = element.codepoint;
     }
+    // A substitute the rule's font lacks gives the font a key of its own (`textRuns`).
+    if (substituteGlyph(element) !== null) key = this.textRuns(element, r.face)[0]?.font ?? key;
     const font = r.fonts.get(key);
     let [width, height] = font !== undefined ? font.measure(measureCodepoint) : [px, px];
     // A glyph chosen on the watch can be any the font holds: the box is as wide as the widest.
@@ -98,7 +149,8 @@ class IconKind extends ElementKind<IconElement> {
 
   override textRuns(element: IconElement, face: Face): TextRun[] {
     if (element.slot !== null) {
-      const run = slotIconRun(element.id, face, element.slot, element.size, element.resolved_antialias, element.turn, element.span);
+      const run = slotIconRun(element.id, face, element.slot, element.size, element.resolved_antialias, element.turn, element.span, null,
+        substituteGlyph(element));
       return run !== null ? [run] : [];
     }
     let glyphKey: string, glyphs: string, reference: string, table: Map<string, string> | null = null;
@@ -112,6 +164,8 @@ class IconKind extends ElementKind<IconElement> {
     } else {
       glyphKey = glyphs = reference = element.codepoint;
     }
+    // `absent: {icon:}` draws while the reading is absent, so the font holds it too.
+    if (element.isDynamic) [glyphKey, glyphs] = withSubstitute(glyphKey, glyphs, substituteGlyph(element));
     const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias, element.turn);
     return [new TextRun(element.id, key, {
       span: element.span, icon: new IconFont(element.size, glyphs, reference, element.resolved_antialias, element.turn), glyph_table: table,
@@ -150,12 +204,20 @@ class IconKind extends ElementKind<IconElement> {
           });
         valueFor = null;
       }
-      return IconElement.create({ ...common, icon: null, codepoint: icons.FALLBACK_CODEPOINT, value_for: valueFor, ...placement });
+      const element = IconElement.create({ ...common, icon: null, codepoint: icons.FALLBACK_CODEPOINT, value_for: valueFor, ...placement });
+      buildAbsent(b, node, element);
+      return element;
     }
-    if (spec !== null) return buildGlyphIcon(b, node, spec, common, placement);
-    if (typeof name !== "string") throw new Error("the schema requires 'icon:'");
-    const codepoint = b.resolveIconName(name, b.doc.span(node, "icon")) ?? icons.FALLBACK_CODEPOINT;
-    return IconElement.create({ ...common, icon: name, codepoint, ...placement });
+    let element: IconElement;
+    if (spec !== null) {
+      element = buildGlyphIcon(b, node, spec, common, placement) as IconElement;
+    } else {
+      if (typeof name !== "string") throw new Error("the schema requires 'icon:'");
+      const codepoint = b.resolveIconName(name, b.doc.span(node, "icon")) ?? icons.FALLBACK_CODEPOINT;
+      element = IconElement.create({ ...common, icon: name, codepoint, ...placement });
+    }
+    buildAbsent(b, node, element);
+    return element;
   }
 
   /** `slot:` instead of `icon:`: the glyph of whatever the wearer picked for that slot. */
@@ -182,6 +244,7 @@ class IconKind extends ElementKind<IconElement> {
         });
       element.on_hold = null;
     }
+    buildAbsent(b, node, element);
     return element;
   }
 
@@ -199,7 +262,8 @@ class IconKind extends ElementKind<IconElement> {
       Comment(`slot: ${element.slot} -- the icon of the wearer's pick`),
       SlotPull(configField(`data_${element.slot}`), ctx.complications_guarded, ctx.dataSample(shown) ?? null),
       SlotIcon(fontField(p.font_key), p.font_key, dataIconMethod(element.id), ctx.complications_guarded,
-        slotSampleGlyph(slot, shown, slotSample(shown, ctx))),
+        slotSampleGlyph(slot, shown, slotSample(shown, ctx)),
+        element.absent !== null ? { glyph: substituteGlyph(element), shown: vocab.absent(element) } : null),
     ];
     const prefix = constPrefix(p.id);
     const x = Const(`${prefix}_CX`, p.center[0]), y = Const(`${prefix}_CY`, p.center[1]);
@@ -231,6 +295,11 @@ class IconKind extends ElementKind<IconElement> {
       const rule = element.rule!;
       ops.push(Comment(`${quoted(element.value_for.text)} -> ${choiceSaid(rule)} (IconGlyphs)`));
       glyph = IconChoice(element.value_for, rule.name);
+      const substitute = substituteGlyph(element);
+      if (substitute !== null) {
+        ops.push(Comment(`${vocab.absent(element)} -- drawn instead while the reading is absent`));
+        glyph = StrPick(Present([localName(element.value_for.sources[0]!)], [element.value_for]), glyph, StrLit(substitute));
+      }
     } else {
       ops.push(Comment(quoted(element.icon)));
       glyph = StrLit(element.codepoint);
@@ -256,9 +325,12 @@ class IconKind extends ElementKind<IconElement> {
     return [[`${prefix}_CX`, p.center[0], note], [`${prefix}_CY`, p.center[1], note]];
   }
 
-  /** A dynamic icon draws its rule's plain glyph while the reading is absent. */
+  /**
+   * A dynamic icon draws while the reading is absent: its rule's plain glyph,
+   * or its `absent: {icon:}`. `absent: hide` guards it instead.
+   */
   override drawsWhileAbsent(element: IconElement): boolean {
-    return element.isDynamic;
+    return element.isDynamic && element.absent !== "hide";
   }
 
   override ringDraws(element: IconElement, face: Face): number {

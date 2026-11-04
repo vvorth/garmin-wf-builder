@@ -313,7 +313,10 @@ function checkIconCodepoints(doc: YamlDocument, bag: Bag): Path[] {
     bad.push(here);
   };
   visitElements(doc, (element, here) => {
-    if (element.get("type") === "icon") check(element, here, "a catalogue name");
+    if (element.get("type") !== "icon") return;
+    check(element, here, "a catalogue name");
+    const absent = element.get("absent");
+    if (isDict(absent)) check(absent, [...here, "absent"], "a catalogue name");
   });
   const config = (doc.data as Dict).get("config");
   const slots = isDict(config) ? config.get("slots") : undefined;
@@ -386,6 +389,15 @@ function checkAbsent(doc: YamlDocument, bag: Bag): Path[] {
       bag.error("schema", `${dottedPath(path)}: ${message}`, doc.span(element, "absent"), { notes });
       bad.push(path);
     };
+    if (element.get("type") === "icon") {
+      // An icon draws a glyph: its substitute is another glyph, never text or a value.
+      const form = "'absent:' on an icon is 'hide' or {icon: <name>} (or {icon: {codepoint: \"U+XXXX\"}}), the glyph drawn instead";
+      if (typeof value === "string" && value !== "hide") report(`a substitute icon is written 'absent: {icon: ${value}}', not a bare string`, form);
+      else if (isDict(value) && (value.has("text") || value.has("value"))) {
+        report(`an icon draws a glyph, not ${value.has("text") ? "text" : "a value"}, while its reading is absent -- write 'absent: {icon: <name>}'`, form);
+      } else if (isDict(value) && (!value.has("icon") || value.size !== 1)) report("takes 'hide' or {icon: <name>}", form);
+      return;
+    }
     if (value === "placeholder" || value === "fallback") {
       report(`'absent: ${value}' is format 1 -- format 2 writes the substitute itself: `
         + "'absent: {text: \"--\"}' or 'absent: {value: <expression>}'");

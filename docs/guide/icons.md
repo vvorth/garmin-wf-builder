@@ -16,6 +16,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
 | `icon: {for:}` | a source an icon rule follows: `weather.condition`/`.condition_today`/`.condition_tomorrow` and the weather complications, a level icon's source (`system.battery`, `complication.battery`, `complication.solar_input`) or a count's (`device.notification_count`, `complication.notification_count`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `slot:` (instead of `icon:`) | a `config: slots:` name | — | [A slot's icon: `slot:`](#a-slots-icon-slot) — the icon of the wearer's pick |
+| `absent:` | `hide`, or `{icon: <name>}` / `{icon: {codepoint: "U+XXXX"}}` (with `icon: {for:}` or `slot:` only) | the plain glyph | [`absent:` on an icon](#absent-on-an-icon) — what draws without a reading |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
 | `rotate:` | `Angle`, clockwise | `0deg` (upright) | [A turned icon: `rotate:`](#a-turned-icon-rotate) |
 | `color:` | colour expression | — | [Colours](colors.md) |
@@ -222,7 +223,8 @@ puts all three round the bezel; its screenshot is in
 * `icon:` and `slot:` both choose the glyph, so an element takes one or
   the other; both is an error.
 * The icon follows the picked *type*, not the reading, so it draws on a
-  frame the reading could not be pulled, as a data element's icon does. A
+  frame the reading could not be pulled, as a data element's icon does,
+  unless [`absent:`](#absent-on-an-icon) says otherwise. A
   pick with no icon (a Connect IQ app's complication under `choices: any`,
   or a choice with `icon: none`) draws nothing.
 * `on_hold:` accepts `auto` only: the glance of the current pick, read at
@@ -230,7 +232,8 @@ puts all three round the bezel; its screenshot is in
   wearer picks something else.
 * The icon font holds every glyph the slot's choices can show, at this
   element's `size:` and `rotate:`. A data element's icon of the same size
-  on the same slot shares the font.
+  on the same slot shares the font, unless this icon's `absent: {icon:}`
+  is a glyph none of the choices draws: that one font gets its own.
 * The native editor's highlight for the slot covers this icon too, and the
   editor draws it in each choice it previews.
 
@@ -275,15 +278,42 @@ could return rather than one — still cheap: baking is still a small per-glyph
 bitmap, just several of them sharing one font instead of one glyph having its
 own.
 
-**Without a reading, a dynamic icon draws its rule's plain glyph.** A
-weather icon with no condition (nothing synced yet) draws `weather_unknown`,
-Weather Icons' `N/A` box, the same glyph `CONDITION_UNKNOWN` gets; a
-[level icon](#a-level-icon) draws its plain icon and a
-[count icon](#a-count-icon) its filled one. The space is never left as a
-hole beside a `--` reading, and the `N/A` glyph says "no data" where a
-blank would say nothing. An icon element takes no `absent:`; an author who
-would rather leave the space empty hides it with `visible:`
-(`visible: weather.condition >= 0` — an absent reading counts as hidden).
+#### `absent:` on an icon
+
+An icon that follows data, `icon: {for:}` or `slot:`, can lose its reading:
+nothing synced yet, a complication that could not be pulled. `absent:`
+says what it draws then:
+
+```yaml
+weather_now:
+  type: icon
+  icon: {for: weather.condition}
+  size: 20%r
+  color: color.text
+  absent: {icon: weather_cloudy_alert}   # or: hide, or {icon: {codepoint: "U+F0026"}}
+```
+
+* **Omitted, the rule's plain glyph draws.** A weather icon with no
+  condition draws `weather_unknown`, Weather Icons' `N/A` box, the same
+  glyph `CONDITION_UNKNOWN` gets; a [level icon](#a-level-icon) draws its
+  plain icon and a [count icon](#a-count-icon) its filled one. The space is
+  never left as a hole beside a `--` reading, and the `N/A` glyph says "no
+  data" where a blank would say nothing.
+* **`hide` draws nothing** while the reading is absent, as `absent: hide`
+  does on every other element.
+* **`{icon: <name>}`** (or `{icon: {codepoint: "U+XXXX"}}`) **draws that
+  glyph instead**, checked against the catalogue and the icon font as
+  `icon:` is. The font holds it beside the glyphs the icon can choose; one
+  it already holds costs nothing.
+* **On a `slot:` icon it follows the pick's reading**, not its type: the
+  wearer's pick still chooses the icon, and the substitute (or nothing)
+  draws on a frame that pick has no reading. A pick with no icon still
+  draws nothing.
+* An icon draws a glyph, so `{text:}` and `{value:}` are refused, and
+  `absent:` on a fixed icon (a name or a codepoint) is an error: it has no
+  reading to lose. On a source that is always there (`system.battery`,
+  `device.notification_count`) it has no effect, and a note says so.
+* The preview draws it from a null sample: `--sample weather.condition=null`.
 
 #### A level icon
 

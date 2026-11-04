@@ -133,6 +133,16 @@ export function slotIconFontKey(slotName: string, size: Length | null, antialias
 }
 
 /**
+ * A chooser font's tag and glyphs with an icon's `absent: {icon:}` glyph
+ * added: a glyph the font already holds costs nothing, and one it lacks gives
+ * the font a tag of its own, so it never shares a key with the font without it.
+ */
+export function withSubstitute(tag: string, glyphs: string, substitute: string | null): [string, string] {
+  if (substitute === null || Array.from(glyphs).includes(substitute)) return [tag, glyphs];
+  return [`${tag}_or_u${substitute.codePointAt(0)!.toString(16)}`, [...Array.from(glyphs), substitute].sort(comparePoints).join("")];
+}
+
+/**
  * The sample frame's icon for `shown`: its catalogue glyph, or, for a type
  * whose icon follows a rule, the rule's glyph for the sample reading (a
  * temperature's for the sample condition it reads beside it). As on the
@@ -206,7 +216,8 @@ function dataIconFont(element: DataElement, face: Face): [string, number | icons
 
 /** A slot's multi-glyph icon font, or `null` when none of its choices has an icon. */
 export function slotIconRun(label: string, face: Face, slotName: string, size: Length | null, antialias: boolean,
-  turn: number | icons.PinnedTurn | icons.SteppedTurn, span: Span | null, key: string | null = null): TextRun | null {
+  turn: number | icons.PinnedTurn | icons.SteppedTurn, span: Span | null, key: string | null = null,
+  substitute: string | null = null): TextRun | null {
   const slot = face.config_data.get(slotName);
   const reference = slotReferenceGlyph(slot);
   if (slot === undefined || reference === null) return null;
@@ -222,8 +233,9 @@ export function slotIconRun(label: string, face: Face, slotName: string, size: L
       table.set(name, glyph);
     }
   }
-  const glyphs = [...codepoints].sort(comparePoints).join("");
-  return new TextRun(label, key ?? slotIconFontKey(slotName, size, antialias, turn as number), {
+  // An icon element's `absent: {icon:}` draws while the pick's reading is absent, so the font holds it too.
+  const [tag, glyphs] = withSubstitute(slotName, [...codepoints].sort(comparePoints).join(""), substitute);
+  return new TextRun(label, key ?? slotIconFontKey(tag, size, antialias, turn as number), {
     span, icon: new IconFont(size, glyphs, reference, antialias, turn), glyph_table: table,
     rules: rules.filter((rule) => !icons.choosesInline(rule)).map((rule) => rule.name),
   });

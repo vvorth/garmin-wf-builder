@@ -21,7 +21,7 @@ can bind.
 | `value:` | `gauge` | a source path or [expression](#expressions) | — | what to pull or compute |
 | spec | inside a placeholder, after `:` | Python-style spec or strftime codes | — | [Formats](#formats) |
 | `units:` | `text` | `auto` \| `metric` \| `statute` | — (no conversion) | [Units](#units) |
-| `absent:` | any nullable binding | `hide` \| `{text: "--"}` \| `{value: <expr>}` | — (required for a nullable binding) | [Absence is the normal case](#absence-is-the-normal-case) |
+| `absent:` | any nullable binding | `hide` \| `{text: "--"}` \| `{value: <expr>}`; on an icon, `hide` \| `{icon: <name>}` | — (required for a nullable binding; optional on an icon) | [Absence is the normal case](#absence-is-the-normal-case) |
 | `time.*` | source namespace | — | — | clock and time-of-day readings, the offset from UTC |
 | `date.*` | source namespace | — | — | calendar date, localised weekday/month, the month as a number |
 | `activity.*` | source namespace | — | — | steps, calories, distance, floors, and more |
@@ -374,6 +374,7 @@ nullable binding rather than defaulting silently:
 | `hide` | the element is not drawn (a gauge still draws its track) |
 | `{text: "--"}` | that text is drawn instead |
 | `{value: <expr>}` | another expression supplies the value, rendered through the same spec; it must not itself be nullable |
+| `{icon: <name>}` | an icon that follows data (`icon: {for:}`, `slot:`) draws that glyph instead; an icon takes this or `hide`, never text or a value ([Icons](icons.md#absent-on-an-icon)) |
 
 **`absent:` covers every nullable binding on the element, not just the
 reading.** A nullable `color:`, `track_color:` or `max:` needs it too — a

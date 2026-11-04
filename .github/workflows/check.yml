@@ -126,6 +126,7 @@ jobs:
             # test/golden-monkeyc.test.ts
             # test/goldens.test.ts
             # test/hold.test.ts
+            # test/icon-absent.test.ts
             # test/icon-rules.test.ts
             # test/layout.test.ts
             # test/level-guards.test.ts

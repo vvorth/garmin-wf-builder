@@ -168,7 +168,11 @@ export interface PerCopy { t: "PerCopy"; printed: Str; texts: string[]; var: str
 export const PerCopy = (printed: Str, texts: readonly string[], v = "i"): PerCopy =>
   ({ t: "PerCopy", printed, texts: [...texts], var: v });
 
-export type Str = StrLit | Reading | Concat | Local | AodStr | IconChoice | PerCopy;
+/** `(<cond>) ? <then> : <otherwise>`, a string chosen at runtime: an icon's `absent: {icon:}` beside its rule's glyph. */
+export interface StrPick { t: "StrPick"; cond: Cond; then: Str; otherwise: Str }
+export const StrPick = (cond: Cond, then: Str, otherwise: Str): StrPick => ({ t: "StrPick", cond, then, otherwise });
+
+export type Str = StrLit | Reading | Concat | Local | AodStr | IconChoice | PerCopy | StrPick;
 
 // -- colours and fonts ----------------------------------------------------------
 
@@ -356,9 +360,18 @@ export interface SlotPull { t: "SlotPull"; field: string; guarded: boolean; samp
 export const SlotPull = (field: string, guarded: boolean, sample: unknown): SlotPull => ({ t: "SlotPull", field, guarded, sample });
 
 /** A data element's icon, chosen from the picked type. */
-export interface SlotIcon { t: "SlotIcon"; font: string; key: string; method: string; guarded: boolean; glyph: string | null }
-export const SlotIcon = (font: string, key: string, method: string, guarded: boolean, glyph: string | null): SlotIcon =>
-  ({ t: "SlotIcon", font, key, method, guarded, glyph });
+export interface SlotIcon {
+  t: "SlotIcon"; font: string; key: string; method: string; guarded: boolean; glyph: string | null;
+  /**
+   * An icon element's `absent:` for the pick's reading, as the author wrote
+   * it (`shown`): `glyph` the substitute drawn while it is absent, `null` for
+   * `hide`; no `absent` draws the type's icon either way.
+   */
+  absent: { glyph: string | null; shown: string } | null;
+}
+export const SlotIcon = (font: string, key: string, method: string, guarded: boolean, glyph: string | null,
+  absent: { glyph: string | null; shown: string } | null = null): SlotIcon =>
+  ({ t: "SlotIcon", font, key, method, guarded, glyph, absent });
 
 /**
  * A free-end radial icon's turned font: step `index` of the `Layout` array
