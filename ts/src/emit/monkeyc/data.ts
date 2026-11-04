@@ -389,7 +389,7 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
             if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${source}`);
             w.line(`case Complications.${ctype.constant}: return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");`);
           } else if (zero.has(name)) {
-            w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number && value == 0) ? "${complications.ICON_WHEN_ZERO.get(name)}" : "${icon.key}";`);
+            w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number && value == 0) ? "${icons.COUNT_ICONS.get(complications.ICON_WHEN_ZERO.get(name)!)!.zero}" : "${icon.key}";`);
           } else if (level.has(name)) {
             const fn = icons.levelFunction(icons.LEVEL_ICONS.get(complications.ICON_LEVEL.get(name)!)!);
             w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? IconGlyphs.${fn}(value) : "${icon.key}";`);

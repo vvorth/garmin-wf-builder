@@ -133,6 +133,7 @@ export function emitIconGlyphs(face: Face, viaChar: ReadonlySet<string> = new Se
       });
     });
     for (const name of iconLevels(face)) emitLevelFunction(w, icons.LEVEL_ICONS.get(name)!);
+    for (const name of iconCounts(face)) emitCountFunction(w, icons.COUNT_ICONS.get(name)!);
   });
   return { path: "source/IconGlyphs.mc", text: w.render() };
 }
@@ -164,6 +165,24 @@ function emitLevelFunction(w: Writer, level: icons.LevelIcon): void {
 export function iconLevels(face: Face): string[] {
   const names = new Set<string>();
   for (const [, run] of kinds.faceTextRuns(face)) for (const name of run.levels) names.add(name);
+  return [...names].sort();
+}
+
+/** `<name>Count(value)`: a count to the catalogue name of its icon, the empty one at exactly 0. */
+function emitCountFunction(w: Writer, count: icons.CountIcon): void {
+  w.blank();
+  w.doc(`The '${count.name}' icon for a count: '${count.zero}' at 0, and '${count.plain}'\n`
+    + "for any other count or without a reading.");
+  w.block(`function ${icons.countFunction(count)}(value as Lang.Numeric or Null) as String`, () => {
+    w.block("if (value instanceof Lang.Number && value == 0)", () => w.line(`return "${count.zero}";`));
+    w.line(`return "${count.plain}";`);
+  });
+}
+
+/** Every count icon whose glyph the watch chooses in this design. */
+export function iconCounts(face: Face): string[] {
+  const names = new Set<string>();
+  for (const [, run] of kinds.faceTextRuns(face)) for (const name of run.counts) names.add(name);
   return [...names].sort();
 }
 

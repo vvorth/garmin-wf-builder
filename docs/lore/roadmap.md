@@ -69,6 +69,12 @@ or AOD-related has been observed on a watch or in the simulator.
   condition, a notification count's empties at zero and a battery's or
   solar input's fills with the reading (`READING` in `ts/src/complications.ts`, generated `SlotText.mc`,
   `runtime-lib/WfbReading.mc`). `docs/guide/configuration.md`.
+- **Dynamic icons** — `icon: {for:}` follows a weather condition, fills with
+  a 0-100 level (`system.battery`, `complication.battery`,
+  `complication.solar_input`) or empties at zero (`device.notification_count`,
+  `complication.notification_count`); without a reading it draws the
+  family's plain glyph, `weather_unknown` for a condition (generated
+  `IconGlyphs.mc`, `runtime-lib/WfbWeather.mc`). `docs/guide/icons.md`.
 - **`system.awake`** — a boolean source, `false` while the watch sleeps
   (the view's `_sleeping`, the flag `seconds: awake` reads), so `visible:
   system.awake` hides a digital seconds readout asleep; `wfb preview

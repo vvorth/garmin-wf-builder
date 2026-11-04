@@ -832,11 +832,18 @@ export class IconElement extends Element {
     return this.value_for !== null;
   }
 
-  /** The level icon `icon: {for:}` follows (`icons.LEVEL_SOURCES`), or `null` for a weather condition. */
+  /** The level icon `icon: {for:}` follows (`icons.LEVEL_SOURCES`), or `null`. */
   get level(): icons.LevelIcon | null {
     const source = this.value_for?.sources[0];
     const name = source !== undefined ? icons.LEVEL_SOURCES.get(source) : undefined;
     return name !== undefined ? icons.LEVEL_ICONS.get(name)! : null;
+  }
+
+  /** The count icon `icon: {for:}` follows (`icons.COUNT_SOURCES`), emptying at zero, or `null`. */
+  get count(): icons.CountIcon | null {
+    const source = this.value_for?.sources[0];
+    const name = source !== undefined ? icons.COUNT_SOURCES.get(source) : undefined;
+    return name !== undefined ? icons.COUNT_ICONS.get(name)! : null;
   }
 
   protected override ownRoles(): [string, Expression][] {

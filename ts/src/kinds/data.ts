@@ -141,7 +141,7 @@ export function slotSampleGlyph(slot: ConfigDataSlot, shown: string, sample: unk
   if (slot.conditionIcons.has(shown) && typeof condition === "number" && Number.isInteger(condition)) {
     return icons.CATALOG.get(icons.GARMIN_WEATHER_CONDITION_ICON.get(condition) ?? "weather_unknown")!.codepoint;
   }
-  if (slot.zeroIcons.has(shown) && sample === 0) return icons.CATALOG.get(complications.ICON_WHEN_ZERO.get(shown)!)!.codepoint;
+  if (slot.zeroIcons.has(shown) && sample === 0) return icons.CATALOG.get(icons.COUNT_ICONS.get(complications.ICON_WHEN_ZERO.get(shown)!)!.zero)!.codepoint;
   if (slot.levelIcons.has(shown)) return icons.CATALOG.get(icons.levelIconName(icons.LEVEL_ICONS.get(complications.ICON_LEVEL.get(shown)!)!, sample))!.codepoint;
   return icon.codepoint;
 }
@@ -217,7 +217,7 @@ export function slotIconRun(label: string, face: Face, slotName: string, size: L
   }
   for (const shown of slot.zeroIcons) {
     // A count's icon empties at zero, so the font needs that glyph too.
-    const name = complications.ICON_WHEN_ZERO.get(shown)!;
+    const name = icons.COUNT_ICONS.get(complications.ICON_WHEN_ZERO.get(shown)!)!.zero;
     codepoints.add(icons.CATALOG.get(name)!.codepoint);
     table.set(name, icons.CATALOG.get(name)!.codepoint);
   }

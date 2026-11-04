@@ -290,3 +290,38 @@ export function levelFunction(level: LevelIcon): string {
 export function levelGlyphTable(level: LevelIcon): Map<string, string> {
   return new Map([level.plain, ...level.steps].map((name) => [name, CATALOG.get(name)!.codepoint]));
 }
+
+/**
+ * An icon that empties at zero: `zero` for a count of 0, `plain` for any other
+ * count and without a reading. The watch picks it with `IconGlyphs.<name>Count`,
+ * generated from this.
+ */
+export interface CountIcon {
+  readonly name: string;
+  readonly plain: string;
+  readonly zero: string;
+}
+
+export const COUNT_ICONS: ReadonlyMap<string, CountIcon> = new Map([
+  ["notification", { name: "notification", plain: "notification", zero: "notification_none" }],
+]);
+
+/** The source each count icon follows on a plain `icon: {for:}`. */
+export const COUNT_SOURCES: ReadonlyMap<string, string> = new Map([
+  ["complication.notification_count", "notification"], ["device.notification_count", "notification"],
+]);
+
+/** The catalogue name `count` draws for `reading`: its empty icon at exactly 0, else its plain one. */
+export function countIconName(count: CountIcon, reading: unknown): string {
+  return reading === 0 || (reading instanceof WholeFloat && num(reading) === 0) ? count.zero : count.plain;
+}
+
+/** The name of the generated `IconGlyphs` function choosing `count`'s glyph. */
+export function countFunction(count: CountIcon): string {
+  return `${count.name}Count`;
+}
+
+/** Both glyphs `count` can draw: catalogue name to glyph. */
+export function countGlyphTable(count: CountIcon): Map<string, string> {
+  return new Map([count.plain, count.zero].map((name) => [name, CATALOG.get(name)!.codepoint]));
+}

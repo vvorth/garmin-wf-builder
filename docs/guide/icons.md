@@ -14,7 +14,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 |---|---|---|---|
 | `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) |
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
-| `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow`, or a level icon's source (`system.battery`, `complication.battery`, `complication.solar_input`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
+| `icon: {for:}` | `weather.condition`/`.condition_today`/`.condition_tomorrow`, a level icon's source (`system.battery`, `complication.battery`, `complication.solar_input`) or a count's (`device.notification_count`, `complication.notification_count`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `slot:` (instead of `icon:`) | a `config: slots:` name | — | [A slot's icon: `slot:`](#a-slots-icon-slot) — the icon of the wearer's pick |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
 | `rotate:` | `Angle`, clockwise | `0deg` (upright) | [A turned icon: `rotate:`](#a-turned-icon-rotate) |
@@ -60,7 +60,8 @@ screenshot shows the weather icon.
   [Nerd Fonts cheat sheet](https://www.nerdfonts.com/cheat-sheet), then write
   its code as `icon: {codepoint: "U+XXXX"}`. The build checks that the font has it.
 - **`icon: {for:}`** picks the glyph on the watch at runtime: the weather
-  condition's, or a [level icon](#a-level-icon) that fills with its reading.
+  condition's, a [level icon](#a-level-icon) that fills with its reading, or
+  a [count icon](#a-count-icon) that empties at zero.
 
 ### `icon`
 
@@ -246,10 +247,11 @@ weather_now:
   color: color.text
 ```
 
-It accepts a bare `weather.condition*` source (see `wfb sources`) or a
-[level icon's](#a-level-icon) source — not an expression over one
-(`weather.condition + 1` is rejected; the lookup needs the raw
-`Weather.CONDITION_*` value or the raw 0-100 reading). The generated code
+It accepts a bare `weather.condition*` source (see `wfb sources`), a
+[level icon's](#a-level-icon) source or a [count icon's](#a-count-icon) —
+not an expression over one (`weather.condition + 1` is rejected; the lookup
+needs the raw `Weather.CONDITION_*` value, the raw 0-100 reading or the raw
+count). The generated code
 resolves the glyph in two steps, mirroring `ts/src/icons.ts` exactly: `WfbWeather.
 chooseIcon()` (a hand-written barrel function) turns the
 condition into a catalogue *name*, and `IconGlyphs.glyph()` — generated fresh
@@ -262,11 +264,15 @@ could return rather than one — still cheap: baking is still a small per-glyph
 bitmap, just several of them sharing one font instead of one glyph having its
 own.
 
-When the bound value is absent (no cached weather data yet), the icon simply
-does not draw — the same `hide`-by-default behaviour any other nullable
-binding with `absent: hide` has, deliberately: a placeholder
-"unknown" glyph on first launch, before Weather has ever synced, would read
-as a real (if odd) forecast rather than as "not ready yet".
+**Without a reading, a dynamic icon draws its family's plain glyph.** A
+weather icon with no condition (nothing synced yet) draws `weather_unknown`,
+Weather Icons' `N/A` box, the same glyph `CONDITION_UNKNOWN` gets; a
+[level icon](#a-level-icon) draws its plain icon and a
+[count icon](#a-count-icon) its filled one. The space is never left as a
+hole beside a `--` reading, and the `N/A` glyph says "no data" where a
+blank would say nothing. An icon element takes no `absent:`; an author who
+would rather leave the space empty hides it with `visible:`
+(`visible: weather.condition >= 0` — an absent reading counts as hidden).
 
 #### A level icon
 
@@ -318,6 +324,37 @@ whatever the reading. The choice is made per device, when the font is
 baked, so one face can show arcs on a large screen and the star on a
 small one. Keep a reading next to a small solar icon: the star alone does
 not show how much.
+
+#### A count icon
+
+A notification count's icon empties at zero: `notification` (a filled
+speech bubble) while there is something to read, `notification_none` (the
+outlined bubble) when the count is exactly 0. `icon: {for:}` on
+`device.notification_count` or `complication.notification_count` draws the
+right one, and so does a [slot](#a-slots-icon-slot) showing the
+`notification_count` type (and a `type: data` element's icon on it):
+
+```yaml
+notifications:
+  type: icon
+  icon: {for: device.notification_count}
+  size: 10%r
+  color: color.fg
+```
+
+* **Without a reading the filled icon draws**, as a slot's does: a count
+  that could not be pulled is not known to be zero. Only
+  `complication.notification_count` can be absent; `device.notification_count`
+  is always there.
+* **Both glyphs fit the same `size:` square**, so the icon empties in
+  place; the font holds both.
+* `IconGlyphs.notificationCount()`, generated beside `IconGlyphs.glyph()`,
+  picks the name on the watch; the preview draws the same one from the
+  sample count (`--sample notification_count=0` shows the empty bubble).
+* To show the count itself, draw `{device.notification_count}` as text
+  beside it with `visible: device.notification_count > 0`: the number goes
+  at zero while the empty bubble stays ([Colours](colors.md) pairs the same
+  two elements with a colour switch instead).
 
 The eight arcs (and the star's eight points) are laid out so each has the
 same pixels as the others, flipped or turned. That is why the star's

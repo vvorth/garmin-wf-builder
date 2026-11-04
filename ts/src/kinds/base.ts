@@ -57,6 +57,8 @@ export class TextRun {
   glyph_table: Map<string, string> | null = null;
   /** The `icons.LEVEL_ICONS` names whose step the watch chooses for this run. */
   levels: readonly string[] = [];
+  /** The `icons.COUNT_ICONS` names whose glyph the watch chooses for this run. */
+  counts: readonly string[] = [];
 
   constructor(label: string, font: string, init: Partial<Omit<TextRun, "label" | "font">> = {}) {
     this.label = label;

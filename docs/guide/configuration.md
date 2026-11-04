@@ -412,7 +412,8 @@ Instead:
   **A `notification_count` icon empties at zero**: `notification_none`
   (an outlined bubble) when the pulled count is 0, `notification` (a
   filled one) otherwise and when nothing could be pulled. An authored
-  `icon:` on that choice keeps it.
+  `icon:` on that choice keeps it. `icon: {for: device.notification_count}`
+  draws the same pair without a slot ([A count icon](icons.md#a-count-icon)).
   **A `battery` or `solar_input` icon fills with the reading**: one of
   five battery steps, empty up to full, or nine solar ones, a
   bolt in a disc with none to eight arcs lit around it (a static star

@@ -50,8 +50,8 @@ export const ICON_CONDITION: ReadonlyMap<string, string | null> = new Map([
   ["current_weather", null], ["forecast_weather_1day", null], ["forecast_weather_2day", null], ["forecast_weather_3day", null],
   ["current_temperature", "weather.condition"], ["high_low_temperature", "weather.condition_today"],
 ]);
-/** A count type whose icon empties at zero: the catalogue name drawn when the pulled count is 0. */
-export const ICON_WHEN_ZERO: ReadonlyMap<string, string> = new Map([["notification_count", "notification_none"]]);
+/** A count type whose icon empties at zero: the `icons.COUNT_ICONS` entry it follows. */
+export const ICON_WHEN_ZERO: ReadonlyMap<string, string> = new Map([["notification_count", "notification"]]);
 /** A type whose icon fills with its 0-100 reading: the `icons.LEVEL_ICONS` entry it follows. */
 export const ICON_LEVEL: ReadonlyMap<string, string> = new Map([["battery", "battery"], ["solar_input", "solar"]]);
 export const COUNT_UNIT: ReadonlyMap<string, string> = new Map(Object.entries(data.count_unit));

@@ -32,21 +32,25 @@ function buildGlyphIcon(b: Builder, node: Node, spec: Node, common: Common, plac
   return IconElement.create({ ...common, icon: raw.toUpperCase(), codepoint: character, ...placement });
 }
 
-/** What `icon: {for:}` accepts: a weather condition, or a level icon's source. */
+/** What `icon: {for:}` accepts: a weather condition, a level icon's source, or a count icon's. */
 function forSources(): string[] {
-  return [...catalog.WEATHER_CONDITION_SOURCES, ...icons.LEVEL_SOURCES.keys()].sort();
+  return [...catalog.WEATHER_CONDITION_SOURCES, ...icons.LEVEL_SOURCES.keys(), ...icons.COUNT_SOURCES.keys()].sort();
 }
 
 /** A dynamic icon's font tag: one font per glyph set, shared by every element of a size. */
 function dynamicTag(element: IconElement): string {
-  const level = element.level;
-  return level !== null ? `level_${level.name}` : icons.DYNAMIC_WEATHER_TAG;
+  const level = element.level, count = element.count;
+  if (level !== null) return `level_${level.name}`;
+  if (count !== null) return `count_${count.name}`;
+  return icons.DYNAMIC_WEATHER_TAG;
 }
 
 /** The glyph a dynamic icon's font is measured by. */
 function dynamicReference(element: IconElement): string {
-  const level = element.level;
-  return level !== null ? icons.CATALOG.get(level.steps[0]!)!.codepoint : icons.WEATHER_BAKE_REFERENCE_GLYPH;
+  const level = element.level, count = element.count;
+  if (level !== null) return icons.CATALOG.get(level.steps[0]!)!.codepoint;
+  if (count !== null) return icons.CATALOG.get(count.plain)!.codepoint;
+  return icons.WEATHER_BAKE_REFERENCE_GLYPH;
 }
 
 class IconKind extends ElementKind<IconElement> {
@@ -90,10 +94,10 @@ class IconKind extends ElementKind<IconElement> {
       return run !== null ? [run] : [];
     }
     let glyphKey: string, glyphs: string, reference: string, table: Map<string, string> | null = null;
-    const level = element.level;
-    if (level !== null) {
-      // The step follows the reading, so the font holds every step and the plain icon.
-      table = icons.levelGlyphTable(level);
+    const level = element.level, count = element.count;
+    if (level !== null || count !== null) {
+      // The glyph follows the reading, so the font holds every one it can be: each step and the plain icon, or both of a count's.
+      table = level !== null ? icons.levelGlyphTable(level) : icons.countGlyphTable(count!);
       glyphKey = dynamicTag(element);
       glyphs = [...new Set(table.values())].sort(comparePoints).join("");
       reference = dynamicReference(element);
@@ -109,7 +113,7 @@ class IconKind extends ElementKind<IconElement> {
     const key = icons.fontKey(element.size, glyphKey, element.resolved_antialias, element.turn);
     return [new TextRun(element.id, key, {
       span: element.span, icon: new IconFont(element.size, glyphs, reference, element.resolved_antialias, element.turn), glyph_table: table,
-      levels: level !== null ? [level.name] : [],
+      levels: level !== null ? [level.name] : [], counts: count !== null ? [count.name] : [],
     })];
   }
 
@@ -140,7 +144,7 @@ class IconKind extends ElementKind<IconElement> {
         b.bag.error("icon", `icon: {for:} must be exactly one of: ${forSources().join(", ")} -- not ${quoted(valueFor.shown)}`,
           b.doc.span(dynamic, "for") ?? b.doc.span(node, "icon"), {
             notes: ["the glyph lookup needs the raw reading: a weather condition's Weather.CONDITION_* value, "
-              + "or a 0-100 level, so arithmetic or a conditional is refused"],
+              + "a 0-100 level or a count, so arithmetic or a conditional is refused"],
           });
         valueFor = null;
       }
@@ -222,11 +226,13 @@ class IconKind extends ElementKind<IconElement> {
     const ops: Op[] = [LoadFont("font", `_${fontField(p.font_key)}`, { note: "the icon font resource failed to load" }), Blank()];
     let glyph: Str;
     if (element.value_for !== null) {
-      const level = element.level;
+      const level = element.level, count = element.count;
       ops.push(Comment(level !== null
         ? `${quoted(element.value_for.text)} -> a step, '${level.plain}' without a reading (IconGlyphs)`
-        : `${quoted(element.value_for.text)} -> a name (WfbWeather) -> a glyph (IconGlyphs)`));
-      glyph = IconChoice(element.value_for, level !== null ? level.name : null);
+        : count !== null
+          ? `${quoted(element.value_for.text)} -> '${count.zero}' at 0, else '${count.plain}' (IconGlyphs)`
+          : `${quoted(element.value_for.text)} -> a name (WfbWeather, 'weather_unknown' without a reading) -> a glyph (IconGlyphs)`));
+      glyph = IconChoice(element.value_for, level !== null ? level.name : null, count !== null ? count.name : null);
     } else {
       ops.push(Comment(quoted(element.icon)));
       glyph = StrLit(element.codepoint);
@@ -252,9 +258,12 @@ class IconKind extends ElementKind<IconElement> {
     return [[`${prefix}_CX`, p.center[0], note], [`${prefix}_CY`, p.center[1], note]];
   }
 
-  /** A level icon draws its plain glyph while the reading is absent. */
+  /**
+   * A dynamic icon draws its family's plain glyph while the reading is absent:
+   * a level's plain icon, a count's filled one, `weather_unknown` for a condition.
+   */
   override drawsWhileAbsent(element: IconElement): boolean {
-    return element.level !== null;
+    return element.isDynamic;
   }
 
   override ringDraws(element: IconElement, face: Face): number {
@@ -265,7 +274,9 @@ class IconKind extends ElementKind<IconElement> {
     const element = (placed as PlacedIcon).element;
     if (element.slot !== null) return `the icon of slot ${quoted(element.slot)}'s pick`;
     if (element.value_for !== null) {
-      return element.level !== null ? `an icon filling with ${quoted(element.value_for.text)}` : `an icon chosen at runtime from ${quoted(element.value_for.text)}`;
+      if (element.level !== null) return `an icon filling with ${quoted(element.value_for.text)}`;
+      if (element.count !== null) return `an icon emptying when ${quoted(element.value_for.text)} is 0`;
+      return `an icon chosen at runtime from ${quoted(element.value_for.text)}`;
     }
     return `the ${quoted(element.icon)} icon`;
   }
