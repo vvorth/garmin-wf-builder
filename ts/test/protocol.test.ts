@@ -159,6 +159,7 @@ const vocabulary = obj({
   complication_types: list(obj({ name: str, label: str, category: str, icon: nullable(str), sample: nullable(str),
     capabilities: list(obj({ kind: literal("graph", "dynamic_icon", "gauge", "long_text"), detail: str })) })), icon_glyphs: record(int), icon_paths: record(str),
   source_info: record(obj({ type: literal("number", "float", "boolean", "string", "time", "date", "color"), unit: nullable(str), quantity: nullable(str), doc: str, nullable: bool })),
+  icon_rules: list(obj({ rule: str, label: str, kind: literal("steps", "table"), sources: list(str), glyphs: list(str), plain: str, split: str })),
   format_codes: obj({ time: list(tuple(str, str)), date: list(tuple(str, str)), duration: list(tuple(str, str)), number: list(tuple(str, str)) }),
   lint_codes: list(str),
   devices: list(obj({ id: str, name: str, shape: str, size: str, width: int, height: int, ppi: nullable(num), skin: bool, display: str, fonts: list(str), faces: list(str) })),
@@ -355,6 +356,33 @@ test("the words describe every source and the specs a placeholder takes, by what
   assert.ok(codes("duration").includes("%-H") && codes("duration").includes("%S"), codes("duration").join(" "));
   assert.deepEqual(codes("number").slice(0, 3), ["d", "02d", ".1f"]);
   assert.ok(words.format_codes.time.every(([, label]: [string, string]) => label.length > 0));
+});
+
+test("the words list every icon rule from the table, its glyphs in drawing order, and how it splits the reading", async () => {
+  const studio = await newStudio();
+  const client = new Client(studio);
+  const words = (await client.call("vocabulary", {})).json;
+  const icons = await import("../src/icons.ts");
+  const rules = [...icons.RULES.values()];
+  // every rule, in the table's order, with its own label, kind, sources and plain glyph
+  assert.deepEqual(words.icon_rules.map((r: any) => [r.rule, r.label, r.kind, r.sources, r.plain]),
+    rules.map((r) => [r.name, r.label, r.kind, [...r.sources], r.plain]));
+  for (const r of words.icon_rules) {
+    const rule = icons.RULES.get(r.rule)!;
+    assert.ok(r.glyphs.every((n: string) => icons.CATALOG.has(n)), `${r.rule}: every glyph a catalogue name`);
+    if (rule.kind === "steps") assert.deepEqual(r.glyphs, [...rule.steps], `${r.rule}: every step, lowest first`);
+    else assert.deepEqual(r.glyphs, [...new Set([...rule.map].sort(([a], [b]) => a - b).map(([, n]) => n))].slice(0, 12), `${r.rule}: its first 12 names by value`);
+    assert.ok(r.split.length > 0);
+  }
+  const byName = Object.fromEntries(words.icon_rules.map((r: any) => [r.rule, r]));
+  assert.equal(byName.battery.split, "5 steps over 0–100");
+  assert.equal(byName.notification.split, "0 / 1+");
+  assert.equal(byName.weather.split, "54 conditions");
+  assert.equal(byName.moon.split, "8 steps over 0–29.5, wrapping round");
+  assert.equal(byName.dnd.split, "off / on");
+  assert.equal(byName.alarm.split, "0 / 1+");
+  assert.equal(words.icon_rules.length, 8);
+  assert.deepEqual(byName.weather.glyphs.slice(0, 3), ["weather_sunny", "weather_partly_cloudy", "weather_cloudy"]);
 });
 
 test("a scheme's base, and the roles it inherits from it, are in the globals", async () => {

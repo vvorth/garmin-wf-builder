@@ -1,6 +1,7 @@
 // The Properties panel's controls against the real worker, each change read
 // back from the YAML text: numbers and units, the align picker, the colour
-// picker's three groups, a text's `+ data` chip, the font, icon and `on_hold`
+// picker's three groups, a text's `+ data` chip, the font, icon (its follows
+// data tab and `absent:` footer among them) and `on_hold`
 // selects, Edit for writing overrides and `×` pruning an
 // emptied one, renaming an element, and `curve:` on a curved text.
 
@@ -236,7 +237,7 @@ h.test("renaming an element changes its one key and follows it in Layers", async
   assert.deepEqual(s.errors, []);
 });
 
-h.test("an icon element's picker, and curve: on an existing curved text", async (s) => {
+h.test("an icon element's picker, its follows data tab and absent: footer, and curve: on an existing curved text", async (s) => {
   await s.openExample("showcase");
   await s.waitFace();
   await s.waitIdle();
@@ -244,7 +245,8 @@ h.test("an icon element's picker, and curve: on an existing curved text", async 
   await s.waitIdle();
   let base = await s.doc();
   await s.selectLayer("hr_icon");
-  const chip = s.topField("icon").locator("button.chip-button");
+  // the field's own chip: the picker's absent: footer holds a chip of its own
+  const chip = s.topField("icon").locator("button.chip-button").first();
   assert.match((await chip.textContent()) ?? "", /body_battery$/);
   await chip.click();
   await s.page.locator(".popover-body.pop .pop-grid.icons button[aria-label=steps]").click();
@@ -252,6 +254,26 @@ h.test("an icon element's picker, and curve: on an existing curved text", async 
   assert.match(lines(after, "hr_icon"), /icon: steps/);
   await s.expectText(chip, /steps$/);
   await undoTo(s, base, "the icon");
+
+  await s.selectLayer("weather_icon");
+  // an icon that follows data: the rule's name on the chip, the picker open on follows data
+  await s.expectText(chip, /Weather$/);
+  await chip.click();
+  const pop = s.page.locator(".popover-body.icon-pop:popover-open");
+  assert.equal(await pop.locator("[role=tab][aria-selected=true]").textContent(), "follows data");
+  assert.equal(await pop.locator(".rule-source.on").textContent(), "weather.condition_today");
+  await pop.locator(".rule-row", { hasText: "Battery" }).locator(".glyph-strip .glyph").first().waitFor();
+  await pop.locator(".rule-source", { hasText: /^weather\.condition_tomorrow$/ }).click();
+  after = await written(s, base);
+  assert.match(lines(after, "weather_icon"), /icon: \{ ?for: weather\.condition_tomorrow ?\}/, lines(after, "weather_icon"));
+  // the source can be absent: the footer writes absent: beside icon:
+  await chip.click();
+  await pop.locator(".absent-row button", { hasText: /^hide$/ }).click();
+  after = await written(s, after);
+  assert.match(lines(after, "weather_icon"), /\n\s+absent: hide/, lines(after, "weather_icon"));
+  await s.page.keyboard.press("Escape");
+  await s.undo();
+  await undoTo(s, base, "the follows data pick");
 
   await s.openExample("features/vector-text");
   await s.waitFace();

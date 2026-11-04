@@ -132,6 +132,10 @@ test("an icon written as {codepoint} keeps the icon widget with the object as it
   const named = fieldsOf(inspect(text.replace('{ codepoint: "U+E241" }', "heart"), pathOf("glyph"), null))["icon"];
   assert.equal(named.widget, "icon");
   assert.equal(named.value, "heart");
+  // {for: <source>} is the third spelling: the icon widget, the object its value
+  const follows = fieldsOf(inspect(text.replace('{ codepoint: "U+E241" }', "{for: system.battery}"), pathOf("glyph"), null))["icon"];
+  assert.equal(follows.widget, "icon");
+  assert.deepEqual(follows.value, { for: "system.battery" });
 
   const slots = text + `
 config:

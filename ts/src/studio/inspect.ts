@@ -53,7 +53,7 @@ import * as series from "../series.ts";
 import { schema } from "../validate.ts";
 import { jsonDumps, plain } from "./json.ts";
 import type {
-  Axes, AxisEntry, Capability, ComplicationType, DeviceInfo, EditContext, Effective, Field, FieldKind, FormatCode, Globals, HandSet, IconSpelling, Inspect, LayoutEntry,
+  Axes, AxisEntry, Capability, ComplicationType, DeviceInfo, EditContext, Effective, Field, FieldKind, FormatCode, Globals, HandSet, FixedIconSpelling, IconRuleWord, Inspect, LayoutEntry,
   OverrideSummary, PartsSummary, RuleFamily, SlotEntry, StyleEntry, UnreadableDevice, Value, Widget, Words,
 } from "./protocol.ts";
 
@@ -66,8 +66,8 @@ const value = (data: unknown): Value => plain(data ?? null) as Value;
 const mapping = (data: unknown): Record<string, Value> => (data instanceof Map ? plain(data) as Record<string, Value> : {});
 /** A name as written, when it is text. */
 const name = (data: unknown): string | null => (typeof data === "string" ? data : null);
-/** An icon as written: a name, or `{codepoint}`. */
-const iconSpelling = (data: unknown): IconSpelling | null =>
+/** A slot choice's icon as written: a name, or `{codepoint}`. */
+const iconSpelling = (data: unknown): FixedIconSpelling | null =>
   typeof data === "string" ? data : isMap(data) && typeof data.get("codepoint") === "string" ? { codepoint: String(data.get("codepoint")) } : null;
 
 /** The keys an override may patch: edited with the "all targets / this device / this shape / this display class" chooser. */
@@ -261,12 +261,13 @@ function field(r: Reading, key: string, path: Path, node: Json, raw: unknown, re
   if (kind === "scalar" && rules !== undefined) out.rules = rules;
   if (kind === "scalar") {
     if (Array.isArray(resolved["enum"])) out.enum = value(resolved["enum"]) as Value[];
-    // a value whose shape is not the schema's is shown as its text; an icon's `{codepoint}` is one of its spellings,
-    // a rule list a conditional value's, and a font written inline a font's
-    const codepoint = widget === "icon" && isMap(raw) && raw.size === 1 && typeof raw.get("codepoint") === "string";
+    // a value whose shape is not the schema's is shown as its text; an icon's `{codepoint}` and `{for: <source>}`
+    // are two of its spellings, a rule list a conditional value's, and a font written inline a font's
+    const spelled = widget === "icon" && isMap(raw) && raw.size === 1
+      && (typeof raw.get("codepoint") === "string" || typeof raw.get("for") === "string");
     const ruled = rules !== undefined && Array.isArray(raw);
     const inline = widget === "font" && isMap(raw);
-    if (present && !isScalar(raw) && !codepoint && !ruled && !inline) out.widget = "yaml";
+    if (present && !isScalar(raw) && !spelled && !ruled && !inline) out.widget = "yaml";
   } else if (kind === "object") {
     const props = (resolved["properties"] ?? {}) as Record<string, Json>;
     const extra = resolved["additionalProperties"];
@@ -759,6 +760,41 @@ const NUMBER_SPECS: readonly FormatCode[] = [
   ["s", "the value's own text"],
 ];
 
+/** A rule's bound as the picker prints it: at most one decimal. */
+const bound = (n: number): string => String(Math.round(n * 10) / 10);
+
+/**
+ * How a rule splits its reading, in a few words: equal steps over a range,
+ * each band of a thresholds rule (a count's `0 / 1+`, a boolean's `off / on`),
+ * or a table's number of values.
+ */
+function ruleSplit(rule: icons.IconRule): string {
+  if (rule.kind === "table") return `${rule.map.size} conditions`;
+  if (rule.range !== null) {
+    const [lo, hi] = rule.range;
+    return `${rule.steps.length} steps over ${bound(lo)}–${bound(hi)}${rule.cyclic ? ", wrapping round" : ""}`;
+  }
+  // a thresholds rule reads a boolean as 0 or 1, else a count: whole numbers from 0
+  const cuts = rule.thresholds ?? [];
+  if (cuts.length === 1 && cuts[0] === 1 && rule.sources.every((s) => catalog.get(s)?.type === "boolean")) return "off / on";
+  const bands = cuts.map((upper, k) => {
+    const lower = k === 0 ? 0 : cuts[k - 1]!;
+    return upper - lower === 1 ? bound(lower) : `${bound(lower)}–${bound(upper - 1)}`;
+  });
+  return [...bands, `${bound(cuts[cuts.length - 1] ?? 0)}+`].join(" / ");
+}
+
+/** The glyphs a table rule's row shows: its first distinct names by value. */
+const TABLE_STRIP = 12;
+
+/** One icon rule as the "follows data" tab lists it. */
+export function iconRuleWord(rule: icons.IconRule): IconRuleWord {
+  const glyphs = rule.kind === "table"
+    ? [...new Set([...rule.map].sort(([a], [b]) => a - b).map(([, name]) => name))].slice(0, TABLE_STRIP)
+    : [...rule.steps];
+  return { rule: rule.name, label: rule.label, kind: rule.kind, sources: [...rule.sources], glyphs, plain: rule.plain, split: ruleSplit(rule) };
+}
+
 let words: Words | null = null;
 
 /** What the pickers offer: data sources by namespace, icon names and complication types. Device-independent. */
@@ -786,6 +822,7 @@ export function vocabulary(): Words {
         const source = catalog.get(path)!;
         return [path, { type: source.type, unit: source.unit, quantity: source.quantity, doc: source.doc, nullable: source.nullable }];
       })),
+      icon_rules: [...icons.RULES.values()].map(iconRuleWord),
       format_codes: {
         time: codesOf(TIME_CODES), date: codesOf(DATE_CODES), duration: codesOf(DURATION_CODES), number: NUMBER_SPECS.map(([spec, label]) => [spec, label]),
       },

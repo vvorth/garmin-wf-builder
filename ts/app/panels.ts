@@ -13,7 +13,7 @@ import { ask } from "./dialogs.ts";
 import { HelpDialog } from "./help.ts";
 import { ColorPop, Commit, Form, Glyph, IconPop, Quantity } from "./form.ts";
 import type { FaceCtx, FaceSectionKey, OnEdit, OnFaceSection, OnReveal, OnSelect, WidgetCtx } from "./form.ts";
-import type { IconSpelling,
+import type { FixedIconSpelling, IconSpelling,
   Axes, EditOp, HandSet, Inspect, PaletteEntry, Path, Schemes as SchemesInfo, Scope,
   Capability, ComplicationType, SlotChoice, SlotEntry, StructureOp, Styles as StylesInfo, Summary, TreeNode, Value, Vocabulary,
 } from "../src/studio/protocol.ts";
@@ -160,7 +160,7 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
     if (!listed(name)) setChoices([...list, { type: name, icon: null }]);
     onEdit({ op: "set", path: [...path, "default"], value: name });
   };
-  const setIcon = (name: string, icon: IconSpelling | null) => setChoices(list.map((c) => (c.type === name ? { ...c, icon } : c)));
+  const setIcon = (name: string, icon: FixedIconSpelling | null) => setChoices(list.map((c) => (c.type === name ? { ...c, icon } : c)));
   const first = slot.default === null ? undefined : byName[slot.default];
   return html`<div class="slot-card">
     <div class="slot-head">
@@ -187,7 +187,7 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
             title=${isDefault ? "what the slot shows first stays on the list" : ""} onChange=${() => toggle(t.name)} />
           <button class=${"star" + (isDefault ? " on" : "")} title="show this first" onClick=${() => setDefault(t.name)}>${isDefault ? "★" : "☆"}</button>
           ${!any && choice ? html`<${IconPop} value=${choice.icon} placeholder=${t.icon} vocab=${vocab} allowNone
-              onPick=${(v: IconSpelling | null) => setIcon(t.name, v)} />` : html`<${Glyph} name=${t.icon} vocab=${vocab} />`}
+              onPick=${(v: IconSpelling | null) => { if (v === null || typeof v === "string" || "codepoint" in v) setIcon(t.name, v); }} />` : html`<${Glyph} name=${t.icon} vocab=${vocab} />`}
           <span class="label">${t.label}</span>
           <${Capabilities} type=${t} />
           <span class="dim mono">${t.sample || ""}</span>

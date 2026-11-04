@@ -298,6 +298,10 @@ under each source that has one.
 | `moon` | `astro.moon_age` | `moon_new`, `moon_waxing_crescent`, `moon_first_quarter`, `moon_waxing_gibbous`, `moon_full`, `moon_waning_gibbous`, `moon_last_quarter`, `moon_waning_crescent` | eight equal bands of the 29.53-day cycle, each centred on its phase: new is 27.68 days round to 1.85, full 12.92–16.61 | `moon_new` |
 | `weather` | `weather.condition`, `.condition_today`, `.condition_tomorrow`; `complication.current_weather`, `.forecast_weather_1day`/`_2day`/`_3day` | the `weather_*` icons | each `Weather.CONDITION_*` value to its icon | `weather_unknown` |
 
+In the editor, the icon picker's **follows data** tab lists every rule
+with the glyphs it draws and writes `icon: {for:}` for the source you pick
+([Studio](studio.md#an-icon)).
+
 ```yaml
 solar:
   type: icon

@@ -29,7 +29,7 @@ import { AddName, Popover } from "./ui.ts";
 import { TemplateEditor } from "./template-editor.ts";
 import { ConditionEditor, type ListStep, resultOf, ruleListSteps } from "./condition-editor.ts";
 import type {
-  EditOp, EditScope, Effective, Field, Globals, IconSpelling, Inspect, MipColor, Path, Scope, Summary, Value, Vocabulary,
+  EditOp, EditScope, Effective, Field, Globals, IconRuleWord, IconSpelling, Inspect, MipColor, Path, Scope, Summary, Value, Vocabulary,
 } from "../src/studio/protocol.ts";
 
 // -- the callbacks and the context the panels share ---------------------------------------
@@ -294,44 +294,131 @@ export function Glyph({ name, vocab }: GlyphProps): VNode {
             : html`<span class="glyph dim">${name === "none" ? "∅" : ""}</span>`;
 }
 
+/** An element's `absent:` as the icon picker's footer edits it: what it holds, and writing it (null removes it). */
+export interface AbsentKey {
+  value: Value | undefined;
+  onCommit: (value: Value | null) => void;
+}
+
 export interface IconPopProps {
-  /** The icon as written (a name, or `{codepoint}`), or none. */
+  /** The icon as written (a name, `{codepoint}` or `{for}`), or none. */
   value?: IconSpelling | null | undefined;
   vocab: Partial<Vocabulary>;
   /** Offer `none`, where the key takes it. */
   allowNone?: boolean;
+  /** Offer the "follows data" tab: an element's own `icon:` takes `{for: <source>}`, a slot choice's icon does not. */
+  allowFor?: boolean;
+  /** The element's `absent:`, which the footer offers while the icon follows a source that can be absent. */
+  absent?: AbsentKey | undefined;
   /** The icon drawn when none is written. */
   placeholder?: string | null | undefined;
-  /** A name, `none`, a codepoint as `{codepoint: "U+XXXX"}`, or null to remove. */
+  /** A name, `none`, a codepoint as `{codepoint: "U+XXXX"}`, a source as `{for: <source>}`, or null to remove. */
   onPick: (value: IconSpelling | null) => void;
 }
 
-/** What an icon spelling shows as: the name, or the codepoint. */
-const iconText = (value: IconSpelling | null | undefined): string | null =>
-  value === null || value === undefined ? null : typeof value === "string" ? value : value.codepoint;
+/** The source an icon follows, when it is written `{for: <source>}`. */
+export const followed = (value: IconSpelling | Value | null | undefined): string | null =>
+  value !== null && typeof value === "object" && !Array.isArray(value) && typeof (value as Record<string, unknown>)["for"] === "string"
+    ? String((value as Record<string, unknown>)["for"]) : null;
 
-// An icon picker: every catalogue icon as a glyph, `none` where the key
-// takes it, and a codepoint (`U+XXXX`) typed in.
-export function IconPop({ value: spelled, vocab, allowNone = false, placeholder, onPick }: IconPopProps): VNode {
+/** What a fixed icon spelling shows as: the name, or the codepoint. */
+const iconText = (value: IconSpelling | null | undefined): string | null =>
+  value === null || value === undefined ? null : typeof value === "string" ? value : "codepoint" in value ? value.codepoint : null;
+
+/** The rule a source's icon follows, from the words. */
+const ruleOf = (vocab: Partial<Vocabulary>, source: string | null): IconRuleWord | undefined =>
+  source === null ? undefined : (vocab.icon_rules || []).find((r) => r.sources.includes(source));
+
+/** A strip shortened for a chip: up to five glyphs, else the first, the middle and the last. */
+export const miniStrip = (glyphs: readonly string[]): string[] =>
+  glyphs.length <= 5 ? [...glyphs] : [glyphs[0]!, glyphs[Math.floor((glyphs.length - 1) / 2)]!, glyphs[glyphs.length - 1]!];
+
+type IconTab = "catalogue" | "code" | "data";
+
+/** The tab a spelling opens on: a source's in follows data, a codepoint's in code, a name's in the catalogue. */
+const tabOf = (value: IconSpelling | null | undefined, allowFor: boolean): IconTab =>
+  allowFor && followed(value) !== null ? "data" : value !== null && typeof value === "object" && "codepoint" in value ? "code" : "catalogue";
+
+// An icon picker in three tabs: the catalogue (every icon as a glyph, and
+// `none` where the key takes it), a codepoint (`U+XXXX`) typed in, and,
+// where the key takes `{for:}`, the sources an icon rule follows, each
+// rule a row showing the glyphs it draws. A catalogue glyph some rule draws
+// carries a corner mark leading to that rule's row. While the icon follows
+// a source that can be absent, a footer writes the element's `absent:`.
+export function IconPop({ value: spelled, vocab, allowNone = false, allowFor = false, absent, placeholder, onPick }: IconPopProps): VNode {
   const [code, setCode] = useState<string>("");
+  const [tab, setTab] = useState<IconTab>(() => tabOf(spelled, allowFor));
+  const [lit, setLit] = useState<string | null>(null);
+  const litRow = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const row = litRow.current;
+    if (tab === "data" && row && typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "nearest" });
+  }, [tab, lit]);
   const names = Object.keys(vocab.icon_glyphs || {}).sort();
+  const rules = allowFor ? vocab.icon_rules || [] : [];
+  const source = followed(spelled);
+  const rule = ruleOf(vocab, source);
+  // a catalogue glyph some rule draws (its plain glyph or one of its steps), to the first such rule
+  const drawnBy = new Map<string, IconRuleWord>();
+  for (const r of rules) for (const n of [r.plain, ...r.glyphs]) if (!drawnBy.has(n)) drawnBy.set(n, r);
   const value = iconText(spelled);
-  const label = html`<${Glyph} name=${value || placeholder} vocab=${vocab} />
+  const strip = (glyphs: readonly string[], more = false) => html`<span class="glyph-strip">${glyphs.map((n) => html`<${Glyph} name=${n} vocab=${vocab} />`)}${more ? html`<span class="dim">…</span>` : null}</span>`;
+  const label = source !== null
+    ? html`${strip(miniStrip(rule ? rule.glyphs : []))}<span>${rule ? rule.label : source}</span>`
+    : html`<${Glyph} name=${value || placeholder} vocab=${vocab} />
       <span class=${value ? "" : "dim"}>${value || placeholder || "icon"}</span>`;
-  return html`<${Popover} buttonClass="chip-button" bodyClass="pop" title=${value || placeholder || "pick an icon"} label=${label}
-    onOpen=${() => setCode("")}>${(close: () => void) => {
+  const title = source !== null ? `follows ${source}` : value || placeholder || "pick an icon";
+  const nullable = source !== null && vocab.source_info?.[source]?.nullable === true;
+  const held = absent?.value;
+  const heldIcon = held !== null && typeof held === "object" && !Array.isArray(held) ? (held as Record<string, Value>)["icon"] : undefined;
+  return html`<${Popover} buttonClass="chip-button" bodyClass="pop icon-pop" title=${title} label=${label}
+    onOpen=${() => { setCode(""); setLit(null); setTab(tabOf(spelled, allowFor)); }}>${(close: () => void) => {
     const pick = (v: IconSpelling | null) => { close(); setCode(""); onPick(v); };
-    return html`
-      <div class="pop-grid icons">${names.map((n) => html`<button class=${"swatch icon" + (n === value ? " on" : "")}
-        title=${n} aria-label=${n} aria-pressed=${n === value} onClick=${() => pick(n)}><${Glyph} name=${n} vocab=${vocab} /></button>`)}</div>
-      <div class="pop-custom">
-        ${allowNone ? html`<button title="draw no icon for this one" onClick=${() => pick("none")}>none</button>` : null}
+    const tabButton = (t: IconTab, text: string) => html`<button role="tab" class=${t === tab ? "on" : ""} aria-selected=${t === tab}
+      aria-pressed=${t === tab} onClick=${() => setTab(t)}>${text}</button>`;
+    const reset = value || source !== null ? html`<button class="reset" title=${placeholder ? `back to ${placeholder}` : "remove"}
+      aria-label=${placeholder ? `back to ${placeholder}` : "remove"} onClick=${() => pick(null)}>×</button>` : null;
+    const catalogue = html`
+      <div class="pop-grid icons">${names.map((n) => {
+        const by = drawnBy.get(n);
+        return html`<span class="icon-cell"><button class=${"swatch icon" + (n === value ? " on" : "")}
+          title=${n} aria-label=${n} aria-pressed=${n === value} onClick=${() => pick(n)}><${Glyph} name=${n} vocab=${vocab} /></button>
+          ${by ? html`<button class="follows-mark" tabindex="-1" aria-label=${`follows data: ${by.label}`}
+            title=${`or let it follow ${by.sources.join(", ")} (follows data tab)`}
+            onClick=${() => { setLit(by.rule); setTab("data"); }}></button>` : null}</span>`;
+      })}</div>
+      ${allowNone || reset ? html`<div class="pop-custom">
+        ${allowNone ? html`<button title="draw no icon for this one" onClick=${() => pick("none")}>none</button>` : null}${reset}</div>` : null}`;
+    const typed = html`<div class="pop-custom">
         <input type="text" class="mono codepoint" aria-label="codepoint" placeholder="U+F0000" value=${code}
           onInput=${(e: InputEvent) => setCode(e.currentTarget.value)} />
         <button disabled=${!/^U\+[0-9A-Fa-f]{4,6}$/.test(code)} onClick=${() => pick({ codepoint: code.trim().toUpperCase() })}>Use</button>
-        ${value ? html`<button class="reset" title=${placeholder ? `back to ${placeholder}` : "remove"}
-          aria-label=${placeholder ? `back to ${placeholder}` : "remove"} onClick=${() => pick(null)}>×</button>` : null}
-      </div>`;
+        ${reset}
+      </div>
+      <div class="note">a glyph of the icon font the catalogue does not name</div>`;
+    const follows = html`<div class="rule-rows">${rules.map((r) => html`
+      <div class=${"rule-row" + (r.rule === lit ? " lit" : "")} ref=${r.rule === lit ? litRow : undefined}>
+        <div class="rule-head"><span class="rule-label">${r.label}</span>${strip(r.glyphs, r.kind === "table")}</div>
+        <div class="note">${r.split}</div>
+        ${r.sources.map((s) => html`<button class=${"rule-source mono" + (s === source ? " on" : "")} aria-pressed=${s === source}
+          title=${`the icon follows ${s}'s reading`} onClick=${() => pick({ for: s })}>${s}</button>`)}
+      </div>`)}</div>
+      ${reset ? html`<div class="pop-custom">${reset}</div>` : null}`;
+    const footer = absent && nullable ? html`<div class="pop-custom absent-row" title="what the icon draws on a frame its source has no reading (absent:)">
+        <span class="dim">without a reading:</span>
+        <span class="seg">
+          <button class=${held == null ? "on" : ""} aria-pressed=${held == null} title=${`the rule's plain glyph${rule ? `, ${rule.plain}` : ""}`}
+            onClick=${() => { if (held != null) absent.onCommit(null); }}>plain</button>
+          <button class=${held === "hide" ? "on" : ""} aria-pressed=${held === "hide"} title="draw nothing (absent: hide)"
+            onClick=${() => { if (held !== "hide") absent.onCommit("hide"); }}>hide</button>
+        </span>
+        <${IconPop} value=${(heldIcon ?? null) as IconSpelling | null} vocab=${vocab} placeholder="pick…"
+          onPick=${(v: IconSpelling | null) => absent.onCommit(v === null ? null : { icon: v as Value })} />
+      </div>` : null;
+    return html`
+      <div class="seg pop-tabs" role="tablist">${tabButton("catalogue", "catalogue")}${tabButton("code", "code")}${allowFor ? tabButton("data", "follows data") : null}</div>
+      ${tab === "catalogue" ? catalogue : tab === "code" ? typed : follows}
+      ${footer}`;
   }}</${Popover}>`;
 }
 
@@ -446,6 +533,18 @@ interface WidgetProps {
   onSteps?: ((steps: Step[]) => void) | undefined;
   /** Writes one key under this one (a font's `size:`), leaving the rest as written. */
   onCommitAt?: ((sub: Path, value: Value) => void) | undefined;
+  /** The keys beside this one on the element (an icon's `absent:`), where the control may write them. */
+  beside?: Beside | undefined;
+}
+
+/**
+ * The keys beside a field on its element: what one holds, and a change to
+ * several of them, this field's own key among them, as one change (a value
+ * of null removes the key).
+ */
+export interface Beside {
+  value: (key: string) => Value | undefined;
+  commit: (changes: Record<string, Value | null>) => void;
 }
 
 /** One step of a change a control makes in several, its path under the key. */
@@ -481,7 +580,7 @@ function unknownWidget(_widget: never, fallback: VNode): VNode {
   return fallback;
 }
 
-function Widget({ field, value, ctx, onCommit, onPickColor, like, own, onSteps, onCommitAt }: WidgetProps): VNode {
+function Widget({ field, value, ctx, onCommit, onPickColor, like, own, onSteps, onCommitAt, beside }: WidgetProps): VNode {
   // a rule list: rewritten in place over what the key holds, in one change
   const commitRules = (v: Value): void => {
     const steps = ruleSteps(own, v, field.widget === "color");
@@ -523,7 +622,17 @@ function Widget({ field, value, ctx, onCommit, onPickColor, like, own, onSteps, 
     }
     case "template": return html`<${TemplateEditor} value=${shown(value)} vocab=${ctx.vocab} onCommit=${onCommit} />`;
     case "font": return html`<${FontControl} field=${field} value=${value} ctx=${ctx} onCommit=${onCommit} onCommitAt=${onCommitAt} />`;
-    case "icon": return html`<${IconPop} value=${value as IconSpelling | null} vocab=${ctx.vocab} onPick=${(v: IconSpelling | null) => v && onCommit(v)} />`;
+    case "icon": {
+      // `absent:` is the icon's only while it follows a reading: a fixed icon picked takes the key with it
+      const absent: AbsentKey | undefined = beside
+        ? { value: beside.value("absent"), onCommit: (v: Value | null) => beside.commit({ absent: v }) } : undefined;
+      const pickIcon = (v: IconSpelling | null): void => {
+        if (!v) return;
+        if (beside && followed(v) === null && beside.value("absent") != null) beside.commit({ [field.key]: v, absent: null });
+        else onCommit(v);
+      };
+      return html`<${IconPop} value=${value as IconSpelling | null} vocab=${ctx.vocab} allowFor absent=${absent} onPick=${pickIcon} />`;
+    }
     case "complication": return enumSelect((field.enum || ctx.vocab.complications || []).map(String));
     case "slot": return enumSelect((ctx.globals.slots || []).map((s) => s.name));
     case "handset": {
@@ -839,6 +948,26 @@ function stepsOf(ctx: WidgetCtx, base: { element: Path; scope: EditScope; device
   };
 }
 
+/**
+ * The keys beside a top-level field, written in its lane as one change (a
+ * batch where it is several edits); none for a nested field, a read-only
+ * one, or one whose lane writes an override or the `aod:` block.
+ */
+function besideOf(field: Field, ins: Inspect, lane: Lane, ctx: WidgetCtx, onEdit: OnEdit): Beside | undefined {
+  if (field.path.length !== 1 || lane.readonly || lane.scope !== "all") return undefined;
+  const base = baseOf(ins, lane);
+  return {
+    value: (key) => ins.fields.find((f) => f.key === key)?.value ?? undefined,
+    commit: (changes) => {
+      const edits = Object.entries(changes).map(([key, v]): EditOp => (v === null
+        ? { op: "remove", ...base, path: [key] } : { op: "set", ...base, path: [key], value: v }));
+      if (edits.length === 1) void onEdit(edits[0]!);
+      else if (ctx.onBatch) ctx.onBatch(`set ${Object.keys(changes).join(", ")}`, edits);
+      else edits.forEach((e) => void onEdit(e));
+    },
+  };
+}
+
 function ScalarField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): VNode {
   const r = reading(field, ins, lane, depth);
   const base = { ...baseOf(ins, lane), path: field.path };
@@ -851,7 +980,8 @@ function ScalarField({ field, ins, lane, ctx, onEdit, depth }: FieldViewProps): 
             onCommit=${(v: Value) => onEdit({ op: "set", ...base, value: v })}
             onPickColor=${(v: string) => onEdit({ op: "use_color", ...base, value: v })}
             onSteps=${stepsOf(ctx, base, onEdit)}
-            onCommitAt=${(sub: Path, v: Value) => onEdit({ op: "set", ...base, path: [...base.path, ...sub], value: v })} />`}
+            onCommitAt=${(sub: Path, v: Value) => onEdit({ op: "set", ...base, path: [...base.path, ...sub], value: v })}
+            beside=${field.widget === "icon" ? besideOf(field, ins, lane, ctx, onEdit) : undefined} />`}
       ${!lane.readonly && r.own != null && !field.required && field.widget !== "readonly"
         ? html`<${Remove} lane=${lane} onClick=${() => onEdit({ op: "remove", ...base, path: removedPath(field, lane) })} />` : null}
       ${r.note ? html`<div class="note">${r.note}</div>` : null}

@@ -390,6 +390,27 @@ input[type="range"].wide { width: 100%; }
 .glyph svg { display: block; margin: 0 auto; }
 .pop-grid.icons { grid-template-columns: repeat(10, 1fr); }
 .pop .swatch.icon { background: var(--raised); color: var(--text); font-size: 14px; display: grid; place-items: center; }
+/* the icon picker's tabs, the corner mark on a glyph some rule draws, and the follows-data rows */
+.popover-body.icon-pop { width: 280px; }
+.pop-tabs { display: flex; }
+.pop-tabs button { flex: 1; font-size: 12px; }
+.pop-grid.icons .icon-cell { position: relative; display: block; }
+.pop-grid.icons .follows-mark { position: absolute; top: 1px; right: 1px; width: 4px; height: 4px; min-width: 0; padding: 0; border: none;
+  border-radius: 50%; background: var(--accent); opacity: .5; cursor: pointer; }
+.pop-grid.icons .follows-mark:hover { opacity: 1; outline: 2px solid var(--accent); outline-offset: 1px; }
+.glyph-strip { display: inline-flex; gap: 1px; align-items: baseline; white-space: nowrap; }
+.glyph-strip .glyph { font-size: 14px; }
+.chip-button .glyph-strip .glyph { font-size: 12px; }
+.rule-rows { display: flex; flex-direction: column; gap: 6px; }
+.rule-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 4px; border-radius: 6px; border: 1px solid transparent; }
+.rule-row.lit { border-color: var(--accent); }
+.rule-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.rule-label { font-weight: 600; font-size: 12px; }
+.rule-row .note { margin: 0; }
+.rule-source { font-size: 11px; padding: 1px 6px; text-align: left; }
+.rule-source.on { border-color: var(--accent); }
+.absent-row { flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 6px; font-size: 12px; }
+.absent-row .seg button { padding: 1px 8px; font-size: 12px; }
 .slot-card { padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
 .inspector .slot-card { padding: 6px 12px 10px; }
 .slot-card .slot-head, .slot-card .slot-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 2px 0; }

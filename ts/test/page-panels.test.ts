@@ -474,6 +474,133 @@ test("an icon the compiler draws shows from its outline, not as the icon font's 
   assert.deepEqual(printed[1], [1, 0, words.icon_glyphs["heart"]], "a drawn icon in the picker is an outline; a font icon stays text");
 });
 
+/** An icon element following `source`, with `extra` lines under it. */
+const followingIcon = (source: string, extra = ""): string => instantiate("minimal", "T") + `
+  glyph:
+    type: icon
+    icon: {for: ${source}}
+    size: 10%r
+    at: { anchor: center }
+    color: color.dim
+${extra}`;
+
+test("an icon that follows data shows its rule on the chip, and the follows data tab picks a source as {for:}", async () => {
+  installAssets();
+  const words = vocabulary();
+  const vocab = { icon_glyphs: words.icon_glyphs, icon_paths: words.icon_paths, icon_rules: words.icon_rules, source_info: words.source_info };
+  const text = followingIcon("system.battery");
+  const element = ["elements", "glyph"];
+  const printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, `
+      const icon = field("icon");
+      const chip = icon.all((e) => cls(e) === "chip-button")[0];
+      const glyphs = (e) => e.all((x) => cls(x) === "glyph").map((x) => x.attributes.title);
+      out([chip.textContent.includes("Battery"), glyphs(chip), chip.attributes.title]);
+      await click(chip);
+      // it opens on the follows data tab, the current source pressed
+      const tabs = icon.all((e) => e.attributes.role === "tab");
+      out(tabs.map((t) => [t.textContent, t.attributes["aria-selected"]]));
+      const rows = icon.all((e) => /^rule-row( |$)/.test(cls(e)));
+      out(rows.map((r) => [r.all((x) => cls(x) === "rule-label")[0].textContent, glyphs(r.all((x) => cls(x) === "glyph-strip")[0]),
+        r.all((x) => cls(x).startsWith("rule-source")).map((b) => b.textContent)]));
+      out(icon.all((e) => cls(e).includes("rule-source") && cls(e).includes(" on")).map((b) => b.textContent));
+      out(icon.all((e) => cls(e).includes("absent-row")).length);   // system.battery is always there: no absent: footer
+      const row = rows.find((r) => r.textContent.includes("Notifications"));
+      await click(row.all((b) => cls(b).startsWith("rule-source") && b.textContent === "device.notification_count")[0]);
+      out(edits);
+    `));
+  assert.deepEqual(printed[0], [true, ["battery_level_0", "battery_level_1", "battery_level_2", "battery_level_3", "battery_level_4"], "follows system.battery"]);
+  assert.deepEqual(printed[1], [["catalogue", "false"], ["code", "false"], ["follows data", "true"]]);
+  // one row per rule in the table, each with every glyph it draws and every source it follows
+  const rules = words.icon_rules;
+  assert.deepEqual(printed[2].map((r: unknown[]) => r[0]), rules.map((r) => r.label));
+  assert.ok(printed[2].some((r: unknown[]) => r[0] === "Moon phase" && (r[2] as string[]).includes("astro.moon_age")), "the moon rule has its row");
+  assert.deepEqual(printed[2].map((r: unknown[]) => r[1]), rules.map((r) => r.glyphs));
+  assert.deepEqual(printed[2].map((r: unknown[]) => r[2]), rules.map((r) => r.sources));
+  assert.deepEqual(printed[3], ["system.battery"]);
+  assert.equal(printed[4], 0);
+  assert.deepEqual(printed[5], [{ op: "set", element, path: ["icon"], scope: "all", device: null, value: { for: "device.notification_count" } }]);
+});
+
+test("the absent: footer shows for a source that can be absent, writes hide, plain and a picked glyph, and a fixed icon picked takes absent: with it", async () => {
+  installAssets();
+  const words = vocabulary();
+  const vocab = { icon_glyphs: words.icon_glyphs, icon_paths: words.icon_paths, icon_rules: words.icon_rules, source_info: words.source_info };
+  const element = ["elements", "glyph"];
+  const footer = `
+      const icon = field("icon");
+      await click(icon.all((e) => cls(e) === "chip-button")[0]);
+      const row = () => icon.all((e) => cls(e).includes("absent-row"))[0];
+      const button = (text) => row().all((b) => b.localName === "button" && b.textContent === text)[0];`;
+  // complication.battery can be absent: the footer offers plain (on), hide and a pick
+  let text = followingIcon("complication.battery");
+  let printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, `${footer}
+      out(row() ? [button("plain").attributes["aria-pressed"], button("hide").attributes["aria-pressed"]] : null);
+      await click(button("hide"));
+      await click(button("plain"));                             // already plain: nothing sent
+      // a nested pick writes {icon: <name>}
+      await click(row().all((e) => cls(e) === "chip-button")[0]);
+      await click(row().all((e) => e.localName === "button" && e.attributes["aria-label"] === "heart")[0]);
+      out(edits);
+    `));
+  assert.deepEqual(printed[0], ["true", "false"]);
+  assert.deepEqual(printed[1], [
+    { op: "set", element, path: ["absent"], scope: "all", device: null, value: "hide" },
+    { op: "set", element, path: ["absent"], scope: "all", device: null, value: { icon: "heart" } },
+  ]);
+  // absent: hide written: hide is on, plain removes the key; a fixed icon picked removes absent: in the same change
+  text = followingIcon("complication.battery", "    absent: hide\n");
+  printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, `${footer}
+      out([button("plain").attributes["aria-pressed"], button("hide").attributes["aria-pressed"]]);
+      await click(button("plain"));
+      await click(icon.all((e) => e.attributes.role === "tab" && e.textContent === "catalogue")[0]);
+      await click(icon.all((e) => e.localName === "button" && e.attributes["aria-label"] === "heart")[0]);
+      out(edits);
+    `));
+  assert.deepEqual(printed[0], ["false", "true"]);
+  assert.deepEqual(printed[1], [
+    { op: "remove", element, path: ["absent"], scope: "all", device: null },
+    { batch: "set icon, absent", edits: [
+      { op: "set", element, path: ["icon"], scope: "all", device: null, value: "heart" },
+      { op: "remove", element, path: ["absent"], scope: "all", device: null },
+    ] },
+  ]);
+  // a fixed icon has no footer
+  text = followingIcon("complication.battery").replace("icon: {for: complication.battery}", "icon: heart");
+  printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, `${footer}
+      out(row() === undefined);
+    `));
+  assert.deepEqual(printed[0], true);
+});
+
+test("a catalogue glyph a rule draws carries a corner mark that opens the rule's row; a slot choice's picker has no follows data tab", async () => {
+  installAssets();
+  const words = vocabulary();
+  const vocab = { icon_glyphs: words.icon_glyphs, icon_paths: words.icon_paths, icon_rules: words.icon_rules, source_info: words.source_info };
+  const text = followingIcon("system.battery").replace("icon: {for: system.battery}", "icon: heart");
+  const printed = printedBy(inspector(summary(text), plain(inspect(text, ["elements", "glyph"], null)), { vocab }, `
+      const icon = field("icon");
+      await click(icon.all((e) => cls(e) === "chip-button")[0]);
+      const cell = (name) => icon.all((e) => cls(e) === "icon-cell" && e.all((b) => b.attributes["aria-label"] === name).length > 0)[0];
+      const mark = (name) => cell(name).all((b) => cls(b) === "follows-mark")[0];
+      out([mark("heart") === undefined, mark("notification").attributes.title]);
+      await click(mark("notification"));
+      out(icon.all((e) => e.attributes.role === "tab" && String(e.attributes["aria-selected"]) === "true").map((t) => t.textContent));
+      out(icon.all((e) => cls(e) === "rule-row lit").map((r) => r.all((x) => cls(x) === "rule-label")[0].textContent));
+    `));
+  assert.deepEqual(printed[0], [true, "or let it follow device.notification_count, complication.notification_count (follows data tab)"]);
+  assert.deepEqual(printed[1], ["follows data"]);
+  assert.deepEqual(printed[2], ["Notifications"]);
+  // a slot choice's icon draws the type, never a reading: its picker offers two tabs and no corner marks
+  const slots = await render(summary(repoText("examples/features/slot-gauge/face.yaml")), `
+      await openSection("Slots");
+      const chip = find((e) => cls(e) === "chip-button" && within(e, "slot-type"))[0];
+      await click(chip);
+      out([find((e) => e.attributes.role === "tab").map((t) => t.textContent), find((e) => cls(e) === "follows-mark").length,
+        find((e) => cls(e).includes("swatch icon")).length > 0]);
+    `);
+  assert.deepEqual(slots[0], [["catalogue", "code"], 0, true]);
+});
+
 test("a unit change converts an angle, asks for a length, and offers pt only where a font is in scope", async () => {
   // Switching the unit select used to write the old number in the new
   // unit (`360deg` became `360turn`, `-50%r` became `-50px`). Degrees and
@@ -625,7 +752,8 @@ test("a choice is a segmented control with the written branch on; switching writ
 });
 
 test("a scalar key holding a mapping is edited as its YAML in a text box, never sent to the YAML tab", async () => {
-  const showcase = repoText("examples/showcase/face.yaml");
+  // a mapping no spelling of the icon control is: neither {codepoint} nor {for}
+  const showcase = repoText("examples/showcase/face.yaml").replace("icon: { for: weather.condition_today }", "icon: { name: weather_sunny }");
   installAssets();
   const path = ["layouts", "digital", "elements", "weather_icon"];
   const printed = printedBy(inspector(summary(showcase), plain(inspect(showcase, path, null)), {}, `
@@ -636,7 +764,7 @@ test("a scalar key holding a mapping is edited as its YAML in a text box, never 
       await commit(icon, "{for: weather.condition");       // not YAML: nothing sent
       out(edits);
     `));
-  assert.deepEqual(printed[0], ["mono", "{\"for\": \"weather.condition_today\"}", false]);
+  assert.deepEqual(printed[0], ["mono", "{\"name\": \"weather_sunny\"}", false]);
   assert.deepEqual(printed[1], [{ op: "set", element: path, path: ["icon"], scope: "all", device: null, value: { for: "weather.condition" } }]);
 });
 

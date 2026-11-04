@@ -236,13 +236,20 @@ export interface FontEntry {
   size: Value;
 }
 
-/** One of a slot's `choices:`: a complication type and the icon drawn for it, when one is given. */
-/** An icon as the format spells it: a catalogue name (or `none` on a slot choice), or a codepoint. */
-export type IconSpelling = string | { codepoint: string };
+/**
+ * An icon as the format spells it: a catalogue name (or `none` on a slot
+ * choice), a codepoint, or, on an element's own `icon:`, `{for: <source>}`:
+ * the glyph an icon rule chooses from that source's reading.
+ */
+export type IconSpelling = string | { codepoint: string } | { for: string };
 
+/** An icon a slot's choice may carry: a name or a codepoint, never `{for:}` (a choice's icon draws the type, not a reading). */
+export type FixedIconSpelling = Exclude<IconSpelling, { for: string }>;
+
+/** One of a slot's `choices:`: a complication type and the icon drawn for it, when one is given. */
 export interface SlotChoice {
   type: string | null;
-  icon: IconSpelling | null;
+  icon: FixedIconSpelling | null;
 }
 
 /** One `config: slots:` entry. */
@@ -697,6 +704,24 @@ export interface FormatCodes {
   number: FormatCode[];
 }
 
+/**
+ * One icon rule as the icon picker's "follows data" tab shows it: its name
+ * and label, its kind, the sources `icon: {for:}` may name for it, the
+ * glyphs it draws (catalogue names in drawing order: a steps rule's every
+ * step, lowest first; a table's first 12 distinct names by value), its
+ * plain glyph (drawn without a reading), and how it splits the reading, in
+ * a few words ("5 steps over 0–100", "0 / 1+", "off / on", "54 conditions").
+ */
+export interface IconRuleWord {
+  rule: string;
+  label: string;
+  kind: "steps" | "table";
+  sources: string[];
+  glyphs: string[];
+  plain: string;
+  split: string;
+}
+
 /** What the pickers offer, independent of any face: the format's words. */
 export interface Words {
   /** Data sources by namespace (`activity` → `activity.steps`, …). */
@@ -719,6 +744,8 @@ export interface Words {
   icon_paths: Record<string, string>;
   /** Every data source, by path. */
   source_info: Record<string, SourceInfo>;
+  /** Every icon rule, in the rule table's order. */
+  icon_rules: IconRuleWord[];
   format_codes: FormatCodes;
   /** The diagnostic codes an element's `lint: {allow: [...], reason}` may accept, sorted. */
   lint_codes: string[];

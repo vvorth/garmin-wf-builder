@@ -413,16 +413,16 @@ cannot edit:
   own `font.<name>`, or **own font…**, which writes the font inline as this
   text's own: the named font's file and size, else the face's first font
   file; an inline font shows its file, a size box and the way back to a
-  named font), an icon, a touch-and-hold target, a slot, a hand set
-  (with **edit the set**, its lines in the YAML tab), a list of choices, on
-  or off. A colour bound to a scheme role, rather than one of the face's
-  swatches, names the role and jumps to the Schemes section. A colour,
-  `visible:`, a gauge's `value:`/`max:` and a graph's `min:`/`max:` can
-  follow data, edited as rows ([below](#a-value-that-follows-data-rows)). A
-  key written in a shape its control does not take (an `icon:` that follows
-  data) is edited as the YAML it is written as, in a text box: what you
-  type is read as a YAML value when you leave the box and written if it
-  reads.
+  named font), an icon ([below](#an-icon)), a touch-and-hold target, a
+  slot, a hand set (with **edit the set**, its lines in the YAML tab), a
+  list of choices, on or off. A colour bound to a scheme role, rather than
+  one of the face's swatches, names the role and jumps to the Schemes
+  section. A colour, `visible:`, a gauge's `value:`/`max:` and a graph's
+  `min:`/`max:` can follow data, edited as rows
+  ([below](#a-value-that-follows-data-rows)). A key written in a shape its
+  control does not take is edited as the YAML it is written as, in a text
+  box: what you type is read as a YAML value when you leave the box and
+  written if it reads.
 - A key holding keys (`at:`, `curve:`, `outline:`, `lint:`, `aod:` in the
   awake frame) is a fieldset of them, indented under its name. One with
   nothing written yet is folded to its name and a **+**; open it and set a
@@ -525,6 +525,34 @@ back as the rule list. **as expression** shows the value as one
 expression, edited as text; a value the rows cannot hold (two comparisons
 joined by `and`, a computed colour) opens that way, its **rows** button
 disabled with the reason.
+
+#### An icon
+
+An icon's `icon:` is a chip opening a picker in three tabs, which opens on
+the tab the written icon is in:
+
+- **catalogue**: every catalogue icon as its glyph. A glyph that some
+  [icon rule](icons.md#a-dynamic-icon-icon-for) draws carries a small dot
+  in its corner; its tooltip names the sources the icon could follow
+  instead, and clicking the dot opens **follows data** at that rule's row.
+- **code**: a codepoint of the icon font (`U+F1340`) typed in, written
+  `{codepoint: "U+F1340"}`.
+- **follows data**: one row per icon rule (Battery, Weather, …), each with
+  the strip of glyphs it draws in order (a weather condition's first
+  twelve and its number of conditions), how it splits the reading, and
+  one line per source it follows (`system.battery` and
+  `complication.battery` for Battery). Clicking a source writes
+  `icon: {for: <source>}`.
+
+An icon that follows data shows the rule's name and a few of its glyphs on
+its chip instead of a single glyph. While it follows a source that can be
+absent (`complication.battery`; `system.battery` is always there), the
+picker's footer sets what it draws without a reading
+([`absent:`](icons.md#absent-on-an-icon)): **plain**, the rule's plain
+glyph (no `absent:` written), **hide**, or a glyph picked from a second
+icon picker, written `absent: {icon: <name>}`. Picking a fixed icon or a
+codepoint for an icon with `absent:` removes `absent:` in the same change,
+since a fixed icon has no reading to lose.
 
 ### Layers
 
@@ -738,7 +766,8 @@ it is what the wearer's list shows, or the order the face is drawn in.
     `short: true` helps.
   - A ticked type's icon button picks its icon for this slot: any
     catalogue icon, `none`, or a codepoint (`U+F1340`); **×** goes back to
-    the type's own. **order** lists the ticked types as the wearer's list
+    the type's own. It has no **follows data** tab: a choice's icon draws
+    the type, and the slot's own icon already follows the pick. **order** lists the ticked types as the wearer's list
     shows them, each with **↑ ↓**.
   - Click its name to rename it (every `slot:` naming it follows), **×** deletes it (refused
     while an element draws it), **menu title** is its title in the settings
