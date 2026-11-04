@@ -254,7 +254,9 @@ editor's \`yaml-language-server\` schema mapping at it.`,
 
 For each source: its type, whether it is nullable, any permission
 binding it implies, its conventional \`on_hold: auto\` launch target (if
-it has one), and the SDK page it was taken from. Every read is a plain
+it has one), and the SDK page it was taken from. A source an icon rule
+follows (\`icon: {for:}\`) has one more line: the rule's glyphs, in order,
+and how the reading splits among them. Every read is a plain
 per-frame read now -- there is no refresh-tier concept left to show.
 This is the authoritative, always-current list -- never bind a path
 that is not listed here, and never trust a copy of this list pasted

@@ -71,8 +71,12 @@ or AOD-related has been observed on a watch or in the simulator.
   `runtime-lib/WfbReading.mc`). `docs/guide/configuration.md`.
 - **Dynamic icons** — `icon: {for:}` follows a weather condition, fills with
   a 0-100 level (`system.battery`, `complication.battery`,
-  `complication.solar_input`) or empties at zero (`device.notification_count`,
-  `complication.notification_count`); without a reading it draws the
+  `complication.solar_input`), empties at zero (`device.notification_count`,
+  `complication.notification_count`, `device.alarm_count`), switches with
+  do-not-disturb or the phone connection (`device.do_not_disturb`,
+  `device.phone_connected`, read as off/on) or steps round the moon's eight
+  phases (`astro.moon_age`, cyclic bands centred on each phase); `wfb
+  sources` prints each source's rule; without a reading it draws the
   rule's plain glyph, `weather_unknown` for a condition, or what its
   `absent: hide | {icon:}` says, on a `slot:` icon too; every rule is one
   entry in `icons.json`'s `rules`, and its chooser is generated

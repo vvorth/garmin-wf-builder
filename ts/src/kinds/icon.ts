@@ -60,6 +60,7 @@ function dynamicReference(rule: icons.IconRule): string {
 function choiceSaid(rule: icons.IconRule): string {
   if (rule.kind === "table") return `a name ('${rule.plain}' without a reading) -> a glyph`;
   if (rule.range !== null) return `a step, '${rule.plain}' without a reading`;
+  if (icons.readsBoolean(rule)) return `'${rule.steps[0]}' when off, else '${rule.steps[1]}'`;
   const bands = icons.thresholdRanges(rule).map((band) => `'${band.name}' ${icons.thresholdSaid(band)}`).join(", ");
   return `${bands}, else '${rule.steps[rule.steps.length - 1]}'`;
 }
@@ -200,7 +201,7 @@ class IconKind extends ElementKind<IconElement> {
         b.bag.error("icon", `icon: {for:} must be exactly one of: ${forSources().join(", ")} -- not ${quoted(valueFor.shown)}`,
           b.doc.span(dynamic, "for") ?? b.doc.span(node, "icon"), {
             notes: ["the glyph lookup needs the raw reading: a weather condition's Weather.CONDITION_* value, "
-              + "a 0-100 level or a count, so arithmetic or a conditional is refused"],
+              + "a 0-100 level, a count, an on/off setting or the moon's age, so arithmetic or a conditional is refused"],
           });
         valueFor = null;
       }
@@ -343,7 +344,9 @@ class IconKind extends ElementKind<IconElement> {
     if (element.value_for !== null) {
       const rule = element.rule!, source = quoted(element.value_for.text);
       if (rule.kind === "table") return `an icon chosen at runtime from ${source}`;
-      return rule.range !== null ? `an icon filling with ${source}` : `an icon emptying when ${source} is 0`;
+      if (rule.cyclic) return `an icon stepping round with ${source}`;
+      if (rule.range !== null) return `an icon filling with ${source}`;
+      return icons.readsBoolean(rule) ? `an icon switching with ${source}` : `an icon emptying when ${source} is 0`;
     }
     return `the ${quoted(element.icon)} icon`;
   }

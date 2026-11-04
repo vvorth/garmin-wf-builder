@@ -144,7 +144,8 @@ export function emitIconGlyphs(face: Face, viaChar: ReadonlySet<string> = new Se
  * not say whether a `switch` compares strings by value.
  */
 function emitRuleFunction(w: Writer, rule: icons.IconRule): void {
-  const signature = `function ${icons.ruleFunction(rule)}(value as Lang.Numeric or Null) as String`;
+  const boolean = icons.readsBoolean(rule);
+  const signature = `function ${icons.ruleFunction(rule)}(value as ${boolean ? "Lang.Boolean" : "Lang.Numeric"} or Null) as String`;
   w.blank();
   if (rule.kind === "table") {
     w.doc(`The '${rule.name}' icon for a reading: each value the table names to its\n`
@@ -155,6 +156,19 @@ function emitRuleFunction(w: Writer, rule: icons.IconRule): void {
         for (const [value, name] of [...rule.map].sort(([a], [b]) => a - b)) w.line(`case ${value}: return "${name}";`);
         w.line(`default: return "${rule.plain}";`);
       });
+    });
+    return;
+  }
+  if (boolean) {
+    // An on/off reading is a Lang.Boolean: compared with true and false, since
+    // a count's `instanceof Lang.Number` test would send `false` to the plain icon.
+    const [off, on] = rule.steps as [string, string];
+    w.doc(`The '${rule.name}' icon for an on/off reading: '${off}' when off, '${on}' when on,\n`
+      + `and '${rule.plain}' without a reading.`);
+    w.block(signature, () => {
+      if (rule.plain !== on) w.block("if (value == true)", () => w.line(`return "${on}";`));
+      if (rule.plain !== off) w.block("if (value == false)", () => w.line(`return "${off}";`));
+      w.line(`return "${rule.plain}";`);
     });
     return;
   }
@@ -171,12 +185,14 @@ function emitRuleFunction(w: Writer, rule: icons.IconRule): void {
     });
     return;
   }
+  if (rule.cyclic) {
+    emitCyclicChooser(w, rule, signature);
+    return;
+  }
   const bands = rule.steps.length;
   const [lo, hi] = rule.range!;
   const span = String(hi - lo);
   const offset = lo === 0 ? "value" : `(value - ${String(lo)})`;
-  // The band maths takes `cyclic` (icons.levelBand); no rule in the table uses it yet, so no chooser is written for it.
-  if (rule.cyclic) throw new Error(`${rule.name}: no IconGlyphs chooser for a cyclic range`);
   const first = lo === 0 ? `${span}/${bands}` : `${String(lo)}+${span}/${bands}`;
   w.doc(`The '${rule.name}' icon for a ${String(lo)}-${String(hi)} reading: ${bands} equal bands, the\n`
     + `reading truncated to one ('${rule.steps[0]}' below ${first}, ${String(hi)} the top),\n`
@@ -190,6 +206,37 @@ function emitRuleFunction(w: Writer, rule: icons.IconRule): void {
       w.line(`default: return "${rule.steps[bands - 1]}";`);
     });
   });
+}
+
+/**
+ * A cyclic rule's chooser: `N` bands over `[lo, hi]`, band 0 centred on
+ * `lo` (the half band either side of it, wrapping round from `hi`), as
+ * `icons.levelBand` computes it. Float arithmetic, truncated with
+ * `toNumber()`; a reading is never below `lo` (the moon's age runs 0 up to
+ * 29.53), so the truncated value is never negative and a plain `% N` wraps it.
+ */
+function emitCyclicChooser(w: Writer, rule: icons.IconRule, signature: string): void {
+  const bands = rule.steps.length;
+  const [lo, hi] = rule.range!;
+  const width = (hi - lo) / bands;
+  const edge = (k: number): string => formatEdge(lo + (k + 0.5) * width);
+  const offset = lo === 0 ? "value.toFloat()" : `(value.toFloat() - ${String(lo)})`;
+  w.doc(`The '${rule.name}' icon for a ${String(lo)}-${String(hi)} reading that wraps round: ${bands} equal bands,\n`
+    + `each centred on its step, so '${rule.steps[0]}' takes ${String(lo)} up to ${edge(0)} and ${edge(bands - 1)} up to ${String(hi)},\n`
+    + `'${rule.steps[1]}' ${edge(0)} up to ${edge(1)}, and so on; '${rule.plain}' without a reading.`);
+  w.block(signature, () => {
+    w.block("if (value == null)", () => w.line(`return "${rule.plain}";`));
+    w.line(`var band = (${offset} / ${String(hi - lo)} * ${bands} + 0.5).toNumber() % ${bands};`);
+    w.block("switch (band)", () => {
+      rule.steps.slice(1).forEach((name, i) => w.line(`case ${i + 1}: return "${name}";`));
+      w.line(`default: return "${rule.steps[0]}";`);
+    });
+  });
+}
+
+/** A band edge as a doc comment shows it: two decimals. */
+function formatEdge(value: number): string {
+  return value.toFixed(2);
 }
 
 /**

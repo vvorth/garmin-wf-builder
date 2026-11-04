@@ -31,6 +31,13 @@ function ruleProblems(rules: Record<string, Record<string, unknown>>): string[] 
     for (const read of Object.values((rule["follows"] ?? {}) as Record<string, unknown>)) {
       if (typeof read !== "string" || !sources.includes(read)) out.push(`${name}: follows ${JSON.stringify(read)}, not one of its own sources`);
     }
+    // An on/off source is read as 0 or 1: only a two-step rule at threshold 1
+    // splits it, and its chooser takes a Lang.Boolean, so no other source may share it.
+    const booleans = sources.filter((source) => typeof source === "string" && catalog.get(source)?.type === "boolean");
+    if (booleans.length > 0) {
+      if (booleans.length !== sources.length) out.push(`${name}: on/off sources share the rule with other readings`);
+      if (rule["kind"] !== "steps" || JSON.stringify(rule["thresholds"]) !== "[1]") out.push(`${name}: an on/off source takes a steps rule with thresholds [1]`);
+    }
     if (rule["kind"] === "steps") {
       const steps = rule["steps"];
       if (!Array.isArray(steps) || steps.length < 2) out.push(`${name}: a steps rule needs two steps or more`);
@@ -43,6 +50,7 @@ function ruleProblems(rules: Record<string, Record<string, unknown>>): string[] 
         out.push(`${name}: thresholds rise above 0, one fewer than the steps`);
       }
       if (rule["map"] !== undefined) out.push(`${name}: a steps rule has no map`);
+      if (rule["cyclic"] !== undefined && range === undefined) out.push(`${name}: a cyclic rule wraps a range, so it needs one`);
     } else if (rule["kind"] === "table") {
       const map = rule["map"];
       if (map === null || typeof map !== "object" || Object.keys(map).length === 0) out.push(`${name}: a table rule needs a map`);
@@ -74,6 +82,9 @@ test("a malformed rule is caught", () => {
     [{ kind: "table", label: "L", plain: "weather_unknown", sources: ["weather.condition"], map: { 0: "weather_sunny" },
       follows: { "complication.current_temperature": "weather.condition_today" } }, /follows "weather.condition_today", not one of its own sources/],
     [{ ...steps, kind: "ring" }, /neither steps nor table/],
+    [{ ...steps, range: undefined, thresholds: [1], cyclic: true }, /a cyclic rule wraps a range/],
+    [{ ...steps, sources: ["device.do_not_disturb"] }, /an on\/off source takes a steps rule with thresholds \[1\]/],
+    [{ ...steps, range: undefined, thresholds: [1], sources: ["device.do_not_disturb", "device.alarm_count"] }, /on\/off sources share the rule/],
   ];
   for (const [rule, problem] of cases) assert.match(ruleProblems({ bad: rule }).join("\n"), problem);
   assert.match(ruleProblems({ ok: steps, again: steps }).join("\n"), /again: system.battery already follows the ok rule/);

@@ -27,8 +27,8 @@ can bind.
 | `activity.*` | source namespace | — | — | steps, calories, distance, floors, and more |
 | `weather.*` | source namespace | — | — | condition, temperature, forecast |
 | `position.*` | source namespace | — | — | latitude and longitude of the weather observation, needing the Positioning permission |
-| `astro.*` | source namespace | — | — | [the sun, the moon and sidereal time](#astronomy), computed on the watch from the date, the clock and the position |
-| `device.*` | source namespace | — | — | notifications, alarms, do-not-disturb, phone-connected |
+| `astro.*` | source namespace | — | — | [the sun, the moon and sidereal time](#astronomy), computed on the watch from the date, the clock and the position; `astro.moon_age` has a [moon-phase icon](icons.md#an-icon-that-follows-a-reading) |
+| `device.*` | source namespace | — | — | notifications, alarms, do-not-disturb, phone-connected, each with an [icon that follows it](icons.md#an-icon-that-follows-a-reading) |
 | `system.*` | source namespace | — | — | battery, charging |
 | `complication.*` | source namespace | — | — | [the `complication.*` namespace](#the-complication-namespace-and-the-one-rule-for-reaching-it) |
 
@@ -108,7 +108,8 @@ minute and second, and `time.utc_offset`, the local time's offset from UTC
 in seconds), `date.*` (including the localised month name and weekday,
 `date.weekday` as a number 1–7 and `date.month_number` as a number 1–12),
 `device.*` (notification/alarm counts,
-do-not-disturb, phone-connected, 24-hour setting), `system.*` (battery,
+do-not-disturb, phone-connected, 24-hour setting; the first four each have
+an [icon that follows the reading](icons.md#an-icon-that-follows-a-reading)), `system.*` (battery,
 charging), `activity.*` (steps, calories, distance, floors, move bar,
 intensity minutes, stress score, respiration rate, time to recovery),
 `heart_rate.current`, `pulse_ox.current`, `ambient.*` (altitude, barometric
@@ -149,7 +150,7 @@ is read fresh every frame.
 |---|---|---|---|
 | `astro.day_of_year` | number 1–366 | the date | day of the year, 1 = 1 January |
 | `astro.days_since_j2000` | float, days | date, clock | days since J2000.0 (2000-01-01 12:00 UT) at this instant |
-| `astro.moon_age` | float, days 0–29.53 | date, clock | the moon's age as its phase (elongation over the synodic month: 0 new, 14.77 full), the figure a moon-phase display wants; it can differ from the time elapsed since the last new moon by up to 0.7 days |
+| `astro.moon_age` | float, days 0–29.53 | date, clock | the moon's age as its phase (elongation over the synodic month: 0 new, 14.77 full), the figure a moon-phase display wants (`icon: {for: astro.moon_age}` draws the [phase icon](icons.md#an-icon-that-follows-a-reading)); it can differ from the time elapsed since the last new moon by up to 0.7 days |
 | `astro.moon_illumination` | float 0–1 | date, clock | illuminated fraction of the moon's disc |
 | `astro.equation_of_time` | float, minutes | the date | apparent minus mean solar time: positive when a sundial runs fast |
 | `astro.sun_declination` | float, degrees | the date | the sun's declination |

@@ -414,13 +414,13 @@ Instead:
   (an outlined bubble) when the pulled count is 0, `notification` (a
   filled one) otherwise and when nothing could be pulled. An authored
   `icon:` on that choice keeps it. `icon: {for: device.notification_count}`
-  draws the same pair without a slot ([A count icon](icons.md#a-count-icon)).
+  draws the same pair without a slot ([An icon that follows a reading](icons.md#an-icon-that-follows-a-reading)).
   **A `battery` or `solar_input` icon fills with the reading**: one of
   five battery steps, empty up to full, or nine solar ones, a
   bolt in a disc with none to eight arcs lit around it (a static star
   below 22 px), by the band of 0-100 the pulled reading falls
   in, and the plain icon when nothing could be pulled
-  ([A level icon](icons.md#a-level-icon)); the slot's icon font then
+  ([An icon that follows a reading](icons.md#an-icon-that-follows-a-reading)); the slot's icon font then
   carries every step. An authored `icon:` on that choice keeps it.
   **All 42 native complication types have a catalogue icon** -- an author can still suppress one explicitly
   with a per-choice `icon: none`, and a Connect IQ-app complication (outside

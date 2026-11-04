@@ -209,7 +209,7 @@ test("icon: {for: system.battery} and {for: complication.battery} share one font
 test("icon: {for:} still refuses arithmetic over a level source", () => {
   const found = errors(fixed("complication.solar_input / 2"));
   assert.equal(found.length, 1);
-  assert.match(found[0]!.message, /complication.battery, complication.current_weather, complication.forecast_weather_1day, complication.forecast_weather_2day, complication.forecast_weather_3day, complication.notification_count, complication.solar_input, device.notification_count, system.battery, weather.condition,/);
+  assert.match(found[0]!.message, /complication.battery, complication.current_weather, complication.forecast_weather_1day, complication.forecast_weather_2day, complication.forecast_weather_3day, complication.notification_count, complication.solar_input, device.alarm_count, device.do_not_disturb, device.notification_count, device.phone_connected, system.battery, weather.condition,/);
 });
 
 /** The 4-connected pieces of a `w`-wide tile's ink, each as its pixel indices. */

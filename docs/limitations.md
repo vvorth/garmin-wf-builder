@@ -638,7 +638,10 @@ still true of the shipped feature:
   `ts/src/data/icons.json`) follows that rule: `battery` and `solar_input`
   fill with the pulled 0-100 reading, a step per equal band
   (`IconGlyphs.<rule>Icon`, generated), and `notification_count` empties
-  at zero; each is its plain icon without a reading. Every native type has a catalogue icon
+  at zero; each is its plain icon without a reading. The alarm,
+  do-not-disturb, phone and moon rules follow `device.*` and `astro.*`
+  sources, which no complication type carries, so they reach `icon:
+  {for:}` only, never a slot. Every native type has a catalogue icon
   (`COMPLICATION_ICON` in `ts/src/icons.ts` covers all 42), an
   author can override any choice's icon per-design (`choices:`'s
   mapping form `{type:, icon:}`, with a name, `{codepoint: "U+XXXX"}` or `none`), and

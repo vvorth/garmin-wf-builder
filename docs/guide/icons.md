@@ -14,7 +14,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 |---|---|---|---|
 | `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) |
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
-| `icon: {for:}` | a source an icon rule follows: `weather.condition`/`.condition_today`/`.condition_tomorrow` and the weather complications, a level icon's source (`system.battery`, `complication.battery`, `complication.solar_input`) or a count's (`device.notification_count`, `complication.notification_count`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
+| `icon: {for:}` | a source an icon rule follows, by rule: weather (`weather.condition`/`.condition_today`/`.condition_tomorrow`, `complication.current_weather`/`.forecast_weather_1day`/`_2day`/`_3day`), battery (`system.battery`, `complication.battery`), solar (`complication.solar_input`), notification (`device.notification_count`, `complication.notification_count`), alarm (`device.alarm_count`), do-not-disturb (`device.do_not_disturb`), phone (`device.phone_connected`), moon (`astro.moon_age`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `slot:` (instead of `icon:`) | a `config: slots:` name | — | [A slot's icon: `slot:`](#a-slots-icon-slot) — the icon of the wearer's pick |
 | `absent:` | `hide`, or `{icon: <name>}` / `{icon: {codepoint: "U+XXXX"}}` (with `icon: {for:}` or `slot:` only) | the plain glyph | [`absent:` on an icon](#absent-on-an-icon) — what draws without a reading |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
@@ -60,9 +60,10 @@ screenshot shows the weather icon.
 - **Any other glyph:** find it on the
   [Nerd Fonts cheat sheet](https://www.nerdfonts.com/cheat-sheet), then write
   its code as `icon: {codepoint: "U+XXXX"}`. The build checks that the font has it.
-- **`icon: {for:}`** picks the glyph on the watch at runtime: the weather
-  condition's, a [level icon](#a-level-icon) that fills with its reading, or
-  a [count icon](#a-count-icon) that empties at zero.
+- **`icon: {for:}`** picks the glyph on the watch at runtime, by an
+  [icon rule](#an-icon-that-follows-a-reading): the weather condition's, a
+  battery that fills with its reading, a notification bubble that empties
+  at zero, an alarm, do-not-disturb or phone status, or the moon's phase.
 
 ### `icon`
 
@@ -254,14 +255,10 @@ It accepts a bare source that an **icon rule** follows — not an expression
 over one (`weather.condition + 1` is rejected; the lookup needs the raw
 reading). The rules are one table, `rules` in `ts/src/data/icons.json`,
 each naming the sources it follows and how it turns their reading into a
-catalogue name:
-
-| Rule | Kind | Sources | Glyphs |
-|---|---|---|---|
-| `weather` | table: each `Weather.CONDITION_*` value to its icon, `weather_unknown` for any other | `weather.condition`, `.condition_today`, `.condition_tomorrow`; `complication.current_weather`, `.forecast_weather_1day`/`_2day`/`_3day` | the `weather_*` icons |
-| `battery` | steps over 0–100 | `system.battery`, `complication.battery` | [a level icon](#a-level-icon) |
-| `solar` | steps over 0–100 | `complication.solar_input` | [a level icon](#a-level-icon) |
-| `notification` | steps at a threshold of 1 | `device.notification_count`, `complication.notification_count` | [a count icon](#a-count-icon) |
+catalogue name: a *steps* rule orders its glyphs along the reading, split
+into equal bands over a range or at thresholds, and a *table* rule (the
+weather's) names a glyph for each value. Every rule, with its sources and
+glyphs, is listed in [An icon that follows a reading](#an-icon-that-follows-a-reading).
 
 The generated code resolves the glyph in two steps, mirroring
 `ts/src/icons.ts` exactly: `IconGlyphs.<rule>Icon()` (`weatherIcon`,
@@ -278,54 +275,24 @@ could return rather than one — still cheap: baking is still a small per-glyph
 bitmap, just several of them sharing one font instead of one glyph having its
 own.
 
-#### `absent:` on an icon
+#### An icon that follows a reading
 
-An icon that follows data, `icon: {for:}` or `slot:`, can lose its reading:
-nothing synced yet, a complication that could not be pulled. `absent:`
-says what it draws then:
+Each icon rule turns a reading into one of its glyphs. `icon: {for:}` on
+one of the rule's sources draws that glyph, and so does a
+[slot](#a-slots-icon-slot) showing a complication type the rule follows
+(and a `type: data` element's icon on it). `wfb sources` prints the rule
+under each source that has one.
 
-```yaml
-weather_now:
-  type: icon
-  icon: {for: weather.condition}
-  size: 20%r
-  color: color.text
-  absent: {icon: weather_cloudy_alert}   # or: hide, or {icon: {codepoint: "U+F0026"}}
-```
-
-* **Omitted, the rule's plain glyph draws.** A weather icon with no
-  condition draws `weather_unknown`, Weather Icons' `N/A` box, the same
-  glyph `CONDITION_UNKNOWN` gets; a [level icon](#a-level-icon) draws its
-  plain icon and a [count icon](#a-count-icon) its filled one. The space is
-  never left as a hole beside a `--` reading, and the `N/A` glyph says "no
-  data" where a blank would say nothing.
-* **`hide` draws nothing** while the reading is absent, as `absent: hide`
-  does on every other element.
-* **`{icon: <name>}`** (or `{icon: {codepoint: "U+XXXX"}}`) **draws that
-  glyph instead**, checked against the catalogue and the icon font as
-  `icon:` is. The font holds it beside the glyphs the icon can choose; one
-  it already holds costs nothing.
-* **On a `slot:` icon it follows the pick's reading**, not its type: the
-  wearer's pick still chooses the icon, and the substitute (or nothing)
-  draws on a frame that pick has no reading. A pick with no icon still
-  draws nothing.
-* An icon draws a glyph, so `{text:}` and `{value:}` are refused, and
-  `absent:` on a fixed icon (a name or a codepoint) is an error: it has no
-  reading to lose. On a source that is always there (`system.battery`,
-  `device.notification_count`) it has no effect, and a note says so.
-* The preview draws it from a null sample: `--sample weather.condition=null`.
-
-#### A level icon
-
-Some metrics have an icon that fills with the reading, a value from 0 to
-100. `icon: {for:}` on one of their sources draws the step the reading
-falls in, and so does a [slot](#a-slots-icon-slot) showing that metric
-(and a `type: data` element's icon on it):
-
-| Metric | Source | Slot type | Steps |
-|---|---|---|---|
-| Battery | `system.battery`, `complication.battery` | `battery` | `battery_level_0`…`battery_level_4`: an empty battery, then a quarter more per step (Font Awesome `battery_empty`, `_quarter`, `_half`, `_three_quarters`, `_full`) |
-| Solar input | `complication.solar_input` | `solar_input` | `solar_level_0`…`solar_level_8`: a disc with a lightning bolt cut out, and around it eight arcs, one more lit per step, clockwise from 12 o'clock. Under 22 px across, every step is the same eight-pointed star around the bolt ([below](#small-solar-icons)) |
+| Rule | Sources (slot type) | Glyphs, in order | How the reading splits | Plain |
+|---|---|---|---|---|
+| `battery` | `system.battery`, `complication.battery` (`battery`) | `battery_level_0`…`battery_level_4`: an empty battery, then a quarter more per step (Font Awesome `battery_empty`, `_quarter`, `_half`, `_three_quarters`, `_full`) | five equal bands of 0–100: 0–19 % empty, 20–39 % a quarter, … 80–100 % full | `battery`, the three-quarter battery |
+| `solar` | `complication.solar_input` (`solar_input`) | `solar_level_0`…`solar_level_8`: a disc with a lightning bolt cut out, and around it eight arcs, one more lit per step, clockwise from 12 o'clock | nine equal bands of 0–100, 11.1 wide: 0–11 lights no arc, 12–22 one, … 89–100 all eight | `solar`, the sun |
+| `notification` | `device.notification_count`, `complication.notification_count` (`notification_count`) | `notification_none` (an outlined speech bubble), `notification` (a filled one) | at 1: exactly 0 is the empty bubble, 1 or more the filled one | `notification` |
+| `alarm` | `device.alarm_count` | `alarm_off` (the alarm clock struck through), `alarm` | at 1: no alarm set is the struck clock | `alarm` |
+| `dnd` | `device.do_not_disturb` | `bell` (do-not-disturb off), `dnd` (the bell struck through: on) | off / on | `bell` |
+| `phone` | `device.phone_connected` | `phone_disconnected` (the Bluetooth rune struck through), `phone_connected` (the rune, as Garmin's own status row draws it) | off / on | `phone_connected` |
+| `moon` | `astro.moon_age` | `moon_new`, `moon_waxing_crescent`, `moon_first_quarter`, `moon_waxing_gibbous`, `moon_full`, `moon_waning_gibbous`, `moon_last_quarter`, `moon_waning_crescent` | eight equal bands of the 29.53-day cycle, each centred on its phase: new is 27.68 days round to 1.85, full 12.92–16.61 | `moon_new` |
+| `weather` | `weather.condition`, `.condition_today`, `.condition_tomorrow`; `complication.current_weather`, `.forecast_weather_1day`/`_2day`/`_3day` | the `weather_*` icons | each `Weather.CONDITION_*` value to its icon | `weather_unknown` |
 
 ```yaml
 solar:
@@ -333,74 +300,70 @@ solar:
   icon: {for: complication.solar_input}
   size: 18%r
   color: color.accent
-```
 
-* **The steps are equal bands of 0-100**, the reading truncated into one:
-  a battery's five bands are 20 wide, so 0-19% is the empty battery,
-  20-39% a quarter and 80-100% the full one; solar's nine are 11.1 wide,
-  so 0-11 lights no arc, 12-22 one, and 89-100 all eight.
-* **Without a reading the metric's plain icon draws** (`battery`, the
-  three-quarter battery; `solar`, the sun),
-  as a slot's icon does: it still says which metric this is. On a frame
-  that has one, the step replaces it.
-* **Every step is the same size.** Each step's glyph has the same ink box,
-  so the icon only fills, never jumps, and the font holds every step and
-  the plain icon, baked at `size:`.
-* **A slot choice with an authored `icon:` keeps it**, as a weather or a
-  notification count choice does.
-* `IconGlyphs.<rule>Icon()` (`batteryIcon`, `solarIcon`), generated
-  beside `IconGlyphs.glyph()` from the rule, turns the reading into the
-  step's catalogue name on the watch; the
-  preview draws the same step from the sample reading.
-* The steps are catalogue names too, so `icon: solar_level_4` draws one
-  step on its own.
-* `system.battery` is always there, so its icon is always a step; the two
-  battery sources share one font at a size.
-
-#### Small solar icons
-
-An arc one or two pixels thick does not
-read, so a solar step drawn **under 22 px across** (its `size:` on that
-device) is a static icon instead: the same bolt in an eight-pointed star,
-whatever the reading. The choice is made per device, when the font is
-baked, so one face can show arcs on a large screen and the star on a
-small one. Keep a reading next to a small solar icon: the star alone does
-not show how much.
-
-#### A count icon
-
-A notification count's icon empties at zero: `notification` (a filled
-speech bubble) while there is something to read, `notification_none` (the
-outlined bubble) when the count is exactly 0. `icon: {for:}` on
-`device.notification_count` or `complication.notification_count` draws the
-right one, and so does a [slot](#a-slots-icon-slot) showing the
-`notification_count` type (and a `type: data` element's icon on it):
-
-```yaml
-notifications:
+moon:
   type: icon
-  icon: {for: device.notification_count}
+  icon: {for: astro.moon_age}
+  size: 14%r
+  color: color.fg
+
+phone:
+  type: icon
+  icon: {for: device.phone_connected}
   size: 10%r
   color: color.fg
 ```
 
-* **Without a reading the filled icon draws**, as a slot's does: a count
-  that could not be pulled is not known to be zero. Only
-  `complication.notification_count` can be absent; `device.notification_count`
-  is always there.
-* **Both glyphs fit the same `size:` square**, so the icon empties in
-  place; the font holds both.
-* `IconGlyphs.notificationIcon()`, generated beside `IconGlyphs.glyph()`
-  from the rule, picks the name on the watch; the preview draws the same one from the
-  sample count (`--sample notification_count=0` shows the empty bubble).
-* To show the count itself, draw `{device.notification_count}` as text
-  beside it with `visible: device.notification_count > 0`: the number goes
-  at zero while the empty bubble stays ([Colours](colors.md) pairs the same
-  two elements with a colour switch instead).
-
-The eight arcs (and the star's eight points) are laid out so each has the
-same pixels as the others, flipped or turned. That is why the star's
-points sit either side of 12 o'clock, not on it.
+* **Equal bands are truncated**: the reading falls into the band it has
+  reached, so a battery at 39 % is still a quarter, never rounded up to
+  half. A threshold counts how many it has reached: a count of 0 is below
+  1, and an on/off setting reads as 0 (off) or 1 (on).
+* **The moon's bands wrap round.** Its first band is centred on the new
+  moon, half a band either side of it, so an age of 28.5 days is new, not
+  a waning crescent. The age comes from the date and the time on the watch
+  ([Astronomy](data.md#astronomy)), so the icon needs no sync.
+* **The new and the full moon are both plain discs**, as the glyph set
+  draws them: `moon_new` is the disc's outline, nothing lit, and
+  `moon_full` the disc filled. On a dark background that reads as night
+  sky and moonlight; on a light one their feel inverts, the filled disc
+  reading as the dark new moon, so pick the colour with the background in
+  mind, or place a fixed `moon_new` behind the live icon as a track.
+* **Without a reading the rule's plain icon draws**, as a slot's icon
+  does, unless [`absent:`](#absent-on-an-icon) says otherwise: it still
+  says which metric this is. A count that could not be
+  pulled is not known to be zero, so it draws the filled bubble. Only the
+  `complication.*` sources, and the weather ones, can be absent; the
+  `system.*`, `device.*` and `astro.*` ones here are always there.
+* **The icon changes in place.** Its font holds every glyph the rule can
+  draw, the plain one included, baked at `size:`. The battery and solar
+  steps share one ink box, so they only fill, never jump.
+* **A slot choice with an authored `icon:` keeps it**, as a weather choice
+  does.
+* `IconGlyphs.<rule>Icon()` (`batteryIcon`, `moonIcon`, …), generated
+  beside `IconGlyphs.glyph()` from the rule and only for the rules a face
+  uses, turns the reading into the glyph's catalogue name on the watch; the
+  preview draws the same glyph from the sample reading
+  (`--sample device.notification_count=0` shows the empty bubble,
+  `--sample astro.moon_age=14.8` the full moon).
+* Each glyph is a catalogue name too, so `icon: solar_level_4` or
+  `icon: moon_first_quarter` draws one on its own.
+* `system.battery` is always there, so its icon is always a step; the two
+  battery sources share one font at a size.
+* **Small solar icons.** An arc one or two pixels thick does not read, so
+  a solar step drawn **under 22 px across** (its `size:` on that device)
+  is a static icon instead: the same bolt in an eight-pointed star,
+  whatever the reading. The choice is made per device, when the font is
+  baked, so one face can show arcs on a large screen and the star on a
+  small one. Keep a reading next to a small solar icon: the star alone
+  does not show how much. The eight arcs (and the star's eight points)
+  are laid out so each has the same pixels as the others, flipped or
+  turned; that is why the star's points sit either side of 12 o'clock,
+  not on it.
+* **To show the notification count itself**, draw
+  `{device.notification_count}` as text beside the icon with
+  `visible: device.notification_count > 0`: the number goes at zero while
+  the empty bubble stays ([Colours](colors.md) pairs the same two elements
+  with a colour switch instead).
 
 #### A track behind the arcs
 
@@ -425,6 +388,44 @@ solar:
 ```
 
 Under 22 px both draw the same star, so the track is hidden there.
+
+#### `absent:` on an icon
+
+An icon that follows data, `icon: {for:}` or `slot:`, can lose its reading:
+nothing synced yet, a complication that could not be pulled. `absent:`
+says what it draws then:
+
+```yaml
+weather_now:
+  type: icon
+  icon: {for: weather.condition}
+  size: 20%r
+  color: color.text
+  absent: {icon: weather_cloudy_alert}   # or: hide, or {icon: {codepoint: "U+F0026"}}
+```
+
+* **Omitted, the rule's plain glyph draws.** A weather icon with no
+  condition draws `weather_unknown`, Weather Icons' `N/A` box, the same
+  glyph `CONDITION_UNKNOWN` gets; a battery or solar icon draws its
+  plain icon and a notification icon its filled one
+  ([An icon that follows a reading](#an-icon-that-follows-a-reading)). The space is
+  never left as a hole beside a `--` reading, and the `N/A` glyph says "no
+  data" where a blank would say nothing.
+* **`hide` draws nothing** while the reading is absent, as `absent: hide`
+  does on every other element.
+* **`{icon: <name>}`** (or `{icon: {codepoint: "U+XXXX"}}`) **draws that
+  glyph instead**, checked against the catalogue and the icon font as
+  `icon:` is. The font holds it beside the glyphs the icon can choose; one
+  it already holds costs nothing.
+* **On a `slot:` icon it follows the pick's reading**, not its type: the
+  wearer's pick still chooses the icon, and the substitute (or nothing)
+  draws on a frame that pick has no reading. A pick with no icon still
+  draws nothing.
+* An icon draws a glyph, so `{text:}` and `{value:}` are refused, and
+  `absent:` on a fixed icon (a name or a codepoint) is an error: it has no
+  reading to lose. On a source that is always there (`system.battery`,
+  `device.notification_count`) it has no effect, and a note says so.
+* The preview draws it from a null sample: `--sample weather.condition=null`.
 
 ### Your own icon font
 

@@ -20,10 +20,20 @@
    "codepoint": "󰀠",
    "description": "an alarm clock with bells, for an alarm indicator (Material Design md-alarm)"
   },
+  "alarm_off": {
+   "name": "alarm_off",
+   "codepoint": "󰀣",
+   "description": "an alarm clock struck through, for no alarm set (Material Design md-alarm_off)"
+  },
   "dnd": {
    "name": "dnd",
    "codepoint": "󰂛",
    "description": "a solid bell with a slash, for do-not-disturb (Material Design md-bell_off -- a solid glyph reads more reliably than an outline one at the small sizes a status row uses)"
+  },
+  "bell": {
+   "name": "bell",
+   "codepoint": "󰂚",
+   "description": "a bell, for do-not-disturb off (Material Design md-bell)"
   },
   "notification": {
    "name": "notification",
@@ -34,6 +44,16 @@
    "name": "notification_none",
    "codepoint": "󰆂",
    "description": "an empty speech bubble, for no notifications (Material Design md-comment_outline)"
+  },
+  "phone_connected": {
+   "name": "phone_connected",
+   "codepoint": "󰂯",
+   "description": "the Bluetooth rune, for a connected phone -- the glyph Garmin's own status row uses (Material Design md-bluetooth)"
+  },
+  "phone_disconnected": {
+   "name": "phone_disconnected",
+   "codepoint": "󰂲",
+   "description": "the Bluetooth rune struck through, for no phone connected (Material Design md-bluetooth_off)"
   },
   "battery": {
    "name": "battery",
@@ -94,6 +114,46 @@
    "name": "sunset",
    "codepoint": "󰖛",
    "description": "the sun setting below a horizon line (Material Design md-weather_sunset_down)"
+  },
+  "moon_new": {
+   "name": "moon_new",
+   "codepoint": "󰽤",
+   "description": "a new moon: the disc as an outline, nothing lit (Material Design md-moon_new)"
+  },
+  "moon_waxing_crescent": {
+   "name": "moon_waxing_crescent",
+   "codepoint": "󰽧",
+   "description": "a waxing crescent moon (Material Design md-moon_waxing_crescent)"
+  },
+  "moon_first_quarter": {
+   "name": "moon_first_quarter",
+   "codepoint": "󰽡",
+   "description": "a first-quarter moon, its right half lit (Material Design md-moon_first_quarter)"
+  },
+  "moon_waxing_gibbous": {
+   "name": "moon_waxing_gibbous",
+   "codepoint": "󰽨",
+   "description": "a waxing gibbous moon (Material Design md-moon_waxing_gibbous)"
+  },
+  "moon_full": {
+   "name": "moon_full",
+   "codepoint": "󰽢",
+   "description": "a full moon: the disc filled (Material Design md-moon_full)"
+  },
+  "moon_waning_gibbous": {
+   "name": "moon_waning_gibbous",
+   "codepoint": "󰽦",
+   "description": "a waning gibbous moon (Material Design md-moon_waning_gibbous)"
+  },
+  "moon_last_quarter": {
+   "name": "moon_last_quarter",
+   "codepoint": "󰽣",
+   "description": "a last-quarter moon, its left half lit (Material Design md-moon_last_quarter)"
+  },
+  "moon_waning_crescent": {
+   "name": "moon_waning_crescent",
+   "codepoint": "󰽥",
+   "description": "a waning crescent moon (Material Design md-moon_waning_crescent)"
   },
   "altitude": {
    "name": "altitude",
@@ -424,6 +484,74 @@
    "steps": [
     "notification_none",
     "notification"
+   ]
+  },
+  "alarm": {
+   "kind": "steps",
+   "label": "Alarms",
+   "plain": "alarm",
+   "sources": [
+    "device.alarm_count"
+   ],
+   "thresholds": [
+    1
+   ],
+   "steps": [
+    "alarm_off",
+    "alarm"
+   ]
+  },
+  "dnd": {
+   "kind": "steps",
+   "label": "Do not disturb",
+   "plain": "bell",
+   "sources": [
+    "device.do_not_disturb"
+   ],
+   "thresholds": [
+    1
+   ],
+   "steps": [
+    "bell",
+    "dnd"
+   ]
+  },
+  "phone": {
+   "kind": "steps",
+   "label": "Phone",
+   "plain": "phone_connected",
+   "sources": [
+    "device.phone_connected"
+   ],
+   "thresholds": [
+    1
+   ],
+   "steps": [
+    "phone_disconnected",
+    "phone_connected"
+   ]
+  },
+  "moon": {
+   "kind": "steps",
+   "label": "Moon phase",
+   "plain": "moon_new",
+   "sources": [
+    "astro.moon_age"
+   ],
+   "range": [
+    0,
+    29.530588
+   ],
+   "cyclic": true,
+   "steps": [
+    "moon_new",
+    "moon_waxing_crescent",
+    "moon_first_quarter",
+    "moon_waxing_gibbous",
+    "moon_full",
+    "moon_waning_gibbous",
+    "moon_last_quarter",
+    "moon_waning_crescent"
    ]
   },
   "weather": {

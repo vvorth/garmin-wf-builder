@@ -1293,6 +1293,8 @@ function sourcesCommand(): number {
       const suffix = flags.length > 0 ? `  [${flags.join(", ")}]` : "";
       const ref = source.source_ref ? `  (${source.source_ref})` : "";
       out(`  ${path.padEnd(34)} ${source.type.padEnd(8)} ${source.doc}${suffix}${ref}`);
+      const rule = icons.RULE_OF_SOURCE.get(path);
+      if (rule !== undefined) out(`    icon rule: ${icons.ruleSummary(rule)}`);
     }
   }
   out(`\n${term.style("config", ["bold"], color)}  (declared per design in 'config:' -- fēnix 8 Solar's native editor only, see docs/guide/configuration.md)`);

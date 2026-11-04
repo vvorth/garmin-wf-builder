@@ -6,6 +6,7 @@
 // Whether the icon font has a codepoint is read from its character map,
 // handed in as a set (`setIconFontGlyphs`): Node reads the installed font,
 // the browser receives it from the server.
+import { get as sourceOf } from "./catalog.ts";
 import data from "./data/icons.json" with { type: "json" };
 import type { Device } from "./devices/device.ts";
 import { WholeFloat } from "./edit/yaml.ts";
@@ -311,6 +312,45 @@ export function ruleIconName(rule: IconRule, reading: unknown): string {
   if (value === null) return rule.plain;
   if (rule.kind === "table") return typeof reading === "boolean" ? rule.plain : rule.map.get(Math.trunc(value)) ?? rule.plain;
   return rule.steps[levelBand(rule, value)]!;
+}
+
+/**
+ * Every source `rule` follows is an on/off reading, read as 0 or 1 (a rule's
+ * sources are one type: `data.test.ts`). The watch binds it as a
+ * `Lang.Boolean`, so its chooser compares with `true` and `false`.
+ */
+export function readsBoolean(rule: IconRule): boolean {
+  return rule.sources.every((source) => sourceOf(source)?.type === "boolean");
+}
+
+/** A number as a rule's summary shows it: at most two decimals, no trailing zeros. */
+function shortNumber(value: number): string {
+  return String(Number(value.toFixed(2)));
+}
+
+/**
+ * One line saying what `rule` draws, as `wfb sources` prints it under a
+ * source: its glyphs in order and how the reading splits among them.
+ */
+export function ruleSummary(rule: IconRule): string {
+  if (rule.kind === "table") {
+    return `${rule.name} — ${new Set(rule.map.values()).size} glyphs over the ${rule.map.size} values it names (${rule.plain} for any other)`;
+  }
+  if (readsBoolean(rule)) return `${rule.name} — ${rule.steps.join(" / ")} (off / on)`;
+  if (rule.range === null) {
+    const thresholds = rule.thresholds ?? [];
+    const said = rule.steps.map((_, k) => {
+      const lower = k === 0 ? 0 : thresholds[k - 1]!;
+      if (k === thresholds.length) return `${lower}+`;
+      return thresholds[k]! - lower === 1 ? String(lower) : `${lower}–${thresholds[k]! - 1}`;
+    });
+    return `${rule.name} — ${rule.steps.join(" / ")} (${said.join(" / ")})`;
+  }
+  const [lo, hi] = rule.range;
+  const unit = sourceOf(rule.sources[0]!)?.unit;
+  const unitSaid = unit === "percent" ? "%" : unit ? ` ${unit}` : "";
+  const cyclic = rule.cyclic ? ", cyclic" : "";
+  return `${rule.name} — ${rule.steps.join(", ")} (${rule.steps.length} bands over ${shortNumber(lo)}–${shortNumber(hi)}${unitSaid}${cyclic})`;
 }
 
 /** The name of the generated `IconGlyphs` function choosing `rule`'s glyph. */

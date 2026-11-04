@@ -154,6 +154,12 @@ describe("the command line", { concurrency: true }, () => {
     assert.ok(sources.includes("on_hold: auto -> heart_rate"));
     assert.ok(!sources.includes("body_battery.current") && !sources.includes("device.next_calendar_event"));
     assert.ok(sources.includes("date.month_number") && sources.includes("time.utc_offset"));
+    // a source with an icon rule is followed by the rule's glyphs, in order
+    assert.match(sources, /\n  device\.phone_connected +boolean [^\n]*\n    icon rule: phone — phone_disconnected \/ phone_connected \(off \/ on\)\n/);
+    assert.match(sources, /\n  astro\.moon_age [^\n]*\n    icon rule: moon — moon_new, moon_waxing_crescent, [^\n]*, moon_waning_crescent \(8 bands over 0–29\.53 days, cyclic\)\n/);
+    assert.match(sources, /\n  device\.alarm_count [^\n]*\n    icon rule: alarm — alarm_off \/ alarm \(0 \/ 1\+\)\n/);
+    assert.match(sources, /\n  device\.do_not_disturb [^\n]*\n    icon rule: dnd — bell \/ dnd \(off \/ on\)\n/);
+    assert.doesNotMatch(sources, /\n  activity\.steps [^\n]*\n    icon rule:/, "a source with no rule has no line");
     const complications = wfb(["complications"]).stdout;
     assert.ok(complications.includes("42 complication types") && complications.includes("on_hold: auto") && !complications.includes("invalid"));
     const list = wfb(["series"]).stdout;

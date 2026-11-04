@@ -61,7 +61,7 @@ wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [--sample NAME=VALUE] [
 wfb simulate  design.yaml [-d DEVICE] [-f] [--trace] [--screenshot PNG]  # run it in the simulator
 wfb devices                        # installed device definitions and their limits
 wfb fonts     [DEVICE ...] [-d DEVICE]  # fonts per device: scalable (vector) and system (bitmap)
-wfb sources                        # the data-source catalogue, and the icon names
+wfb sources                        # the data-source catalogue, each source's icon rule, and the icon names
 wfb complications                  # what an element's `on_hold:` may launch
 wfb schema    [--path]             # the JSON Schema, for editor setup
 wfb init      [--docker] [--download-sdk | --download-manager] [--accept-license]  # how to get Garmin's SDK and your watches' definitions here
