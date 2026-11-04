@@ -1,0 +1,138 @@
+# A worked example for icons that follow a reading (docs/guide/icons.md "An
+# icon that follows a reading"): a status row of four icons -- notifications,
+# alarm, do-not-disturb and phone connection -- the moon's phase beside the
+# date, a battery that empties as the charge falls, and a weather condition
+# with an `absent:` icon of its own.
+#
+# Every icon here is `icon: {for: <source>}`: the watch picks the glyph from
+# the reading each time it draws, so none of them needs a rule of its own in
+# the YAML. The preview draws the sample readings; change one to see the glyph
+# change, for example
+#   ./wfb preview examples/features/status/face.yaml \
+#       --sample device.notification_count=0,device.do_not_disturb=true,device.phone_connected=false
+#
+# Build it with:     ./wfb build examples/features/status/face.yaml
+# Preview it with:   ./wfb preview examples/features/status/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: e4064351-998c-4f00-83d6-c00c2d78df98
+  name: Feature Status
+  version: 1.0.0
+
+build:
+  targets: [fenix8solar47mm, fenix8solar51mm, fr955]
+
+# Every colour is one the 64-colour MIP panel shows without dithering.
+resources:
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+    dim: "#AAAAAA"
+    alert: "#FFAA00"
+    moon: "#55AAFF"
+
+elements:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.bg
+
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center, dy: -26% }
+    color: color.fg
+
+  # The moon follows astro.moon_age through eight phases (new to waning
+  # crescent), computed on the watch from the date, so it needs no sync.
+  moon:
+    type: icon
+    icon: { for: astro.moon_age }
+    at: { anchor: center, dx: -23%, dy: -4% }
+    size: 9%r
+    color: color.moon
+
+  date:
+    type: text
+    text: "{date.today:%a %e %b}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -17%, dy: -4% }
+    align: left
+    color: color.fg
+
+  # -- the status row: four icons, evenly spaced -----------------------------
+  # An empty speech bubble at zero notifications, a filled one from one up.
+  notification_icon:
+    type: icon
+    icon: { for: device.notification_count }
+    at: { anchor: center, dx: -33%, dy: 14% }
+    size: 9%r
+    color: color.alert
+
+  # The count itself is plain text, hidden at zero so the empty bubble stands alone.
+  notification_count:
+    type: text
+    text: "{device.notification_count:d}"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -27%, dy: 14% }
+    align: left
+    color: color.fg
+    visible: device.notification_count > 0
+
+  # An alarm clock while one is set, struck through when none is.
+  alarm_icon:
+    type: icon
+    icon: { for: device.alarm_count }
+    at: { anchor: center, dx: -11%, dy: 14% }
+    size: 9%r
+    color: color.fg
+
+  # A bell with do-not-disturb off, the bell struck through with it on.
+  dnd_icon:
+    type: icon
+    icon: { for: device.do_not_disturb }
+    at: { anchor: center, dx: 11%, dy: 14% }
+    size: 9%r
+    color: color.fg
+
+  # The Bluetooth rune, struck through while the phone is not connected.
+  phone_icon:
+    type: icon
+    icon: { for: device.phone_connected }
+    at: { anchor: center, dx: 33%, dy: 14% }
+    size: 9%r
+    color: color.fg
+
+  # -- battery and weather ----------------------------------------------------
+  # Five steps from an empty battery to a full one, a step per fifth of the charge.
+  battery_icon:
+    type: icon
+    icon: { for: system.battery }
+    at: { anchor: center, dx: -22%, dy: 32% }
+    size: 9%r
+    color: color.fg
+
+  battery_value:
+    type: text
+    text: "{system.battery:.0f}%"
+    font: FONT_XTINY
+    at: { anchor: center, dx: -16%, dy: 32% }
+    align: left
+    color: color.fg
+
+  # The condition picks the glyph. Before the watch holds a weather report it
+  # has no condition, and `absent:` draws a cloud instead of the "unknown"
+  # box, so the slot still reads as weather rather than as a fault.
+  weather_icon:
+    type: icon
+    icon: { for: weather.condition }
+    at: { anchor: center, dx: 22%, dy: 32% }
+    size: 12%r
+    color: color.alert
+    absent: { icon: weather_cloudy }

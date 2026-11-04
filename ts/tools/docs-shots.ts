@@ -47,6 +47,9 @@ const EXAMPLES: Record<string, [string, string[], [Box, number] | null]> = {
   "slot-gauge": ["features/slot-gauge", [], null],
   "slot-graph": ["features/slot-graph", [], null],
   "curved-slot": ["features/curved-slot", [], null],
+  // The status row in a telling state: three notifications, an alarm set, do-not-disturb off, the phone
+  // connected, a first-quarter moon, a 60 % battery and clear weather.
+  status: ["features/status", ["--sample", "device.notification_count=3,device.alarm_count=1,device.do_not_disturb=false,device.phone_connected=true,astro.moon_age=7,system.battery=60,weather.condition=0"], null],
   // Cropped to the five system-font-size rows; the vertical_align rows below are calibration detail.
   "system-fonts": ["system-fonts/text", [], [[0, 0, 260, 195], SCALE]],
   // The AMOLED sleep frame, not the awake design.

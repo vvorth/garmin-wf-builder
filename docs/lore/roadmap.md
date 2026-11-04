@@ -75,7 +75,8 @@ or AOD-related has been observed on a watch or in the simulator.
   `complication.notification_count`, `device.alarm_count`), switches with
   do-not-disturb or the phone connection (`device.do_not_disturb`,
   `device.phone_connected`, read as off/on) or steps round the moon's eight
-  phases (`astro.moon_age`, cyclic bands centred on each phase); `wfb
+  phases (`astro.moon_age`, cyclic bands centred on each phase); the
+  status row is `examples/features/status/`; `wfb
   sources` prints each source's rule; without a reading it draws the
   rule's plain glyph, `weather_unknown` for a condition, or what its
   `absent: hide | {icon:}` says, on a `slot:` icon too; every rule is one

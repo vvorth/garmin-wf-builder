@@ -277,6 +277,10 @@ own.
 
 #### An icon that follows a reading
 
+![a status row: notifications, alarm, do-not-disturb, phone, the moon, battery and weather](../screenshots/status.png)
+
+*[`examples/features/status/face.yaml`](../../examples/features/status/face.yaml): every icon here follows its reading.*
+
 Each icon rule turns a reading into one of its glyphs. `icon: {for:}` on
 one of the rule's sources draws that glyph, and so does a
 [slot](#a-slots-icon-slot) showing a complication type the rule follows
