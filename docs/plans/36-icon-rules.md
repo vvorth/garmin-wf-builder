@@ -37,17 +37,19 @@ every consumer reading it, and the editor listing it.
 
 ### Decided (2026-11-04)
 
-- **D1: one rule kind, `steps`, with three ways to split the reading.**
-  Not four kinds. Every family is bands over a reading:
-  - `bands: N` over `range: [lo, hi]` — equal bands, the reading
-    truncated into one, clamped (battery 5 over 0–100, solar 9, moon 8
-    over 0–29.53, cyclic, see D3);
-  - `thresholds: [t…]` — band *k* is `reading < t[k]`, the last band
-    everything above: a count is `thresholds: [1]` (0 / 1+), a boolean
-    is read as 0/1 with the same threshold;
-  - `map: {value: name}` — an explicit value → name table (the 54 weather
-    conditions), `unknown` for a value outside it.
-  On/off icons are a two-step `steps`, not a kind of their own.
+- **D1: two rule kinds, `steps` and `table`.** A `steps` rule orders its
+  glyphs along a numeric reading, split one of two ways:
+  - equal `bands` over `range: [lo, hi]`, the reading truncated into
+    one and clamped (battery 5 over 0–100, solar 9, moon 8 over 0–29.53,
+    cyclic, see D3);
+  - `thresholds: [t…]`, band *k* being the count of thresholds `≤`
+    reading: a count is `thresholds: [1]` (0 / 1+), a boolean is read as
+    0/1 with the same threshold.
+  On/off icons are a two-step `steps`, not a kind of their own. A
+  `table` rule maps an enumeration's values to names one by one (the 54
+  `Weather.CONDITION_*` values), with `unknown` for a value outside the
+  map; it stays its own kind because its glyphs have no order and no
+  reading falls "between" two of them.
 - **D2: the first new rules are notifications, alarms, do-not-disturb,
   phone, moon phase.** Not day/night from `astro.sun_altitude`, not a
   charging icon (`visible: system.charging` + a fixed `battery_charging`
@@ -110,31 +112,31 @@ becomes the weather rule's `map`) and `complication_icon`:
 ```json
 "rules": {
   "battery": {
-    "label": "Battery", "plain": "battery",
+    "kind": "steps", "label": "Battery", "plain": "battery",
     "sources": ["system.battery", "complication.battery"],
     "range": [0, 100], "steps": ["battery_level_0", "battery_level_1", "battery_level_2", "battery_level_3", "battery_level_4"]
   },
   "solar": {
-    "label": "Solar input", "plain": "solar",
+    "kind": "steps", "label": "Solar input", "plain": "solar",
     "sources": ["complication.solar_input"],
     "range": [0, 100], "steps": ["solar_level_0", "…", "solar_level_8"]
   },
   "notification": {
-    "label": "Notifications", "plain": "notification",
+    "kind": "steps", "label": "Notifications", "plain": "notification",
     "sources": ["device.notification_count", "complication.notification_count"],
     "thresholds": [1], "steps": ["notification_none", "notification"]
   },
-  "alarm": { "label": "Alarms", "plain": "alarm", "sources": ["device.alarm_count"], "thresholds": [1], "steps": ["alarm_off", "alarm"] },
-  "dnd": { "label": "Do not disturb", "plain": "bell", "sources": ["device.do_not_disturb"], "thresholds": [1], "steps": ["bell", "dnd"] },
-  "phone": { "label": "Phone", "plain": "phone_connected", "sources": ["device.phone_connected"], "thresholds": [1], "steps": ["phone_disconnected", "phone_connected"] },
+  "alarm": { "kind": "steps", "label": "Alarms", "plain": "alarm", "sources": ["device.alarm_count"], "thresholds": [1], "steps": ["alarm_off", "alarm"] },
+  "dnd": { "kind": "steps", "label": "Do not disturb", "plain": "bell", "sources": ["device.do_not_disturb"], "thresholds": [1], "steps": ["bell", "dnd"] },
+  "phone": { "kind": "steps", "label": "Phone", "plain": "phone_connected", "sources": ["device.phone_connected"], "thresholds": [1], "steps": ["phone_disconnected", "phone_connected"] },
   "moon": {
-    "label": "Moon phase", "plain": "moon_new",
+    "kind": "steps", "label": "Moon phase", "plain": "moon_new",
     "sources": ["astro.moon_age"],
     "range": [0, 29.530588], "cyclic": true,
     "steps": ["moon_new", "moon_waxing_crescent", "moon_first_quarter", "moon_waxing_gibbous", "moon_full", "moon_waning_gibbous", "moon_last_quarter", "moon_waning_crescent"]
   },
   "weather": {
-    "label": "Weather", "plain": "weather_unknown",
+    "kind": "table", "label": "Weather", "plain": "weather_unknown",
     "sources": ["weather.condition", "weather.condition_today", "weather.condition_tomorrow",
                 "complication.current_weather", "complication.forecast_weather_1day", "complication.forecast_weather_2day", "complication.forecast_weather_3day"],
     "map": { "0": "weather_sunny", "…": "…", "53": "weather_unknown" },
@@ -143,16 +145,19 @@ becomes the weather rule's `map`) and `complication_icon`:
 }
 ```
 
-Exactly one of `range`+`steps`, `thresholds`+`steps`, `map` per rule
-(`data.test.ts` checks the shape; a name in `steps`/`map`/`plain` must be
-a catalogue entry). The band of a reading:
+A `steps` rule has `steps` and exactly one of `range` or `thresholds`;
+a `table` rule has `map` (`data.test.ts` checks the shape; a name in
+`steps`/`map`/`plain` must be a catalogue entry). The glyph for a
+reading:
 
-- `range`: `trunc((v - lo) * N / (hi - lo))`, clamped to `[0, N-1]`;
-  with `cyclic`, `trunc(((v - lo) / (hi - lo) * N + 0.5)) mod N` so band 0
-  is centred on `lo`. (`levelBand` today is the non-cyclic case.)
-- `thresholds`: the count of thresholds `≤ v` (a boolean is 0/1).
-- `map`: the entry, else `unknown` (the weather `plain`).
-- No reading: `plain`.
+- `steps` with `range`: band `trunc((v - lo) * N / (hi - lo))`, clamped
+  to `[0, N-1]`; with `cyclic`, `trunc((v - lo) / (hi - lo) * N + 0.5)
+  mod N`, so band 0 is centred on `lo`. (`levelBand` today is the
+  non-cyclic case.)
+- `steps` with `thresholds`: band = the count of thresholds `≤ v` (a
+  boolean is 0/1).
+- `table`: the map's entry, else `plain` (`weather_unknown`).
+- No reading: `plain`, for either kind.
 
 In TypeScript, `icons.RULES: Map<name, IconRule>` and
 `icons.RULE_OF_SOURCE: Map<sourcePath, IconRule>` replace
