@@ -10,7 +10,6 @@ back here.
 
 | Plan | Status |
 |---|---|
-| [36 icon rules](36-icon-rules.md): one declarative rule per source from a reading to a glyph (battery, solar, notifications, weather today; alarms, do-not-disturb, phone and moon phase new), `absent:` on `type: icon`, and the editor's "follows data" icon tab | planned, not started; D1–D9 decided |
 | [34 a curved slot](34-curved-slot.md): `rotate:` and `slot:` on `type: icon`, `curve:` on `type: data`, a group's `on_hold:` following its slot | in progress; slices 1–5 done, slice 6 built and not yet verified on a watch, D1–D8 decided |
 
 ## Built and deleted
@@ -51,3 +50,4 @@ records its own slices and decisions. Its commits are
 | 32 GUIv2 | `git show 19ae010:docs/plans/32-gui-v2.md` (commits `git log --grep "plan 32"`; built from `docs/research/33-gui-v2.md`) |
 | 33 a full-featured editor | `git show 6ec6c61:docs/plans/33-full-editor.md` (commits `git log --grep "plan 33"` and the slice headings' hashes; built from `docs/research/34-full-editor.md`; ten format changes F1–F10, the editor rebuilt over its engine, the browser suite and the fixture device) |
 | 35 astronomy sources | `git show 59c1508:docs/plans/35-astronomy-sources.md` (commits `git log --grep "plan 35"` and 8bf069f, 641aa3c, f081cee, 1672d94, 59c1508: `date.month_number`, `time.utc_offset`, the catalogue's `call:`, `position.*` and `astro.*` in `WfbAstro.mc` with a host twin, built from `docs/research/39-position-and-astronomy.md`; the Solaria face rebuilt on them) |
+| 36 icon rules | `git show 8b0e778:docs/plans/36-icon-rules.md` (commits `git log --grep "plan 36"`: one `steps`/`table` rule per source in `icons.json` read by the compiler, the preview, the generated `IconGlyphs.<rule>Icon` choosers and the editor; `absent: hide | {icon:}` on `type: icon`; alarm, do-not-disturb, phone and moon-phase rules; `examples/features/status/`; the icon picker's "follows data" tab) |
