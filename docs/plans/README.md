@@ -10,6 +10,7 @@ back here.
 
 | Plan | Status |
 |---|---|
+| [36 icon rules](36-icon-rules.md): one declarative rule per source from a reading to a glyph (battery, solar, notifications, weather today; alarms, do-not-disturb, phone and moon phase new), `absent:` on `type: icon`, and the editor's "follows data" icon tab | planned, not started; D1–D9 decided |
 | [34 a curved slot](34-curved-slot.md): `rotate:` and `slot:` on `type: icon`, `curve:` on `type: data`, a group's `on_hold:` following its slot | in progress; slices 1–5 done, slice 6 built and not yet verified on a watch, D1–D8 decided |
 
 ## Built and deleted
