@@ -241,7 +241,9 @@ Full reasoning is in `docs/adr/`, indexed with its through-line in
   `getSettingsView` menu (one list per axis; `choices: any` offers the
   37 recommended MIP colours or every supported complication type). No separate wearer
   settings language: the short-lived `settings:` block was removed. Phone
-  settings never reach a sideload; no `.SET` writer.
+  settings never reach a sideload, but a Store export carries `settings.xml`
+  for the `config:` axes on watches that use the settings menu; no `.SET`
+  writer.
 - **Format 2 (2026-09-28):** one designed revision of the YAML
   format (one `color.` namespace, author-shaped names, one spelling per
   idea, a grouped top level). The compiler reads format 2 only (ADR 0009

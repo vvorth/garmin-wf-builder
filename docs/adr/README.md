@@ -38,8 +38,10 @@ Three Phase 0 findings drive most of what follows:
 - **On-device configuration:** the native editor for the four `config:`
   axes, and, on a watch without it (fr955), the same axes in a generated
   settings menu (`getSettingsView`); no separate wearer-settings language,
-  no phone settings, no `.SET` writer (0006 tenth and eleventh amendments,
-  2026-09-27). This reverses the 2026-09-04 "no generated menu" decision,
+  no `.SET` writer (0006 tenth and eleventh amendments, 2026-09-27).
+  Phone settings returned on 2026-11-05 in a narrower form: derived from
+  `config:` and shipped by `wfb export` to the settings-menu watches only,
+  since Garmin Connect edits a Store install and never a sideload. This reverses the 2026-09-04 "no generated menu" decision,
   whose premise (phone settings reach a sideload) was false.
 - **Host language:** TypeScript on Node (0001, amended; first Python).
 - **Format 2 (2026-09-28, plan 22):** one designed revision of the YAML

@@ -199,6 +199,14 @@ dashboard, where you add the description and screenshots.
 - **Keep your developer key.** Every update must be signed with the same
   key as the first upload (`--key`, default `~/ciq/developer_key.der`). A
   lost key means publishing the face again as a new app.
+- **Phone settings.** The summary line `phone settings: 3 axes on fr955`
+  names how many `config:` axes Garmin Connect will offer for a Store
+  install and the exported devices that carry them (those with the settings
+  menu and no native editor); `phone settings: none (every device has the
+  native editor)` and `phone settings: none (no config:)` say why there are
+  none. The `.iq` carries each such device's `settings.xml`. `wfb build`
+  prints nothing about it, since a sideload never sees phone settings
+  ([the chapter](configuration.md#phone-settings-for-a-store-install)).
 - **The version is typed in, not packaged.** A Connect IQ manifest has no
   version field. The upload form asks for one; `face: version:` (default
   `1.0.0`) names the file and is printed for you to copy.

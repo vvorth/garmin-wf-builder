@@ -794,16 +794,30 @@ explicitly or an on-watch change silently does not take effect. The generated
 `config:` settings menu does this: a picked option writes its property and
 then runs the view's `applyStoredConfig` itself.
 
-### Garmin Connect does not edit a sideloaded face's settings
+### Garmin Connect edits a Store install's settings, never a sideload's
 
-Phone-side settings work only for a Connect IQ Store install, private beta
-included, so this project generates none. On a watch without the native
-editor, the wearer edits `config:` in the generated on-watch menu, opened from the Watch Face menu
+Garmin Connect edits an app's settings only for a Connect IQ Store install,
+private beta included (SDK `Core_Topics/Properties_and_App_Settings.html`).
+A sideloaded face never sees phone settings, so `wfb build` generates none
+and says nothing about them. `wfb export` ships `settings.xml` for the
+`config:` axes on each exported watch that uses the settings menu (those
+with `AppBase.getSettingsView` and no native editor, fr955 among them), and
+prints a `phone settings:` line. Phone settings beside the native editor are
+deliberately not built: a fēnix 8 keeps Garmin's editor as its one editing
+surface, so no precedence between a phone push and `WatchFaceConfig` has to
+be invented, and a watch with neither (`fenix5`/`fenix5x`) keeps the
+defaults. There is no `.SET` writer: the file format is undocumented.
+
+On a watch without the native editor, a sideload edits `config:` in the
+generated on-watch menu, opened from the Watch Face menu
 (`AppBase.getSettingsView`), which `fenix5`/`fenix5x` lack. **The mechanism
 was seen working on `fr955`** by the user (2026-09-27, with the since-removed
 `settings:` block): the menu opens and a change applies. **Not verified on a
-watch:** the `config:` menu and its lists of options, and which memory limit
-the menu runs under.
+watch:** the `config:` menu and its lists of options, which memory limit the
+menu runs under, and everything phone-side: that Garmin Connect lists the
+axes, that a change applies without a restart, that the menu and the phone
+agree afterwards, and that a fēnix 8 shows no phone settings. Those need a
+Store beta on a watch and a phone.
 
 ---
 
@@ -874,7 +888,6 @@ friendly error where an author could write it.
 
 | Declined | Why, and what to write instead |
 |---|---|
-| Phone-side settings (`settings.xml`) | Garmin Connect edits settings only for a Store install (§1, "Garmin Connect does not edit a sideloaded face's settings"); the generated settings menu covers `config:` on the watch |
 | `layouts:` form B (membership written on each element, not the container form) | declined by the user |
 | A `data` element, or a gauge, graph or icon with `slot:`, inside a `layouts:` body | the Data axis is face-wide, so a slot stays in the shared top-level `elements:` |
 | `on_hold: auto` on a gauge with `slot:` | the slot's `type: data` element carries it |

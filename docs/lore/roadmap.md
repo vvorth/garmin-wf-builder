@@ -101,6 +101,12 @@ or AOD-related has been observed on a watch or in the simulator.
   complication type the device has (per-device `Layout` arrays). `config-unsupported` fires
   only with neither (`fenix5`/`fenix5x`). The mechanism was seen working on
   `fr955`; the `config:` menu itself not yet. `docs/guide/configuration.md`.
+- **Phone settings for a Store export** — `wfb export` ships
+  `resources-<device>/settings/settings.xml` for the `config:` axes on each
+  device that uses the settings menu, and prints a `phone settings:` line
+  (`ts/src/export_summary.ts`); a sideload never sees them, and nothing
+  phone-side has been seen on a watch. `docs/guide/configuration.md`
+  ("Phone settings, for a Store install").
 - **Per-device API gating** — manifest floor 3.1.0, a device below it is a
   friendly error (`selectDevices` in `ts/src/build.ts`); complication, weather and
   field touches are `has`-guarded (`ts/src/availability.ts`); lints
@@ -290,11 +296,11 @@ built.
 3. Ticks drawn by a `style: scale` gauge itself (a radial `pattern`
    does them today).
 4. `units:` on an expression or a `data` element.
-5. **Phone-side settings.** Phone editing needs a Store install
-   (`wfb export` makes the `.iq`; research 17 §2); wearer settings
-   beyond `config:` were decided against, and there is no `.SET` writer
-   (ADR 0006 tenth and eleventh amendments). Do not revisit it without
-   asking the user.
+5. **Phone-side settings beyond the export.** A Store export carries them
+   for the `config:` axes on settings-menu watches. Phone settings on a
+   native-editor device, wearer settings beyond `config:` and a `.SET`
+   writer were decided against (ADR 0006 amendments). Do not revisit them
+   without asking the user.
 6. Catalogue generation from the SDK (ADR 0005 §1).
 7. `catalog.Source.requires` is set on no source. ADR 0008's check 2 is
    otherwise built (`api-gated`: modules, fields, complication types); the

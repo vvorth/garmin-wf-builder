@@ -1101,3 +1101,30 @@ by its swatch's own name, or by its MIP name when it is one of the 64 and
 the swatch is named after it (or the colour is written inline). Measured:
 `examples/features/config/` grew from 4,767 B to 5,994 B on all three
 targets (SDK 9.2.0), the 27 names and colours in the settings menu.
+
+## Amendment (2026-11-05): phone settings return, for a Store export
+
+The tenth amendment removed phone-side settings because they never reach a
+sideload. `wfb export` now makes a Connect IQ Store package, and a Store
+install, private beta included, is where Garmin Connect does edit an app's
+settings (SDK `Core_Topics/Properties_and_App_Settings.html`). The user asked
+for them back, in a narrower form than the removed `settings:` block:
+
+- **Derived from `config:`.** `settings.xml` offers the same axes the
+  on-watch menu does (Style, each colour axis, each data slot, in that
+  order, with the menu's options and labels). There is no author-defined
+  `settings:` block, and no new YAML.
+- **Shipped per device to settings-menu watches.** `wfb export` carries
+  `resources-<device>/settings/settings.xml` for each exported device with
+  `getSettingsView` and no native editor, and for no other. `wfb build`
+  generates nothing a sideload cannot use, and `wfb export` prints a
+  `phone settings:` line.
+- **Same storage as the menu.** Garmin Connect writes the
+  `Application.Properties` keys the menu writes, `applyStoredConfig` stays
+  the one reader, and `onSettingsChanged` applies a push to the running face.
+
+Still declined: phone settings on a native-editor device (the fēnix 8 keeps
+Garmin's editor as its one surface, and no precedence with `WatchFaceConfig`
+is invented), author-defined settings beyond `config:`, and a `.SET`
+writer. The tenth and eleventh amendments otherwise stand. Nothing phone-side
+has been seen on a watch.

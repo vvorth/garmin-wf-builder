@@ -34,6 +34,7 @@ import { formatFixed, quoted } from "./py.ts";
 import * as series from "./series.ts";
 import * as starters from "./starters.ts";
 import * as term from "./term.ts";
+import { phoneSettingsLine } from "./export_summary.ts";
 import { fill, wrap } from "./textwrap.ts";
 import { VERSION } from "./version.ts";
 import { nodeRefusal } from "./node_version.ts";
@@ -522,6 +523,7 @@ async function exportCommand(args: Namespace): Promise<number> {
     const [deviceId, stats] = largest;
     out(`${status("memory", color)}     ${grouped(stats.total)} B / ${grouped(stats.limit)} B (${memoryShare(100.0 * stats.total / stats.limit, color)}) on ${deviceId}, the largest share`);
   }
+  out(`${status("phone settings", color)}: ${phoneSettingsLine(result.face, result.devices).slice("phone settings: ".length)}`);
   out(`${status("manifest", color)}   ${result.manifest}  (the copy inside the .iq adds each part number and signature)`);
   out(`${status("app id", color)}     ${result.face.uuid}`);
   out(`${status("version", color)}    ${result.face.version}  (the Store's upload form asks for it; face: version: sets it)`);

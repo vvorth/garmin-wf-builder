@@ -627,6 +627,9 @@ below for what an author sees on such a device.
 | No native editor, but `AppBase.getSettingsView` (fr955, fenix6, fr245, ...) | the generated [settings menu](#the-settings-menu-on-a-watch-without-the-native-editor) |
 | Neither (`fenix5`/`fenix5x`) | nothing: every declared default, forever |
 
+A Store install adds [phone settings](#phone-settings-for-a-store-install)
+to the second row's watches only.
+
 The third row is the only one that warns: the suppressible
 `config-unsupported` warning fires once per such target, naming the device
 and the entries (roles, slots) affected. A slot's default complication type
@@ -703,6 +706,42 @@ carries it. Measured on the example faces (`fr955`): +1,919 B for
 `features/styles/`, and +3,341 B for `features/slots/`, whose
 `choices: any` slot lists about forty complication types (each one also a
 shared string resource, named by the device's `settings.xml`).
+
+### Phone settings, for a Store install
+
+A face installed from the Connect IQ Store, a private beta included, can be
+set up from Garmin Connect on the phone as well. `wfb export` ships that for
+the watches that use the settings menu above: the same `config:` axes, with
+no new YAML.
+
+- **What Garmin Connect shows.** One list per `config:` axis, in the menu's
+  order (Style, each colour axis, each data slot) and with the menu's
+  options in the menu's order, labelled as the menu labels them: the
+  [colour list](#a-colour-settings-list-and-the-names-on-it) by name, a
+  slot's complication types by their names, a slot titled by its `label:`.
+- **Which watches.** Those with the settings menu and no native editor
+  (fr955, fenix6, fr245, ...). A fēnix 8 keeps Garmin's own editor as its
+  one editing surface and gets no phone settings, and a watch with neither
+  (`fenix5`/`fenix5x`) keeps every default.
+- **One stored value.** The phone and the on-watch menu edit the same
+  `Application.Properties` value for an axis, so a change on the phone shows
+  in the menu and a change in the menu shows on the phone.
+- **It applies at once.** The running face redraws as soon as Garmin Connect
+  pushes a change (`onSettingsChanged`); it does not need a restart. A choice
+  made in the on-watch menu is applied by the menu itself.
+- **A sideload never sees it.** Garmin Connect edits settings only for a
+  Store install (SDK `Core_Topics/Properties_and_App_Settings.html`), so a
+  face sideloaded with `wfb build` is edited in the menu only. `wfb build`
+  therefore says nothing about phone settings, and `wfb export` prints a
+  `phone settings:` line naming the axes and the devices that carry them
+  (see [Exporting for the Connect IQ Store](preview-and-cli.md#exporting-for-the-connect-iq-store)).
+- **Where the files are.** Each such device gets
+  `resources-<device>/settings/settings.xml` (the lists Garmin Connect
+  shows) and `properties.xml` beside it, with the labels in
+  `resources/strings/strings.xml`.
+
+Nothing phone-side has been seen on a watch yet; see
+[Limitations](../limitations.md).
 
 ### Lint
 

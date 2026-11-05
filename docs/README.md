@@ -47,7 +47,7 @@ can't: why each key exists, and what the watch does with it.
 | Chapter | Covers |
 |---|---|
 | [Data, expressions and formats](guide/data.md) | Sources (`time.*`, `activity.*`, `weather.*`, `complication.*`, …), expressions, missing values, format strings |
-| [On-device configuration](guide/configuration.md) | The four `config:` settings the wearer edits (style, accent colour, data colour, data slots) in the native editor or, without one, the generated settings menu; the `data` element; what each watch supports |
+| [On-device configuration](guide/configuration.md) | The four `config:` settings the wearer edits (style, accent colour, data colour, data slots) in the native editor or, without one, the generated settings menu (and Garmin Connect, for a Store install); the `data` element; what each watch supports |
 | [Styles and layouts](guide/styles-and-layouts.md) | `layouts:` and named styles that combine a layout with a colour scheme |
 | [Power modes and touch and hold](guide/modes-and-interaction.md) | `sleep_update:` (MIP partial updates) and `on_hold:` |
 | [Always-on display](guide/always-on-display.md) | `aod:` overrides for an AMOLED target's sleep frame: one block per element, group and `defaults:` (visibility, dimming, restyling), resolution order |
