@@ -10,6 +10,7 @@ back here.
 
 | Plan | Status |
 |---|---|
+| [37 phone-side settings](37-phone-settings.md): `settings.xml` derived from `config:` for a Store export, per device with the settings menu, one storage with the on-watch menu, `onSettingsChanged` | planned; D1–D6 decided |
 | [34 a curved slot](34-curved-slot.md): `rotate:` and `slot:` on `type: icon`, `curve:` on `type: data`, a group's `on_hold:` following its slot | in progress; slices 1–5 done, slice 6 built and not yet verified on a watch, D1–D8 decided |
 
 ## Built and deleted
