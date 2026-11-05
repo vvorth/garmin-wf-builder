@@ -55,6 +55,9 @@ export class ElementTree extends StaticPass {
   private buildElement(node: Node, path: SchemaPath): Element | null {
     const span = this.doc.spanForPath([...path] as DataKey[]);
     const elementId = node.get("id") as string;
+    // Desugaring qualifies each id by its groups', so two elements cannot
+    // share one; this is an invariant check, and the symbol check below is
+    // the rule an author can break.
     if (this.seen_ids.has(elementId)) {
       const first = this.seen_ids.get(elementId);
       this.bag.error("duplicate-id", `duplicate element id ${quoted(elementId)}`, this.doc.span(node, "id"),
@@ -326,7 +329,14 @@ export class ElementTree extends StaticPass {
     return true;
   }
 
-  /** Reject two distinct ids that derive the same Monkey C symbol. */
+  /**
+   * Reject two distinct ids that derive the same Monkey C symbol. Ids are
+   * unique by construction (a name need only be unique among its siblings,
+   * and the id qualifies it by its groups), but every id folds to one set
+   * of Monkey C symbols in one generated view class, so `top.label`,
+   * `top_label` and `topLabel` all become `TOP_LABEL`/`drawTopLabel` and
+   * may not coexist anywhere in the face.
+   */
   private checkSymbolCollision(elementId: string, node: Node, span: Span | null): boolean {
     const nodeKind = kinds.kindOf(node);
     const extraSymbols = kinds.names().includes(nodeKind) ? kinds.get(nodeKind).extraSymbols : [];
@@ -339,9 +349,11 @@ export class ElementTree extends StaticPass {
     if (collisions.length > 0) {
       const [, otherId, otherSpan] = collisions[0]!;
       const symbols = collisions.map(([symbol]) => quoted(symbol)).join(", ");
-      const notes = ["element ids only need to be distinct as literal strings today, "
-        + "but codegen derives one Monkey C symbol per id, folding case and "
-        + "separators away -- 'temp_low' and 'tempLow' both become 'TEMP_LOW'"];
+      const notes = ["an element's name only needs to be unique among its siblings, but codegen "
+        + "derives one Monkey C symbol per element from its id (the name qualified by its groups'), "
+        + "folding case and separators away -- 'top.label', 'top_label' and 'topLabel' all become "
+        + "'TOP_LABEL', so no two of them can share one face",
+      `rename ${quoted(elementId)} or ${quoted(otherId)}`];
       if (otherSpan !== null) notes.unshift(`${quoted(otherId)} first declared at ${otherSpan}`);
       this.bag.error("duplicate-id", `element id ${quoted(elementId)} generates the same Monkey C symbol as `
         + `${quoted(otherId)} (${symbols})`, this.doc.span(node, "id") ?? span, { notes });

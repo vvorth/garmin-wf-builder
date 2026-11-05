@@ -144,6 +144,7 @@ jobs:
             # test/position.test.ts
             # test/protocol.test.ts
             # test/reading-count.test.ts
+            # test/scoped-ids.test.ts
             # test/slot-graph.test.ts
             # test/studio.test.ts
             # test/studio-canvas.test.ts

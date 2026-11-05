@@ -38,7 +38,7 @@ const extent = (part: RotatablePart, axis: 0 | 1): number => {
   const values = (part as unknown as { points: [number, number][] }).points.map((p) => p[axis]);
   return Math.max(...values) - Math.min(...values);
 };
-const dial = (text: string, device: string): PlacedGauge => resolved(text, device).items.find((p) => p.id === "dial") as PlacedGauge;
+const dial = (text: string, device: string): PlacedGauge => resolved(text, device).items.find((p) => p.element.name === "dial") as PlacedGauge;
 const messages = (text: string): string[] => errors(text).map((d) => d.message);
 /** The blade's width and height, the tip's reach and pen, the hub's radius. */
 function measured(placed: PlacedGauge): number[] {

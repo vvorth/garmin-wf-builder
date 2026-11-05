@@ -16,8 +16,14 @@ export const MS = "_profMs";
 export const REPS = "_profReps";
 export const FRAME = "_profFrame";
 
+/** An outlined group's ring-pass entry: its id and a suffix no element id can carry (a `.` only joins identifiers). */
+export function ringLabel(groupId: string): string {
+  return `${groupId}.(ring)`;
+}
+
 /** One timed thing: an element's draw call, a group's ring pass, or the empty-loop baseline. */
 export interface Entry {
+  /** The element's id, `ringLabel(group id)` for a ring pass, or `(loop)`. */
   label: string;
   placed: Placed | null;
   /** `face.layouts` index, or -1 for shared content. */
@@ -56,7 +62,7 @@ export function plan(resolved: ResolvedFace, rings: readonly RingGroup[], reps: 
       if (members.length > 0 && members[0] === placed && !started.has(ring.group.id)) {
         started.add(ring.group.id);
         entries.push({
-          label: `${ring.group.id}.ring`, placed: byId.get(ring.group.id)!, layout: layoutIndex(members[0]!),
+          label: ringLabel(ring.group.id), placed: byId.get(ring.group.id)!, layout: layoutIndex(members[0]!),
           members: members.map((p) => elementRingMethod(p.id, ring.widthOf(p.id))),
         });
       }

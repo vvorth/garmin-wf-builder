@@ -32,7 +32,7 @@ const extent = (part: ResolvedHandPart, axis: 0 | 1): number => {
   const values = (part as unknown as { points: [number, number][] }).points.map((p) => p[axis]);
   return Math.max(...values) - Math.min(...values);
 };
-const bars = (text: string, device: string): PlacedPattern => resolved(text, device).items.find((p) => p.id === "bars") as PlacedPattern;
+const bars = (text: string, device: string): PlacedPattern => resolved(text, device).items.find((p) => p.id === "row.bars") as PlacedPattern;
 const messages = (text: string): string[] => errors(text).map((d) => d.message);
 
 test("a linear pattern's part `%` lengths measure the group's box, per axis", () => {

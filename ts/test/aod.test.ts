@@ -19,7 +19,7 @@ test("dim cascades key by key, and dim: 1 stops an inherited one", () => {
   const walk = (items: typeof f.elements): void => items.forEach((e) => { byId.set(e.id, e); walk(e.children()); });
   walk(f.elements);
   assert.deepEqual(byId.get("plain")!.aod!.dim, [500, 1000]);
-  assert.deepEqual(byId.get("inner")!.aod!.dim, [250, 1000]);
+  assert.deepEqual(byId.get("g.inner")!.aod!.dim, [250, 1000]);
   assert.equal(byId.get("bright")!.aod!.dim, null);
   assert.equal(byId.get("background")!.aod, null, "defaults: {aod:} without visible: true hides the silent");
 });

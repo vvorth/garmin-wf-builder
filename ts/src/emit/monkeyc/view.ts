@@ -809,7 +809,7 @@ function emitModeBody(w: Writer, resolved: ResolvedFace, plan: ReadPlan, mode: s
     }
     for (const [ring, members] of prelude.get(placed.id) ?? []) {
       w.comment(`'${ring.group.id}' outline: every member's ring, then the members`);
-      emitTimed(w, profile, profile.index(`${ring.group.id}.ring`), () => { for (const member of members) w.line(rings.calls(plan, ring, member)); });
+      emitTimed(w, profile, profile.index(profileMod.ringLabel(ring.group.id)), () => { for (const member of members) w.line(rings.calls(plan, ring, member)); });
     }
     emitTimed(w, profile, profile.index(placed.id), () => w.line(drawCall(plan, placed)));
   };

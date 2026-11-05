@@ -1,7 +1,10 @@
 // Generated-symbol derivation: how a data source path, an element id or a
 // `config:` axis name becomes a Monkey C local, field, method or resource
-// id. Every symbol an id can produce is derived
-// here, so the builder's collision check sees them all in one place.
+// id. An element id is its YAML key qualified by its groups' ids with `.`
+// (`element_ids.ts`), and `.`, `_` and `-` are all word breaks here, so
+// `top.label` gives `drawTopLabel` and `TOP_LABEL`, exactly as `top_label`
+// would. Every symbol an id can produce is derived here, so the builder's
+// collision check sees them all in one place.
 
 /** The generated local holding one source's value: `activity.step_goal` → `activityStepGoal`. */
 export function localName(sourcePath: string): string {
@@ -72,8 +75,9 @@ export const graphBuiltField = (id: string): string => lowerFirst(elementSuffix(
 export const graphTypeField = (id: string): string => lowerFirst(elementSuffix(id)) + "PickedType";
 export const graphRebuildMethod = (id: string): string => "rebuild" + elementSuffix(id);
 
+/** The PascalCase stem every element method shares: `top.label` and `temp_low` give `TopLabel` and `TempLow`. */
 function elementSuffix(elementId: string): string {
-  return elementId.replaceAll("-", "_").split("_").filter(Boolean).map((p) => p.slice(0, 1).toUpperCase() + p.slice(1)).join("");
+  return elementId.split(/[._-]/).filter(Boolean).map((p) => p.slice(0, 1).toUpperCase() + p.slice(1)).join("");
 }
 
 function lowerFirst(text: string): string {
