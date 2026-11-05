@@ -182,13 +182,17 @@ is all arc.
 **Arcs that meet end to end must overlap.** `drawArc` truncates each
 arc's turned centre to whole pixels on its own, so two bends of a
 serpentine hand that merely touch land a pixel apart at some angles and
-the hand comes apart there. Sweep each bend about 10° past both of its
-joints (a 180° bend written as 200°, started 10° early) and give it a pen
-of 2 px or more: so written, a four-bend serpentine stays in one piece at
-every second and every half-degree of the hour hand in the preview, while
-butted 1 px bends come apart at most seconds whatever the overlap
-(`ts/test/arc-parts.test.ts` holds both). A hand takes at most 16 parts,
-which bounds the bends.
+the hand comes apart there. The mend is an overlap of **about one pixel
+of arc past each joint**, which in degrees is `60 / radius-in-px`: 15° for
+a 4 px bend, 8° at 8 px, 4° at 16 px, 2° at 32 px (a 180° bend of 16 px is
+written as `start_angle` 4° early and `sweep` 188°). Half of that was the
+measured minimum at every radius, pen and bend angle, so this doubles
+it. The pen must be **2 px or more**: a 1 px bend is only diagonally
+connected, and no overlap keeps 1 px joints whole. So written, a four-bend
+serpentine stays in one piece at every second and every half-degree of
+the hour hand in the preview, while butted 1 px bends come apart at most
+seconds (`ts/test/arc-parts.test.ts` holds both). A hand takes at most 16
+parts, which bounds the bends.
 
 A rounded rectangle (`corner_radius:`) and `ellipse` are rejected (no `Dc` call draws either
 rotated — approximate with a `polygon`), and so are `text`/`icon` (a bitmap font

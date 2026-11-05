@@ -25,8 +25,9 @@ arc.
 (hand lengths of 130, 65 and 32 px; 31- and 60-step needles; fourteen
 awkward cases; a full ring against a circle part; a hand arc against a
 fixed `type: arc`; the half-degree overlay; `outline:`; serpentine hands),
-`study3.ts` (mending a serpentine: overlap and joint dots, by pen) and
-`study4.ts` (zoomed joints). Run each from `ts/` with
+`study3.ts` (mending a serpentine: overlap and joint dots, by pen),
+`study4.ts` (zoomed joints) and `study5.ts` (the smallest overlap that
+holds, by bend angle, radius and pen). Run each from `ts/` with
 `WFB_NO_GARMIN_FONTS=1 node ../docs/research/probes/arc-hand-parts/<file>`.
 Every frame is rendered at scale 1 and read back by colour: a part's
 pixel count, how many 8-connected pieces it makes, and for the single-arc
@@ -65,9 +66,22 @@ studies the mean angle of its pixels against the hand's.
    mends pen 1 (10–50% broken at 20°). Joint dots mend too but the 16-part
    cap on a hand leaves no room for them past five bends.
    `Z-serpentine-joints.png` shows the joints at 6× before and after.
-6. **`outline:` round a crescent hand** rings the stem and the crescent
+6. **The overlap a joint needs is about half a pixel of arc, whatever the
+   bend angle or pen above 1 px** (`study5.ts`, `H-min-overlap.md`: 180°,
+   120° and 90° bends of 4, 8, 16 and 32 px, pens 1–3, tangent-continuous
+   chains, every whole degree of the hour hand). The smallest overlap with
+   no broken frame was 0.42–0.56 px along the arc in every pen-2 and pen-3
+   row: 6° at 4 px, 3–4° at 8 px, 2° at 16 px, 1° at 32 px. Pen 2 and pen
+   3 needed the same overlap, and the bend angle changed nothing. **Pen 1
+   never held**: no overlap up to 30° brought any pen-1 chain to zero
+   broken frames (a 1 px ring is only diagonally connected, so a one-pixel
+   offset between neighbours is always a nick). A dot of half the pen at
+   each joint mended every pen-2 and pen-3 chain but two (120° bends at
+   4 and 32 px, pen 2: 8 and 9 broken of 360) and left pen 1 broken at
+   1–40% of angles.
+7. **`outline:` round a crescent hand** rings the stem and the crescent
    as two closed rings at every angle (E1, ring pieces always 2).
-7. **The 16-part cap per hand** is what bounds a serpentine, not the
+8. **The 16-part cap per hand** is what bounds a serpentine, not the
    drawing: twelve 4 px bends plus a root and a tip fit; with a dot at
    each joint they do not.
 
@@ -77,6 +91,7 @@ studies the mean angle of its pixels against the hand's.
 |---|---|
 | `summary.txt`, `summary2.txt` | the printed statistics of `study.ts` and `study2.ts` |
 | `G-table.md` | serpentine mending: broken frames per hand/pen/overlap |
+| `H-min-overlap.md` | the smallest overlap with no broken frame, by bend angle, radius and pen, and joint dots instead |
 | `hour-zoom.png` | a crescent hour hand at twelve angles, 5× |
 | `A-lengths.png` | crescent hands with tips 130, 65 and 32 px from the axis |
 | `B-needle-60.png` | a moon-tipped needle over 60 steps |
