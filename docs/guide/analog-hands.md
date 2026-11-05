@@ -194,6 +194,22 @@ the hour hand in the preview, while butted 1 px bends come apart at most
 seconds (`ts/test/arc-parts.test.ts` holds both). A hand takes at most 16
 parts, which bounds the bends.
 
+**Across screen sizes, size the overlap for the smallest target.** An
+angle is written once for every watch, while a `%r` bend's radius in
+pixels grows with the screen, so one angle is more pixels of overlap on a
+bigger watch. Take the radius in pixels on the smallest screen you build
+for and write `60 / that`: the largest screen then gets the same angle
+over a longer arc, at most the two screens' size ratio in pixels (1.6
+between 280 and 450 px, so under two pixels). That costs nothing you can
+see: where two strokes overlap they can lie a pixel apart, and the thick
+spot is as long as the overlap, under two pixels either way; the sideways
+bulge of two tangent arcs run that far past their joint is the overlap
+squared over twice the radius, a fraction of a pixel at any bend a hand
+has. The visible lumps come from overlaps of several pixels, so do not
+round the angle up generously. Neither `overrides:` nor anything else
+sets a part's angle per device: hand parts have no overrides, and angles
+are not override keys.
+
 A rounded rectangle (`corner_radius:`) and `ellipse` are rejected (no `Dc` call draws either
 rotated — approximate with a `polygon`), and so are `text`/`icon` (a bitmap font
 cannot rotate). `filled: false` is rejected on `polygon`/`rectangle` — there

@@ -86,10 +86,11 @@ arc's turned centre is truncated to whole pixels on its own, so chained
 bends that merely touch come apart by a pixel at some angles, with any pen
 and at whole degrees too. The smallest overlap that held was about half a
 pixel of arc past each joint, the same at 180°, 120° and 90° bends and at
-pens 2 and 3 (the guide asks for a pixel, `60 / radius` degrees); so
-overlapped, with a pen of 2 px or more, serpentines of four to twelve bends
-held through every second and every half-degree hour angle, and 1 px bends
-never held at any overlap (`docs/guide/analog-hands.md`; the evidence is
+pens 2 and 3 (the guide asks for a pixel, `60 / radius` degrees, computed for the
+smallest target, since an angle is written once and a `%r` radius grows
+with the screen); so overlapped, with a pen of 2 px or more, serpentines of
+four to twelve bends held through every second and every half-degree hour
+angle, and 1 px bends never held at any overlap (`docs/guide/analog-hands.md`; the evidence is
 `docs/research/probes/arc-hand-parts/`). An arc's
 end pixels are the one piece of the preview not fitted to the simulator
 (`docs/lore/rendering.md`), so where an arc part meets another part, the
