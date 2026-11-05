@@ -408,7 +408,7 @@ See [`docs/limitations.md`](../limitations.md) §2 for all of it.
 
 - [The editor](studio.md#the-face-tab) — the **Hand sets** list: each set drawn alone, its hands' colours, presets, rename with every `set:`, and its parts in the YAML tab.
 - [`examples/features/analog/face.yaml`](../../examples/features/analog/face.yaml) — two hand sets, an off-centre small-seconds subdial, four of the five part types and a `config:` colour role on a hand.
-- [`examples/features/arc-hands/face.yaml`](../../examples/features/arc-hands/face.yaml) — `arc` parts: a crescent-tipped hour hand, a minute hand collared by a ring segment, and a date needle in the manner of a moon-tipped pointer.
+- [`examples/features/arc-hands/face.yaml`](../../examples/features/arc-hands/face.yaml) — `arc` parts: a crescent-tipped hour hand, a minute hand collared by a ring segment, a serpentine second hand of four overlapped bends, and a date needle in the manner of a moon-tipped pointer.
 - [`examples/analog-custom/face.yaml`](../../examples/analog-custom/face.yaml) — a hand-tuned dial with a custom numeral font, hour numerals and date windows.
 - [Always-on display](always-on-display.md) — `aod:` on a `type: hands` element, applied uniformly to every part of every hand in the set.
 - [Patterns](patterns.md) — the ticks and numerals around a dial.

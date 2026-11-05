@@ -564,7 +564,7 @@
   }
  },
  "examples/features/arc-hands/face.yaml": {
-  "diagnostics": "examples/features/arc-hands/face.yaml:76:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   76 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/arc-hands/face.yaml:76:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   76 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/arc-hands/face.yaml:76:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   76 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
+  "diagnostics": "examples/features/arc-hands/face.yaml:88:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   88 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/arc-hands/face.yaml:88:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   88 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/arc-hands/face.yaml:88:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   88 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
   "projects": {
    "targets": {
     "manifest.xml": "fa6d179d23bc6774ad227656caf2a67b",
@@ -572,10 +572,10 @@
     "resources/strings/strings.xml": "24d18360111e9df73b8986160ca84daa",
     "source/FeatureArcHandsApp.mc": "52ab6873162d76e7ecebeca6c0081390",
     "source/Palette.mc": "9ac3942569975daa3524fd7f97620cfa",
-    "source-fenix8solar47mm/Layout.mc": "c004626207357e760dbfe4d58c9e10d2",
-    "source-fenix8solar51mm/Layout.mc": "0d1b3a72671def6faa17d7eedb8f4523",
-    "source-fr955/Layout.mc": "2a1a6030fc816da737d4eda76f9e4354",
-    "source/FeatureArcHandsView.mc": "5d8c503f9139904a810758e726dda3cc",
+    "source-fenix8solar47mm/Layout.mc": "f373ed6dab12639f12a90356d2f0e471",
+    "source-fenix8solar51mm/Layout.mc": "672de5fee658e763258b9e94b714a1ca",
+    "source-fr955/Layout.mc": "2b9ff29ea3a10330e3327d931ef42e02",
+    "source/FeatureArcHandsView.mc": "bb16725aa99e7201793be6a1beaa66b5",
     "runtime-lib/WfbArc.mc": "fbd814429bcbeb0bb6f2ad0fde6dd984",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
     "runtime-lib/WfbHands.mc": "242d556b837c64551d09cde7343ca613",
@@ -593,11 +593,11 @@
     "resources/strings/strings.xml": "24d18360111e9df73b8986160ca84daa",
     "source/FeatureArcHandsApp.mc": "52ab6873162d76e7ecebeca6c0081390",
     "source/Palette.mc": "9ac3942569975daa3524fd7f97620cfa",
-    "source-fenix847mm/Layout.mc": "4b6b64b721e87a4cdde5fc553bd147c7",
-    "source-fenix8solar47mm/Layout.mc": "c004626207357e760dbfe4d58c9e10d2",
-    "source-fr245/Layout.mc": "e42631326bf6c0b28fb9b1b9bb7429a1",
-    "source-fenix6/Layout.mc": "cea14c27e404bbdc65744addceb500d4",
-    "source/FeatureArcHandsView.mc": "7ebc9a52f558b60555b6bc7a4d2a6920",
+    "source-fenix847mm/Layout.mc": "5e961b52743a9135caffe6d0b36079c2",
+    "source-fenix8solar47mm/Layout.mc": "f373ed6dab12639f12a90356d2f0e471",
+    "source-fr245/Layout.mc": "effe48758b8565355d5ef1876f9dcb69",
+    "source-fenix6/Layout.mc": "4040d725472cd4a1bef2510090e4b2dd",
+    "source/FeatureArcHandsView.mc": "158949f0ac828048b21a85409c73afdf",
     "runtime-lib/WfbArc.mc": "fbd814429bcbeb0bb6f2ad0fde6dd984",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
     "runtime-lib/WfbHands.mc": "242d556b837c64551d09cde7343ca613",
@@ -617,9 +617,9 @@
     "resources/strings/strings.xml": "24d18360111e9df73b8986160ca84daa",
     "source/FeatureArcHandsApp.mc": "52ab6873162d76e7ecebeca6c0081390",
     "source/Palette.mc": "9ac3942569975daa3524fd7f97620cfa",
-    "source-fenix947mm/Layout.mc": "23882901672b5c42c3d4fecbc63efae1",
-    "source-fr955/Layout.mc": "2a1a6030fc816da737d4eda76f9e4354",
-    "source/FeatureArcHandsView.mc": "91baa965c1c58f6f31540dad33fff75e",
+    "source-fenix947mm/Layout.mc": "07762ac6866b7fd239c4d3d66b10cee3",
+    "source-fr955/Layout.mc": "2b9ff29ea3a10330e3327d931ef42e02",
+    "source/FeatureArcHandsView.mc": "6ad15f7bdc5991f2181a9d2088927145",
     "runtime-lib/WfbArc.mc": "fbd814429bcbeb0bb6f2ad0fde6dd984",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
     "runtime-lib/WfbHands.mc": "242d556b837c64551d09cde7343ca613",
@@ -632,19 +632,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "eed589b7a7619ed508fae8205d9ed691",
-    "fenix8solar51mm": "5f9e28937ea1eb4500c077d92a79a2ee",
-    "fr955": "eed589b7a7619ed508fae8205d9ed691"
+    "fenix8solar47mm": "4aa84f75078af999406a6957d4cc9118",
+    "fenix8solar51mm": "4c1faceedf937adecde7d44dfbe752bf",
+    "fr955": "4aa84f75078af999406a6957d4cc9118"
    },
    "asleep": {
-    "fenix8solar47mm": "e8ac7e9ea3f49bb4a04d2815cba28cd1",
-    "fenix8solar51mm": "6afd5c69293f5d423c2743100c412674",
-    "fr955": "e8ac7e9ea3f49bb4a04d2815cba28cd1"
+    "fenix8solar47mm": "3968b3c663bfc6f74eb38be3dbd426c8",
+    "fenix8solar51mm": "a295e3e2aa30e5afdede18b996821f9e",
+    "fr955": "3968b3c663bfc6f74eb38be3dbd426c8"
    },
    "time": {
-    "fenix8solar47mm": "2a9acc7838cd59a690316c95c0832310",
-    "fenix8solar51mm": "686da0383a06d2337f3cdfff78c0146f",
-    "fr955": "2a9acc7838cd59a690316c95c0832310"
+    "fenix8solar47mm": "e51862c191572dc322d887cf5b9c1f2d",
+    "fenix8solar51mm": "f40c573b85affaea2051079003684d1d",
+    "fr955": "e51862c191572dc322d887cf5b9c1f2d"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Arc hands' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",

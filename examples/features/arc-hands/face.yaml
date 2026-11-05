@@ -12,8 +12,12 @@
 #   its crescent is a half degree off its stem -- under a pixel.
 # * **An on-axis arc part**: the minute hand's `collar`, a ring segment
 #   about the axis straddling the blade, `at:` omitted.
-# * **A hand that is all arc**: `small_seconds` is one ring segment riding
-#   on its own axis; its angle is exact (a second is six whole degrees).
+# * **A serpentine second hand, axis to rim**: `classic`'s second is a chain of four
+#   180deg bends of 10%r, each an off-axis `arc` bulging left and right in turn,
+#   with a straight root and tip. Arcs that merely touch come apart by a
+#   pixel at some angles (each centre is truncated on its own), so each
+#   bend is swept 10deg past both of its joints and drawn 2 px wide, which
+#   keeps the chain in one piece at every second (docs/guide/analog-hands.md).
 # * **A date needle in the manner of a moon-tipped pointer**: `date_hand`,
 #   a `style: needle` gauge over `date.day`, whose `moon` is an `arc` that
 #   almost closes on itself. A needle's angle is any fraction of a degree,
@@ -66,12 +70,20 @@ resources:
           # a ring segment about the axis, straddling the blade: no `at:`
           collar: { type: arc, radius: 30%r, thickness: 4px, start_angle: -8deg, sweep: 16deg, color: color.cyan }
           hub: { type: circle, radius: 3%r, color: color.gray }
-    small_seconds:
       second:
         color: color.orange
         parts:
-          # a hand that is all arc
-          mark: { type: arc, radius: 16%r, thickness: 3px, start_angle: -5deg, sweep: 10deg }
+          # a serpentine: a root, four semicircles chained up the hand, a tip.
+          # Each bend is centred on the hand's axis line, a radius apart, and
+          # starts 10deg before its joint and ends 10deg after the next, so
+          # neighbouring bends overlap instead of merely touching.
+          root: { type: line, at: { dy: 8%r }, to: { dy: -10%r }, thickness: 2px }
+          bend1: { type: arc, at: { dy: -20%r }, radius: 10%r, thickness: 2px, start_angle: 190deg, sweep: -200deg }
+          bend2: { type: arc, at: { dy: -40%r }, radius: 10%r, thickness: 2px, start_angle: 170deg, sweep: 200deg }
+          bend3: { type: arc, at: { dy: -60%r }, radius: 10%r, thickness: 2px, start_angle: 190deg, sweep: -200deg }
+          bend4: { type: arc, at: { dy: -80%r }, radius: 10%r, thickness: 2px, start_angle: 170deg, sweep: 200deg }
+          tip: { type: line, at: { dy: -90%r }, to: { dy: -93%r }, thickness: 2px }
+          counterweight: { type: circle, at: { dy: 8%r }, radius: 2%r }
 
 static:
   background:
@@ -87,13 +99,6 @@ static:
     start_angle: 0deg
     sweep: 360deg
     color: color.gray
-  seconds_ring:
-    type: circle
-    filled: false
-    at: { anchor: center, dy: -45%r }
-    radius: 18%r
-    thickness: 1px
-    color: color.gray
   date_ticks:
     type: pattern
     pattern: radial
@@ -107,11 +112,6 @@ static:
       reason: "31 ticks over 348.387deg cannot all land on whole degrees; a tick is a line, drawn exactly."
 
 elements:
-  small_secs:
-    type: hands
-    set: small_seconds
-    at: { anchor: center, dy: -45%r }
-    seconds: awake
   date_hand:
     type: gauge
     style: needle
@@ -129,3 +129,4 @@ elements:
     type: hands
     set: classic
     at: { anchor: center }
+    seconds: awake
