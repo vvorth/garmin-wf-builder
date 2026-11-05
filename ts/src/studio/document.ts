@@ -9,6 +9,7 @@
 // (font sheets reused through the studio's bake memo), and the lint. A frame
 // -- one device, one set of switches -- is rendered on demand and kept for
 // that version.
+import { elementIdOfPath } from "../element_ids.ts";
 import { resolveAll, selectDevices } from "../build.ts";
 import type { Device, DeviceDatabase } from "../devices/device.ts";
 import { Bag, type Diagnostic } from "../diagnostics.ts";
@@ -333,7 +334,7 @@ function children(index: SpanIndex, block: Entry): TreeNode[] {
     for (const step of entry.path) data = (data as Map<unknown, unknown>).get(step);
     const end = index.text.slice(0, index.valueEnd(entry)).split("\n").length - 1;
     const node: TreeNode = {
-      kind: "element", id: entry.name, type: plain((data as Map<unknown, unknown>).get("type") ?? null) as Value, path: [...entry.path],
+      kind: "element", id: entry.id, name: entry.name, type: plain((data as Map<unknown, unknown>).get("type") ?? null) as Value, path: [...entry.path],
       line: entry.key.start.line + 1, end, children: [],
     };
     const z = (data as Map<unknown, unknown>).get("z");
@@ -363,12 +364,12 @@ function dimmed<T extends { id: string; image: { data: Uint8ClampedArray } | nul
 /** How much of the face round an entered element the ghost keeps. */
 const GHOST = 0.35;
 
-/** The ids of the elements `hidden` names and of every element written inside one (a group's children, a layout's). */
+/** The qualified ids of the elements `hidden` names (by qualified id) and of every element written inside one (a group's children, a layout's). */
 function hiddenIds(index: SpanIndex, hidden: readonly string[]): Set<string> {
   if (hidden.length === 0) return new Set();
   const all = index.elements();
-  const roots = all.filter((e) => hidden.includes(e.name)).map((e) => e.path);
-  return new Set(all.filter((e) => roots.some((r) => r.every((step, i) => e.path[i] === step))).map((e) => e.name));
+  const roots = all.filter((e) => hidden.includes(e.id)).map((e) => e.path);
+  return new Set(all.filter((e) => roots.some((r) => r.every((step, i) => e.path[i] === step))).map((e) => e.id));
 }
 
 /**
@@ -755,7 +756,7 @@ export class Document {
     return [this.commit(patch.text, this.headAssets(), patch.what, expected, after), select];
   }
 
-  /** The patch a structural op (`STRUCTURE`) makes on `index`'s text, and the id to select after it. */
+  /** The patch a structural op (`STRUCTURE`) makes on `index`'s text, and the qualified id to select after it. */
   private structurePatch(index: SpanIndex, op: Json): [Patch, string | null] {
     const kind = op["op"];
     let select: string | null = null;
@@ -796,7 +797,7 @@ export class Document {
       } else {
         patch = moveToBlock(index, p, block, before);
       }
-      select = String(p[p.length - 1]);
+      select = elementIdOfPath([...block, p[p.length - 1]!]);
     } else if (kind === "paste") {
       const clip = op["text"];
       if (typeof clip !== "string" || !clip.trim()) throw new Refused("there is nothing to paste");
@@ -805,7 +806,7 @@ export class Document {
       const after = indexFor(patch.text);
       const ids = index.elementIds();
       select = after.entries().find((e) => e.path.length === block.length + 1 && block.every((s, i) => s === e.path[i])
-        && !ids.has(e.name) && isElement(after, e))?.name ?? null;
+        && !ids.has(e.id) && isElement(after, e))?.id ?? null;
     } else if (kind === "group") {
       if (!Array.isArray(op["paths"])) throw new Refused("a group is made of a list of paths");
       patch = group(index, op["paths"].map(path));
@@ -933,7 +934,7 @@ export class Document {
       const drawn = new Set(frameItems(resolved, options, entry).map((p) => p.id));
       const layout = entry !== null ? entry.layout : null;
       const index = indexFor(this.text);
-      // A group the author wrote; the `static:` block's and a layout's own groups are containers, not elements.
+      // The qualified ids of the elements the author wrote, a group among them; the `static:` block's and a layout's own groups are containers, not elements.
       const authored = index.elementIds();
       const hidden = hiddenIds(index, key.hidden);
       const shown = <T extends { id: string }>(stack: T[]): T[] => (hidden.size === 0 ? stack : stack.filter((layer) => !hidden.has(layer.id)));

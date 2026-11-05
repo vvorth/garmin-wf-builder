@@ -27,6 +27,7 @@ import type { DiagnosticFilter } from "./diagnostics.ts";
 import { rangeIds, selectAll as allShown } from "./hit.ts";
 import { droppedError, enqueue, inFlight, mark, newer, next, saveState } from "./outbox.ts";
 import type { AnyGesture, Entry, Failure, GestureEntry, Where } from "./outbox.ts";
+import { childElementId, ID_SEPARATOR, parentElementId } from "../src/element_ids.ts";
 import { nodeAtPath, nodeById } from "./tree.ts";
 import { TAB } from "./session.ts";
 import * as sync from "./textsync.ts";
@@ -642,7 +643,36 @@ export class EditorStore {
 
   /** One edit from the inspector or the Face panel: the worker patches the text, checks it and answers with the face; a refusal says why. */
   edit(op: EditOp): Promise<Summary | null> {
-    return this.send({ op: "edit", args: { edit: op } });
+    const renamed = op.op === "rename" ? this.renamedElement(op.path, op.to) : null;
+    const answer = this.send({ op: "edit", args: { edit: op } });
+    if (renamed === null) return answer;
+    return answer.then((updated) => {
+      if (updated) this.followRename(renamed[0], renamed[1]);
+      return updated;
+    });
+  }
+
+  /** For a rename of the element at `path` to the key `to`: its qualified id before and after; null for any other key. */
+  private renamedElement(path: Path, to: string): [string, string] | null {
+    const node = this.state.doc ? nodeAtPath(this.state.doc.tree, path) : null;
+    if (!node || node.kind !== "element") return null;
+    return [node.id, childElementId(parentElementId(node.id), to)];
+  }
+
+  /**
+   * The selection after the element `from` became `to`: it and every element
+   * inside it (a renamed group renames each descendant's id) are followed
+   * to their new ids, and an extra the new tree no longer has is dropped.
+   */
+  private followRename(from: string, to: string): void {
+    const s = this.state;
+    const { primary, extra } = s.selection;
+    const follow = (id: string): string => (id === from ? to : id.startsWith(from + ID_SEPARATOR) ? to + id.slice(from.length) : id);
+    const next = primary === null || isPartId(primary) ? primary : follow(primary);
+    const kept = extra.map(follow).filter((id) => isPartId(id) || !s.doc || nodeById(s.doc.tree, id) !== null);
+    if (next === primary && kept.length === extra.length && kept.every((id, i) => id === extra[i])) return;
+    this.set({ selection: { primary: next, extra: kept, vertex: s.selection.vertex } });
+    this.askInspect();
   }
 
   /** One structural edit from the Layers panel: the worker answers with the face and what to select. */

@@ -19,12 +19,14 @@ function nodes(doc: Summary): TreeNode[] {
 }
 
 /** The ids of the block at `path`, in order. */
+/** The names (keys) of the block `path`'s elements, in order. */
 function blockIds(doc: Summary, path: string): string[] {
-  return nodes(doc).filter((n) => n.path.slice(0, -1).join(".") === path).map((n) => n.id);
+  return nodes(doc).filter((n) => n.path.slice(0, -1).join(".") === path).map((n) => n.name);
 }
 
+/** The node with the qualified id `id`, else the first named `id`. */
 function node(doc: Summary, id: string): TreeNode {
-  const found = nodes(doc).find((n) => n.id === id);
+  const found = nodes(doc).find((n) => n.id === id) ?? nodes(doc).find((n) => n.name === id);
   assert.ok(found, `${id} is not in the tree`);
   return found;
 }
@@ -89,7 +91,8 @@ h.test("+ add… adds every type, with its picker; a live type beside a static e
   await s.page.locator(".layers .add-bar select").first().selectOption("circle");
   await s.page.locator(".layers .add-bar button.primary").click();
   doc = await written(s, doc);
-  assert.deepEqual(blockIds(doc, "static"), ["background", "new_circle2", "left_card", "right_card"]);
+  // a name is unique among its siblings: the new_circle in elements: leaves the name free in static:
+  assert.deepEqual(blockIds(doc, "static"), ["background", "new_circle", "left_card", "right_card"]);
   assert.deepEqual(s.errors, []);
 });
 
@@ -153,7 +156,8 @@ h.test("reorder, drag a row, move to…, group, ungroup, duplicate, delete", asy
   await s.page.locator(".layers .actions button", { hasText: "Group" }).click();
   doc = await written(s, doc);
   assert.deepEqual(blockIds(doc, "elements").slice(3, 4), ["group"]);
-  assert.deepEqual(node(doc, "group").children.map((n) => n.id), ["card", "card_inner"]);
+  // the members' ids are qualified by the group; their names are their keys
+  assert.deepEqual(node(doc, "group").children.map((n) => [n.id, n.name]), [["group.card", "card"], ["group.card_inner", "card_inner"]]);
   assert.match(doc.text, /^  group:\n    type: group\n    children:\n      # An outlined rounded rectangle/m, "the group does not hold its children with their comments");
   assert.equal(await s.page.locator(".inspector .ins-head .name").textContent(), "group");
   // the tree redraws a moment after the text changes, so the nesting is polled

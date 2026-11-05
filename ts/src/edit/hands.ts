@@ -43,7 +43,7 @@ export function placedBy(index: SpanIndex, name: string): string[] {
   for (const entry of index.elements()) {
     let data: Data = index.data;
     for (const step of entry.path) data = child(data, step);
-    if (data instanceof Map && data.get("type") === "hands" && data.get("set") === name) out.push(entry.name);
+    if (data instanceof Map && data.get("type") === "hands" && data.get("set") === name) out.push(entry.id);
   }
   return out;
 }

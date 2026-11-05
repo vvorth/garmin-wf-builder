@@ -12,6 +12,7 @@
 //   text), not at a line start.
 // - A flow value's or a plain scalar's end mark sits inside its own last
 //   line, just past its last character.
+import { elementIdOfPath } from "../element_ids.ts";
 import { compose, construct, type Data, type MappingNode, type ScalarNode, type YamlNode, YamlError } from "./yaml.ts";
 
 export { ordered, sameData } from "./yaml.ts";
@@ -43,6 +44,15 @@ export class Entry {
 
   get name(): string {
     return this.key.value;
+  }
+
+  /**
+   * For an element entry, the element's id: its key qualified by the groups
+   * it sits in (`top.label`), as the compiler, the frame and the page name
+   * it (`elementIdOfPath`). The dotted path for an entry that is no element's.
+   */
+  get id(): string {
+    return elementIdOfPath(this.path) ?? dotted(this.path);
   }
 
   /** Whether the mapping holding this entry is a flow mapping. */
@@ -195,8 +205,16 @@ export class SpanIndex {
     return this.all.filter((e) => isElement(this, e));
   }
 
+  /** Every element's qualified id (`Entry.id`). */
   elementIds(): Set<string> {
-    return new Set(this.elements().map((e) => e.name));
+    return new Set(this.elements().map((e) => e.id));
+  }
+
+  /** The keys of the mapping at `block`, an element block's element names among them; empty for a block not written or not a mapping. */
+  siblingNames(block: Path): Set<string> {
+    const holder = this.get(block);
+    if (holder === undefined || holder.value.kind !== "mapping") return new Set();
+    return new Set(holder.value.pairs.filter(([k]) => k.kind === "scalar").map(([k]) => (k as ScalarNode).value));
   }
 
   // -- ranges ---------------------------------------------------------------

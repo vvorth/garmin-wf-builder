@@ -73,7 +73,7 @@ export const graphTypeField = (id: string): string => lowerFirst(elementSuffix(i
 export const graphRebuildMethod = (id: string): string => "rebuild" + elementSuffix(id);
 
 function elementSuffix(elementId: string): string {
-  return elementId.replaceAll("-", "_").split("_").filter(Boolean).map((p) => p.slice(0, 1).toUpperCase() + p.slice(1)).join("");
+  return elementId.replaceAll("-", "_").replaceAll(".", "_").split("_").filter(Boolean).map((p) => p.slice(0, 1).toUpperCase() + p.slice(1)).join("");
 }
 
 function lowerFirst(text: string): string {

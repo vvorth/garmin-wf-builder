@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { resolveAll } from "../src/build.ts";
+import { load as loadDesign, resolveAll } from "../src/build.ts";
 import { REPO_ROOT } from "../src/devices/node.ts";
 import { Bag } from "../src/diagnostics.ts";
 import { Gate, loadText } from "../src/edit/gate.ts";
@@ -17,7 +17,8 @@ import {
 import { type Entry, parse, type Path, Refused, sameData, SpanIndex, type Step } from "../src/edit/spans.ts";
 import { type Data } from "../src/edit/yaml.ts";
 import { deepCopy } from "../src/py.ts";
-import { add, elementTypes, group, moveToBlock, paste, ungroup } from "../src/edit/structure.ts";
+import { add, elementTypes, freshId, group, moveToBlock, paste, ungroup } from "../src/edit/structure.ts";
+import { elementName, layoutIds, STATIC_GROUP_ID } from "../src/element_ids.ts";
 import { bakeFonts, ICON_FONT } from "../src/emit/resources.ts";
 import { isSubmodule, readFontFile, repoFileExists } from "../src/node.ts";
 import { Length } from "../src/units.ts";
@@ -160,12 +161,16 @@ test("deleting a block's only element removes the block", () => {
   assert.ok(p.text.endsWith("elements:\n  a:\n    type: circle\n    radius: 5%r\n    color: color.fg\n"));
 });
 
-test("duplicates: a group's elements renamed, the first free suffix", () => {
+test("duplicates: a group copied keeps the names inside it, under the first free suffix among its siblings", () => {
   const rings = "examples/features/rings/face.yaml";
   const text = read(rings);
   const p = duplicateElement(new SpanIndex(text), ["elements", "heart_rate"]);
-  assert.deepEqual(new Set(Object.keys(data(p.text).elements.heart_rate_copy.children)), new Set(["heart_icon_copy", "heart_value_copy"]));
+  assert.deepEqual(Object.keys(data(p.text).elements.heart_rate_copy.children), Object.keys(data(text).elements.heart_rate.children));
+  assert.ok(p.text.includes("  heart_rate_copy:\n"));
   gate(rings, text).check(p);
+  // the copy's children are new elements under new ids
+  const ids = new SpanIndex(p.text).elementIds();
+  for (const name of Object.keys(data(text).elements.heart_rate.children)) assert.ok(ids.has(`heart_rate_copy.${name}`), name);
   const twice = minimal("elements:\n  a:\n    type: circle\n    radius: 5%r\n    color: color.fg\n  a_copy:\n    type: circle\n    radius: 5%r\n    color: color.fg\n");
   assert.deepEqual(Object.keys(data(duplicateElement(new SpanIndex(twice), ["elements", "a"]).text).elements), ["a", "a_copy2", "a_copy"]);
 });
@@ -357,7 +362,7 @@ test("grouping moves nothing, and ungrouping gives the text back", () => {
       const after = placements(p.text);
       for (const [id, place] of before) if (after.has(id)) assert.equal(after.get(id), place, `${path} ${id}`);
       const made = new SpanIndex(p.text);
-      const created = made.elements().find((e) => !index.elementIds().has(e.name))!;
+      const created = made.elements().find((e) => e.path.length === entries[0]!.path.length && !index.elementIds().has(e.id))!;
       assert.equal(ungroup(made, created.path).text, text, path);
     }
   }
@@ -375,6 +380,70 @@ test("an element moves between blocks, creating and emptying them", () => {
   const into = moveToBlock(new SpanIndex(grouped.text), ["elements", "b"], ["elements", "g", "children"], "a");
   assert.deepEqual(Object.keys(data(into.text).elements.g.children), ["b", "a"]);
   assert.ok(into.text.includes("      b:\n        type: circle\n"));
+});
+
+test("a name is unique among its siblings only: add, move, group, duplicate and rename check the destination block", () => {
+  const text = minimal("elements:\n  label:\n    type: circle\n    radius: 5%r\n    color: color.fg\n  g:\n    type: group\n"
+    + "    children:\n      label:\n        type: circle\n        radius: 2%r\n        color: color.fg\n      other:\n        type: circle\n        radius: 2%r\n        color: color.fg\n",
+    "static:\n  label:\n    type: circle\n    radius: 9%r\n    color: color.fg\n");
+  const index = new SpanIndex(text);
+  assert.deepEqual([...index.elementIds()], ["static.label", "label", "g", "g.label", "g.other"]);
+  assert.deepEqual(index.siblingNames(["elements", "g", "children"]), new Set(["label", "other"]));
+  assert.deepEqual(index.siblingNames(["elements", "nowhere", "children"]), new Set());
+  // a `label` beside a group whose children have one, and in a group whose parent block has one
+  const g2 = group(index, [["elements", "label"]], "g2");
+  const added = add(new SpanIndex(g2.text), "rectangle", ["elements", "g2", "children"], null, "other");
+  assert.deepEqual(Object.keys(data(added.text).elements.g2.children), ["label", "other"]);
+  assert.throws(() => add(index, "rectangle", ["elements", "g", "children"], null, "label"), /already an element called label in elements\.g\.children/);
+  assert.throws(() => add(index, "rectangle", ["elements"], null, "g"), /already an element called g in elements/);
+  // the generated names count the destination's siblings, so two blocks may each get a `new_circle`
+  assert.equal(freshId(index, "label", ["elements", "g", "children"]), "label2");
+  assert.equal(freshId(index, "label", ["elements", "h", "children"]), "label");
+  const first = add(index, "circle", ["elements"]);
+  const second = add(new SpanIndex(first.text), "circle", ["elements", "g", "children"]);
+  assert.ok("new_circle" in data(second.text).elements && "new_circle" in data(second.text).elements.g.children);
+  // a move into a block with a same-named child is refused, the rest moves
+  assert.throws(() => moveToBlock(index, ["elements", "label"], ["elements", "g", "children"]), /elements\.g\.children already has an element called label/);
+  assert.throws(() => moveToBlock(index, ["static", "label"], ["elements"]), /elements already has an element called label/);
+  const moved = moveToBlock(index, ["elements", "g", "children", "other"], ["elements"]);
+  assert.deepEqual(Object.keys(data(moved.text).elements), ["label", "g", "other"]);
+  // a group's name is checked among its own siblings
+  assert.throws(() => group(index, [["elements", "g", "children", "other"]], "label"), /already an element called label in elements\.g\.children/);
+  assert.equal(Object.keys(data(group(index, [["elements", "g", "children", "other"]], "g").text).elements.g.children)[1], "g");
+  // a duplicate inside a group keeps the key free in the parent block
+  const dup = duplicateElement(index, ["elements", "g", "children", "label"]);
+  assert.deepEqual(Object.keys(data(dup.text).elements.g.children), ["label", "label_copy", "other"]);
+  assert.deepEqual(Object.keys(data(dup.text).elements), ["label", "g"]);
+  // a rename to a name used in another block succeeds; to a sibling's is refused
+  const renamed = renameKey(index, ["elements", "g", "children", "other"], "label2");
+  assert.deepEqual(Object.keys(data(renamed.text).elements.g.children), ["label", "label2"]);
+  assert.deepEqual(Object.keys(data(renameKey(index, ["elements", "label"], "other").text).elements), ["other", "g"]);
+  assert.deepEqual(Object.keys(data(renameKey(index, ["static", "label"], "g").text).static), ["g"]);
+  assert.throws(() => renameKey(index, ["elements", "g", "children", "other"], "label"), /already exists/);
+  assert.throws(() => renameKey(index, ["elements", "label"], "g"), /already exists/);
+  // what is pasted is renamed only against the destination's siblings, and only at its top level
+  const clip = "label:\n  type: circle\n  radius: 1\n  color: color.fg\nbox:\n  type: group\n  children:\n    label:\n      type: circle\n      radius: 1\n      color: color.fg\n";
+  const pasted = paste(index, clip, ["elements", "g", "children"]);
+  assert.deepEqual(Object.keys(data(pasted.text).elements.g.children), ["label", "other", "label2", "box"]);
+  assert.deepEqual(Object.keys(data(pasted.text).elements.g.children.box.children), ["label"]);
+  const elsewhere = paste(index, clip, ["static"]);
+  assert.deepEqual(Object.keys(data(elsewhere.text).static), ["label", "label2", "box"]);
+});
+
+test("the span index's element ids are the compiler's, over every example face", () => {
+  for (const path of FACES) {
+    const text = read(path);
+    const bag = new Bag();
+    bag.registerSource(path, text);
+    const face = loadDesign(path, bag, text, repoFileExists);
+    assert.ok(face !== null, `${path}: ${bag.render()}`);
+    const layouts = data(text).layouts ?? {};
+    const synthetic = new Set([STATIC_GROUP_ID, ...Object.keys(layouts).flatMap((name) => layoutIds(name))]);
+    const built = face.walk().map((e) => e.id).filter((id) => !synthetic.has(id));
+    assert.equal(new Set(built).size, built.length, `${path}: ids unique`);
+    assert.deepEqual(new SpanIndex(text).elementIds(), new Set(built), path);
+    for (const e of new SpanIndex(text).elements()) assert.equal(elementName(e.id), e.name, `${path} ${e.id}`);
+  }
 });
 
 test("structure refuses what it cannot do", () => {
@@ -402,15 +471,16 @@ test("every type can be added", () => {
 
 // -- paste --
 
-test("pasted elements keep their text and take fresh ids where the face has them", () => {
+test("pasted elements keep their text and take fresh names where the destination's siblings have them", () => {
   const text = minimal("elements:\n  dot:\n    type: circle\n    at: { dx: 0, dy: 0 }\n    radius: 5\n    color: color.fg\n  last:\n    type: circle\n    at: { dx: 9, dy: 9 }\n    radius: 2\n    color: color.fg\n");
   const clip = "dot:   # the copied one\n  type: circle\n  at: { dx: 30, dy: 0 }\n  radius: 5\n  color: color.fg\nbox:\n  type: group\n  children:\n    dot2:\n      type: circle\n      at: { dx: 1, dy: 1 }\n      radius: 1\n      color: color.fg\n";
   const p = paste(new SpanIndex(text), clip, ["elements"], "last");
   assert.ok(sameData(parse(p.text), p.expected));
   const d = data(p.text);
-  assert.deepEqual(Object.keys(d.elements), ["dot", "dot3", "box", "last"]);
+  // the nested dot2 is no sibling of the pasted dot, so dot2 is free for it
+  assert.deepEqual(Object.keys(d.elements), ["dot", "dot2", "box", "last"]);
   assert.deepEqual(Object.keys(d.elements.box.children), ["dot2"]);
-  assert.ok(p.text.includes("  dot3:   # the copied one\n    type: circle\n    at: { dx: 30, dy: 0 }"));
+  assert.ok(p.text.includes("  dot2:   # the copied one\n    type: circle\n    at: { dx: 30, dy: 0 }"));
   assert.deepEqual(new Gate("face.yaml", text, () => false).check(p).errors, []);
   const index = new SpanIndex(minimal("elements:\n  dot:\n    type: circle\n    radius: 5\n"));
   for (const bad of ["just some words", "a: 1\n", "- type: circle\n"]) assert.throws(() => paste(index, bad), /not elements/, bad);

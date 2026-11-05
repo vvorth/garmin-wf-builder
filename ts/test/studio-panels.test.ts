@@ -585,7 +585,7 @@ test("an edit the gate refuses leaves the face alone", async () => {
   const doc = make(await newStudio());
   const before = [doc.text, doc.version];
   assert.throws(() => doc.edit({ op: "set", path: ["elements", "clock", "color"], value: "color.nope" }, doc.version), /color\.nope/);
-  assert.throws(() => doc.edit({ op: "remove", path: ["resources", "palette", "bg"] }, doc.version), /the colour bg is used by 1 element: background/);
+  assert.throws(() => doc.edit({ op: "remove", path: ["resources", "palette", "bg"] }, doc.version), /the colour bg is used by 1 element: static\.background/);
   assert.throws(() => doc.edit({ op: "rename", path: ["resources", "palette", "bg"], to: "1x", prefix: "color." }, doc.version), /not a name/);
   assert.throws(() => doc.edit({ op: "explode" }, doc.version), /unknown edit/);
   assert.throws(() => doc.edit({ op: "remove", path: ["elements", "clock", "visible"] }, doc.version), /is not set/);
@@ -747,15 +747,20 @@ test("a slot rename repoints its elements and nothing else", async () => {
   assert.notEqual(doc.analysis().face, null);
 });
 
-test("an element is renamed in place; a name already used anywhere else is refused", async () => {
+test("an element is renamed in place; a sibling's name is refused, a name used in another block is not", async () => {
   const doc = make(await newStudio());
   doc.edit({ op: "rename", path: ["elements", "clock"], to: "timer" }, doc.version);
   assert.ok(!("clock" in dataOf(doc).elements) && "timer" in dataOf(doc).elements);
   assert.notEqual(doc.analysis().face, null);
   const before = doc.text;
-  // "background" is a sibling of "timer" now only via the static: block, not elements: -- still a duplicate id face-wide
-  assert.throws(() => doc.edit({ op: "rename", path: ["elements", "timer"], to: "background" }, doc.version), /duplicate element id/);
+  assert.throws(() => doc.edit({ op: "rename", path: ["elements", "timer"], to: "seconds" }, doc.version), /already exists/);
   assert.equal(doc.text, before);
+  // "background" is in the static: block: its id there is static.background, so an elements: sibling may take the name
+  doc.edit({ op: "rename", path: ["elements", "timer"], to: "background" }, doc.version);
+  assert.ok("background" in dataOf(doc).elements && "background" in dataOf(doc).static);
+  assert.notEqual(doc.analysis().face, null);
+  const ids = doc.tree().flatMap((b) => b.children.map((n) => [n.id, n.name]));
+  assert.deepEqual(ids.filter(([, name]) => name === "background"), [["static.background", "background"], ["background", "background"]]);
 });
 
 test("a slot edit the face cannot take is refused", async () => {

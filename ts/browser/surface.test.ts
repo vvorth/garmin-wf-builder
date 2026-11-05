@@ -79,7 +79,8 @@ h.test("a locked element is passed over on the canvas, never dragged, and Proper
   const pt = await p.ink("seconds");
   const on = p.at(pt.x, pt.y);
   // locked: seconds, and what lies under it (the clock's box and the full-screen background), so a press there reaches nothing
-  for (const id of ["seconds", "clock", "background"]) await s.page.locator(`.layers button[aria-label='lock ${id}']`).click();
+  // a toggle names the element by its qualified id: the static: block's rectangle is static.background
+  for (const id of ["seconds", "clock", "static.background"]) await s.page.locator(`.layers button[aria-label='lock ${id}']`).click();
   await s.eventually(async () => (await s.page.locator(".layers button[aria-label='lock seconds']").getAttribute("aria-pressed")) === "true", "seconds locked");
   await s.drag(on, { x: on.x + 30, y: on.y + 20 });
   await s.page.waitForTimeout(1500);

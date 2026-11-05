@@ -192,7 +192,7 @@ test("colour refusals leave the face alone", async () => {
 test("the panel says who uses each colour", async () => {
   const doc = make(await newStudio());
   const byName = Object.fromEntries(((doc.summary()["globals"] as any).palette as any[]).map((p) => [p.name, p]));
-  assert.deepEqual(byName.bg.used_by, ["background"]);
+  assert.deepEqual(byName.bg.used_by, ["static.background"]);
   assert.deepEqual(byName.dim.used_by, ["seconds"]);
   assert.ok(!byName.dim.automatic);
   assert.ok(byName.bg.launcher);
@@ -381,7 +381,7 @@ test("a colour or font something uses is not deleted", async () => {
   assert.notEqual(doc.analysis().face, null);
   refusedAlone(doc, [
     [/^the colour text is used by 1 element: clock; change them first$/, () => edit(doc, { op: "remove", path: ["resources", "palette", "text"] })],
-    [/^the colour bg is used by 1 element: background; change them first$/, () => edit(doc, { op: "remove", path: ["resources", "palette", "bg"] })],
+    [/^the colour bg is used by 1 element: static\.background; change them first$/, () => edit(doc, { op: "remove", path: ["resources", "palette", "bg"] })],
     [/^the font big is used by 1 element: clock; change them first$/, () => edit(doc, { op: "remove", path: ["resources", "fonts", "big"] })],
   ]);
   edit(doc, { op: "set", path: ["elements", "seconds", "color"], value: "color.text" });

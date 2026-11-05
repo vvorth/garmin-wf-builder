@@ -393,3 +393,44 @@ test("entering an element asks the frame with enter and inspects a part by its p
   assert.deepEqual(printed[8], [handsPath, handsPath, bladePath.join("/")]);
   assert.deepEqual(printed[9], [null, null]);
 });
+
+test("a rename of a group carries the selection to the new ids, and drops an extra the new tree no longer has", async () => {
+  const text = instantiate("minimal", "T").replace("elements:\n", "elements:\n  box:\n    type: group\n    children:\n      dot:\n        type: circle\n" +
+    "        at: { anchor: center }\n        radius: 5%r\n        color: color.text\n\n");
+  const face = { summary: summary(text), vocabulary: {}, home: { templates: [], store: "this browser", shared: true, documents: [] } };
+  const printed = await store(face, `
+      // the worker's answer to the rename: box is crate, its child crate.dot, and seconds is gone from the tree
+      const serve = respond;
+      respond = (request, reply) => {
+        if (request.op !== "edit") return serve(request, reply);
+        requests.push([request.op, request.args]);
+        const renamed = JSON.parse(JSON.stringify(summary));
+        renamed.version = summary.version + 1;
+        const walk = (nodes) => nodes.map((n) => {
+          if (n.id === "box") { n.id = "crate"; n.name = "crate"; }
+          if (n.id === "box.dot") n.id = "crate.dot";
+          n.children = walk(n.children || []);
+          return n;
+        }).filter((n) => n.id !== "seconds");
+        renamed.tree.forEach((b) => { b.children = walk(b.children || []); });
+        reply({ status: 200, json: renamed });
+      };
+      const s = new EditorStore(summary.id);
+      await settle();
+      out(summary.tree.flatMap((b) => b.children.flatMap((n) => [n.id, ...n.children.map((c) => c.id)])));
+      s.select("box.dot"); s.select("clock", true); s.select("seconds", true);
+      out(s.state.selection);
+      await s.edit({ op: "rename", path: ["elements", "box"], to: "crate" });
+      await settle();
+      out([s.state.doc.version, s.state.selection]);
+      // a rename of something that is no element leaves the selection alone
+      await s.edit({ op: "rename", path: ["resources", "palette", "dim"], to: "grey", prefix: "color." });
+      await settle();
+      out(s.state.selection);
+      s.dispose();
+    `);
+  assert.deepEqual(printed[0], ["static.background", "box", "box.dot", "clock", "seconds"]);
+  assert.deepEqual(printed[1], { primary: "box.dot", extra: ["clock", "seconds"], vertex: null });
+  assert.deepEqual(printed[2], [face.summary.version + 1, { primary: "crate.dot", extra: ["clock"], vertex: null }]);
+  assert.deepEqual(printed[3], { primary: "crate.dot", extra: ["clock"], vertex: null });
+});

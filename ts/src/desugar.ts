@@ -37,6 +37,7 @@
 import type { Bag, Span } from "./diagnostics.ts";
 import type { Data, DataKey } from "./edit/yaml.ts";
 import { deepEqual, quoted } from "./py.ts";
+import { childElementId, elementName } from "./element_ids.ts";
 import { ensureLc, insertKey, lcOf, type YamlDocument } from "./yamlsrc.ts";
 
 type Dict = Map<DataKey, Data>;
@@ -57,7 +58,7 @@ export function layoutIds(name: string): [string, string] {
 export function desugar(doc: YamlDocument, bag: Bag): boolean {
   const data = doc.data;
   if (!isDict(data)) return true; // the format check reports this properly
-  let ok = rewrite(doc, data, "elements", bag);
+  let ok = rewrite(doc, data, "elements", bag, null);
   ok = staticBlock(doc, data, bag) && ok;
   ok = layoutsBlock(doc, data, bag) && ok;
   ok = handSetParts(doc, data, bag) && ok;
@@ -115,13 +116,13 @@ function inlineFonts(data: Dict): void {
       const id = body.get("id");
       if (typeof id !== "string") continue;
       const type = body.get("type");
-      if (type === "text") hoist(body, id, null);
+      if (type === "text") hoist(body, elementName(id), null);
       else if (type === "group") visit(body.get("children"));
       else if (type === "pattern") {
         const parts = body.get("parts");
         if (!Array.isArray(parts)) continue;
         for (const part of parts) {
-          if (isDict(part) && part.get("type") === "text" && typeof part.get("id") === "string") hoist(part, id, part.get("id") as string);
+          if (isDict(part) && part.get("type") === "text" && typeof part.get("id") === "string") hoist(part, elementName(id), part.get("id") as string);
         }
       }
     }
@@ -170,7 +171,7 @@ function partsList(doc: YamlDocument, owner: Dict, key: string, bag: Bag): boole
   node.forEach((body, index) => {
     if (!isDict(body)) return; // the schema reports this
     const pos = lc?.item(index) ?? null;
-    ok = injectId(body, listPartId(index), pos, doc.span(node, index), seen, bag, "parts") && ok;
+    ok = injectId(body, listPartId(index), listPartId(index), pos, doc.span(node, index), seen, bag, "parts") && ok;
   });
   return ok;
 }
@@ -221,7 +222,7 @@ function staticBlock(doc: YamlDocument, data: Dict, bag: Bag): boolean {
     return true;
   }
   const group = syntheticGroup(STATIC_GROUP_ID, node, true, span);
-  const ok = rewrite(doc, group, "children", bag);
+  const ok = rewrite(doc, group, "children", bag, STATIC_GROUP_ID);
   const elements = elementsList(data);
   if (!Array.isArray(elements)) return false; // leaving `elements:` as written keeps that diagnostic honest
   for (const existing of elements) {
@@ -279,7 +280,7 @@ function layoutsBlock(doc: YamlDocument, data: Dict, bag: Bag): boolean {
         continue;
       }
       const group = syntheticGroup(generatedId, node!, wrapStatic, keySpan);
-      ok = rewrite(doc, group, "children", bag) && ok;
+      ok = rewrite(doc, group, "children", bag, generatedId) && ok;
       collectIds(group, existingIds, `layout ${quoted(name)}`);
       const idx = elements.length;
       elements.push(group);
@@ -303,12 +304,12 @@ function collectIds(node: Data | undefined, out: Map<string, string>, label: str
   collectIds(node.get("children"), out, label);
 }
 
-/** Convert the element mapping at `parent[key]` to a list, then recurse into each group's `children:`. */
-function rewrite(doc: YamlDocument, parent: Data, key: string, bag: Bag): boolean {
+/** Convert the element mapping at `parent[key]` to a list, each id qualified by `parentId`, then recurse into each group's `children:`. */
+function rewrite(doc: YamlDocument, parent: Data, key: string, bag: Bag, parentId: string | null): boolean {
   let node = isDict(parent) ? parent.get(key) : undefined;
   let ok = true;
   if (isDict(node)) {
-    const converted = toSequence(doc, node, bag);
+    const converted = toSequence(doc, node, bag, "element-mapping", parentId);
     ok = converted !== null;
     if (converted !== null) {
       (parent as Dict).set(key, converted);
@@ -319,7 +320,7 @@ function rewrite(doc: YamlDocument, parent: Data, key: string, bag: Bag): boolea
     for (const body of node) {
       if (!isDict(body)) continue;
       // A group is the only element that owns further elements.
-      if (body.get("type") === "group") ok = rewrite(doc, body, "children", bag) && ok;
+      if (body.get("type") === "group") ok = rewrite(doc, body, "children", bag, String(body.get("id"))) && ok;
       const partsKey = PARTS_KEYS.get(body.get("type") as string);
       if (partsKey !== undefined) ok = partsList(doc, body, partsKey, bag) && ok;
     }
@@ -327,8 +328,8 @@ function rewrite(doc: YamlDocument, parent: Data, key: string, bag: Bag): boolea
   return ok;
 }
 
-/** The list the IR builder reads, built from `mapping` with every span carried across. */
-function toSequence(doc: YamlDocument, mapping: Dict, bag: Bag, code = "element-mapping"): Data[] | null {
+/** The list the IR builder reads, built from `mapping` with every span carried across; an element's id is its key under `parentId`, a part's its key. */
+function toSequence(doc: YamlDocument, mapping: Dict, bag: Bag, code = "element-mapping", parentId: string | null = null): Data[] | null {
   const seq: Data[] = [];
   const seqLc = ensureLc(seq);
   const lc = lcOf(mapping);
@@ -343,14 +344,15 @@ function toSequence(doc: YamlDocument, mapping: Dict, bag: Bag, code = "element-
     const pos = keyPosition(mapping, name);
     if (pos !== null) seqLc.addIdxLineCol(index, [...pos]);
     const keySpan = doc.span(mapping, name, "key");
-    if (isDict(body)) ok = injectId(body, name, pos, keySpan, seen, bag, code) && ok;
+    const id = code === "parts" || typeof name !== "string" ? name : childElementId(parentId, name);
+    if (isDict(body)) ok = injectId(body, id, name, pos, keySpan, seen, bag, code) && ok;
     seq.push(body);
     index++;
   }
   return ok ? seq : null;
 }
 
-function injectId(body: Dict, name: DataKey, pos: [number, number] | null, keySpan: Span | null,
+function injectId(body: Dict, id: DataKey, name: DataKey, pos: [number, number] | null, keySpan: Span | null,
   seen: Map<object, DataKey>, bag: Bag, code: string): boolean {
   const earlier = seen.get(body);
   if (earlier !== undefined) {
@@ -361,7 +363,7 @@ function injectId(body: Dict, name: DataKey, pos: [number, number] | null, keySp
   }
   seen.set(body, name);
   // `CommentedMap.insert(0, "id", name)`: the key first, or after a merge key's keys.
-  insertKey(body, 0, "id", name);
+  insertKey(body, 0, "id", id);
   if (pos !== null) {
     // Key and value positions both point at the author's key, the only text there is for this pair.
     ensureLc(body).addKvLineCol("id", [pos[0], pos[1], pos[0], pos[1]]);

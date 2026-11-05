@@ -130,7 +130,7 @@ export function partNodes(index: SpanIndex, owner: Path, key: string): TreeNode[
   const written = dataAt(index.data, [...owner, key]);
   const out: TreeNode[] = [];
   const node = (path: Path, id: string, part: unknown, lines: [number, number]): void => {
-    out.push({ kind: "part", id, type: plain(isMap(part) ? part.get("type") ?? null : null) as Value, path: [...path], line: lines[0], end: lines[1], children: [] });
+    out.push({ kind: "part", id, name: id, type: plain(isMap(part) ? part.get("type") ?? null : null) as Value, path: [...path], line: lines[0], end: lines[1], children: [] });
   };
   if (isMap(written)) {
     for (const [id, part] of written) {
@@ -160,7 +160,7 @@ export function handNodes(index: SpanIndex, element: unknown): TreeNode[] {
     const entry = index.get(path);
     if (entry === undefined || !isMap(dataAt(index.data, path))) continue;
     const [line, end] = linesOf(index, entry.value, entry);
-    out.push({ kind: "hand", id: hand, type: "hand", path: [...path], line, end, children: partNodes(index, path, "parts") });
+    out.push({ kind: "hand", id: hand, name: hand, type: "hand", path: [...path], line, end, children: partNodes(index, path, "parts") });
   }
   return out;
 }
@@ -180,10 +180,10 @@ export interface PartPlacement {
 export function enteredElement(index: SpanIndex, resolved: ResolvedFace, elementPath: Path): Placed {
   const entry = index.get(elementPath);
   if (entry === undefined || !isElement(index, entry)) throw new Refused(`${elementPath.map(String).join(".")} is not an element`);
-  const placed = resolved.items.find((p) => p.id === entry.name);
-  if (placed === undefined) throw new Refused(`${entry.name} is not drawn on ${resolved.device.id}`);
+  const placed = resolved.items.find((p) => p.id === entry.id);
+  if (placed === undefined) throw new Refused(`${entry.id} is not drawn on ${resolved.device.id}`);
   if (!(placed instanceof PlacedHands || placed instanceof PlacedPattern || (placed instanceof PlacedGauge && placed.element.style === "needle"))) {
-    throw new Refused(`${entry.name} has no parts to enter: only a hands, a pattern or a needle gauge has`);
+    throw new Refused(`${entry.id} has no parts to enter: only a hands, a pattern or a needle gauge has`);
   }
   return placed;
 }

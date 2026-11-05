@@ -8,6 +8,7 @@ import { type PlacedPattern, type ResolvedHandPart } from "../src/layout.ts";
 import { errors, MINIMAL, resolved } from "./designs.ts";
 import { dataOf, newStudio } from "./studio-client.ts";
 import { bundle } from "../src/studio/bundle.ts";
+import { elementName } from "../src/element_ids.ts";
 
 /** A pattern in a 70%r × 20%r group (91 × 26 px on fenix8solar47mm, 98 × 28 on 51mm), its parts in `lengths`. */
 const grouped = (pattern: string, bar: string, dot: string): string => `${MINIMAL}
@@ -32,7 +33,7 @@ const extent = (part: ResolvedHandPart, axis: 0 | 1): number => {
   const values = (part as unknown as { points: [number, number][] }).points.map((p) => p[axis]);
   return Math.max(...values) - Math.min(...values);
 };
-const bars = (text: string, device: string): PlacedPattern => resolved(text, device).items.find((p) => p.id === "bars") as PlacedPattern;
+const bars = (text: string, device: string): PlacedPattern => resolved(text, device).items.find((p) => elementName(p.id) === "bars") as PlacedPattern;
 const messages = (text: string): string[] => errors(text).map((d) => d.message);
 
 test("a linear pattern's part `%` lengths measure the group's box, per axis", () => {
@@ -68,7 +69,7 @@ test("a top-level grid pattern's part `%` measures the screen; `%r` stays the sc
       by_radius: {type: rectangle, size: {width: 10%r, height: 5%r}}
 `;
   assert.deepEqual(messages(text), []);
-  const placed = resolved(text, "fenix8solar47mm").items.find((p) => p.id === "dots") as PlacedPattern;
+  const placed = resolved(text, "fenix8solar47mm").items.find((p) => elementName(p.id) === "dots") as PlacedPattern;
   const [screen, radius] = placed.parts as [ResolvedHandPart, ResolvedHandPart];
   assert.deepEqual([extent(screen, 0), extent(screen, 1)], [26, 14]); // 10 % and 5 % of 260: 26 and 13, its corners rounded away
   assert.deepEqual([extent(radius, 0), extent(radius, 1)], [14, 6]); // 13 and 6.5 px, of the 130 px radius

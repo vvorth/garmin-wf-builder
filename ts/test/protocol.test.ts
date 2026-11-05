@@ -78,7 +78,7 @@ const oneOf = (...cs: Check[]): Check => (v, at) => {
 // -- the shapes, one per interface of protocol.ts ---------------------------------
 
 const path = list(oneOf(str, int));
-const treeNode: Check = (v, at) => obj({ kind: literal("element", "hand", "part"), id: str, type: value, path, line: int, end: int, z: opt(value), children: list(treeNode) })(v, at);
+const treeNode: Check = (v, at) => obj({ kind: literal("element", "hand", "part"), id: str, name: str, type: value, path, line: int, end: int, z: opt(value), children: list(treeNode) })(v, at);
 const treeBlock = obj({ kind: literal("block"), label: str, path, line: nullable(int), children: list(treeNode) });
 const diagnostic = obj({ severity: literal("error", "warning", "note"), code: str, message: str, notes: list(str), file: opt(str), line: opt(int), col: opt(int) });
 const history = obj({
@@ -147,7 +147,7 @@ const field: Check = (v, at) => obj({
 const scopeOverride = obj({ selector: str, keys: record(value) });
 const context = obj({ frame: literal("awake", "asleep", "aod"), style: nullable(str) });
 const inspect = obj({
-  element: path, id: str, type: str, subject: literal("element", "hand", "part", "font"), context, fields: list(field), unknown: list(str), aod_keys: list(str),
+  element: path, id: str, name: str, type: str, subject: literal("element", "hand", "part", "font"), context, fields: list(field), unknown: list(str), aod_keys: list(str),
   overrides: obj({ device: opt(scopeOverride), shape: opt(scopeOverride), display: opt(scopeOverride) }),
   overridden: list(obj({ selector: str, keys: record(value), line: int, end: int })), parts: nullable(obj({ count: int, shapes: list(str), line: int, end: int })),
   device: nullable(str), shape: nullable(str), display: nullable(str), error: nullable(str),

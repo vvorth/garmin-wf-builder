@@ -27,7 +27,7 @@
 import { deepCopy, formatFixed, jsonString, reEscape, quoted, truthy } from "../py.ts";
 import {
   dotted, type Entry, indentOf, isElement, lineEnd, lineStart, type Path, pathKey, parse, Refused,
-  sameData, SpanIndex, type Step,
+  sameData, SpanIndex,
 } from "./spans.ts";
 import {
   construct, type Data, type DataKey, type MappingNode, WholeFloat, type ScalarNode, type SequenceNode, Timestamp, type YamlNode,
@@ -680,15 +680,15 @@ export function elementAt(index: SpanIndex, path: Path): Entry {
 function deleteElementOn(index: SpanIndex, path: Path): Patch {
   const entry = elementAt(index, path);
   const removed = removeOn(index, entry.path);
-  return patch(removed.text, removed.expected, `delete ${entry.name}`);
+  return patch(removed.text, removed.expected, `delete ${entry.id}`);
 }
 
-/** The first of `_copy`, `_copy2`, ... that gives every id in `ids` a name no element in the file has. */
-export function freshSuffix(index: SpanIndex, ids: string[], base = "_copy"): string {
-  const taken = index.elementIds();
+/** The first of `_copy`, `_copy2`, ... that gives `name` a key no sibling in `block` has. */
+export function freshSuffix(index: SpanIndex, name: string, block: Path, base = "_copy"): string {
+  const taken = index.siblingNames(block);
   for (let n = 1; ; n++) {
     const suffix = n === 1 ? base : `${base}${n}`;
-    if (!ids.some((id) => taken.has(id + suffix))) return suffix;
+    if (!taken.has(name + suffix)) return suffix;
   }
 }
 
@@ -696,34 +696,18 @@ function duplicateElementOn(index: SpanIndex, path: Path): Patch {
   const entry = elementAt(index, path);
   const text = index.text;
   const [start, end] = index.entryRange(entry);
-  const inside = index.elements().filter((e) => start <= e.key.start.index && e.key.start.index < end);
-  const suffix = freshSuffix(index, inside.map((e) => e.name));
-  let block = text.slice(start, end);
-  for (const e of [...inside].sort((a, b) => b.key.start.index - a.key.start.index)) {
-    const at = e.key.start.index - start;
-    const width = e.key.end.index - e.key.start.index;
-    block = block.slice(0, at) + keyText(e.name + suffix) + block.slice(at + width);
-  }
-  block = block.slice(lineStart(block, entry.key.start.index - start));
+  const block = entry.path.slice(0, -1);
+  const suffix = freshSuffix(index, entry.name, block);
+  // the copy's own key takes the suffix; what is inside it keeps its names, which are unique among their new siblings already
+  const at = entry.key.start.index - start;
+  const width = entry.key.end.index - entry.key.start.index;
+  let copy = text.slice(start, end);
+  copy = copy.slice(0, at) + keyText(entry.name + suffix) + copy.slice(at + width);
+  copy = copy.slice(lineStart(copy, at));
   const expected = withData(index);
-  const parent = dataAt(expected, entry.path.slice(0, -1));
-  const renamedPaths = new Set(inside.map((e) => pathKey(e.path.slice(entry.path.length))));
-  const copied = renamedCopy(deepCopy(child(parent, entry.name)), renamedPaths, suffix, []);
-  insertAfter(parent, entry.name, entry.name + suffix, copied);
-  return patch(text.slice(0, end) + block + text.slice(end), expected, `duplicate ${entry.name} as ${entry.name + suffix}`);
-}
-
-function renamedCopy(node: Data, paths: Set<string>, suffix: string, here: Step[]): Data {
-  if (node instanceof Map) {
-    const out = new Map<DataKey, Data>();
-    for (const [k, v] of node) {
-      const inner = [...here, k as Step];
-      out.set(paths.has(pathKey(inner)) ? `${String(k)}${suffix}` : k, renamedCopy(v, paths, suffix, inner));
-    }
-    return out;
-  }
-  if (Array.isArray(node)) return node.map((v, i) => renamedCopy(v, paths, suffix, [...here, i]));
-  return node;
+  const parent = dataAt(expected, block);
+  insertAfter(parent, entry.name, entry.name + suffix, deepCopy(child(parent, entry.name)));
+  return patch(text.slice(0, end) + copy + text.slice(end), expected, `duplicate ${entry.id} as ${entry.name + suffix}`);
 }
 
 /**
@@ -823,7 +807,7 @@ function addElementOn(index: SpanIndex, type: string, block: Path, after: string
   const defaults = DEFAULTS.get(type);
   if (defaults === undefined) throw new Refused(`adding a ${type} is not supported yet; write it in the text`);
   const fields: Map<DataKey, Data> = new Map([["type", type], ...deepCopy(defaults), ["color", faceColor(index)]]);
-  const taken = index.elementIds();
+  const taken = index.siblingNames(block);
   let newId = elementId;
   if (!newId) {
     for (let n = 1; n < 10_000; n++) {
@@ -832,7 +816,7 @@ function addElementOn(index: SpanIndex, type: string, block: Path, after: string
     }
   }
   if (newId === undefined) throw new ShapeError("no id left to give");
-  if (taken.has(newId)) throw new Refused(`there is already an element called ${newId}`);
+  if (taken.has(newId)) throw new Refused(`there is already an element called ${newId} in ${dotted(block)}`);
   const expected = withData(index);
   const text = index.text;
   const holder = index.get(block);
@@ -984,7 +968,7 @@ export function deleteElements(index: SpanIndex, paths: Path[]): Patch {
   return patch(result.text, result.expected, "delete " + kept.map((p) => String(p[p.length - 1])).join(", "));
 }
 
-/** Copy an element right after itself, every element id inside the copy renamed with one fresh suffix. */
+/** Copy an element right after itself under its key with a fresh suffix (`_copy`, `_copy2`, ...); what is inside it keeps its names. */
 export function duplicateElement(index: SpanIndex, path: Path): Patch {
   return endedPatch(index, (i) => duplicateElementOn(i, path));
 }
@@ -1005,7 +989,7 @@ export function addElement(index: SpanIndex, type: string,
   return endedPatch(index, (i) => addElementOn(i, type, block, after, elementId));
 }
 
-/** Rename the key at `path`, in place; refused when a sibling already has the new name. */
+/** Rename the key at `path`, in place; refused when a sibling already has the new name (an element's name need be unique among its siblings only). */
 export function renameKey(index: SpanIndex, path: Path, renamed: string): Patch {
   return endedPatch(index, (i) => renameKeyOn(i, path, renamed));
 }
@@ -1074,7 +1058,7 @@ export function slotDrawers(index: SpanIndex, name: string): string[] {
       const data = dataAt(index.data, e.path);
       return data instanceof Map && data.get("slot") === name;
     })
-    .map((e) => e.name);
+    .map((e) => e.id);
 }
 
 /** Remove the `config: slots:` entry `name`; with the last slot, the `slots:` key too (and `config:`, left with nothing). Refused while an element draws it. */

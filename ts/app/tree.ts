@@ -30,9 +30,10 @@ export function blocksOf(tree: readonly TreeBlock[]): { nodes: TreeNode[]; desti
   return { nodes, destinations };
 }
 
-// How the editor names a node in a selection: an element by its id, a hand
-// or a part by its tree path joined with "/" (the entered frame's item id,
-// and what a drag names it by), which no element id can be.
+// How the editor names a node in a selection: an element by its qualified
+// id (`top.label`), a hand or a part by its tree path joined with "/" (the
+// entered frame's item id, and what a drag names it by), which no element
+// id can be: an element id joins with ".".
 export const selectionId = (node: Pick<TreeNode, "kind" | "id" | "path">): string => (node.kind === "element" ? node.id : node.path.join("/"));
 
 // The node a selection names (`selectionId`), of any kind, or null.
@@ -61,13 +62,14 @@ export function nodeAtPath(tree: readonly TreeBlock[], path: Path): TreeNode | n
 }
 
 // The rows Layers shows for a search: every node (by `selectionId`) whose
-// id or type holds `query`, case-insensitively, and the ancestors of each,
-// so a match is seen where it sits. Null for an empty query: every row.
+// name, qualified id or type holds `query`, case-insensitively, and the
+// ancestors of each, so a match is seen where it sits. Null for an empty
+// query: every row.
 export function matchingRows(tree: readonly TreeBlock[], query: string): Set<string> | null {
   const q = query.trim().toLowerCase();
   if (!q) return null;
   const out = new Set<string>();
-  const hit = (n: TreeNode): boolean => n.id.toLowerCase().includes(q) || String(n.type ?? "").toLowerCase().includes(q);
+  const hit = (n: TreeNode): boolean => n.name.toLowerCase().includes(q) || n.id.toLowerCase().includes(q) || String(n.type ?? "").toLowerCase().includes(q);
   // whether `n` or anything under it matches; each such node is kept
   const walk = (n: TreeNode): boolean => {
     let any = hit(n);
@@ -124,12 +126,13 @@ export function anyDrawn(node: TreeNode, drawn: ReadonlySet<string>): boolean {
   return node.children.some((c) => anyDrawn(c, drawn));
 }
 
-// The ids beside the element at `path`, itself included, in order.
+// The names (YAML keys) beside the element at `path`, itself included, in
+// order: what a move's `before` names a sibling by.
 export function siblingsOf(tree: readonly TreeBlock[], path: Path): string[] {
   const parent = JSON.stringify(path.slice(0, -1));
   const out: string[] = [];
   const walk = (list: readonly TreeNode[]): void => list.forEach((n) => {
-    if (JSON.stringify(n.path.slice(0, -1)) === parent) out.push(n.id);
+    if (JSON.stringify(n.path.slice(0, -1)) === parent) out.push(n.name);
     walk(n.children);
   });
   tree.forEach((b) => walk(b.children));
@@ -138,14 +141,14 @@ export function siblingsOf(tree: readonly TreeBlock[], path: Path): string[] {
 
 // Where a row dropped at `fraction` of its height (0 top, 1 bottom) sends
 // the dragged element: before the row, after it (before its next sibling,
-// `next`, or at the block's end), or, in a group's middle third, into the
-// group.
+// `next`, by name, or at the block's end), or, in a group's middle third,
+// into the group. A sibling is named by its key, as the move op takes it.
 export function dropTarget(node: TreeNode, fraction: number, next: string | null = null): DropTarget {
   const block = node.path.slice(0, -1);
   if (node.type === "group" && fraction > 1 / 3 && fraction < 2 / 3) {
     return { where: "into", target: { block: [...node.path, "children"], before: null } };
   }
-  if (fraction < 0.5) return { where: "before", target: { block, before: node.id } };
+  if (fraction < 0.5) return { where: "before", target: { block, before: node.name } };
   return { where: "after", target: { block, before: next } };
 }
 
