@@ -99,7 +99,10 @@ These cost real time to discover; do not rediscover them.
   layout's are `layout_<layout>.<name>` and `layout_<layout>_static.<name>`
   (those top-level names are reserved while the block or layout exists).
   Symbols treat `.` as a word break: `top.label` becomes `drawTopLabel`,
-  `TOP_LABEL_*`, `ringTopLabel`; `static.ticks` becomes `drawStaticTicks`.
+  `TOP_LABEL_*`, `ringTopLabel`; `static.ticks` becomes `drawStaticTicks`. A
+  static root's buffer painter is `paintStatic<Id>` (`paintStatic` for the
+  top-level block's own group), never `draw…`, so a group `ticks` and the
+  element `static.ticks` cannot claim one symbol.
   `ts/src/element_ids.ts` is the one place that derives ids: the compiler
   uses `childElementId`, the editor `elementIdOfPath`, and a test holds them
   equal over the examples. `.` was chosen because the editor's part ids
@@ -520,7 +523,7 @@ These cost real time to discover; do not rediscover them.
   reads, guards and parameters as `draw<Id>`, plus `ringColor`) just before
   the group's first member in each frame sequence -- active, AOD (each
   under its own `aod: visible` guard), low-power and the static buffer's
-  `drawStatic<Id>` (`view.Rings`, `ts/src/ir/rings.ts`).  A member's dilation
+  `paintStatic<Id>` (`view.Rings`, `ts/src/ir/rings.ts`).  A member's dilation
   is the sum of every ring it sits in -- its own and each outlined group
   between it and this one -- so one member can need several widths: one
   method each, `ring<Id>` at 1px and `ring<Id>_<W>` wider

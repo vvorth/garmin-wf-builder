@@ -52,6 +52,13 @@ test("a static: block's element and an elements: one may share a name; so may tw
   const text = sources(design);
   assert.ok(text.includes("drawStaticTicks") && text.includes("drawTicks") && text.includes("STATIC_TICKS_CX") && text.includes("TICKS_CX"));
 
+  // a top-level *group* of that name too: its buffer painter is paintStaticTicks, not the element's drawStaticTicks
+  const grouped = MINIMAL.replace("elements:\n", `static:\n  ticks: {type: circle, at: {anchor: center}, radius: 40%r, color: color.fg}\nelements:\n`)
+    + `  ticks:\n    type: group\n    children:\n      dot: {type: circle, at: {anchor: center}, radius: 10%r, color: color.fg}\n`;
+  assert.equal(complaints(grouped), "");
+  const groupedText = sources(grouped);
+  assert.ok(groupedText.includes("drawStaticTicks") && groupedText.includes("paintStatic(") && groupedText.includes("drawTicksDot"));
+
   // the shared background goes in `static:`, so no layout's static content is hoisted in front of it
   const layouts = MINIMAL.replace("elements:\n", "static:\n") + "layouts:\n"
     + `  big:\n    static:\n      rim: {type: circle, at: {anchor: center}, radius: 45%r, color: color.fg}\n    elements:\n      clock: {${TEXT("a")}}\n`

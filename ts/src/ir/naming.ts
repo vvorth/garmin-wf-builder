@@ -52,10 +52,14 @@ export function elementRingMethod(elementId: string, width = 1): string {
   return width === 1 ? name : `${name}_${width}`;
 }
 
-/** The method that paints one static subtree (`drawStaticTicks`; a root called `static` gives `drawStatic`). */
+/**
+ * The method that paints one static subtree into the buffer (`paintStaticTicks`; the root a
+ * top-level `static:` block becomes gives `paintStatic`). The prefix is not `draw`, so a group
+ * `ticks` and the element `static.ticks` (`drawStaticTicks`) never claim one symbol.
+ */
 export function staticGroupMethod(elementId: string): string {
   const suffix = elementSuffix(elementId);
-  return suffix === "Static" ? "drawStatic" : "drawStatic" + suffix;
+  return suffix === "Static" ? "paintStatic" : "paintStatic" + suffix;
 }
 
 /** The method resolving one `data` element's icon glyph from a `Complications.Type`. */
