@@ -137,7 +137,7 @@ private function drawStepRing(dc as Dc, activity as ActivityMonitor.Info) as Voi
 
 Readable output is a requirement, not a nicety: it is what gets debugged when
 something misbehaves on the wrist, and it is the substrate the escape hatch will
-drop into. Symbol names derive from element ids, every block cites its YAML
+drop into. Symbol names derive from element ids (the key qualified by its groups: `top.label` becomes `drawTopLabel`), every block cites its YAML
 element, layout constants are named rather than inlined, and every nullable read
 is guarded with the `absent:` policy that produced the guard -- here, as
 `absent: hide` on a gauge, around the fill alone, so the track still draws. The

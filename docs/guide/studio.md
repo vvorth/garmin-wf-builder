@@ -400,7 +400,7 @@ it is kept and shown as an error on its line.
 Its own id, at the top, renames the same way a colour's name does: click
 it, type the new one, Enter. Nothing else in the format names an element
 by its id, so this only ever changes the one YAML key; a name already
-used anywhere else in the face (every id must be unique) is refused.
+used by a sibling (names need only be unique within their own mapping) is refused.
 
 Below it, every key the format has for the element's type, generated from
 the format's schema, so there is nothing a key can hold that the panel

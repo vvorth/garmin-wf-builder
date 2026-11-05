@@ -92,6 +92,22 @@ These cost real time to discover; do not rediscover them.
   hide`, `ElementKind.draws_while_absent`) therefore wraps only its
   value-dependent drawing in `if (x != null && y != null) { ... }`, where
   `monkeyc` narrows the locals, confirmed by a strict warning-free build.
+- **An element's id is its key qualified by its groups, and every symbol
+  derives from it.** `elements: top: children: label:` is the element
+  `top.label`; a top-level element's id is its key. The synthetic containers
+  count: the top-level `static:` block's elements are `static.<name>`, a
+  layout's are `layout_<layout>.<name>` and `layout_<layout>_static.<name>`
+  (those top-level names are reserved while the block or layout exists).
+  Symbols treat `.` as a word break: `top.label` becomes `drawTopLabel`,
+  `TOP_LABEL_*`, `ringTopLabel`; `static.ticks` becomes `drawStaticTicks`.
+  `ts/src/element_ids.ts` is the one place that derives ids: the compiler
+  uses `childElementId`, the editor `elementIdOfPath`, and a test holds them
+  equal over the examples. `.` was chosen because the editor's part ids
+  already use `/`. Symbol length costs nothing on the watch. The only global
+  rule is the symbol collision: `top.label`, `top_label` and `topLabel` fold
+  to one symbol and may not coexist anywhere in the face (`duplicate-id`
+  names both). An inline `font:` is still hoisted as `<name>_font`, from the
+  name.
 - **A part is named by its id, and the id is never emitted.** `desugar.ts`
   turns a hand's, a pattern's or a needle's `parts:` mapping into the list
   the builder walks, each part's key injected as its `id` (as an element
