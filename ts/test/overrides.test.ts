@@ -62,19 +62,19 @@ test("the view picks the colour through a per-device Layout constant", () => {
 
 test("visible: false hides a group's subtree on its devices, and a narrower true undoes it", () => {
   const amoled = resolved(DESIGN, "fenix847mm"), fr955 = resolved(DESIGN, "fr955");
-  assert.equal(amoled.hidden.has("dot"), false, "fenix847mm: visible: true over display:amoled's false");
-  assert.equal(fr955.hidden.get("dot"), HIDDEN_BY_OVERRIDE);
+  assert.equal(amoled.hidden.has("extras.dot"), false, "fenix847mm: visible: true over display:amoled's false");
+  assert.equal(fr955.hidden.get("extras.dot"), HIDDEN_BY_OVERRIDE);
   const files = generated(DESIGN);
-  assert.match(layout(files, "fr955"), /DOT_SHOWN as Boolean = false/);
-  assert.match(layout(files, "fenix847mm"), /DOT_SHOWN as Boolean = true/);
+  assert.match(layout(files, "fr955"), /EXTRAS_DOT_SHOWN as Boolean = false/);
+  assert.match(layout(files, "fenix847mm"), /EXTRAS_DOT_SHOWN as Boolean = true/);
   const view = [...files].find(([name]) => name.endsWith("View.mc"))![1];
-  assert.match(view, /if \(!Layout\.DOT_SHOWN\)/);
+  assert.match(view, /if \(!Layout\.EXTRAS_DOT_SHOWN\)/);
 });
 
 test("a colour override needs a colour the element writes, on a kind that draws in it", () => {
   const unwritten = DESIGN.replace("      dot:\n        type: circle\n",
     "      dot:\n        type: circle\n        overrides:\n          fr955: {track_color: color.red}\n");
-  assert.deepEqual(errors(unwritten).map((d) => d.message), ["dot.overrides.fr955: 'track_color:' is not a key this element writes"]);
+  assert.deepEqual(errors(unwritten).map((d) => d.message), ["extras.dot.overrides.fr955: 'track_color:' is not a key this element writes"]);
   const onGroup = DESIGN.replace("fr955: {visible: false}", "fr955: {color: color.red}");
   assert.deepEqual(errors(onGroup).map((d) => d.message), ["extras.overrides.fr955: a group takes no 'color:' override"]);
 });
@@ -85,7 +85,7 @@ test("an override replaces the key whole: an at: names its anchor, and nothing i
   assert.ok(errors(partial)[0]!.notes.some((n) => n.includes("whole")), "the note says why");
   const whole = DESIGN.replace("      dot:\n        type: circle\n",
     "      dot:\n        type: circle\n        overrides:\n          fr955: {at: {anchor: center}}\n");
-  const center = (device: string): number[] => resolved(whole, device).items.find((p) => p.id === "dot")!.center;
+  const center = (device: string): number[] => resolved(whole, device).items.find((p) => p.id === "extras.dot")!.center;
   const fr955 = db.get("fr955");
   assert.deepEqual(center("fr955"), [fr955.width / 2, fr955.height / 2], "the element's own dy: 30% is not merged in");
   assert.notDeepEqual(center("fenix847mm"), [db.get("fenix847mm").width / 2, db.get("fenix847mm").height / 2]);

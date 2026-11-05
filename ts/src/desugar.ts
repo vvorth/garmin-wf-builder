@@ -2,19 +2,23 @@
 // builder reads.
 //
 // Five rewrites live here. The first turns an element mapping, keyed by
-// id, into the list the builder walks, the key injected as the element's
-// `id`. Spans are the whole difficulty: a diagnostic must point at the
-// author's own line, so the rewritten sequence holds the same mapping
-// bodies, each item's position taken from the key that named it, and the
-// injected `id` key recorded in the body's own `lc`.
+// name, into the list the builder walks, each element's `id` injected: its
+// key qualified by the ids of the groups above it (`childElementId`, so
+// `elements: top: children: label:` is `top.label`). Spans are the whole
+// difficulty: a diagnostic must point at the author's own line, so the
+// rewritten sequence holds the same mapping bodies, each item's position
+// taken from the key that named it, and the injected `id` key recorded in
+// the body's own `lc`.
 //
 // The second is the top-level `static:` block, folded into one `group`
 // carrying `static: true` at the front of `elements:` (an opaque static
-// buffer must draw first). Its id, `STATIC_GROUP_ID`, is reserved.
+// buffer must draw first). Its id, `STATIC_GROUP_ID`, is reserved at the
+// top level, and its children are qualified by it (`static.ticks`).
 //
 // The third is a `layouts:` entry's own `static:`/`elements:`, folded into
 // two groups appended to the top-level `elements:`, their ids from
-// `layoutIds`. A layout body is left holding only what remains (`lint:`).
+// `layoutIds` (reserved at the top level too) and their children qualified
+// by them. A layout body is left holding only what remains (`lint:`).
 //
 // The fourth is a hand's, a pattern's or a needle's `parts:`: the id-keyed
 // mapping becomes the list the builder walks, each part's key injected as
@@ -24,8 +28,9 @@
 //
 // The fifth is a text's own `font:`, written inline as the object a
 // `resources: fonts:` entry takes. It is moved into `resources.fonts` under
-// `<element id>_font` (`<element id>_<part id>_font` for a pattern's text
-// part), the first free `_2`, `_3`, ... suffix when that name is taken,
+// `<element name>_font` (`<element name>_<part id>_font` for a pattern's
+// text part; the name, not the qualified id, since a font's key must be an
+// identifier), the first free `_2`, `_3`, ... suffix when that name is taken,
 // and the element's `font:` becomes `font.<name>`; two elements writing the
 // identical object share one entry. The moved mapping keeps its own
 // positions, so a diagnostic on its `size:` still points at the author's
@@ -36,6 +41,7 @@
 // reported here (`element-mapping`, `parts`).
 import type { Bag, Span } from "./diagnostics.ts";
 import type { Data, DataKey } from "./edit/yaml.ts";
+import { childElementId, elementName, layoutIds, STATIC_GROUP_ID } from "./element_ids.ts";
 import { deepEqual, quoted } from "./py.ts";
 import { ensureLc, insertKey, lcOf, type YamlDocument } from "./yamlsrc.ts";
 
@@ -45,19 +51,11 @@ const isDict = (x: unknown): x is Dict => x instanceof Map;
 /** The schema's `#/$defs/identifier`. */
 export const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/** The id the top-level `static:` block's synthetic group is given; reserved. */
-export const STATIC_GROUP_ID = "static";
-
-/** The reserved element ids one `layouts: <name>:` body's halves become: `[staticId, elementsId]`. */
-export function layoutIds(name: string): [string, string] {
-  return [`layout_${name}_static`, `layout_${name}`];
-}
-
 /** Normalise `doc` in place. `false` (with diagnostics) if it cannot be. */
 export function desugar(doc: YamlDocument, bag: Bag): boolean {
   const data = doc.data;
   if (!isDict(data)) return true; // the format check reports this properly
-  let ok = rewrite(doc, data, "elements", bag);
+  let ok = rewrite(doc, data, "elements", bag, null);
   ok = staticBlock(doc, data, bag) && ok;
   ok = layoutsBlock(doc, data, bag) && ok;
   ok = handSetParts(doc, data, bag) && ok;
@@ -65,9 +63,9 @@ export function desugar(doc: YamlDocument, bag: Bag): boolean {
   return ok;
 }
 
-/** The `resources: fonts:` name a text's inline `font:` is declared under: the element's, or the pattern part's. */
-export function inlineFontName(elementId: string, partId: string | null = null): string {
-  return partId === null ? `${elementId}_font` : `${elementId}_${partId}_font`;
+/** The `resources: fonts:` name a text's inline `font:` is declared under: from the element's name, or the pattern part's. */
+export function inlineFontName(elementName: string, partId: string | null = null): string {
+  return partId === null ? `${elementName}_font` : `${elementName}_${partId}_font`;
 }
 
 /** Every text element's and pattern text part's inline `font:` object moved into `resources.fonts`, the key rewritten to `font.<name>`. */
@@ -96,7 +94,7 @@ function inlineFonts(data: Dict): void {
     let name = hoisted.find(([other]) => deepEqual(other, spec))?.[1];
     if (name === undefined) {
       const block = fontsBlock();
-      const base = inlineFontName(elementId, partId);
+      const base = inlineFontName(elementName(elementId), partId);
       name = base;
       for (let n = 2; block.has(name); n++) name = `${base}_${n}`;
       block.set(name, spec);
@@ -170,7 +168,8 @@ function partsList(doc: YamlDocument, owner: Dict, key: string, bag: Bag): boole
   node.forEach((body, index) => {
     if (!isDict(body)) return; // the schema reports this
     const pos = lc?.item(index) ?? null;
-    ok = injectId(body, listPartId(index), pos, doc.span(node, index), seen, bag, "parts") && ok;
+    const id = listPartId(index);
+    ok = injectId(body, id, id, pos, doc.span(node, index), seen, bag, "parts") && ok;
   });
   return ok;
 }
@@ -221,7 +220,7 @@ function staticBlock(doc: YamlDocument, data: Dict, bag: Bag): boolean {
     return true;
   }
   const group = syntheticGroup(STATIC_GROUP_ID, node, true, span);
-  const ok = rewrite(doc, group, "children", bag);
+  const ok = rewrite(doc, group, "children", bag, STATIC_GROUP_ID);
   const elements = elementsList(data);
   if (!Array.isArray(elements)) return false; // leaving `elements:` as written keeps that diagnostic honest
   for (const existing of elements) {
@@ -254,10 +253,14 @@ function layoutsBlock(doc: YamlDocument, data: Dict, bag: Bag): boolean {
   if (!isDict(layouts)) return true; // the schema reports this
   const elements = elementsList(data);
   if (!Array.isArray(elements)) return false;
-  // Every id already spoken for, recursively, so a layout's generated id is
-  // checked against an ordinary element and against another layout's.
+  // Every top-level id already spoken for (a nested element's id is
+  // qualified by its group's, so it cannot collide), so a layout's generated
+  // id is checked against an ordinary element and against another layout's.
   const existingIds = new Map<string, string>();
-  collectIds(elements, existingIds, "an element");
+  for (const item of elements) {
+    const elementId = isDict(item) ? item.get("id") : undefined;
+    if (typeof elementId === "string" && !existingIds.has(elementId)) existingIds.set(elementId, "an element");
+  }
   let ok = true;
   for (const [name, body] of layouts) {
     if (typeof name !== "string" || !IDENTIFIER.test(name)) continue; // the schema reports this
@@ -279,8 +282,8 @@ function layoutsBlock(doc: YamlDocument, data: Dict, bag: Bag): boolean {
         continue;
       }
       const group = syntheticGroup(generatedId, node!, wrapStatic, keySpan);
-      ok = rewrite(doc, group, "children", bag) && ok;
-      collectIds(group, existingIds, `layout ${quoted(name)}`);
+      ok = rewrite(doc, group, "children", bag, generatedId) && ok;
+      existingIds.set(generatedId, `layout ${quoted(name)}`);
       const idx = elements.length;
       elements.push(group);
       const lc = lcOf(elements);
@@ -291,24 +294,16 @@ function layoutsBlock(doc: YamlDocument, data: Dict, bag: Bag): boolean {
   return ok;
 }
 
-/** Recursively collect every element id under `node` into `out`, first claim wins. */
-function collectIds(node: Data | undefined, out: Map<string, string>, label: string): void {
-  if (Array.isArray(node)) {
-    for (const item of node) collectIds(item, out, label);
-    return;
-  }
-  if (!isDict(node)) return;
-  const elementId = node.get("id");
-  if (typeof elementId === "string" && !out.has(elementId)) out.set(elementId, label);
-  collectIds(node.get("children"), out, label);
-}
-
-/** Convert the element mapping at `parent[key]` to a list, then recurse into each group's `children:`. */
-function rewrite(doc: YamlDocument, parent: Data, key: string, bag: Bag): boolean {
+/**
+ * Convert the element mapping at `parent[key]` to a list, each element's id
+ * qualified by `parentId` (`null` at the top level), then recurse into each
+ * group's `children:` under the group's own id.
+ */
+function rewrite(doc: YamlDocument, parent: Data, key: string, bag: Bag, parentId: string | null): boolean {
   let node = isDict(parent) ? parent.get(key) : undefined;
   let ok = true;
   if (isDict(node)) {
-    const converted = toSequence(doc, node, bag);
+    const converted = toSequence(doc, node, bag, "element-mapping", parentId);
     ok = converted !== null;
     if (converted !== null) {
       (parent as Dict).set(key, converted);
@@ -319,7 +314,7 @@ function rewrite(doc: YamlDocument, parent: Data, key: string, bag: Bag): boolea
     for (const body of node) {
       if (!isDict(body)) continue;
       // A group is the only element that owns further elements.
-      if (body.get("type") === "group") ok = rewrite(doc, body, "children", bag) && ok;
+      if (body.get("type") === "group") ok = rewrite(doc, body, "children", bag, body.get("id") as string) && ok;
       const partsKey = PARTS_KEYS.get(body.get("type") as string);
       if (partsKey !== undefined) ok = partsList(doc, body, partsKey, bag) && ok;
     }
@@ -327,8 +322,8 @@ function rewrite(doc: YamlDocument, parent: Data, key: string, bag: Bag): boolea
   return ok;
 }
 
-/** The list the IR builder reads, built from `mapping` with every span carried across. */
-function toSequence(doc: YamlDocument, mapping: Dict, bag: Bag, code = "element-mapping"): Data[] | null {
+/** The list the IR builder reads, built from `mapping` with every span carried across; an element's id is its key under `parentId`, a part's its key alone. */
+function toSequence(doc: YamlDocument, mapping: Dict, bag: Bag, code = "element-mapping", parentId: string | null = null): Data[] | null {
   const seq: Data[] = [];
   const seqLc = ensureLc(seq);
   const lc = lcOf(mapping);
@@ -343,14 +338,16 @@ function toSequence(doc: YamlDocument, mapping: Dict, bag: Bag, code = "element-
     const pos = keyPosition(mapping, name);
     if (pos !== null) seqLc.addIdxLineCol(index, [...pos]);
     const keySpan = doc.span(mapping, name, "key");
-    if (isDict(body)) ok = injectId(body, name, pos, keySpan, seen, bag, code) && ok;
+    const id = code === "parts" || typeof name !== "string" ? name : childElementId(parentId, name);
+    if (isDict(body)) ok = injectId(body, name, id, pos, keySpan, seen, bag, code) && ok;
     seq.push(body);
     index++;
   }
   return ok ? seq : null;
 }
 
-function injectId(body: Dict, name: DataKey, pos: [number, number] | null, keySpan: Span | null,
+/** `id` written into `body` as its first key, `name` being the key the author wrote it under. */
+function injectId(body: Dict, name: DataKey, id: DataKey, pos: [number, number] | null, keySpan: Span | null,
   seen: Map<object, DataKey>, bag: Bag, code: string): boolean {
   const earlier = seen.get(body);
   if (earlier !== undefined) {
@@ -361,7 +358,7 @@ function injectId(body: Dict, name: DataKey, pos: [number, number] | null, keySp
   }
   seen.set(body, name);
   // `CommentedMap.insert(0, "id", name)`: the key first, or after a merge key's keys.
-  insertKey(body, 0, "id", name);
+  insertKey(body, 0, "id", id);
   if (pos !== null) {
     // Key and value positions both point at the author's key, the only text there is for this pair.
     ensureLc(body).addKvLineCol("id", [pos[0], pos[1], pos[0], pos[1]]);

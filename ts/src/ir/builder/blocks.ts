@@ -2,9 +2,9 @@
 // `layouts:`, `palette:` and `theme: schemes:`, and the expression scope
 // every block binds.
 import * as catalog from "../../catalog.ts";
-import { layoutIds } from "../../desugar.ts";
 import type { Span } from "../../diagnostics.ts";
 import type { Data } from "../../edit/yaml.ts";
+import { layoutIds } from "../../element_ids.ts";
 import * as expr from "../../expr.ts";
 import { Color, ColorError } from "../../palette.ts";
 import { quoted } from "../../py.ts";

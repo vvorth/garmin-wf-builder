@@ -148,5 +148,5 @@ config:
       one: {layout: one}
   slots:`);
   const found = messages(text);
-  assert.ok(found.some((m) => m === "'inner': a graph with 'slot:' may not be inside layout 'one' content"), found.join("\n"));
+  assert.ok(found.some((m) => m === "'layout_one.inner': a graph with 'slot:' may not be inside layout 'one' content"), found.join("\n"));
 });

@@ -48,7 +48,7 @@ test("a hold reaches a target only while its visible: last held", () => {
   assert.match(view.split("function onUpdate")[1]!, /^[^}]*holdsShown = 0;/);
   // each sets its bit only past its own visible: guard; a group's member sets the group's
   assert.match(view.split("function drawHr")[1]!, /return;\s*}\s*holdsShown \|= 0x1;/);
-  assert.match(view.split("function drawS")[1]!, /return;\s*}\s*holdsShown \|= 0x2;/);
+  assert.match(view.split("function drawBoxS")[1]!, /return;\s*}\s*holdsShown \|= 0x2;/);
   assert.match(hitTest(delegate, "hr"), /\(_view\.holdsShown & 0x1\) != 0/);
   assert.match(hitTest(delegate, "box"), /\(_view\.holdsShown & 0x2\) != 0/);
   // a condition that is always true gates nothing

@@ -14,6 +14,7 @@ import type { Color } from "../palette.ts";
 import type { SeriesDef, SlotSeries } from "../series.ts";
 import * as units from "../units.ts";
 import type { Angle, Length } from "../units.ts";
+import { elementName } from "../element_ids.ts";
 import { quoted } from "../py.ts";
 import { configField, elementConstPrefix, fontResourceId, pascal } from "./naming.ts";
 
@@ -446,6 +447,11 @@ export class Element {
   /** Every lint code this element accepts: its own `lint: allow` and every enclosing group's. */
   get allLintAllow(): Set<string> {
     return new Set([...this.lint_allow, ...this.inherited_lint_allow]);
+  }
+
+  /** The YAML key this element was written under: the last step of its id, unique among its siblings. */
+  get name(): string {
+    return elementName(this.id);
   }
 
   /** The stable Monkey C symbol derived from the element id. */

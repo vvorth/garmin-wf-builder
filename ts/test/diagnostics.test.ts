@@ -157,8 +157,11 @@ test("a schema error inside a group's child names the child's own mistake, as it
 });
 
 test("duplicate ids, the source line rendered, one error for a missing required key", () => {
-  const dup = MINIMAL + "\n  panel:\n    type: group\n    children:\n      background:\n        type: circle\n        radius: 10px\n        color: color.fg\n";
-  assert.ok(errorsOf(dup).some((d) => d.code === "duplicate-id"));
+  // a group's child may share a top-level name (its id is 'panel.background'); a name folding to the same symbol may not
+  const nested = (name: string): string => MINIMAL + `\n  panel:\n    type: group\n    children:\n      ${name}:\n        type: circle\n        radius: 10px\n        color: color.fg\n`;
+  assert.ok(!errorsOf(nested("background")).some((d) => d.code === "duplicate-id"));
+  const folded = nested("background") + "  panel_background:\n    type: circle\n    radius: 10px\n    color: color.fg\n";
+  assert.ok(errorsOf(folded).some((d) => d.code === "duplicate-id" && d.message.includes("'panel.background'")));
   const [, bag] = load(MINIMAL.replace("color.bg", "color.nope"));
   const text = bag.render();
   assert.ok(text.includes("^") && text.includes("color.nope"));
