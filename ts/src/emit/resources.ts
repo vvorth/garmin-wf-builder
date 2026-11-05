@@ -1,6 +1,7 @@
 // Resource generation: every declared font baked at the device's size,
 // every icon and ring font, the fonts' resource entries, the strings, the
 // launcher icon and the native editor's config..
+import { usesSettingsMenu } from "../availability.ts";
 import type { Device } from "../devices/device.ts";
 import { bake, dilate, inkSize, toFnt } from "../fonts/bake.ts";
 import * as complications from "../complications.ts";
@@ -9,6 +10,7 @@ import { configDataIds, configLabelId, configStyleLabelId } from "../ir/naming.t
 import { Color } from "../palette.ts";
 import { encodePng } from "../png.ts";
 import { ellipse, type Image, image as newImage, line } from "../raster/pillow.ts";
+import { propertiesResource, settingsResource, settingsStrings } from "./monkeyc/config_menu.ts";
 import { escape, XMLNS, XSD } from "./xml.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";
 import type { FontFile } from "../fonts/files.ts";
@@ -185,7 +187,11 @@ function ringFontSpecs(face: Face, specs: ReadonlyMap<string, FontSpec>): Map<st
 
 const basename = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
 
-/** One device's resource bundle: its fonts' entries, the launcher icon at its size, and the native editor's config. */
+/**
+ * One device's resource bundle: its fonts' entries, the launcher icon at its
+ * size, and the native editor's config -- or, on a settings-menu device, the
+ * stored choices and the phone settings over them.
+ */
 export function buildBundle(face: Face, device: Device, baked: ReadonlyMap<string, BakedFont>, read: FontReader): ResourceBundle {
   const bundle: ResourceBundle = { device_id: device.id, directory: `resources-${device.id}`, files: new Map(), fonts: new Map(), images: new Map() };
   const sets = glyphSet(face);
@@ -225,6 +231,11 @@ export function buildBundle(face: Face, device: Device, baked: ReadonlyMap<strin
       supported = false;
     }
     if (supported) bundle.files.set("configs/watchface.xml", configResource(face));
+    if (usesSettingsMenu(device)) {
+      bundle.files.set("settings/properties.xml", propertiesResource(face, device));
+      const phone = settingsResource(face, device);
+      if (phone !== null) bundle.files.set("settings/settings.xml", phone);
+    }
   }
   return bundle;
 }
@@ -292,9 +303,19 @@ export function configLabelStrings(face: Face): [string, string][] {
   return out;
 }
 
-export function sharedStrings(face: Face): string {
+/**
+ * `resources/strings/strings.xml`: the app's name, the native editor's
+ * labels, and every string a settings-menu device's `settings.xml` names
+ * among `devices` -- each id once, shared by every device.
+ */
+export function sharedStrings(face: Face, devices: readonly Device[] = []): string {
   const lines = [`<strings ${XMLNS} xsi:noNamespaceSchemaLocation="${XSD}">`, `    <string id="AppName">${escape(face.name)}</string>`];
-  for (const [stringId, text] of configLabelStrings(face)) lines.push(`    <string id="${stringId}">${escape(text)}</string>`);
+  const seen = new Set<string>();
+  for (const [stringId, text] of [...configLabelStrings(face), ...settingsStrings(face, devices)]) {
+    if (seen.has(stringId)) continue;
+    seen.add(stringId);
+    lines.push(`    <string id="${stringId}">${escape(text)}</string>`);
+  }
   lines.push("</strings>");
   return lines.join("\n") + "\n";
 }

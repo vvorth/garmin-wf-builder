@@ -137,6 +137,7 @@ jobs:
             # test/needle-percent.test.ts
             # test/parameter-limits.test.ts
             # test/pattern-part-percent.test.ts
+            # test/phone-settings.test.ts
             # test/call-readers.test.ts
             # test/position.test.ts
             # test/protocol.test.ts

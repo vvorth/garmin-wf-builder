@@ -39,8 +39,6 @@ export class GeneratedProject {
   manifest_text = "";
   jungle_text = "";
   strings_text = "";
-  /** The settings menu's stored choices; empty, and not written, without the menu. */
-  properties_text = "";
   barrel: string[] = [];
   resolved = new Map<string, ResolvedFace>();
   /** String literals that would still share a monkeyc label: a build error each. */
@@ -60,7 +58,6 @@ export class GeneratedProject {
       ["monkey.jungle", this.jungle_text],
       ["resources/strings/strings.xml", this.strings_text],
     ]);
-    if (this.properties_text) out.set("resources/settings/properties.xml", this.properties_text);
     for (const source of this.sources) out.set(source.path, source.text);
     return out;
   }
@@ -90,8 +87,7 @@ export function generate(face: Face, devices: Device[], read: FontReader,
   if (face.palette.size > 0) project.sources.push(emitPalette(face));
   project.manifest_text = manifest.render(face, devices);
   project.jungle_text = jungle.render(face, devices);
-  project.strings_text = sharedStrings(face);
-  if (guards.config_menu) project.properties_text = configMenu.propertiesResource(face);
+  project.strings_text = sharedStrings(face, devices);
   for (const device of devices) {
     let deviceResolved = resolved?.get(device.id);
     if (deviceResolved === undefined) {

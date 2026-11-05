@@ -794,9 +794,14 @@ These cost real time to discover; do not rediscover them.
   (the menu) with no per-device flag. A data slot's options are per device
   (`choices: any` lists the types the device's API level has), so they live
   in `Layout.mc` (`CONFIG_DATA_<SLOT>_TYPES`/`_LABELS`/`_DEFAULT`) and the
-  shared view only indexes them; every property therefore defaults to -1,
-  "never chosen", keeping `properties.xml` one shared file while each
-  device's default index differs. Real builds found: (1) with every target
+  shared view only indexes them; `properties.xml` is therefore a file of
+  each menu device's own (`resources-<device>/settings/`), each property
+  defaulting to the declared default's index on that device, beside that
+  device's `settings.xml` (the same lists, for Garmin Connect on a Store
+  install). `monkeyc -e` honours the per-device file: the `.iq` carries a
+  `<part>/<part>-settings.json` for each fr955 part number and none for the
+  fēnix 8's (listed with the Commons Compress classes in
+  `monkeybrains.jar`; no 7z tool is installed here). Real builds found: (1) with every target
   having `Toybox.Complications`, the `has` block around each slot's decode
   is not emitted, so two slots' `var types` share one straight-line scope --
   `Redefinition of variable 'types'` (the same rule the `outline:` finding

@@ -689,17 +689,20 @@ Which editor runs is decided on the watch, with the same `Application has
 :WatchFaceConfig` check the view already makes, so one build serves a fēnix 8
 (native editor, and `getSettingsView` returns null) and an fr955 (the menu)
 alike. A menu choice is stored as an `Application.Properties` index, one
-property per axis in `resources/settings/properties.xml`, defaulting to -1,
-"never chosen". A stored value of the wrong type or out of range keeps the
+property per axis, in a file of each menu device's own
+(`resources-<device>/settings/properties.xml`), defaulting to the declared
+default's index in that device's list of options (a slot's list can differ
+per device). A stored value of the wrong type or out of range keeps the
 declared default. A menu choice is one value for the whole face: there are
 no saved configurations outside the native editor.
 
 A build whose targets all have the native editor carries none of this.
 With a menu target in the build, the menu is shared code, so every target
-carries it. Measured on the example faces (`fr955`): +1,830 B for
-`examples/features/config/` (two colour axes and a style), +1,667 B for
-`features/styles/`, and +2,892 B for `features/slots/`, whose
-`choices: any` slot lists about forty complication types.
+carries it. Measured on the example faces (`fr955`): +1,919 B for
+`examples/features/config/` (two colour axes and a style), +1,758 B for
+`features/styles/`, and +3,341 B for `features/slots/`, whose
+`choices: any` slot lists about forty complication types (each one also a
+shared string resource, named by the device's `settings.xml`).
 
 ### Lint
 

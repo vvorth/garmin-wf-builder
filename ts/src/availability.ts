@@ -215,6 +215,8 @@ export interface Guards {
   partial_update_unsupported: boolean;
   /** `config:` and some target has the settings menu but no native editor. */
   config_menu: boolean;
+  /** `config:` and some target has the native editor. */
+  config_native: boolean;
   /** `config:` and some target's API level predates the native editor (`SINCE.editor`): its code carries `has` checks. */
   editor_level: boolean;
   /** Some target predates `Graphics.ResourceReference` (`SINCE.resource_reference`). */
@@ -230,8 +232,8 @@ export interface Guards {
 /** The "nothing is missing" `Guards`. */
 export const NO_GUARDS: Guards = {
   complications: false, fields: new Set(), vector_fonts: new Set(), amoled_target: false, burn_in_field_guarded: false,
-  display_mode_guarded: false, modules: new Set(), partial_update_unsupported: false, config_menu: false, editor_level: false,
-  resource_reference_level: false, drawable_visible_level: false, subscreen_hidden: new Set(), override_hidden: new Set(),
+  display_mode_guarded: false, modules: new Set(), partial_update_unsupported: false, config_menu: false, config_native: false,
+  editor_level: false, resource_reference_level: false, drawable_visible_level: false, subscreen_hidden: new Set(), override_hidden: new Set(),
 };
 
 /** Every element laid out in the subscreen window: each top-level `anchor: subscreen` element and its subtree. */
@@ -277,6 +279,20 @@ function has(device: Device, symbol: string): boolean {
   }
 }
 
+/** Whether `device` has Garmin's own face editor (`Application.WatchFaceConfig`). */
+export function hasNativeEditor(device: Device): boolean {
+  return has(device, CONFIG_SYMBOL);
+}
+
+/**
+ * Whether `device` edits `config:` with the generated settings menu: it has
+ * `getSettingsView` and no native editor. Such a device also carries the
+ * phone settings (`settings/settings.xml`) and its stored choices.
+ */
+export function usesSettingsMenu(device: Device): boolean {
+  return !hasNativeEditor(device) && has(device, SETTINGS_MENU_SYMBOL);
+}
+
 /** The `Guards` the shared generated code needs for `face`, across every device in a build. */
 export function computeGuards(face: Face, devices: readonly Device[]): Guards {
   const missingModules = new Set([...modulesUsed(face)].filter((m) => devices.some((d) => !d.hasModule(m))));
@@ -294,7 +310,8 @@ export function computeGuards(face: Face, devices: readonly Device[]): Guards {
     display_mode_guarded: amoledTarget && devices.some((d) => !d.hasSymbol(Device.DISPLAY_MODE_SYMBOL)),
     modules: missingModules,
     partial_update_unsupported: !devices.some((d) => d.supportsPartialUpdate),
-    config_menu: face.hasConfig && devices.some((d) => !has(d, CONFIG_SYMBOL) && has(d, SETTINGS_MENU_SYMBOL)),
+    config_menu: face.hasConfig && devices.some(usesSettingsMenu),
+    config_native: face.hasConfig && devices.some(hasNativeEditor),
     editor_level: face.hasConfig && predates(devices, SINCE.editor),
     resource_reference_level: predates(devices, SINCE.resource_reference),
     drawable_visible_level: predates(devices, SINCE.drawable_visible),

@@ -82,6 +82,20 @@ export function emitApp(face: Face, guards: Guards | null = null): SourceFile {
         });
         w.line(`return [ view.configMenu(), new ${face.entry}ConfigMenuDelegate(view) ];`);
       });
+      w.blank();
+      w.doc("Garmin Connect changed the settings of a Store install: it edits the\n"
+        + "same stored choices as the settings menu, so re-read them and redraw.\n"
+        + "Called for a push from the phone only, never for an edit made on the\n"
+        + "watch (the settings menu applies its own).");
+      w.block("function onSettingsChanged() as Void", () => {
+        w.blockIf(guards?.config_native ? "if (!(Application has :WatchFaceConfig))" : null, () => {
+          w.line("var view = _view;");
+          w.block("if (view != null)", () => {
+            w.line("view.applyStoredConfig();");
+            w.line("WatchUi.requestUpdate();");
+          });
+        });
+      });
     }
   });
   return { path: `source/${face.entry}App.mc`, text: w.render() };

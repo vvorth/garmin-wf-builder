@@ -4,12 +4,16 @@
 //
 // Which editor a device uses is decided at runtime (`Application has
 // :WatchFaceConfig`). Every axis is one menu item whose sub-label is the
-// current choice; the stored value is the option's index, each property
-// defaulting to -1, "never chosen".
+// current choice; the stored value is the option's index, one
+// `Application.Properties` number per axis, which defaults to the declared
+// default's index on that device. Garmin Connect edits the same properties
+// for a Store install, through the device's `settings.xml` (one list per
+// axis, in the menu's order), so the menu and the phone share one storage.
 import * as complications from "../../complications.ts";
+import { usesSettingsMenu } from "../../availability.ts";
 import { compareVersions, type Device } from "../../devices/device.ts";
 import type { ConfigDataSlot, Face } from "../../ir/model.ts";
-import { configField, pascal } from "../../ir/naming.ts";
+import { configField, configLabelId, configStyleLabelId, pascal } from "../../ir/naming.ts";
 import { commentText, stringLiteral } from "../../mcsource.ts";
 import type { Color } from "../../palette.ts";
 import { humanise } from "../../vocab.ts";
@@ -85,11 +89,77 @@ export function slotTypes(slot: ConfigDataSlot, device: Device): complications.C
   return types;
 }
 
-/** `resources/settings/properties.xml`: one `number` property per axis, defaulting to -1. */
-export function propertiesResource(face: Face): string {
+/** The default's index into `axis`'s options on `device`: -1 for a data slot with no options there. */
+function defaultIndex(face: Face, axis: MenuAxis, device: Device): number {
+  if (axis.kind !== "data") return axis.default_index;
+  const slot = face.config_data.get(axis.name)!;
+  return slotTypes(slot, device).indexOf(complications.TYPES.get(slot.default)!);
+}
+
+/** The `<string>` id of an axis's title in Garmin Connect: `ConfigTitleStyle`, `ConfigTitleAccentColor`, `ConfigTitleDataTop`. */
+export function titleStringId(axis: MenuAxis): string {
+  return `ConfigTitle${pascal(axis.key.slice("config_".length))}`;
+}
+
+/** The `<string>` id of a complication type's label: `ConfigTypeHeartRate`. */
+export function typeStringId(type: complications.ComplicationType): string {
+  return `ConfigType${pascal(type.name)}`;
+}
+
+/** `[string id, label]` for each of `axis`'s options on `device`, in the menu's order. */
+function optionStrings(face: Face, axis: MenuAxis, device: Device): [string, string][] {
+  if (axis.kind === "data") return slotTypes(face.config_data.get(axis.name)!, device).map((t) => [typeStringId(t), humanise(t.name)]);
+  const id = axis.kind === "style" ? configStyleLabelId : (index: number) => configLabelId(axis.name, index);
+  return axis.labels!.map((label, index) => [id(index), label]);
+}
+
+/**
+ * `[string id, text]` for every string some menu device's `settings.xml`
+ * names: each axis's title, the Style and colour options' labels, and every
+ * complication type any of those devices' slots offers. One shared list, so
+ * an id means the same text on every device.
+ */
+export function settingsStrings(face: Face, devices: readonly Device[]): [string, string][] {
+  const menuDevices = face.hasConfig ? devices.filter(usesSettingsMenu) : [];
+  if (menuDevices.length === 0) return [];
+  const out: [string, string][] = [];
+  const axes = menuAxes(face);
+  for (const axis of axes) out.push([titleStringId(axis), axis.title]);
+  for (const axis of axes) if (axis.kind !== "data") out.push(...optionStrings(face, axis, menuDevices[0]!));
+  const offered = new Set<complications.ComplicationType>();
+  for (const [, slot] of face.config_data) for (const device of menuDevices) for (const type of slotTypes(slot, device)) offered.add(type);
+  for (const type of complications.TYPES.values()) if (offered.has(type)) out.push([typeStringId(type), humanise(type.name)]);
+  return out;
+}
+
+/** `resources-<device>/settings/properties.xml`: one `number` property per axis, defaulting to the declared default's index there. */
+export function propertiesResource(face: Face, device: Device): string {
   const lines = [`<properties ${XMLNS} xsi:noNamespaceSchemaLocation="${XSD}">`];
-  for (const axis of menuAxes(face)) lines.push(`    <property id="${axis.key}" type="number">-1</property>`);
+  for (const axis of menuAxes(face)) lines.push(`    <property id="${axis.key}" type="number">${defaultIndex(face, axis, device)}</property>`);
   lines.push("</properties>");
+  return lines.join("\n") + "\n";
+}
+
+/**
+ * `resources-<device>/settings/settings.xml`: what Garmin Connect offers for
+ * a Store install, one list per axis in the menu's order, storing the same
+ * index the menu stores. A data slot with no options on `device` (no
+ * Toybox.Complications) is left out, as the menu leaves it out; `null` when
+ * that leaves nothing to offer.
+ */
+export function settingsResource(face: Face, device: Device): string | null {
+  const lines = [`<settings ${XMLNS} xsi:noNamespaceSchemaLocation="${XSD}">`];
+  for (const axis of menuAxes(face)) {
+    const options = optionStrings(face, axis, device);
+    if (options.length === 0) continue;
+    lines.push(`    <setting propertyKey="@Properties.${axis.key}" title="@Strings.${titleStringId(axis)}">`);
+    lines.push('        <settingConfig type="list">');
+    options.forEach(([id], index) => lines.push(`            <listEntry value="${index}">@Strings.${id}</listEntry>`));
+    lines.push("        </settingConfig>");
+    lines.push("    </setting>");
+  }
+  if (lines.length === 1) return null;
+  lines.push("</settings>");
   return lines.join("\n") + "\n";
 }
 
@@ -127,8 +197,7 @@ export function emitViewMethods(w: Writer, face: Face, entry: string,
   w.doc("Read every config axis the settings menu stores into view state -- on a\n"
     + "device with no native editor, where it replaces WatchFaceConfig.\n"
     + "\n"
-    + "A value of the wrong type, or out of range (-1, never chosen), keeps\n"
-    + "the declared default.");
+    + "A value of the wrong type, or out of range, keeps the declared default.");
   w.block(`function ${APPLY_STORED_METHOD}() as Void`, () => {
     for (const axis of axes) {
       const local = `stored${axis.indexField.slice("_configMenu".length)}`;
