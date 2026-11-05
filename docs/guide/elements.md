@@ -112,10 +112,13 @@ Three things are errors, each reported against your own line:
 
 * writing `id:` inside the body as well — the key already is the id;
 * a key that is not a valid identifier (`back-ground:`, `2clock:`);
-* the same key twice. YAML itself forbids duplicate keys and the loader
-  reports it, so a duplicate id in one mapping is unwriteable rather than
-  diagnosed. An id repeated at another level (a group's child named like a
-  top-level element) is a `duplicate-id` error.
+* the same key twice in one mapping. YAML itself forbids it and the loader
+  reports it, so it is unwriteable rather than diagnosed. The same name in
+  another mapping (another group, `static:` against `elements:`, two
+  layouts) is fine: an element's id in diagnostics and the editor is its
+  key qualified by its groups (`top.label`). The one clash left is two ids
+  that fold to one generated symbol (`top.label`, `top_label`, `topLabel`),
+  a `duplicate-id` error naming both.
 
 ### `visible:` — draw this only sometimes
 
@@ -206,7 +209,7 @@ costs in bytes. See [`docs/limitations.md`](../limitations.md).
 A `static:` block may sit at the top level, beside `elements:`, and in each
 [layout](styles-and-layouts.md), beside that layout's own `elements:`. The
 compiler rewrites each block into one group — the top-level one under the
-reserved id `static`, so no element of yours may be called that — and draws
+reserved top-level name `static`, so no top-level element of yours may be called that (its elements' ids are `static.<name>`) — and draws
 the group from the buffer. An element is static because of where it is
 written; there is no per-element flag.
 
