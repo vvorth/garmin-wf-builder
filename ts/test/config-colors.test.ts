@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { menuAxes } from "../src/emit/monkeyc/config_menu.ts";
 import { configLabelStrings, configResource } from "../src/emit/resources.ts";
 import { MIP64_NAMED, MIP_RECOMMENDED } from "../src/palette.ts";
-import { face, MINIMAL } from "./designs.ts";
+import { db, face, MINIMAL } from "./designs.ts";
 
 const design = (config: string, palette = ""): string =>
   MINIMAL.replace('    fg: "#FFFFFF"\n', `    fg: "#FFFFFF"\n${palette}`) + `config:\n${config}`;
@@ -24,7 +24,7 @@ test("choices: any offers the recommended 37 by name, in order, and no allowAny"
   const want = MIP_RECOMMENDED.map((name) => `${LABEL.get(name)} ${HEX.get(name)}`);
   assert.equal(want.length, 37);
   assert.deepEqual(offered(text), want);
-  const xml = configResource(face(text));
+  const xml = configResource(face(text), db.get("fenix8solar47mm"));
   assert.doesNotMatch(xml, /allowAny/);
   // the default (white) is marked once, where the list has it
   assert.equal(xml.match(/default="true"/g)?.length, 1);
@@ -59,7 +59,7 @@ test("a listed colour is named: its label, its swatch's name, else its MIP name;
   assert.deepEqual(offered(text), ["Deep orange #FF5500", "Sea #00AAFF", "Azure Radiance #00AAFF", "Navy Blue #0055FF",
     "#FF8000 #FF8000", "Yellow #FFFF00", "Lemon #FFFF00"]);
   // the native editor gets the same names as strings; the colour with none has no label
-  const xml = configResource(face(text));
+  const xml = configResource(face(text), db.get("fenix8solar47mm"));
   assert.equal(xml.match(/label=/g)?.length, 6);
   assert.match(xml, /<color>0xFF8000<\/color>/);
 });

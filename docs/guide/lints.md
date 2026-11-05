@@ -27,7 +27,7 @@ messages; see `ts/src/lint.ts` if unsure.
 | `partial-update-budget` | an element with `sleep_update: true` risks overrunning the partial-update budget, whose overrun is permanent: a wide clip, a known-expensive read, or a stamped `outline:` ring (4, 8 or 16 more draws each second at 1, 2 or 3px; a grown ring or a baked ring font is not reported) |
 | `hold-overlap` | two elements' `on_hold:` regions overlap, so a touch in the shared area only ever reaches the first |
 | `hold-unsupported` | the device has no `WatchFaceDelegate.onPress`, so this `on_hold:` can never fire there |
-| `api-gated` | the element's binding names a source, symbol or complication type this device's API lacks; it reads as absent there |
+| `api-gated` | the element's binding names a source, symbol or complication type this device lacks; it reads as absent there. The device's own symbol table decides, never its API level (a type's `since` is used only for a device with no table); a slot's explicit choice the device lacks is left out of its lists there |
 | `dead-element` | the element's `visible:` condition reduces to a constant `false` |
 | `graphics-pool` | the face's static buffers are a large share of the shared graphics pool (an estimate) |
 | `antialias-dither` | antialiasing resolves to on for an element on a 64-colour device, dithering the soft edge |
@@ -56,6 +56,10 @@ lint:
 disabled wholesale. Errors that reflect hard platform limits (missing glyphs,
 `hold-auto-ambiguous`/`hold-auto-unresolved`, `api-gated-unguardable`) are
 **not** suppressible: silencing one produces a face that does not work.
+`api-gated-unguardable` covers a reader's function a target lacks, and a
+slot's `default:` naming a complication type a target's symbol table lacks:
+the default is named in code every device shares, so pick one every target
+has, or drop the target.
 `off-screen` is not one of these — SDK 9.2.0's `Dc` documents no exception for
 an out-of-range draw call, it clips silently the same way `setClip` does, so
 drawing partly or fully off the framebuffer is a cropped design, not a broken
@@ -111,7 +115,8 @@ scheme role), or a `data` element whose `slot:` is affected, and
 `api-gated` on the element whose binding is actually gated -- the one whose
 placeholder/`value:`/`color:`/etc. names the unavailable source path, whose
 `on_hold:` names the type, or the `data` element whose slot's `default:`/
-`choices:` is affected.
+`choices:` is affected. A slot's `api-gated`/`api-gated-unguardable` goes
+on the slot's own declaration when no element draws it on that device.
 `duplicate-style` and `unreachable-layout` are design-, not element-scoped
 either, but there is no element to hang either on at all: `duplicate-style`
 goes on the **`config: style:` entry's own** `lint:` (the second entry of

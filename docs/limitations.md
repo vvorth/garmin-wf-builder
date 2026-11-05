@@ -938,16 +938,18 @@ has no editor at all. Before warning, it resolves `AppBase.getSettingsView`
 the same way: a device with it gets the `config:` settings menu, so only
 `fenix5`/`fenix5x`, which lack both, get `config-unsupported`.
 
-*By version comparison, for complications.* `checkComplicationSince` in `ts/src/lint.ts`
-compares a type's `since` against the device's `Device.apiLevel`. This one
-cannot use the symbol table: `COMPLICATION_TYPE_*` are constants, and
-`api.debug.xml` carries only `<functionEntry>` symbols, so they do not appear
-in it at all (checked directly, including for the universally-supported
-`COMPLICATION_TYPE_BATTERY`). The comparison is exact — both numbers come from
-files on disk, `Toybox/Complications.html` and the device's `compiler.json` —
-but note that it answers "is this type old enough for this firmware", which is
-a *different* question from "does this symbol exist here", and the `onTap` case
-above is the standing reminder that the two can disagree.
+*By the symbol table, for complication types too.* `checkComplicationSince`
+in `ts/src/lint.ts` asks `hasComplicationType` in `ts/src/availability.ts`,
+which reads the type's constant out of the device's own `api.debug.xml`: a
+`COMPLICATION_TYPE_*` constant is a bare `<entry field="true" symbol="...">`
+there (no owning class, but the names are unique to `Toybox.Complications`).
+The API level does not decide this either: a `choices: any` slot whose list
+was built from fr955's level named `COMPLICATION_TYPE_SLEEP_SCORE`, which
+fr955's table lacks, and `monkeyc` refused the export. Only a device with no
+symbol table falls back to comparing the type's `since`
+(`Toybox/Complications.html`) with its `Device.apiLevel`, which estimates
+and never decides. The same answer picks each device's slot lists
+(`slotTypes` in `ts/src/emit/monkeyc/config_menu.ts`).
 
 *By module and field, for every catalogue path.* `ts/src/availability.ts`
 resolves *any* catalogue path (`value:`/`color:`/etc, not just

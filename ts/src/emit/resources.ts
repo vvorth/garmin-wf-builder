@@ -4,13 +4,12 @@
 import { usesSettingsMenu } from "../availability.ts";
 import type { Device } from "../devices/device.ts";
 import { bake, dilate, inkSize, toFnt } from "../fonts/bake.ts";
-import * as complications from "../complications.ts";
 import { CONFIG_SYMBOL } from "../ir/model.ts";
 import { configDataIds, configLabelId, configStyleLabelId } from "../ir/naming.ts";
 import { Color } from "../palette.ts";
 import { encodePng } from "../png.ts";
 import { ellipse, type Image, image as newImage, line } from "../raster/pillow.ts";
-import { propertiesResource, settingsResource, settingsStrings } from "./monkeyc/config_menu.ts";
+import { propertiesResource, settingsResource, settingsStrings, slotTypes } from "./monkeyc/config_menu.ts";
 import { escape, XMLNS, XSD } from "./xml.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";
 import type { FontFile } from "../fonts/files.ts";
@@ -230,7 +229,7 @@ export function buildBundle(face: Face, device: Device, baked: ReadonlyMap<strin
     } catch {
       supported = false;
     }
-    if (supported) bundle.files.set("configs/watchface.xml", configResource(face));
+    if (supported) bundle.files.set("configs/watchface.xml", configResource(face, device));
     if (usesSettingsMenu(device)) {
       bundle.files.set("settings/properties.xml", propertiesResource(face, device));
       const phone = settingsResource(face, device);
@@ -240,8 +239,12 @@ export function buildBundle(face: Face, device: Device, baked: ReadonlyMap<strin
   return bundle;
 }
 
-/** `resources-<device>/configs/watchface.xml`, for a device with the native editor. */
-export function configResource(face: Face): string {
+/**
+ * `resources-<device>/configs/watchface.xml`, for a device with the native
+ * editor. An explicit slot's `<type>` list keeps the types `device`'s table
+ * has (`slotTypes`); `allowAny` leaves the list to Garmin's own editor.
+ */
+export function configResource(face: Face, device: Device): string {
   const lines = [`<resources ${XMLNS} xsi:noNamespaceSchemaLocation="${XSD}">`, "    <watchface-config>"];
   if (face.config_style !== null) {
     lines.push("        <styles>");
@@ -262,9 +265,9 @@ export function configResource(face: Face): string {
         continue;
       }
       lines.push(`            <complication id="${slotId}">`);
-      for (const choice of slot.choices) {
-        const attrs = choice === slot.default ? ' default="true"' : "";
-        lines.push(`                <type${attrs}>Complications.${complications.TYPES.get(choice)!.constant}</type>`);
+      for (const type of slotTypes(slot, device)) {
+        const attrs = type.name === slot.default ? ' default="true"' : "";
+        lines.push(`                <type${attrs}>Complications.${type.constant}</type>`);
       }
       lines.push("            </complication>");
     }

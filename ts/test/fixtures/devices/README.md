@@ -19,7 +19,7 @@ committed (root `CLAUDE.md` §2).
 | `wfbtest/compiler.json` | a round 260x260 MIP screen, `deviceFamily` `round-260x260`, a 131 072 B watch-face limit, Connect IQ 5.2.0, no alpha blending |
 | `wfbtest/simulator.json` | the panel's place in the skin (`display.location`), `ppi`, the graphics pool, and the `ww` font set: nine `FONT_*` system fonts and two scalable faces, each naming a file the font registry's free stand-ins cover (`RobotoCondensed-Regular`, `RobotoCondensed-Bold`, `Roboto-Black`) |
 | `wfbtest/wfbtest.png` | the simulator skin: a 380 px grey ring, transparent where the panel shows |
-| `wfbtest/wfbtest.api.debug.xml` | its own symbol table: every module, function and field the compiler asks a device about, so the device has them all (`test/fixture-device.test.ts` fails when a catalogue source needs one it lacks) |
+| `wfbtest/wfbtest.api.debug.xml` | its own symbol table: every module, function and field the compiler asks a device about, so the device has them all (`test/fixture-device.test.ts` fails when a catalogue source needs one it lacks), and a `COMPLICATION_TYPE_*` field entry for every complication type Connect IQ 5.2.0 has (all but `sleep_score`), since a device's own table decides which types it offers |
 | `reference/wfbtest.json` | its device-reference page: the `FONT_*` pixel heights, 64 display colours, the watch-face limit |
 
 The SDK-wide `bin/api.debug.xml` does not serve as the symbol table: it

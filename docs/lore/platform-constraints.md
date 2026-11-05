@@ -65,6 +65,11 @@ These are the findings that shaped every decision. Full detail and citations in
    `WatchFaceDelegate.onTap`. Always resolve symbols against the device's own
    `<id>.api.debug.xml`, keyed by fully-qualified parent. (`fr955` *does* have
    `InputDelegate.onTap` — a different symbol. Do not be fooled by a bare grep.)
+   Complication types too: a `choices: any` option table built from the API
+   level named `COMPLICATION_TYPE_SLEEP_SCORE` on fr955, whose table lacks
+   it; `monkeyc` refused the export (2026-11-05). A type's constant is a bare
+   `<entry field="true">` in the table, read by `hasComplicationType` in
+   `ts/src/availability.ts`.
 
    **6b. And a symbol being present is NOT sufficient either — read its prose.**
    `WatchFaceDelegate.onTap` *is* on both fēnix 8 targets, and it still never

@@ -792,7 +792,7 @@ These cost real time to discover; do not rediscover them.
   the check `onLayout`'s first native read already made, so one shared view
   serves a fēnix 8 (native; `getSettingsView` returns null) and an fr955
   (the menu) with no per-device flag. A data slot's options are per device
-  (`choices: any` lists the types the device's API level has), so they live
+  (`choices: any` lists the types the device's own symbol table has, an explicit list only those of its choices the table has), so they live
   in `Layout.mc` (`CONFIG_DATA_<SLOT>_TYPES`/`_LABELS`/`_DEFAULT`) and the
   shared view only indexes them; `properties.xml` is therefore a file of
   each menu device's own (`resources-<device>/settings/`), each property

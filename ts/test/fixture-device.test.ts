@@ -9,10 +9,11 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { sourceUnavailable, SETTINGS_MENU_SYMBOL } from "../src/availability.ts";
+import { hasComplicationType, sourceUnavailable, SETTINGS_MENU_SYMBOL } from "../src/availability.ts";
 import { load, resolveAll, selectDevices } from "../src/build.ts";
 import { CATALOG } from "../src/catalog.ts";
-import { Device, DeviceDatabase } from "../src/devices/device.ts";
+import * as complications from "../src/complications.ts";
+import { compareVersions, Device, DeviceDatabase } from "../src/devices/device.ts";
 import { NodeDeviceFiles, REPO_ROOT } from "../src/devices/node.ts";
 import { Bag } from "../src/diagnostics.ts";
 import { generate } from "../src/emit/project.ts";
@@ -89,6 +90,10 @@ test("its own symbol table has every module, function and field the compiler ask
   }
   assert.ok(d.hasModule("Complications") && d.hasModule("Weather"));
   assert.ok(d.hasField(Device.BURN_IN_FIELD));
+  // every complication type its Connect IQ level reaches, each a bare field entry as on a real device
+  for (const type of complications.TYPES.values()) {
+    assert.equal(hasComplicationType(d, type), compareVersions(type.since, d.apiLevel) <= 0, type.constant);
+  }
   // a symbol it does not list is absent, as on a real device
   assert.equal(d.hasSymbol("Toybox.Graphics.Dc.drawBitmap2"), false);
 });

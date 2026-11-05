@@ -3,6 +3,47 @@
      module, function and field the compiler asks a device about, so the fixture device has them all. -->
 <debugInfo>
 <symbolTable>
+<entry field="true" symbol="COMPLICATION_TYPE_ALTITUDE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_BATTERY"/>
+<entry field="true" symbol="COMPLICATION_TYPE_BODY_BATTERY"/>
+<entry field="true" symbol="COMPLICATION_TYPE_CALENDAR_EVENTS"/>
+<entry field="true" symbol="COMPLICATION_TYPE_CALORIES"/>
+<entry field="true" symbol="COMPLICATION_TYPE_CURRENT_TEMPERATURE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_CURRENT_WEATHER"/>
+<entry field="true" symbol="COMPLICATION_TYPE_DATE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_FLOORS_CLIMBED"/>
+<entry field="true" symbol="COMPLICATION_TYPE_FORECAST_WEATHER_1DAY"/>
+<entry field="true" symbol="COMPLICATION_TYPE_FORECAST_WEATHER_2DAY"/>
+<entry field="true" symbol="COMPLICATION_TYPE_FORECAST_WEATHER_3DAY"/>
+<entry field="true" symbol="COMPLICATION_TYPE_HEART_RATE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_HIGH_LOW_TEMPERATURE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_INTENSITY_MINUTES"/>
+<entry field="true" symbol="COMPLICATION_TYPE_LAST_GOLF_ROUND_SCORE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_NOTIFICATION_COUNT"/>
+<entry field="true" symbol="COMPLICATION_TYPE_PULSE_OX"/>
+<entry field="true" symbol="COMPLICATION_TYPE_RACE_PACE_PREDICTOR_10K"/>
+<entry field="true" symbol="COMPLICATION_TYPE_RACE_PACE_PREDICTOR_5K"/>
+<entry field="true" symbol="COMPLICATION_TYPE_RACE_PACE_PREDICTOR_HALF_MARATHON"/>
+<entry field="true" symbol="COMPLICATION_TYPE_RACE_PACE_PREDICTOR_MARATHON"/>
+<entry field="true" symbol="COMPLICATION_TYPE_RACE_PREDICTOR_10K"/>
+<entry field="true" symbol="COMPLICATION_TYPE_RACE_PREDICTOR_5K"/>
+<entry field="true" symbol="COMPLICATION_TYPE_RACE_PREDICTOR_HALF_MARATHON"/>
+<entry field="true" symbol="COMPLICATION_TYPE_RACE_PREDICTOR_MARATHON"/>
+<entry field="true" symbol="COMPLICATION_TYPE_RECOVERY_TIME"/>
+<entry field="true" symbol="COMPLICATION_TYPE_RESPIRATION_RATE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_SEA_LEVEL_PRESSURE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_SOLAR_INPUT"/>
+<entry field="true" symbol="COMPLICATION_TYPE_STEPS"/>
+<entry field="true" symbol="COMPLICATION_TYPE_STRESS"/>
+<entry field="true" symbol="COMPLICATION_TYPE_SUNRISE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_SUNSET"/>
+<entry field="true" symbol="COMPLICATION_TYPE_TRAINING_STATUS"/>
+<entry field="true" symbol="COMPLICATION_TYPE_VO2MAX_BIKE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_VO2MAX_RUN"/>
+<entry field="true" symbol="COMPLICATION_TYPE_WEEKDAY_MONTHDAY"/>
+<entry field="true" symbol="COMPLICATION_TYPE_WEEKLY_BIKE_DISTANCE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE"/>
+<entry field="true" symbol="COMPLICATION_TYPE_WHEELCHAIR_PUSHES"/>
 <entry field="true" symbol="activeMinutesWeek"/>
 <entry field="true" symbol="activeMinutesWeekGoal"/>
 <entry field="true" symbol="alarmCount"/>

@@ -1149,8 +1149,9 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
       const slot = resolved.face.config_data.get(slotName);
       if (slot === undefined) continue;
       if (hasComplications) {
-        const choices = slot.choices === "any" ? [slot.default] : slot.choices;
-        for (const name of choices) if (complications.get(name) !== undefined) candidates.push([placed, name, element.span, "slot"]);
+        candidates.push([placed, slot.default, element.span, "default"]);
+        // `choices: any` lists only what the device has, so only an explicit choice can name a missing type.
+        if (slot.choices !== "any") for (const name of slot.choices) if (name !== slot.default) candidates.push([placed, name, element.span, "slot"]);
       } else {
         emit(bag, placed, diag("warning", "api-gated",
           `${placed.id}: slot ${quoted(slotName)} needs Toybox.Complications, which ${device.id} lacks, so it shows its absent state here -- never the declared default`,
@@ -1167,6 +1168,51 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
     }
   }
   checkComplicationSince(bag, resolved, candidates);
+  if (hasComplications) checkUndrawnSlots(bag, resolved);
+}
+
+/**
+ * A slot no element draws on this device still names its types in the
+ * device's code (Layout's list, the native editor's resource): its default
+ * and explicit choices are checked against the table at the slot's own span.
+ */
+function checkUndrawnSlots(bag: Bag, resolved: ResolvedFace): void {
+  const drawn = new Set(resolved.items.map((placed) => slotOf(placed.element)));
+  for (const slot of resolved.face.config_data.values()) {
+    if (drawn.has(slot.name)) continue;
+    const names = [slot.default, ...(slot.choices === "any" ? [] : slot.choices.filter((n) => n !== slot.default))];
+    for (const name of names) {
+      const missing = typeMissing(resolved.device, name, name === slot.default ? "default" : "slot", slot.name, slot.span);
+      if (missing !== null) bag.add(missing);
+    }
+  }
+}
+
+/** The table's diagnostic for slot `slotName`'s type `name` on `device` (`kind` "default" or "slot"), or `null` when the table has it or is unavailable. */
+function typeMissing(device: Device, name: string, kind: string, slotName: string, span: Span | null, id: string = slotName): Diagnostic | null {
+  const ctype = complications.TYPES.get(name)!;
+  if (availability.hasComplicationType(device, ctype) !== false) return null;
+  const lacks = `${device.id} has no ${ctype.constant}`;
+  const confidence = `exact -- ${device.id}'s own symbol table (api.debug.xml)`;
+  if (kind === "default") {
+    return diag("error", "api-gated-unguardable",
+      `${id}: slot ${quoted(slotName)}'s default 'complication.${name}' is not on ${device.id}: ${lacks}`, span, {
+        notes: [
+          "the default is named in code every device shares; pick a default every target has, or drop the target",
+          `${device.id}'s own lists leave the type out, but the slot's starting value is one constant in the shared view, `
+          + `which would name a type ${device.id} does not have`,
+        ],
+        confidence,
+      });
+  }
+  return diag("warning", "api-gated",
+    `${id}: slot ${quoted(slotName)}'s 'complication.${name}' is not on ${device.id}: ${lacks}, so it is left out of ${device.id}'s list`, span, {
+      notes: [
+        `the wearer cannot pick it on ${device.id}: the settings menu, Garmin Connect's list and the native editor's list leave it out there`,
+        "drop it from 'choices:', or accept that it is not offered on this target",
+      ],
+      confidence,
+    });
 }
 
 function emitSourceGap(bag: Bag, placed: Placed, path: string, span: Span | null, gap: availability.Unavailable, device: Device): void {
@@ -1218,26 +1264,52 @@ const SINCE_NOTES: Record<string, string[]> = {
 
 function sinceSubject(placed: Placed, name: string, kind: string): string {
   if (kind === "hold") return `holding to launch ${quoted(name)}`;
-  if (kind === "slot") return `slot ${quoted(slotOf(placed.element))}'s 'complication.${name}'`;
+  if (kind === "slot" || kind === "default") return `slot ${quoted(slotOf(placed.element))}'s 'complication.${name}'`;
   return `'complication.${name}'`;
 }
 
+/**
+ * Each complication type the face names on this device, against the
+ * device's own symbol table: a slot's default it lacks is an error (shared
+ * code names it), an explicit choice or a read or hold target a warning.
+ * Only a device with no table falls back to the type's `since` against its
+ * API level, which estimates and never decides (platform-constraints.md, 6).
+ */
 function checkComplicationSince(bag: Bag, resolved: ResolvedFace, candidates: [Placed, string, Span | null, string][]): void {
   if (candidates.length === 0) return;
   const device = resolved.device;
   const level = device.apiLevel;
-  if (level === "0.0.0") {
-    bag.note("api-gated", `${device.id}: no ConnectIQ version found in compiler.json, so complication-type availability is not checked`,
-      null, { confidence: "not checked -- the device's compiler.json has no usable partNumbers/connectIQVersion" });
-    return;
-  }
+  let levelNoted = false;
   for (const [placed, name, span, kind] of candidates) {
     const ctype = complications.TYPES.get(name)!;
+    const has = availability.hasComplicationType(device, ctype);
+    if (has === true) continue;
+    if (has === false) {
+      if (kind === "default" || kind === "slot") {
+        emit(bag, placed, typeMissing(device, name, kind, slotOf(placed.element)!, span, placed.id)!);
+        continue;
+      }
+      emit(bag, placed, diag("warning", "api-gated",
+        `${placed.id}: ${sinceSubject(placed, name, kind)} is not on ${device.id}: ${device.id} has no ${ctype.constant}`, span, {
+          notes: [...SINCE_NOTES[kind]!],
+          confidence: `exact -- ${device.id}'s own symbol table (api.debug.xml)`,
+        }));
+      continue;
+    }
+    if (level === "0.0.0") {
+      if (!levelNoted) {
+        bag.note("api-gated", `${device.id}: no ConnectIQ version found in compiler.json, so complication-type availability is not checked`,
+          null, { confidence: "not checked -- the device's compiler.json has no usable partNumbers/connectIQVersion" });
+      }
+      levelNoted = true;
+      continue;
+    }
     if (compareVersions(ctype.since, level) <= 0) continue;
     emit(bag, placed, diag("warning", "api-gated",
       `${placed.id}: ${sinceSubject(placed, name, kind)} needs ConnectIQ ${ctype.since}, but ${device.id} tops out at ${level}`, span, {
-        notes: [...SINCE_NOTES[kind]!],
-        confidence: `exact -- ${quoted(name)}'s since (${ctype.since}, Toybox/Complications.html) vs ${device.id}'s api_level (${level}, compiler.json)`,
+        notes: [...SINCE_NOTES[kind === "default" ? "slot" : kind]!],
+        confidence: `estimate -- ${quoted(name)}'s since (${ctype.since}, Toybox/Complications.html) vs ${device.id}'s api_level `
+          + `(${level}, compiler.json); ${device.id} has no symbol table to decide it`,
       }));
   }
 }

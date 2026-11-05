@@ -73,6 +73,7 @@ jobs:
           tests=(
             test/bake.test.ts
             test/bundle.test.ts
+            test/complication-availability.test.ts
             test/data.test.ts
             test/doc-citations.test.ts
             test/draw.test.ts

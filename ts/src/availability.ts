@@ -164,6 +164,39 @@ function complicationsSince(face: Face): string {
   return since;
 }
 
+/**
+ * Whether `device`'s own symbol table has complication type `type`: `null`
+ * when the table is missing or unreadable. A type's constant is a bare
+ * `<entry field="true">` there, with no owning class, so this asks
+ * `hasField`; the `COMPLICATION_TYPE_*` names are unique to
+ * Toybox.Complications, so presence is as exact as absence. The API level
+ * does not decide this (docs/lore/platform-constraints.md, 6): fr955's table
+ * lacks `COMPLICATION_TYPE_SLEEP_SCORE` at a level past its `since`.
+ */
+export function hasComplicationType(device: Device, type: complications.ComplicationType): boolean | null {
+  try {
+    return device.hasField(type.constant);
+  } catch (error) {
+    if (error instanceof DeviceError) return null;
+    throw error;
+  }
+}
+
+/**
+ * Whether code built for `device` may name complication type `type`: its
+ * symbol table's answer, or, only when it has no table, whether its API
+ * level reaches the type's `since` -- the one estimate left without it.
+ */
+export function offersComplicationType(device: Device, type: complications.ComplicationType): boolean {
+  return hasComplicationType(device, type) ?? compareVersions(type.since, device.apiLevel) <= 0;
+}
+
+/** Some device in `devices` has `Toybox.Complications` but its table lacks a complication type the code names. */
+function lacksNamedType(face: Face, devices: readonly Device[]): boolean {
+  const named = [...complicationTypesNamed(face)].map((name) => complications.TYPES.get(name)!);
+  return devices.some((d) => d.hasModule("Complications") && named.some((t) => hasComplicationType(d, t) === false));
+}
+
 /** Some device in `devices` has an API level below `since`. */
 function predates(devices: readonly Device[], since: string): boolean {
   return devices.some((d) => compareVersions(d.apiLevel, since) < 0);
@@ -194,7 +227,8 @@ export function modulesUsed(face: Face): Set<string> {
 export interface Guards {
   /**
    * Some target lacks `Toybox.Complications`, which the design uses, or its
-   * API level predates a complication type the code names: a
+   * API level predates, or its symbol table lacks, a complication type the
+   * code names: a
    * `Toybox has :Complications` check then encloses every use, which
    * `monkeyc` accepts for any member of the module.
    */
@@ -296,7 +330,11 @@ export function usesSettingsMenu(device: Device): boolean {
 /** The `Guards` the shared generated code needs for `face`, across every device in a build. */
 export function computeGuards(face: Face, devices: readonly Device[]): Guards {
   const missingModules = new Set([...modulesUsed(face)].filter((m) => devices.some((d) => !d.hasModule(m))));
-  if (usesComplications(face) && predates(devices, complicationsSince(face))) missingModules.add("Complications");
+  // The shared code names every type any target offers; `Toybox has :Complications` around each use is the check
+  // monkeyc accepts for a type newer than a target's level or absent from its table (platform-constraints.md, 6d).
+  if (usesComplications(face) && (predates(devices, complicationsSince(face)) || lacksNamedType(face, devices))) {
+    missingModules.add("Complications");
+  }
   const missingFields = new Set([...designFields(face)].filter((f) => devices.some((d) => !d.hasField(f))));
   const unavailableVectorFonts = new Set([...vectorFontsUsed(face)]
     .filter(([, spec]) => devices.some((d) => vectorFontFace(spec, d) === "")).map(([name]) => name));

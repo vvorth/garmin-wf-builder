@@ -43,6 +43,12 @@ lore here, not to `CLAUDE.md`.
   three modules; adding an axis that was not a `ConfigColor` would have
   silently produced no `<watchface-config>` for a design using only the new
   axis, had it not been routed through one shared `Face.hasConfig` first.)
+- **A per-device table of constants is an availability question.** Resolve
+  it through `ts/src/availability.ts` against the device's symbol table,
+  never through `since`/`apiLevel`; the incident is the fr955 export of
+  2026-11-05, whose `choices: any` slot listed every type fr955's API level
+  reached, `COMPLICATION_TYPE_SLEEP_SCORE` among them, which fr955's own
+  table lacks: `monkeyc` refused it once per slot.
 - **Parallel work in one shared tree must edit files, never run git commands
   that touch the working tree.** `git stash`/`git reset` are repo-wide and
   ignore file ownership; one has already wiped another agent's in-flight

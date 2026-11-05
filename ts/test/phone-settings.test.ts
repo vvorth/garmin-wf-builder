@@ -95,16 +95,17 @@ test("a native-editor device gets no phone settings, and a build of only those i
 });
 
 test("where a slot's options differ per device, so do its list and its default", { skip: !db.ids().includes("instinct3solar45mm") }, () => {
-  // sleep_score is API 6.0.2: offered last on instinct3solar45mm, and put
-  // first on fr955 (5.2.0), where `choices: any` does not otherwise offer it
-  const files = generated(slotted("fr955, instinct3solar45mm", "{ default: sleep_score, choices: any }"));
+  // sleep_score is in instinct3solar45mm's symbol table and not in fr955's:
+  // `choices: any` offers it on the one and leaves it out on the other
+  const files = generated(slotted("fr955, instinct3solar45mm", "{ default: steps, choices: any }"));
   const entries = (id: string): string[] => [...files.get(settings(id))!.matchAll(/@Strings\.(ConfigType\w+)/g)].map((m) => m[1]!);
   const fr955 = entries("fr955"), instinct = entries("instinct3solar45mm");
-  assert.equal(fr955[0], "ConfigTypeSleepScore");
-  assert.equal(instinct.at(-1), "ConfigTypeSleepScore");
-  assert.deepEqual([...fr955.slice(1)], instinct.slice(0, -1));
-  assert.ok(files.get(properties("fr955"))!.includes('<property id="config_data_top" type="number">0</property>'));
-  assert.ok(files.get(properties("instinct3solar45mm"))!.includes(`<property id="config_data_top" type="number">${instinct.length - 1}</property>`));
+  assert.ok(!fr955.includes("ConfigTypeSleepScore"));
+  assert.ok(instinct.includes("ConfigTypeSleepScore"));
+  assert.deepEqual(fr955, instinct.filter((id) => id !== "ConfigTypeSleepScore"));
+  for (const [id, list] of [["fr955", fr955], ["instinct3solar45mm", instinct]] as const) {
+    assert.ok(files.get(properties(id))!.includes(`<property id="config_data_top" type="number">${list.indexOf("ConfigTypeSteps")}</property>`), id);
+  }
   // the same order and default the menu reads from Layout on each device
   for (const id of ["fr955", "instinct3solar45mm"]) {
     const layout = files.get(`source-${id}/Layout.mc`)!;

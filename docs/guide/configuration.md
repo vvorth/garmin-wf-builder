@@ -268,6 +268,17 @@ grouped as the editor lists them) -- `default:` compiles into the view as the st
 `default:` must belong to) or the literal string `any`, handing the wearer the
 editor's own unrestricted complication picker.
 
+**Which types a device offers is read from its own symbol table**
+(`<id>.api.debug.xml`), never from its API level: the two disagree (an
+fr955 at a level past `sleep_score`'s has no
+`COMPLICATION_TYPE_SLEEP_SCORE`, and `monkeyc` refuses to name it there). A
+`choices: any` slot offers, on each device, every type that device has.
+An explicit choice a device lacks is left out of that device's lists (the
+settings menu, Garmin Connect's list and the native editor's resource), with
+an `api-gated` warning. The `default:` is one constant in code every target
+shares, so a default some target lacks is an `api-gated-unguardable`
+error: pick a default every target has, or drop the target.
+
 A slot may also carry a `label:`, its title in the settings menu on a watch
 without the native editor. Without one, the menu titles the slot from its
 name (`top_left` shows as "Top left"). The native editor has nowhere to show
@@ -686,7 +697,7 @@ option applies it at once.
 |---|---|
 | `style:` | every entry, by its label (else its scheme's label, else its name) |
 | `accent_color:`/`data_color:` | the [colour list](#a-colour-settings-list-and-the-names-on-it), by name: the `choices:` list, or for `choices: any` the recommended 37, the default first if it is not one of them |
-| a `slots:` entry | its `choices:` types; for `choices: any`, every complication type the device's API level has. Empty, and left out, on a device without `Toybox.Complications` |
+| a `slots:` entry | its `choices:` types that the device's symbol table has; for `choices: any`, every complication type the table has (the API level stands in only for a device with no table). Empty, and left out, on a device without `Toybox.Complications` |
 
 Which editor runs is decided on the watch, with the same `Application has
 :WatchFaceConfig` check the view already makes, so one build serves a fēnix 8
@@ -818,13 +829,14 @@ Nothing phone-side has been seen on a watch yet; see
   - a forecast `graph` (`forecast_*`/`daily_*` series) on a device with no
     `Toybox.Weather` -- the guarded acquisition yields nothing and the graph
     draws empty there;
-  - a complication *type* newer than the device's own ConnectIQ ceiling,
-    checked against `ComplicationType.since` in `ts/src/complications.ts`
-    (`COMPLICATION_TYPE_*` values are constants with no entry in
-    `api.debug.xml` at all, so a level compare is the only thing that can
-    catch this one), skipped when the device lacks
-    `Toybox.Complications` outright (the module-gap case above already said
-    so, more fundamentally);
+  - a complication *type* the device's own symbol table lacks (each
+    `COMPLICATION_TYPE_*` constant is a bare field entry in
+    `api.debug.xml`), read, held to launch, or listed in a slot's explicit
+    `choices:` -- a listed one is left out of that device's lists. Only a
+    device with no symbol table falls back to `ComplicationType.since` in
+    `ts/src/complications.ts` against its API level, an estimate. Skipped
+    when the device lacks `Toybox.Complications` outright (the module-gap
+    case above already said so, more fundamentally);
   - `on_hold:` on a device with no `Toybox.Complications` -- the hold
     compiles in but does nothing there, unless `hold-unsupported` already
     covers that same element (the device also lacks `onPress`) -- "it never
@@ -843,7 +855,10 @@ Nothing phone-side has been seen on a watch yet; see
 
   A fifth shape, `api-gated-unguardable`, is a build **ERROR** and
   deliberately **not** suppressible: it means a reader's own function symbol
-  (as opposed to a module or a field) is missing on a target device. The
+  (as opposed to a module or a field) is missing on a target device, or a
+  slot's `default:` names a complication type a target's symbol table lacks
+  (the default is one constant in code every target shares, so no list can
+  leave it out). The
   generated code only ever guards a module or a field at runtime
   (`computeGuards` in `ts/src/availability.ts`) -- there is no guard for an individual
   function, so "reads as absent" would be a lie; the call would run

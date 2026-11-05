@@ -10,8 +10,8 @@
 // for a Store install, through the device's `settings.xml` (one list per
 // axis, in the menu's order), so the menu and the phone share one storage.
 import * as complications from "../../complications.ts";
-import { usesSettingsMenu } from "../../availability.ts";
-import { compareVersions, type Device } from "../../devices/device.ts";
+import { offersComplicationType, usesSettingsMenu } from "../../availability.ts";
+import type { Device } from "../../devices/device.ts";
 import type { ConfigDataSlot, Face } from "../../ir/model.ts";
 import { configField, configLabelId, configStyleLabelId, pascal } from "../../ir/naming.ts";
 import { commentText, stringLiteral } from "../../mcsource.ts";
@@ -79,14 +79,18 @@ export function menuAxes(face: Face): MenuAxis[] {
   return axes;
 }
 
-/** A data slot's options on `device`: its `choices:`, or every type its API level has; empty without Complications. */
+/**
+ * A data slot's options on `device`: its `choices:`, or under `choices: any`
+ * every complication type, keeping only the types the device's own symbol
+ * table has (`offersComplicationType`; its API level stands in only when it
+ * has no table); empty without Complications. A default the device lacks is
+ * left out too -- the lint makes that an error -- since naming it in this
+ * device's code is what monkeyc refuses.
+ */
 export function slotTypes(slot: ConfigDataSlot, device: Device): complications.ComplicationType[] {
   if (!device.hasModule("Complications")) return [];
-  if (slot.choices !== "any") return slot.choices.map((c) => complications.TYPES.get(c)!);
-  const types = [...complications.TYPES.values()].filter((t) => compareVersions(t.since, device.apiLevel) <= 0);
-  const fallback = complications.TYPES.get(slot.default)!;
-  if (!types.includes(fallback)) types.unshift(fallback);
-  return types;
+  const listed = slot.choices === "any" ? [...complications.TYPES.values()] : slot.choices.map((c) => complications.TYPES.get(c)!);
+  return listed.filter((t) => offersComplicationType(device, t));
 }
 
 /** The default's index into `axis`'s options on `device`: -1 for a data slot with no options there. */
