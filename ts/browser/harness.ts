@@ -27,6 +27,7 @@ import { NodeDeviceFiles, REPO_ROOT } from "../src/devices/node.ts";
 import { decodePng } from "../src/png.ts";
 import { inflateTiles, inkOf } from "../src/raster/canvas.ts";
 import type { Answer, Args, Frame, FrameItem, Handle, Op, Summary } from "../src/studio/protocol.ts";
+import { elementName } from "../src/element_ids.ts";
 
 export { REPO_ROOT };
 export const EXAMPLES = join(REPO_ROOT, "examples");
@@ -441,8 +442,9 @@ export class Session {
     });
     const frame = await this.api("frame", { id, device: view.device, scale: 2, style: view.style, time: "", date: "", asleep: false, aod: false, picks: "" });
     const zoom = view.rect.width / frame.width;
+    // an item by its qualified id, or by its name (`hours` for `layout_digital.hours`)
     const item = (id: string): FrameItem => {
-      const found = frame.items.find((i) => i.id === id);
+      const found = frame.items.find((i) => i.id === id) ?? frame.items.find((i) => !i.path && elementName(i.id) === id);
       if (!found) throw new Error(`${id} is not in the frame: ${frame.items.map((i) => i.id).join(", ")}`);
       return found;
     };
@@ -457,7 +459,7 @@ export class Session {
       },
       ink: async (id) => {
         masks ??= await inkMasks(frame);
-        const own = masks.findIndex((m) => m.id === id);
+        const own = masks.findIndex((m) => m.id === item(id).id);
         if (own < 0) throw new Error(`${id} has no layer in the frame`);
         const [bx, by, bw, bh] = item(id).box;
         const cx = bx + bw / 2, cy = by + bh / 2;

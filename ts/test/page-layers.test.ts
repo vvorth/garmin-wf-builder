@@ -202,10 +202,10 @@ test("each element's row toggles its lock and its hide in the editor without sel
   assert.deepEqual(printed[0], [
     [["lock box", "true", false], ["hide box", "false", false]],
     // reached from the locked group: shown on, and not toggled here
-    [["lock dot", "true", true], ["hide dot", "false", false]],
+    [["lock box.dot", "true", true], ["hide box.dot", "false", false]],
     [["lock clock", "false", false], ["hide clock", "false", false]],
     [["lock seconds", "false", false], ["hide seconds", "true", false]],
-    [["lock background", "false", false], ["hide background", "false", false]],
+    [["lock static.background", "false", false], ["hide static.background", "false", false]],
   ]);
   assert.ok(printed[1][0].includes("locked-row") && printed[1][1].includes("locked-row") && !printed[1][2].includes("locked-row"));
   assert.deepEqual(printed[2], [{ lock: "clock" }, { hide: "seconds" }, { lock: "box" }]);

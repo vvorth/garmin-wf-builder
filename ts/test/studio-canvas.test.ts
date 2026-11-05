@@ -5,6 +5,7 @@ import { readdirSync, statSync } from "node:fs";
 import { test } from "node:test";
 import { addVertex, move, resize, toLocal, turn, vertex, View } from "../src/edit/geometry.ts";
 import { indexFor, Refused } from "../src/edit/spans.ts";
+import { elementName } from "../src/element_ids.ts";
 import { bakeFonts, ICON_FONT } from "../src/emit/resources.ts";
 import { isSubmodule, readFontFile } from "../src/node.ts";
 import { decodePng } from "../src/png.ts";
@@ -49,7 +50,7 @@ test("a size handle sits on the edge that moves", async () => {
   for (const [align, side, gain] of [["top_left", "right", 1], ["center", "right", 2], ["right", "left", -1]] as const) {
     const text = minimal().replace("static:\n", "static:\n  box:\n    type: rectangle\n    at: { anchor: center }\n"
       + `    size: { width: 40px, height: 20px }\n    align: ${align}\n    color: color.dim\n`);
-    const box = items(frameOf(studio.create(bundle("H", text), "new"), "fr955", 1))["box"];
+    const box = items(frameOf(studio.create(bundle("H", text), "new"), "fr955", 1))["static.box"];
     const width = box.handles.find((h: any) => JSON.stringify(h.key) === '["size","width"]');
     const [x, , w] = box.box;
     assert.equal(width.gain, gain, align);
@@ -108,7 +109,8 @@ test("a frame asked with hidden leaves those elements, and everything inside a h
   const inside = dataOf(doc);
   // the group's children, wherever the group is written
   const holder = [inside.elements, inside.static].find((b: any) => b && b[group]);
-  const children = Object.keys(holder[group].children);
+  // the children's ids are the group's name qualified
+  const children = Object.keys(holder[group].children).map((name) => `${group}.${name}`);
   const leaf = whole.items.find((i: any) => i.drawn && i.kind !== "group" && !children.includes(i.id)).id;
   const hid = (await ask([leaf, group])).json;
   const byId = (f: any): Record<string, any> => Object.fromEntries(f.items.map((i: any) => [i.id, i]));
@@ -224,10 +226,11 @@ test("a group and its member selected together move once", async () => {
   const [, groupId] = doc.structure({ op: "group", paths }, doc.version);
   assert.ok(groupId);
   const before = items(frameOf(doc));
-  const [, landed] = doc.moveAll([groupId!, "dot"], 4, 2, "fr955", "auto", doc.version);
+  // grouped, the two are `<group>.dot` and `<group>.card`
+  const [, landed] = doc.moveAll([groupId!, `${groupId}.dot`], 4, 2, "fr955", "auto", doc.version);
   assert.ok(landed);
   const after = items(frameOf(doc));
-  for (const id of ["dot", "card"]) assert.deepEqual(after[id].center, [before[id].center[0] + 4, before[id].center[1] + 2], id);
+  for (const id of [`${groupId}.dot`, `${groupId}.card`]) assert.deepEqual(after[id].center, [before[id].center[0] + 4, before[id].center[1] + 2], id);
 });
 
 test("drags through the requests", async () => {
@@ -274,16 +277,17 @@ function ids(doc: Document, block: string[] = ["elements"]): string[] {
   return Object.keys(data);
 }
 
+/** The element node with the qualified id `id`, else the first whose name is `id`. */
 function node(doc: Document, id: string): any {
-  const walk = (nodes: any[]): any => {
+  const walk = (nodes: any[], by: "id" | "name"): any => {
     for (const n of nodes) {
-      if (n.kind === "element" && n.id === id) return n;
-      const found = walk(n.children ?? []);
+      if (n.kind === "element" && n[by] === id) return n;
+      const found = walk(n.children ?? [], by);
       if (found) return found;
     }
     return null;
   };
-  return walk(doc.tree());
+  return walk(doc.tree(), "id") ?? walk(doc.tree(), "name");
 }
 
 test("add, duplicate, reorder, delete", async () => {
@@ -320,7 +324,8 @@ test("moves across layouts", async () => {
   const source = doc.tree().find((b) => b["label"] === "big: static" && (b["children"] as any[]).length > 0)!;
   const element = (source["children"] as any[])[0];
   doc.structure({ op: "move", path: element.path, block: ["layouts", "compact", "static"] }, doc.version);
-  assert.ok(ids(doc, ["layouts", "compact", "static"]).includes(element.id));
+  assert.ok(ids(doc, ["layouts", "compact", "static"]).includes(element.name));
+  assert.ok(node(doc, `layout_compact_static.${element.name}`) !== null, "the moved element's id is qualified by its new block");
 });
 
 test("group and ungroup select and restore", async () => {
@@ -409,7 +414,8 @@ test("a type that cannot be static is added to the sibling elements block instea
   }
   // a static type still goes where it was asked
   const shape = await structure({ op: "add", type: "rectangle", block: ["static"], before: "background" });
-  assert.deepEqual(Object.keys(dataOf(client.studio.document(doc.id)).static), [shape.select, "background"]);
+  assert.equal(shape.select, "static.new_rectangle");
+  assert.deepEqual(Object.keys(dataOf(client.studio.document(doc.id)).static), ["new_rectangle", "background"]);
 });
 
 test("a selection of several is deleted as one change", async () => {
@@ -487,7 +493,7 @@ test("each tree node knows its last line", async () => {
   if (lines.at(-1) === "") lines.pop();
   for (const block of doc.tree()) {
     for (const n of block["children"] as any[]) {
-      assert.ok(lines[n.line - 1]!.trim().startsWith(`${n.id}:`));
+      assert.ok(lines[n.line - 1]!.trim().startsWith(`${n.name}:`));
       const last = lines[n.end - 1]!;
       assert.ok(last.trim() && last.startsWith("    "));
       if (n.end < lines.length) assert.ok(!lines[n.end]!.startsWith("    "));
@@ -635,7 +641,7 @@ test("every live handle predicts the edit", async () => {
   assert.ok(checked > 0);
   assert.deepEqual(wrong, []);
   // the font size handles, every one listed as not live: a text in a font baked from a file, never a system or vector font
-  assert.ok(fontHandles.includes("examples/features/outline/face.yaml: clock") && fontHandles.includes("examples/showcase/face.yaml: hours"), fontHandles.join(", "));
+  assert.ok(fontHandles.includes("examples/features/outline/face.yaml: clock") && fontHandles.includes("examples/showcase/face.yaml: layout_digital.hours"), fontHandles.join(", "));
   assert.ok(!fontHandles.some((h) => h.endsWith("(live)")) && !fontHandles.some((h) => h.includes("system-fonts/")), fontHandles.join(", "));
 });
 
@@ -677,7 +683,11 @@ test("a text's font size handle writes its own font's size, or a shared font's w
 const PATTERNS = "examples/features/patterns/face.yaml";
 const BLADE = ["resources", "hand_sets", "vintage", "hour", "parts", "blade"];
 const flat = (nodes: any[]): any[] => nodes.flatMap((n) => [n, ...flat(n.children)]);
-const nodeAt = (doc: Document, id: string, kind = "element"): any => flat(doc.tree().flatMap((b) => b.children)).find((n) => n.kind === kind && n.id === id);
+/** The tree node with the qualified id `id`, or, for an element, the first whose name is `id`. */
+const nodeAt = (doc: Document, id: string, kind = "element"): any => {
+  const nodes = flat(doc.tree().flatMap((b) => b.children)).filter((n) => n.kind === kind);
+  return nodes.find((n) => n.id === id) ?? nodes.find((n) => n.name === id);
+};
 /** The entered frame's items by id, the entered element left out. */
 const partsOf = (frame: any): Record<string, any> => Object.fromEntries(frame.items.filter((i: any) => i.path).map((i: any) => [i.id, i]));
 /** A point of a part's frame on the screen: `origin` plus the point turned by `angle` degrees. */
@@ -685,7 +695,8 @@ const onScreen = ([ox, oy]: [number, number], angle: number, [x, y]: readonly [n
   const t = angle * Math.PI / 180, s = Math.sin(t), c = Math.cos(t);
   return [Math.floor(ox + x * c - y * s + 0.5), Math.floor(oy + x * s + y * c + 0.5)];
 };
-const handsOf = (doc: Document, id: string, device = "fr955"): PlacedHands => doc.analysis().resolved.get(device)!.items.find((p) => p.id === id) as PlacedHands;
+/** The placed hands element with the qualified id `id`, or the one named `id` in whatever group or layout holds it. */
+const handsOf = (doc: Document, id: string, device = "fr955"): PlacedHands => doc.analysis().resolved.get(device)!.items.find((p) => p.id === id || elementName(p.id) === id) as PlacedHands;
 const bladeOf = (doc: Document): ResolvedPolygonPart => handsOf(doc, "roman_hands").hour!.parts.find((p) => p.id === "blade") as ResolvedPolygonPart;
 
 test("the tree lists a hands element's hands and their parts, and a pattern's parts, by path with their lines", async () => {
@@ -737,7 +748,7 @@ test("the entered frame places a hands element's parts where its hands are drawn
   assert.deepEqual(frame.local, { element: enter, origin: [130, 130], radius: 1.3, angle: hour });
   assert.equal(hour, 304.5);
   // the items: the element itself, undrawn, and every hand's parts, nothing else
-  const element = frame.items.find((i: any) => i.id === "roman_hands")!;
+  const element = frame.items.find((i: any) => i.id === "layout_roman.roman_hands")!;
   assert.deepEqual([element.drawn, element.handles, element.path], [false, [], undefined]);
   const parts = partsOf(frame);
   assert.equal(Object.keys(parts).length + 1, frame.items.length);
@@ -766,11 +777,11 @@ test("the entered frame places a hands element's parts where its hands are drawn
     for (const handle of item.handles) assert.ok(handle.x >= x - 1 && handle.x <= x + w + 1 && handle.y >= y - 1 && handle.y <= y + h + 1, `${item.id} ${JSON.stringify(handle)}`);
   }
   // the ghost: the face still shows, dimmed, round the entered element, whose own pixels keep their colour
-  assert.deepEqual(frame.layers.map((l: any) => l.id), ["roman_hands"]);
+  assert.deepEqual(frame.layers.map((l: any) => l.id), ["layout_roman.roman_hands"]);
   const ghost = decodePng(Buffer.from(frame.frame.slice(frame.frame.indexOf(",") + 1), "base64"))!;
   const awake = decodePng(Buffer.from(plain.frame.slice(plain.frame.indexOf(",") + 1), "base64"))!;
   const at = (img: typeof ghost, x: number, y: number): number[] => [...img.pixels.subarray((y * img.width + x) * 4, (y * img.width + x) * 4 + 3)];
-  const numerals = plain.items.find((i: any) => i.id === "numerals")!;
+  const numerals = plain.items.find((i: any) => elementName(i.id) === "numerals")!;
   let lit = 0, dimmed = 0;
   for (let y = numerals.box[1]; y < numerals.box[1] + numerals.box[3]; y += 2) {
     for (let x = numerals.box[0]; x < numerals.box[0] + numerals.box[2]; x += 2) {
@@ -850,7 +861,7 @@ test("a hand part moved in the entered frame writes the delta turned back into t
   assert.ok(Math.abs(ldy - (-6 * Math.sin(hour * Math.PI / 180) - 4 * Math.cos(hour * Math.PI / 180))) < 1e-9);
   const [change, landed] = doc.drag(ring, { kind: "move", dx: 6, dy: -4 }, "fr955", "auto", doc.version);
   assert.ok(landed);
-  assert.equal(change.label, "move hour.ring of roman_hands by (+6, -4) px on fr955");
+  assert.equal(change.label, "move hour.ring of layout_roman.roman_hands by (+6, -4) px on fr955");
   const at = dataOf(doc).resources.hand_sets.vintage.hour.parts.ring.at;
   // the YAML: `at:` in %r, within the landing search's half pixel of the turned delta (1 %r is 1.3 px on fr955)
   const value = (raw: string): number => Number(raw.replace("%r", ""));
@@ -868,7 +879,7 @@ test("a hand part moved in the entered frame writes the delta turned back into t
   assert.deepEqual(three, { dy: "-32%r", dx: "10%r" });
   // every hand's part: the second hand at 6 degrees a second
   const [moved] = doc.drag("resources/hand_sets/vintage/second/parts/counterweight", { kind: "move", dx: 0, dy: -13 }, "fr955", "auto", doc.version, [0, 0, 15]);
-  assert.equal(moved.label, "move second.counterweight of roman_hands by (+0, -13) px on fr955");
+  assert.equal(moved.label, "move second.counterweight of layout_roman.roman_hands by (+0, -13) px on fr955");
   assert.deepEqual(dataOf(doc).resources.hand_sets.vintage.second.parts.counterweight.at, { dy: "16%r", dx: "-10%r" });
 });
 
@@ -878,7 +889,7 @@ test("a pattern tick moved in the entered frame lands where the copy is drawn", 
   const before = partsOf(doc.frame(frameKey({ device: "fr955", scale: 1, enter })))["static/hour_ticks/parts/tick"];
   const [change, landed] = doc.drag("static/hour_ticks/parts/tick", { kind: "move", dx: 0, dy: 5 }, "fr955", "auto", doc.version);
   assert.ok(landed);
-  assert.equal(change.label, "move tick of hour_ticks by (+0, +5) px on fr955");
+  assert.equal(change.label, "move tick of static.hour_ticks by (+0, +5) px on fr955");
   // copy 1 is drawn at 30 degrees: 5 px down the screen is 5 sin 30 across and 5 cos 30 along the tick's own frame
   const at = dataOf(doc).static.hour_ticks.parts.tick.at;
   const value = (raw: string): number => Number(raw.replace("%r", ""));
@@ -890,7 +901,7 @@ test("a pattern tick moved in the entered frame lands where the copy is drawn", 
   doc.drag("static/hour_ticks/parts/tick", { kind: "resize", key: ["size", "height"], delta: 4 }, "fr955", "auto", doc.version);
   assert.equal(dataOf(doc).static.hour_ticks.parts.tick.size.height, "15%r");
   const [turned] = doc.drag("static/segments/parts/segment", { kind: "turn", key: "start_angle", degrees: 10 }, "fr955", "auto", doc.version);
-  assert.equal(turned.label, "turn segment of segments.start_angle to 10° on fr955");
+  assert.equal(turned.label, "turn segment of static.segments.start_angle to 10° on fr955");
   assert.equal(dataOf(doc).static.segments.parts.segment.start_angle, "10deg");
   const [grown] = doc.drag("elements/week_dots/parts/dot", { kind: "resize", key: ["radius"], delta: 2 }, "fr955", "auto", doc.version);
   assert.equal(grown.label, "resize dot of week_dots.radius by +2 px on fr955");
@@ -907,7 +918,7 @@ test("a vertex drag on a mirror: x part keeps the mirror, and a point on the axi
   const [ldx, ldy] = toLocal(4, -3, 304.5);
   const [change, landed] = doc.drag(BLADE.join("/"), { kind: "vertex", index: 1, dx: 4, dy: -3 }, "fr955", "auto", doc.version);
   assert.ok(landed);
-  assert.equal(change.label, "move vertex 1 of hour.blade of roman_hands by (+4, -3) px on fr955");
+  assert.equal(change.label, "move vertex 1 of hour.blade of layout_roman.roman_hands by (+4, -3) px on fr955");
   const after = bladeOf(doc).points;
   const moved: [number, number] = [roundHalfAway(before[1]![0] + ldx), roundHalfAway(before[1]![1] + ldy)];
   // the listed point moved by the turned delta, its reflection with it, the other pair untouched

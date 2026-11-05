@@ -53,12 +53,12 @@ async function entered(s: Session, enter: Path): Promise<Entered> {
   };
 }
 
-/** The tree node whose path joined with "/" is `id`, or whose id it is. */
+/** The tree node whose path joined with "/" is `id`, whose qualified id it is, or else whose name it is. */
 function nodeOf(doc: Summary, id: string): { path: Path; line: number; end: number } {
-  const all: { id: string; path: Path; line: number; end: number; children: unknown[] }[] = [];
+  const all: { id: string; name: string; path: Path; line: number; end: number; children: unknown[] }[] = [];
   const walk = (list: Summary["tree"][number]["children"]): void => list.forEach((n) => { all.push(n); walk(n.children); });
   doc.tree.forEach((b) => walk(b.children));
-  const found = all.find((n) => n.path.join("/") === id || n.id === id);
+  const found = all.find((n) => n.path.join("/") === id || n.id === id) ?? all.find((n) => n.name === id);
   assert.ok(found, `${id} is not in the tree`);
   return found;
 }
@@ -147,7 +147,7 @@ h.test("showcase: the vintage set entered from Layers, the hour blade's vertex d
   const [dx, dy] = [6, -4];
   let after = await dragFree(s, p, { x: vertex.x, y: vertex.y }, dx, dy);
   assert.notEqual(after.version, base.version, `the vertex drag was not written: ${(await s.toastsSince(0)).join(" | ")}`);
-  assert.match(after.history.undo ?? "", /^move vertex 1 of hour\.blade of roman_hands by \(\+6, -4\) px on fenix8solar47mm$/, after.history.undo ?? "");
+  assert.match(after.history.undo ?? "", /^move vertex 1 of hour\.blade of layout_roman\.roman_hands by \(\+6, -4\) px on fenix8solar47mm$/, after.history.undo ?? "");
   const diff = diffLines(base.text, after.text);
   assert.equal(diff.length, 2, `one point line changes: ${diff.join(" ; ")}`);
   const moved = point(linesOf(after, bladeId), 1);
@@ -195,7 +195,7 @@ h.test("patterns: hour_ticks entered and its tick moved in the copy's frame; cou
   const [dx, dy] = [5, 3];
   let after = await dragFree(s, p, from, dx, dy);
   assert.notEqual(after.version, base.version, `the tick's move was not written: ${(await s.toastsSince(0)).join(" | ")}`);
-  assert.match(after.history.undo ?? "", /^move tick of hour_ticks by \(\+5, \+3\) px on fenix8solar47mm$/, after.history.undo ?? "");
+  assert.match(after.history.undo ?? "", /^move tick of static\.hour_ticks by \(\+5, \+3\) px on fenix8solar47mm$/, after.history.undo ?? "");
   const diff = diffLines(base.text, after.text);
   assert.equal(diff.length, 2, `the tick's line alone changes: ${diff.join(" ; ")}`);
   const line = diff.find((l) => l.startsWith("+")) ?? "";

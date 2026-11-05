@@ -76,7 +76,8 @@ for (const device of TARGETS) {
 
   test(`a polar move rewrites angle and radius, ${device}`, () => {
     const v = view(ALIGN, read(ALIGN), device);
-    for (const element of ["ne_card", "se_card", "nw_card", "top_accent"]) {
+    // the static: block's elements, by their qualified ids
+    for (const element of ["static.ne_card", "static.se_card", "static.nw_card", "static.top_accent"]) {
       const converted = move(v, element, 4, 3);
       assert.ok(converted.landed, element);
       const data = at(new SpanIndex(converted.patch.text).data, [...v.authorPath(element), "at"]) as Map<string, Data>;
@@ -128,10 +129,10 @@ test("a move keeps the author's unit", () => {
 
 test("an extent cannot shrink below one pixel", () => {
   const v = view(ALIGN, read(ALIGN), "fr955");
-  assert.equal((v.placed("ne_dot") as unknown as { radius: number }).radius, 1);
-  assert.throws(() => resize(v, "ne_dot", ["radius"], -4), refused(/smaller than 1 px/));
-  assert.throws(() => resize(v, "ne_dot", ["radius"], -1), refused(/smaller than 1 px/));
-  assert.ok(resize(v, "ne_dot", ["radius"], 2).landed);
+  assert.equal((v.placed("static.ne_dot") as unknown as { radius: number }).radius, 1);
+  assert.throws(() => resize(v, "static.ne_dot", ["radius"], -4), refused(/smaller than 1 px/));
+  assert.throws(() => resize(v, "static.ne_dot", ["radius"], -1), refused(/smaller than 1 px/));
+  assert.ok(resize(v, "static.ne_dot", ["radius"], 2).landed);
 });
 
 test("a polygon moves by every point, and the static block is not an element", () => {
@@ -149,7 +150,7 @@ test("a group and its child move", () => {
   const rings = "examples/features/rings/face.yaml";
   for (const device of TARGETS) {
     const v = view(rings, read(rings), device);
-    for (const element of ["heart_rate", "heart_value"]) assert.ok(move(v, element, -2, 3).landed, `${device} ${element}`);
+    for (const element of ["heart_rate", "heart_rate.heart_value"]) assert.ok(move(v, element, -2, 3).landed, `${device} ${element}`);
   }
 });
 

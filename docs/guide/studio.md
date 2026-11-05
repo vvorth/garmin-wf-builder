@@ -397,10 +397,16 @@ it is kept and shown as an error on its line.
 
 ### Properties
 
-Its own id, at the top, renames the same way a colour's name does: click
+Its own name, at the top, renames the same way a colour's name does: click
 it, type the new one, Enter. Nothing else in the format names an element
-by its id, so this only ever changes the one YAML key; a name already
-used by a sibling (names need only be unique within their own mapping) is refused.
+by its key, so this only ever changes the one YAML key; a name a sibling
+in the same block already has is refused, and nothing else is (another
+group's child, or an element of the `static:` block, may share it). The
+name is what the Layers tree shows; an element inside a group is told
+apart by its id, the name qualified by the groups around it (`top.label`
+for `elements: top: children: label:`), which the row's and the title's
+tooltip show and the diagnostics name it by. Renaming a group renames
+every element inside it that way, and the selection follows.
 
 Below it, every key the format has for the element's type, generated from
 the format's schema, so there is nothing a key can hold that the panel

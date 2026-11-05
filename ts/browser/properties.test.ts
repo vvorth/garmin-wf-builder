@@ -13,10 +13,10 @@ const h = await suite(import.meta.url);
 
 /** The element `id`'s own lines of the text. */
 function lines(doc: Summary, id: string): string {
-  const nodes: { id: string; line: number; end: number }[] = [];
+  const nodes: { id: string; name: string; line: number; end: number }[] = [];
   const walk = (list: Summary["tree"][number]["children"]): void => list.forEach((n) => { nodes.push(n); walk(n.children); });
   doc.tree.forEach((b) => walk(b.children));
-  const node = nodes.find((n) => n.id === id);
+  const node = nodes.find((n) => n.id === id) ?? nodes.find((n) => n.name === id);
   assert.ok(node, `${id} is not in the tree`);
   return doc.text.split("\n").slice(node.line - 1, node.end).join("\n");
 }

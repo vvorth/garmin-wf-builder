@@ -13,10 +13,10 @@ const h = await suite(import.meta.url);
 
 /** The element `id`'s own lines of `text`. */
 function elementLines(doc: Summary, id: string): string {
-  const nodes: { id: string; line: number; end: number }[] = [];
+  const nodes: { id: string; name: string; line: number; end: number }[] = [];
   const walk = (list: Summary["tree"][number]["children"]): void => list.forEach((n) => { nodes.push(n); walk(n.children); });
   doc.tree.forEach((b) => walk(b.children));
-  const node = nodes.find((n) => n.id === id);
+  const node = nodes.find((n) => n.id === id) ?? nodes.find((n) => n.name === id);
   assert.ok(node, `${id} is not in the tree`);
   return doc.text.split("\n").slice(node.line - 1, node.end).join("\n");
 }
@@ -190,7 +190,7 @@ h.test("showcase: each type selects and moves; a thin bar's centre moves it; a g
     if (id === "steps_bar") {
       // 156x4 px: a press on its middle is a move, not a resize
       assert.ok(!diff.some((l) => /size:|height:/.test(l)), `the thin bar was resized: ${diff.join(" ; ")}`);
-      assert.match(after.history.undo ?? "", /^move steps_bar by /);
+      assert.match(after.history.undo ?? "", /^move layout_digital\.steps_bar by /, "the label names the element by its qualified id");
     }
     await undoBack(s, before, `moving ${id}`);
   }

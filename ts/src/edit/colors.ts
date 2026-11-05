@@ -118,7 +118,7 @@ export function users(index: SpanIndex, name: string, prefix = "color."): Path[]
 
 /** Who uses `color.<name>` (or `<prefix><name>`), as the author knows them: the id of the element holding each reference, else the reference's dotted path. */
 export function userNames(index: SpanIndex, name: string, prefix = "color."): string[] {
-  const elements = new Map(index.elements().map((e) => [pathKey(e.path), e.name]));
+  const elements = new Map(index.elements().map((e) => [pathKey(e.path), e.id]));
   const out: string[] = [];
   for (const path of users(index, name, prefix)) {
     let holder: string | undefined;

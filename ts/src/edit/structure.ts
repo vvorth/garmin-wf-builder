@@ -16,9 +16,13 @@
 // them.
 //
 // Pasting puts elements copied as text (one face's, or another's) into a
-// block the same way, as written: an id the face already has is renamed,
-// and anything else the copy needs (a colour, a font, a slot) is the
-// gate's to refuse.
+// block the same way, as written: a pasted element whose name a sibling in
+// the destination already has is renamed, and anything else the copy needs
+// (a colour, a font, a slot) is the gate's to refuse.
+//
+// A name need only be unique among its siblings (the element's id is the
+// key qualified by its groups, `Entry.id`), so every check here reads the
+// destination block's keys (`SpanIndex.siblingNames`) and nothing wider.
 import * as catalog from "../catalog.ts";
 import * as kinds from "../kinds/index.ts";
 import { deepCopy, quoted, splitlines } from "../py.ts";
@@ -94,8 +98,9 @@ export function newFields(index: SpanIndex, type: string, choice?: string | null
   return fields;
 }
 
-export function freshId(index: SpanIndex, base: string): string {
-  const taken = index.elementIds();
+/** `base`, or the first of `base2`, `base3`, ... that no sibling in `block` has. */
+export function freshId(index: SpanIndex, base: string, block: Path): string {
+  const taken = index.siblingNames(block);
   for (let n = 1; ; n++) {
     const candidate = n === 1 ? base : `${base}${n}`;
     if (!taken.has(candidate)) return candidate;
@@ -221,6 +226,9 @@ function moveTo(index: SpanIndex, path: Path, block: Path, before: string | null
   if (pathKey(block) === pathKey(path.slice(0, -1))) throw new Refused(`${entry.name} is already in ${dotted(block)}`);
   if (pathKey(block.slice(0, path.length)) === pathKey(path)) throw new Refused(`${entry.name} cannot move into itself`);
   if (before === entry.name) throw new Refused(`${entry.name} cannot go before itself`);
+  if (index.siblingNames(block).has(entry.name)) {
+    throw new Refused(`${dotted(block)} already has an element called ${entry.name}; rename one of them first`);
+  }
   const [lines, column] = segmentOf(index, entry);
   const value = deepCopy(dataAt(index.data, path));
   const removed = removeOn(index, path);
@@ -238,8 +246,8 @@ function addOn(index: SpanIndex, type: string, block: Path, before: string | nul
   elementId: string | null, choice: string | null): Patch {
   checkBlock(index, block);
   const fields = newFields(index, type, choice);
-  const newId = elementId || freshId(index, `new_${type}`);
-  if (index.elementIds().has(newId)) throw new Refused(`there is already an element called ${newId}`);
+  const newId = elementId || freshId(index, `new_${type}`, block);
+  if (index.siblingNames(block).has(newId)) throw new Refused(`there is already an element called ${newId} in ${dotted(block)}`);
   const lines = `${keyText(newId)}:\n` + blockText(fields, 2);
   const text = pasteLines(index, block, lines, 0, before);
   const expected = withData(index);
@@ -260,13 +268,15 @@ function pasteText(index: SpanIndex, clip: string, block: Path, before: string |
   const source = new SpanIndex(wrapped);
   const tops = source.entries().filter((e) => e.path.length === 2);
   if (!tops.every((e) => isElement(source, e))) throw new Refused(NOT_ELEMENTS);
-  // every id the copy brings that the face has already is renamed; last
-  // first, so each rewrite leaves the positions before it, and a name the
-  // copy keeps is taken before an earlier one could be renamed to it
-  const taken = new Set(index.elementIds());
-  for (const e of [...source.elements()].sort((a, b) => b.key.start.index - a.key.start.index)) {
+  // every pasted element whose name a sibling in the destination has is
+  // renamed (what is inside one keeps its names: its siblings come with
+  // it); last first, so each rewrite leaves the positions before it, and a
+  // name the copy keeps is taken before an earlier one could be renamed to it
+  const siblings = index.siblingNames(block);
+  const taken = new Set([...siblings, ...tops.map((e) => e.name)]);
+  for (const e of [...tops].sort((a, b) => b.key.start.index - a.key.start.index)) {
     let name = e.name;
-    for (let n = 2; taken.has(name); n++) name = `${e.name}${n}`;
+    if (siblings.has(name)) for (let n = 2; taken.has(name); n++) name = `${e.name}${n}`;
     taken.add(name);
     if (name !== e.name) wrapped = wrapped.slice(0, e.key.start.index) + keyText(name) + wrapped.slice(e.key.end.index);
   }
@@ -290,8 +300,8 @@ function groupOn(index: SpanIndex, paths: Path[], groupId: string | null): Patch
     throw new Refused("only elements side by side in one block can be grouped");
   }
   entries.sort((a, b) => a.key.start.index - b.key.start.index);
-  const newId = groupId || freshId(index, "group");
-  if (index.elementIds().has(newId)) throw new Refused(`there is already an element called ${newId}`);
+  const newId = groupId || freshId(index, "group", block);
+  if (index.siblingNames(block).has(newId)) throw new Refused(`there is already an element called ${newId} in ${dotted(block)}`);
   const column = entries[0]!.key.start.column;
   let text = index.text;
   const siblings = index.entries().filter((e) => e.parent === entries[0]!.parent);
@@ -386,7 +396,7 @@ export function group(index: SpanIndex, paths: Path[], groupId: string | null = 
   return endedPatch(index, (i) => groupOn(i, paths, groupId));
 }
 
-/** Put the elements `clip` writes into `block`, before `before` or at its end, each id the face already has renamed with a number. */
+/** Put the elements `clip` writes into `block`, before `before` or at its end, each name a sibling there already has renamed with a number. */
 export function paste(index: SpanIndex, clip: string, block: Path = ["elements"], before: string | null = null): Patch {
   return endedPatch(index, (i) => pasteText(i, clip, block, before));
 }

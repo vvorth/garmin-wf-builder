@@ -68,7 +68,8 @@ export interface InspectorProps {
 /** Whether `ins` answers for the element at `path`. */
 const answersFor = (ins: Inspect, path: Path): boolean => ins.element.length === path.length && ins.element.every((step, i) => step === path[i]);
 
-// The selected element: its id (renamed in place), its type, the slot or
+// The selected element: its name (renamed in place; the qualified id is the
+// title's tooltip when the two differ), its type, the slot or
 // hand set it draws as the Face tab's own card, and every key the format
 // has for it as the generic form, edited where the editing context says. A
 // hand or a part is named with what it belongs to (`vintage › hour`,
@@ -102,8 +103,8 @@ export function Inspector({ doc, element, ins, target, vocab, onEdit, onReveal, 
   const frame = ins.context?.frame ?? "awake";
   return html`<div class="inspector">
     <div class="ins-head">
-      <${InlineName} value=${ins.id} title="click to rename"
-        onRename=${async (n: string) => { if (await onEdit({ op: "rename", path: ins.element, to: n })) onSelect(n); }} />
+      <${InlineName} value=${ins.name} title=${ins.id === ins.name ? "click to rename" : `${ins.id}: click to rename`}
+        onRename=${(n: string) => onEdit({ op: "rename", path: ins.element, to: n })} />
       <span class="dim">${ins.type}</span>
       ${frame === "aod" ? html`<span class="frame-note" title="the always-on frame: the keys the element restyles there are written to its aod: block; the others are edited in the awake frame">AOD frame</span>` : null}
     </div>

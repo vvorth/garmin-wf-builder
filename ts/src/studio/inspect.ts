@@ -27,6 +27,7 @@
 // (`ir/builder/aod.ts`): the element's own block, else the nearest ancestor
 // group's, else `defaults: {aod:}` for `visible` and `dim`, else the awake
 // value.
+import { elementIdOfPath } from "../element_ids.ts";
 import { BASE_API_LEVEL } from "../build.ts";
 import * as catalog from "../catalog.ts";
 import * as complications from "../complications.ts";
@@ -351,9 +352,10 @@ function cascadeOf(index: SpanIndex, element: Path, data: Map<unknown, unknown>,
   for (let p = element; p.length >= 4 && p[p.length - 2] === "children"; p = p.slice(0, -2)) {
     const parent = p.slice(0, -2);
     const node = dataAt(index.data, parent);
-    if (isMap(node) && node.has("type")) ancestors.push({ id: String(parent[parent.length - 1]), aod: block(node) });
+    if (isMap(node) && node.has("type")) ancestors.push({ id: elementIdOfPath(parent) ?? String(parent[parent.length - 1]), aod: block(node) });
   }
-  const built = face?.walk().find((e) => e.id === String(element[element.length - 1]));
+  const elementId = elementIdOfPath(element);
+  const built = elementId === null ? undefined : face?.walk().find((e) => e.id === elementId);
   let hiddenBy = ancestors.find((a) => a.aod !== null && a.aod.get("visible") === false)?.id ?? null;
   if (built !== undefined && !built.aod_ancestor_hidden) hiddenBy = null;
   const nearest = ancestors.find((a) => a.aod !== null);
@@ -447,7 +449,8 @@ export function inspect(text: string, element: Path, device: Device | null, cont
   const index = indexFor(text);
   const data = dataAt(index.data, element);
   const out: Inspect = {
-    element: [...element], id: String(element[element.length - 1]), type: "", subject: "element", context: { ...context }, fields: [], unknown: [],
+    element: [...element], id: elementIdOfPath(element) ?? String(element[element.length - 1]), name: String(element[element.length - 1]),
+    type: "", subject: "element", context: { ...context }, fields: [], unknown: [],
     aod_keys: [], overrides: {}, overridden: [], parts: null,
     device: device?.id ?? null, shape: device?.shape ?? null, display: device?.displayClass ?? null, error: null,
   };
@@ -498,7 +501,7 @@ export function inspect(text: string, element: Path, device: Device | null, cont
       if (isMap(patch)) overrides[scope] = { selector: String(selector[1]), keys: mapping(patch) };
     }
   }
-  if (subject !== "element") return { ...out, id, type, subject, fields, unknown };
+  if (subject !== "element") return { ...out, id, name: id, type, subject, fields, unknown };
   return {
     ...out, type, fields, unknown, aod_keys: restyled, overrides,
     overridden: nonGeometryOverrides(index, element, data),

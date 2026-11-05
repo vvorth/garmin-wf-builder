@@ -87,7 +87,7 @@ const fractionOf = (e: JSX.TargetedDragEvent<HTMLDivElement>): number => {
   return r.height ? (e.clientY - r.top) / r.height : 0.5;
 };
 
-// An element's row: selected by its id, dragged as its path, entered by ✎
+// An element's row: shown by its name, selected by its qualified id, dragged as its path, entered by ✎
 // or a double-click when it has parts. Entered, its ✎ is a ✓ that leaves,
 // and every row outside it is dimmed (still a click away: picking one
 // leaves too).
@@ -113,7 +113,7 @@ function Row({ node, next, ctx, depth }: RowProps): VNode {
   return html`<li>
     <div class=${"item" + (selected ? " selected" : "") + (over ? ` drop-${over}` : "") + (entered ? " entered" : "") + (outside ? " outside" : "") +
                  (drawn && !anyDrawn(node, drawn) ? " undrawn" : "") + (hiddenRow ? " hidden-row" : "") + (ctx.lockedAll.has(node.id) ? " locked-row" : "")}
-         draggable="true" title=${`line ${node.line}`}
+         draggable="true" title=${node.id === node.name ? `line ${node.line}` : `${node.id}, line ${node.line}`}
          onClick=${(e: JSX.TargetedMouseEvent<HTMLDivElement>) => ctx.onSelect(node.id, e.shiftKey ? "range" : e.ctrlKey || e.metaKey)}
          onDblClick=${() => { if (enterable) ctx.onEnter(node.path); }}
          onDragStart=${(e: JSX.TargetedDragEvent<HTMLDivElement>) => {
@@ -123,7 +123,7 @@ function Row({ node, next, ctx, depth }: RowProps): VNode {
          onDragOver=${(e: JSX.TargetedDragEvent<HTMLDivElement>) => { e.preventDefault(); if (accepts(e)) setOver(zone(e).where); }}
          onDragLeave=${() => setOver(null)}
          onDrop=${(e: JSX.TargetedDragEvent<HTMLDivElement>) => { e.preventDefault(); setOver(null); dropped(e, ctx, zone(e).target); }}>
-      <span>${node.id}</span><span class="type">${node.type}</span>
+      <span>${node.name}</span><span class="type">${node.type}</span>
       ${node.z !== undefined ? html`<span class="z-badge" title=${`z: ${String(node.z)}: drawn by this number among its siblings before their order here`}>z ${String(node.z)}</span>` : null}
       ${enterable && entered ? html`<button class="done" aria-label=${`done editing the parts of ${node.id}`}
           title="Done: back to the whole face (Esc). Each change to a part is already saved as you make it"
@@ -164,19 +164,20 @@ function PartRow({ node, ctx, depth, owner, siblings }: RowProps): VNode {
            const path = droppedPath(e.dataTransfer ? e.dataTransfer.getData(PATH_TYPE) : "");
            if (path && movable) ctx.onPartDrop(path, node, fractionOf(e), siblings);
          }}>
-      <span>${node.id}</span><span class="type">${node.type}</span>
+      <span>${node.name}</span><span class="type">${node.type}</span>
     </div>
     ${node.children.length ? html`<ul class="tree">${inDrawOrder(node.children, ctx, depth + 1, owner)}</ul>` : null}
   </li>`;
 }
 
-// `children` as rows in draw order: each told the sibling drawn after it,
-// the row below it; a hand or a part under `owner`, the element they sit in.
+// `children` as rows in draw order: each told the name of the sibling drawn
+// after it, the row below it; a hand or a part under `owner`, the element
+// they sit in.
 // A search shows only the rows it leaves, but a drop still lands by the
 // real siblings.
 function inDrawOrder(children: readonly TreeNode[], ctx: Ctx, depth: number, owner: Path | null = null): VNode[] {
   return children.flatMap((c, i) => (ctx.shown && !ctx.shown.has(selectionId(c)) ? []
-    : [html`<${c.kind === "element" ? Row : PartRow} key=${selectionId(c)} node=${c} next=${children[i + 1]?.id ?? null}
+    : [html`<${c.kind === "element" ? Row : PartRow} key=${selectionId(c)} node=${c} next=${children[i + 1]?.name ?? null}
                                              siblings=${children} ctx=${ctx} depth=${depth} owner=${owner} />`]));
 }
 
@@ -243,7 +244,7 @@ export function Layers({ doc, vocab, selected, extra, drawn, entered = null, onS
   const add = (): void => {
     const block = selectedNode ? selectedNode.path.slice(0, -1) : ["elements"];
     const siblings = selectedNode ? siblingsOf(doc.tree, selectedNode.path) : [];
-    const next = selectedNode ? siblings[siblings.indexOf(selectedNode.id) + 1] || null : null;
+    const next = selectedNode ? siblings[siblings.indexOf(selectedNode.name) + 1] || null : null;
     onStructure({ op: "add", type, block, before: next, ...(needs ? { choice } : {}) });
     setType(""); setChoice("");
   };

@@ -74,10 +74,19 @@ export interface TreeBlock {
  * `needle`) and its id, or, for the list form, its index; such a part's
  * `id` is the generated `part1`, `part2`, .... A part is named by its
  * `path` in every request: parts of different hands may share names.
+ *
+ * An element's `id` is its qualified id, unique in the face: its YAML key
+ * qualified by the groups it sits in, joined with `.` (`top.label` for
+ * `elements: top: children: label:`; `static.ticks` for the `static:`
+ * block's; `layout_<name>.x` for a layout's), the same id the frame's items
+ * and layers, a selection, `hidden`, `enter` and a drag use. Its `name` is
+ * the key itself, unique among its siblings only: what the tree shows and
+ * a rename writes. A hand's or a part's `name` is its `id`.
  */
 export interface TreeNode {
   kind: "element" | "hand" | "part";
   id: string;
+  name: string;
   /** Its `type:` as written. */
   type: Value;
   path: Path;
@@ -394,7 +403,8 @@ export interface Handle {
 }
 
 /**
- * One element the frame places, in device pixels, or, in an entered frame,
+ * One element the frame places, in device pixels (`id` its qualified id,
+ * `TreeNode.id`), or, in an entered frame,
  * one part of the entered element: then `id` is the part's tree path joined
  * with "/" (what a drag names it by), `kind` the part's type, `path` its
  * tree path and `angle` the rotation it is drawn at, in degrees.
@@ -602,7 +612,10 @@ export interface PartsSummary {
  */
 export interface Inspect {
   element: Path;
+  /** An element's qualified id (`TreeNode.id`); a hand's, part's or font's key. */
   id: string;
+  /** An element's YAML key (`TreeNode.name`), what a rename writes; a hand's, part's or font's `id`. */
+  name: string;
   type: string;
   subject: "element" | "hand" | "part" | "font";
   /** The context the fields' effective values are read for. */
@@ -963,7 +976,7 @@ export interface FrameArgs extends DocArgs {
   picks?: string;
   /** The tree path of a `hands`, `pattern` or `style: needle` element to enter: the frame is then its parts' (`Frame.local`). */
   enter?: Path;
-  /** Elements, by id, the editor hides in its frame (with everything inside them): left out of the image and the layers, and listed undrawn. Never part of the face. */
+  /** Elements, by qualified id (`TreeNode.id`), the editor hides in its frame (with everything inside them): left out of the image and the layers, and listed undrawn. Never part of the face. */
   hidden?: string[];
   v?: number;
 }
@@ -1001,7 +1014,7 @@ export type PointGesture =
   | { kind: "remove_vertex"; index: number };
 
 /**
- * One element dragged (`element`: its id, or a part's tree path joined with
+ * One element dragged (`element`: its qualified id, or a part's tree path joined with
  * "/", the entered frame's item id), or several moved together
  * (`elements`). A part takes the `auto` and `all` scopes only: it has no
  * overrides. `time` is the frame's (`HH:MM` or `HH:MM:SS`), so a hand

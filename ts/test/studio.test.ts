@@ -230,8 +230,9 @@ test("a frame has an item and a layer per drawn element", async () => {
   const doc = studio.create(bundle("T", minimalText()), "new");
   const frame = doc.frame(frameKey({ device: "fr955", scale: 1 })) as any;
   assert.deepEqual([frame.width, frame.height], [260, 260]);
-  assert.deepEqual(frame.items.map((i: any) => i.id), ["background", "clock", "seconds"]);
-  assert.deepEqual(frame.layers.map((l: any) => l.id), ["background", "clock", "seconds"]);
+  // the static: block's element is `static.background`: the key qualified by the block, as every id is
+  assert.deepEqual(frame.items.map((i: any) => i.id), ["static.background", "clock", "seconds"]);
+  assert.deepEqual(frame.layers.map((l: any) => l.id), ["static.background", "clock", "seconds"]);
   assert.ok(frame.layers.every((l: any) => "ops" in l && !("image" in l)));
   const runs = frame.layers[1].ops.flatMap((op: any) => op.run ?? []);
   assert.ok(runs.length > 0, "the clock's text arrives as tiles");
