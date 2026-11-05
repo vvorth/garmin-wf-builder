@@ -10,7 +10,6 @@ back here.
 
 | Plan | Status |
 |---|---|
-| [37 phone-side settings](37-phone-settings.md): `settings.xml` derived from `config:` for a Store export, per device with the settings menu, one storage with the on-watch menu, `onSettingsChanged` | planned; D1–D6 decided |
 | [34 a curved slot](34-curved-slot.md): `rotate:` and `slot:` on `type: icon`, `curve:` on `type: data`, a group's `on_hold:` following its slot | in progress; slices 1–5 done, slice 6 built and not yet verified on a watch, D1–D8 decided |
 
 ## Built and deleted
@@ -52,3 +51,4 @@ records its own slices and decisions. Its commits are
 | 33 a full-featured editor | `git show 6ec6c61:docs/plans/33-full-editor.md` (commits `git log --grep "plan 33"` and the slice headings' hashes; built from `docs/research/34-full-editor.md`; ten format changes F1–F10, the editor rebuilt over its engine, the browser suite and the fixture device) |
 | 35 astronomy sources | `git show 59c1508:docs/plans/35-astronomy-sources.md` (commits `git log --grep "plan 35"` and 8bf069f, 641aa3c, f081cee, 1672d94, 59c1508: `date.month_number`, `time.utc_offset`, the catalogue's `call:`, `position.*` and `astro.*` in `WfbAstro.mc` with a host twin, built from `docs/research/39-position-and-astronomy.md`; the Solaria face rebuilt on them) |
 | 36 icon rules | `git show 8b0e778:docs/plans/36-icon-rules.md` (commits `git log --grep "plan 36"`: one `steps`/`table` rule per source in `icons.json` read by the compiler, the preview, the generated `IconGlyphs.<rule>Icon` choosers and the editor; `absent: hide | {icon:}` on `type: icon`; alarm, do-not-disturb, phone and moon-phase rules; `examples/features/status/`; the icon picker's "follows data" tab) |
+| 37 phone-side settings | `git show d9a6b9e:docs/plans/37-phone-settings.md` (commits `git log --grep "plan 37"`: `settings.xml`/`properties.xml` per settings-menu device, derived from `config:`, shared strings, `onSettingsChanged`, the `wfb export` phone-settings line; the §5 phone checks are still the user's) |
