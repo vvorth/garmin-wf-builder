@@ -1,0 +1,131 @@
+# Arc hand parts (docs/guide/analog-hands.md): `type: arc` inside a hand
+# set's `parts:` and inside a gauge's `needle:`.
+#
+# What this design exercises, none of it shown together anywhere else in
+# `examples/`:
+#
+# * **An off-axis arc part**: `classic`'s hour hand ends in a crescent, an
+#   `arc` whose centre sits at `{dy: -46%r}` and whose opening faces the
+#   axis. On the watch the centre turns like a circle part's and the start
+#   angle turns with the hand, in whole degrees (`dc.drawArc` takes no
+#   finer): the hour hand sits on a half degree every other minute, when
+#   its crescent is a half degree off its stem -- under a pixel.
+# * **An on-axis arc part**: the minute hand's `collar`, a ring segment
+#   about the axis straddling the blade, `at:` omitted.
+# * **A hand that is all arc**: `small_seconds` is one ring segment riding
+#   on its own axis; its angle is exact (a second is six whole degrees).
+# * **A date needle in the manner of a moon-tipped pointer**: `date_hand`,
+#   a `style: needle` gauge over `date.day`, whose `moon` is an `arc` that
+#   almost closes on itself. A needle's angle is any fraction of a degree,
+#   so its arc is up to half a degree off the blade.
+#
+# What is verified: this design builds warning-free through the real
+# `monkeyc` on all three targets, and `wfb preview` through every
+# hour-hand angle keeps every arc in one piece (docs/limitations.md). What
+# is NOT verified: what the seams look like on a watch; the simulator is
+# the authority on an arc's end pixels (docs/lore/rendering.md).
+#
+# Build it with:     ./wfb build examples/features/arc-hands/face.yaml
+# Preview it with:   ./wfb preview examples/features/arc-hands/face.yaml --time 10:09:42
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 5e1a9c3b-7d42-4f0e-9b6a-2c8f4d1e7a30
+  name: Feature Arc hands
+  version: 1.0.0
+
+build:
+  targets:
+    - fenix8solar47mm
+    - fenix8solar51mm
+    - fr955
+
+resources:
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+    gray: "#AAAAAA"
+    orange: "#FF5500"
+    cyan: "#00FFFF"
+
+  hand_sets:
+    classic:
+      hour:
+        color: color.white
+        parts:
+          stem: { type: rectangle, at: { dy: -18%r }, size: { width: 4%r, height: 40%r } }
+          # a crescent tip: the arc's opening (the 120deg it leaves out) faces the axis
+          crescent: { type: arc, at: { dy: -46%r }, radius: 10%r, thickness: 3px, start_angle: 240deg, sweep: 240deg }
+      minute:
+        color: color.white
+        parts:
+          blade: { type: polygon, mirror: x, points: [{ dx: -1.5%r, dy: 6%r }, { dx: -1.5%r, dy: -60%r }, { dy: -66%r }] }
+          # a ring segment about the axis, straddling the blade: no `at:`
+          collar: { type: arc, radius: 30%r, thickness: 4px, start_angle: -8deg, sweep: 16deg, color: color.cyan }
+          hub: { type: circle, radius: 3%r, color: color.gray }
+    small_seconds:
+      second:
+        color: color.orange
+        parts:
+          # a hand that is all arc
+          mark: { type: arc, radius: 16%r, thickness: 3px, start_angle: -5deg, sweep: 10deg }
+
+static:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.black
+  dial_ring:
+    type: arc
+    at: { anchor: center }
+    radius: 92%r
+    thickness: 3px
+    start_angle: 0deg
+    sweep: 360deg
+    color: color.gray
+  seconds_ring:
+    type: circle
+    filled: false
+    at: { anchor: center, dy: -45%r }
+    radius: 18%r
+    thickness: 1px
+    color: color.gray
+  date_ticks:
+    type: pattern
+    pattern: radial
+    at: { anchor: center, dy: 45%r }
+    count: 31
+    step_angle: 11.6129deg          # 348.387deg over 30 steps, the needle's own spacing
+    parts:
+      tick: { type: line, at: { dy: -22%r }, to: { dy: -20%r }, thickness: 1px, color: color.gray }
+    lint:
+      allow: [whole-degree]
+      reason: "31 ticks over 348.387deg cannot all land on whole degrees; a tick is a line, drawn exactly."
+
+elements:
+  small_secs:
+    type: hands
+    set: small_seconds
+    at: { anchor: center, dy: -45%r }
+    seconds: awake
+  date_hand:
+    type: gauge
+    style: needle
+    value: date.day - 1
+    max: 30
+    at: { anchor: center, dy: 45%r }
+    start_angle: 0deg
+    sweep: 348.387deg               # 31 days round a dial whose 31st is a step short of its 1st
+    color: color.orange
+    needle:
+      blade: { type: line, at: { dy: 3%r }, to: { dy: -13%r }, thickness: 2px }
+      moon: { type: arc, at: { dy: -17%r }, radius: 4%r, thickness: 2px, start_angle: 200deg, sweep: 320deg }
+      hub: { type: circle, radius: 1.5%r }
+  main_hands:
+    type: hands
+    set: classic
+    at: { anchor: center }

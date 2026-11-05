@@ -79,10 +79,12 @@ export function handPartConstants(partPrefix: string, owner: string, index: numb
     ];
   }
   if (part.shape === "arc") {
-    return [
-      [`${partPrefix}_RADIUS`, part.radius, `${owner}, part ${index}: an arc`],
-      [`${partPrefix}_THICKNESS`, part.thickness, "pen width; there is no filled-arc primitive"],
-    ];
+    const out: Constants = [];
+    // A pattern's arc, and a hand's at the axis, is centred on the frame's origin: no constants to turn.
+    if (!part.onAxis) out.push([`${partPrefix}_X`, part.x, `${owner}, part ${index}: an arc (its centre)`], [`${partPrefix}_Y`, part.y, ""]);
+    out.push([`${partPrefix}_RADIUS`, part.radius, part.onAxis ? `${owner}, part ${index}: an arc` : ""],
+      [`${partPrefix}_THICKNESS`, part.thickness, "pen width; there is no filled-arc primitive"]);
+    return out;
   }
   const out: Constants = [
     [`${partPrefix}_X`, part.x, `${owner}, part ${index}: a circle`],

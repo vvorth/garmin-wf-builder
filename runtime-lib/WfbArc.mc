@@ -26,10 +26,16 @@ module WfbArc {
         drawSpan(dc, cx, cy, radius, penWidth, startDegrees, swept);
     }
 
-    //! Draw a fixed span, used for a gauge's unfilled track.
+    //! Draw a fixed span, used for a gauge's unfilled track, a `type: arc`
+    //! and an arc part of a hand, a needle or a pattern.
+    //!
+    //! @param cx, cy `Numeric`, not `Number`: an arc part of a hand or a
+    //!        needle turns its centre about the axis, which lands on a
+    //!        `Float`, and `drawArc` truncates it toward zero exactly as
+    //!        `fillCircle` does a turned circle part's.
     function drawSpan(
         dc as Graphics.Dc,
-        cx as Number, cy as Number, radius as Number, penWidth as Number,
+        cx as Numeric, cy as Numeric, radius as Number, penWidth as Number,
         startDegrees as Float, sweepDegrees as Float
     ) as Void {
         if (radius <= 0) { return; }

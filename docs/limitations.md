@@ -69,9 +69,29 @@ awake` (the default) hides the second hand while asleep instead; `seconds:
 never` drops it entirely.
 
 **No sweep**: the face redraws at most once a second, same as everything
-else here. **Four primitives only** (`polygon`/`rectangle`/`line`/`circle`)
-— no rounded-rectangle, ellipse or arc hand parts, no bitmap hands, and no
-outlined polygon (the same "no `drawPolygon`" limit above). **Coordinates
+else here. **Five primitives only** (`polygon`/`rectangle`/`line`/`circle`/
+`arc`) — no rounded-rectangle or ellipse hand parts, no bitmap hands, and no
+outlined polygon (the same "no `drawPolygon`" limit above). **An arc part
+turns in whole degrees**: `dc.drawArc` takes whole degrees, so an arc's
+start angle on the watch is the author's plus the hand's angle, rounded
+half up (`WfbArc.drawSpan`), while the hand's polygons, lines and circles
+turn by the exact angle. The hour hand sits on a half degree every other
+minute, and a needle on any fraction, so an arc part then lags or leads
+the rest of its hand by up to half a degree: at a radius of 100 px that is
+under a pixel, and a sweep of the preview through every hour-hand angle
+found no part breaking apart and every arc keeping its pixel count within
+three pixels (`ts/test/arc-parts.test.ts` holds the shape of it). **Arcs
+that meet end to end are the one place the preview found breaks**: each
+arc's turned centre is truncated to whole pixels on its own, so chained
+bends that merely touch come apart by a pixel at some angles, with any pen
+and at whole degrees too. Overlapping each bend about 10° past its joints
+with a pen of 2 px or more held a serpentine of four to twelve bends
+together through every second and every half-degree hour angle; 1 px bends
+never held (`docs/guide/analog-hands.md`; the evidence is
+`docs/research/probes/arc-hand-parts/`). An arc's
+end pixels are the one piece of the preview not fitted to the simulator
+(`docs/lore/rendering.md`), so where an arc part meets another part, the
+simulator is the authority on the seam. **Coordinates
 resolve to whole pixels in the hand's own frame**, so a hand thinner than
 about 2 px may lose its taper. **Edges of a rotated polygon alias on a
 64-colour MIP panel** — `antialias:` is the lever, with the usual
@@ -854,7 +874,6 @@ are `Toybox.SensorHistory`-backed, which a watch face may not use (§1,
 | ADR 0008's check 2, **unsupported API for a targeted device**: a source-level extra function dependency | modules, fields and complication types are checked per device (`api-gated`, §3 below); `catalog.Source.requires`, the hook for a source whose read needs a function beyond its reader's, is honoured by `sourceUnavailable` in `ts/src/availability.ts` but set on no source, because none needs it today |
 | CI with real devices | CI runs on every pull request and push to `main` and `release` with no Garmin file: the type check and the fast suite's files that need no real device, on the fixture device `wfbtest` (`.github/workflows/check.yml`, `docs/development.md`), and a smoke test of the Docker image that generates and previews a face on `wfbtest` but compiles nothing (`tools/image-smoke-test.sh`). The files that name a real device, the browser suite and the slow suite (`npm run test:slow`) run only by hand, where the owner's device files are installed |
 | `seconds: always` (a second hand while asleep) | needs a full-frame buffer repainted every minute plus a per-second `onPartialUpdate` clip around the hand's own bounding box, a different buffer architecture from `static:`'s paint-once one |
-| `arc` hand parts | the start angle would have to rotate with the hand too |
 | Data-driven hand colours | a hand has no `absent:` to fall back through if the bound reading were absent |
 | 24-hour (GMT) hands; a minute hand that creeps with the seconds | not built |
 | Text on more than one line | a line break, tab or other control character in drawn text (`text:`, an `absent:` placeholder, a pattern's text part) is a build error on its line: a text is measured and previewed as one line. Each line is its own element |

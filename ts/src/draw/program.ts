@@ -81,6 +81,7 @@ export interface FontDrop { t: "FontDrop"; base: Num; valign: string; font: stri
 export const FontDrop = (base: Num, valign: string, font: string): FontDrop => ({ t: "FontDrop", base, valign, font });
 
 /** `WfbHands.<function>(clock)`: a hand's angle from the clock. */
+/** `WfbHands.<function>(clock)`: `hand`'s angle in radians, or in degrees when `function` ends in `Degrees`. */
 export interface HandAngle { t: "HandAngle"; function: string; hand: string }
 export const HandAngle = (fn: string, hand: string): HandAngle => ({ t: "HandAngle", function: fn, hand });
 

@@ -156,9 +156,12 @@ where the fraction is `value / max` clamped to 0–1 — the same mapping an
 `parts:`](analog-hands.md#analog-hands) takes (with `%` lengths besides,
 below): a mapping of parts keyed by
 id (a plain list is accepted as shorthand), each a `polygon`, `rectangle`,
-`line` or `circle`, authored **as they look at 12 o'clock** with the axis at
+`line`, `circle` or `arc`, authored **as they look at 12 o'clock** with the axis at
 the origin, so the tip sits at a negative `dy`; a symmetric blade lists one
-half with [`mirror: x`](analog-hands.md#symmetric-hands-mirror-x). A
+half with [`mirror: x`](analog-hands.md#symmetric-hands-mirror-x). An `arc`
+part turns in whole degrees (`dc.drawArc` takes no finer), so on a needle,
+whose angle is any fraction of a degree, it sits up to half a degree off
+the needle's other parts — see [Analog hands](analog-hands.md#analog-hands). A
 diagnostic names a part `<element>.needle.<id>`. A part with no `color:` takes
 the element's own, which may read data like any gauge colour; a part's
 own colour may not, as on a hand.

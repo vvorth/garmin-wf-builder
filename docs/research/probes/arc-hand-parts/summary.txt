@@ -1,0 +1,37 @@
+== hour hand: stem + off-axis crescent (white), on-axis halo (cyan) (720 frames)
+white_components: min 3.00 max 3.00 mean 3.00
+cyan_components: min 1.00 max 1.00 mean 1.00
+halo_px: min 24.00 max 27.00 mean 25.90
+crescent_px: min 156.00 max 159.00 mean 157.39
+halo_angle_error: min -2.71 max 2.21 mean -0.25
+crescent_axis_error: min -3.75 max 3.01 mean -0.26
+crescent_balance: min -6.00 max 5.00 mean 0.32
+frames with an unexpected component count: 0
+==   ... on a whole degree (even half-degrees) (360 frames)
+white_components: min 3.00 max 3.00 mean 3.00
+cyan_components: min 1.00 max 1.00 mean 1.00
+halo_px: min 24.00 max 27.00 mean 25.90
+crescent_px: min 156.00 max 159.00 mean 157.39
+halo_angle_error: min -2.21 max 2.21 mean 0.00
+crescent_axis_error: min -2.83 max 2.83 mean -0.01
+crescent_balance: min -6.00 max 5.00 mean -0.01
+==   ... on a half degree (odd half-degrees): the arc is rounded to the next whole degree (360 frames)
+white_components: min 3.00 max 3.00 mean 3.00
+cyan_components: min 1.00 max 1.00 mean 1.00
+halo_px: min 24.00 max 27.00 mean 25.90
+crescent_px: min 156.00 max 159.00 mean 157.39
+halo_angle_error: min -2.71 max 1.71 mean -0.50
+crescent_axis_error: min -3.75 max 3.01 mean -0.50
+crescent_balance: min -4.00 max 5.00 mean 0.66
+== minute hand: blade (white) + symmetric collar arc (cyan) (60 frames)
+white_components: min 2.00 max 2.00 mean 2.00
+cyan_components: min 1.00 max 1.00 mean 1.00
+collar_px: min 30.00 max 35.00 mean 32.53
+collar_angle_error: min -1.65 max 1.65 mean 0.00
+collar_balance: min -8.00 max 8.00 mean -0.20
+== date needle: line blade (white) + off-axis ring open toward the axis (cyan) (31 frames)
+white_components: min 1.00 max 1.00 mean 1.00
+cyan_components: min 1.00 max 1.00 mean 1.00
+moon_px: min 109.00 max 112.00 mean 110.32
+moon_balance: min -2.00 max 2.00 mean -0.06
+requested_deg_fraction: min -0.48 max 0.48 mean -0.00

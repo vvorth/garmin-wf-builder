@@ -3,22 +3,23 @@ import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { dedupAppend } from "../ir/builder/state.ts";
 import { type Element, type Expression, HandsElement } from "../ir/model.ts";
-import { type Placed, PlacedHands, ResolvedHand, type Resolver, rotatableParts } from "../layout.ts";
+import { type Placed, PlacedHands, ResolvedHand, type Resolver, turnedParts } from "../layout.ts";
 import { quoted, str } from "../py.ts";
 import { Box, roundPx as round } from "../units.ts";
 import { type Common, type ContrastSubject, ElementKind, register } from "./base.ts";
 import {
   AodDimmed, AodPart, AodPick, Assign, Blank, Call, Comment, Const, type DrawContext, HandAngle, If, Let, type Num, NumLocal,
-  NotSleeping, type Op, type Paint, Part, RingColor, SetColor,
+  NotSleeping, type Op, type Paint, RingColor, SetColor,
 } from "../draw/program.ts";
 import { colorCode } from "../draw/printer.ts";
 import { andList, constPrefix } from "../emit/monkeyc/common.ts";
 import * as lc from "../emit/monkeyc/layout_constants.ts";
-import type { RotatablePart } from "../layout.ts";
+import type { TurnedPart } from "../layout.ts";
+import { hasArcPart, needsTrig, turnedPart } from "./turned.ts";
 
 type Node = Map<DataKey, Data>;
 
-/** Each hand's `WfbHands` angle function, in drawing order. */
+/** Each hand's `WfbHands` angle function (radians; `Degrees` for the same angle in degrees), in drawing order. */
 const HAND_ANGLE_FUNCTIONS: readonly (readonly [string, string])[] = [["hour", "hourAngle"], ["minute", "minuteAngle"], ["second", "secondAngle"]];
 
 class HandsKind extends ElementKind<HandsElement> {
@@ -40,7 +41,7 @@ class HandsKind extends ElementKind<HandsElement> {
     for (const [name, hand] of handSet.hands()) {
       if (name === "second" && element.seconds === "never") continue; // not drawn
       const [parts, handReach] = r.resolveParts(hand.parts, `${element.id}.${name}.parts`, element.resolved_min_1px);
-      resolved.set(name, ResolvedHand.create({ parts: rotatableParts(parts, `${element.id}.${name}`) }));
+      resolved.set(name, ResolvedHand.create({ parts: turnedParts(parts, `${element.id}.${name}`) }));
       reach = Math.max(reach, handReach);
     }
     const box = new Box(cx - reach, cy - reach, 2 * reach, 2 * reach);
@@ -106,24 +107,30 @@ class HandsKind extends ElementKind<HandsElement> {
     if (ctx.ring !== null) stamp = [RingColor(), ctx.ring.width];
     else if (element.outline !== null) stamp = [AodDimmed(element, element.outline.color), element.outline.width];
     const ops: Op[] = [Let("cx", Const(`${prefix}_CX`, p.center[0])), Let("cy", Const(`${prefix}_CY`, p.center[1]))];
-    let declared = false;
+    let declared = false, degreesDeclared = false;
     for (const [handName, angleFn] of HAND_ANGLE_FUNCTIONS) {
       const hand = (p as unknown as Record<string, ResolvedHand | null>)[handName]!;
       if (hand === null) continue;
       const gated = handName === "second" && element.seconds === "awake";
       const angle = NumLocal("angle");
       const assign = (name: string, value: Num): Op => (declared ? Assign(name, value) : Let(name, value));
-      const body: Op[] = [
-        assign("angle", HandAngle(angleFn, handName)),
-        assign("sin", Call("Math.sin", [angle])),
-        assign("cos", Call("Math.cos", [angle])),
-      ];
-      const parts = hand.parts.map((part, index): [string, RotatablePart] => [`${prefix}_${handName.toUpperCase()}_${index}`, part]);
-      const pen = (partPrefix: string, part: RotatablePart): AodPick =>
+      const body: Op[] = [];
+      if (needsTrig(hand.parts)) { // a hand that is all arcs on the axis turns no point
+        body.push(assign("angle", HandAngle(angleFn, handName)), assign("sin", Call("Math.sin", [angle])), assign("cos", Call("Math.cos", [angle])));
+        declared = true;
+      }
+      if (hasArcPart(hand.parts)) {
+        // an arc part's start angle turns in whole degrees: the same clock angle, exactly, in degrees
+        const degreesFn = angleFn.replace("Angle", "Degrees");
+        body.push(degreesDeclared ? Assign("deg", HandAngle(degreesFn, handName)) : Let("deg", HandAngle(degreesFn, handName)));
+        degreesDeclared = true;
+      }
+      const parts = hand.parts.map((part, index): [string, TurnedPart] => [`${prefix}_${handName.toUpperCase()}_${index}`, part]);
+      const pen = (partPrefix: string, part: TurnedPart): AodPick =>
         AodPick(Const(`${partPrefix}_THICKNESS`, "thickness" in part ? part.thickness : 1), override);
       if (stamp !== null) {
         body.push(SetColor(stamp[0]));
-        for (const [partPrefix, part] of parts) body.push(Part(part, partPrefix, true, pen(partPrefix, part), { ring: stamp[1] }));
+        for (const [partPrefix, part] of parts) body.push(...turnedPart(part, partPrefix, pen(partPrefix, part), stamp[1]));
       }
       if (ctx.ring === null) {
         let current: string | null = null;
@@ -134,12 +141,11 @@ class HandsKind extends ElementKind<HandsElement> {
             body.push(SetColor(paint));
             current = code;
           }
-          body.push(Part(part, partPrefix, true, pen(partPrefix, part)));
+          body.push(...turnedPart(part, partPrefix, pen(partPrefix, part)));
         }
       }
       ops.push(Blank(), Comment(handName + (gated ? " -- seconds: awake" : "")));
       if (gated) ops.push(If(NotSleeping(), body)); else ops.push(...body);
-      declared = true;
     }
     return ops;
   }

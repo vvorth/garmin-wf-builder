@@ -191,7 +191,7 @@ the count. A negative `dy` stacks rows upwards; either step may be omitted
 combine. This is how a minute ring leaves room for the hour ticks without a
 second rule.
 
-**Parts** are the four hand primitives, plus `arc` and `text`:
+**Parts** are the five hand primitives (an `arc` here is always on the copy's origin), plus `text`:
 
 | `type:` | keys | per copy |
 |---|---|---|

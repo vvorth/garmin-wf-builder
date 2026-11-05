@@ -424,7 +424,7 @@ export class PlacedGauge extends Placed {
   garmin_direction = "ARC_CLOCKWISE";
   size: [number, number] = [0, 0];
   aod_thickness: number | null = null;
-  needle: RotatablePart[] = [];
+  needle: TurnedPart[] = [];
   /** The box the needle's `%` lengths measured against: a square of the parent box's smaller side. */
   part_frame: Box = HAND_FRAME_BOX;
   reach = 0.0;
@@ -528,8 +528,11 @@ export class ResolvedArcPart extends ResolvedPart {
 
   static create(init: Partial<ResolvedArcPart>): ResolvedArcPart { return make(ResolvedArcPart, init); }
 
+  /** Whether the arc's centre is the frame's origin, where its turned centre is the axis itself. */
+  get onAxis(): boolean { return this.x === 0 && this.y === 0; }
+
   ink(ox: number, oy: number, s: number, c: number): Bounds {
-    const [px, py] = transformed(0.0, 0.0, ox, oy, s, c);
+    const [px, py] = transformed(this.x, this.y, ox, oy, s, c);
     const pad = this.radius + this.thickness / 2.0;
     return [px - pad, py - pad, px + pad, py + pad];
   }
@@ -554,20 +557,21 @@ export class ResolvedTextPart extends ResolvedPart {
 }
 
 export type ResolvedHandPart = ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart | ResolvedArcPart | ResolvedTextPart;
+/** The parts `WfbGeom` turns or translates as one call each: everything but an arc (its own `WfbArc.drawSpan`) and text. */
 export type RotatablePart = ResolvedPolygonPart | ResolvedLinePart | ResolvedCirclePart;
+/** The parts a hand or a needle draws: the rotatable ones, and an arc whose centre and start angle turn with it. */
+export type TurnedPart = RotatablePart | ResolvedArcPart;
 
 /** `parts` as a hand's or needle's own, which the builder guarantees. */
-export function rotatableParts(parts: readonly ResolvedHandPart[], owner: string): RotatablePart[] {
+export function turnedParts(parts: readonly ResolvedHandPart[], owner: string): TurnedPart[] {
   return parts.map((part) => {
-    if (part instanceof ResolvedArcPart || part instanceof ResolvedTextPart) {
-      throw new Error(`${owner}: a ${part.shape} part cannot turn with a hand`);
-    }
+    if (part instanceof ResolvedTextPart) throw new Error(`${owner}: a ${part.shape} part cannot turn with a hand`);
     return part;
   });
 }
 
 export class ResolvedHand {
-  parts: RotatablePart[] = [];
+  parts: TurnedPart[] = [];
 
   static create(init: Partial<ResolvedHand>): ResolvedHand { return make(ResolvedHand, init); }
 }
@@ -1024,11 +1028,15 @@ export class Resolver {
       });
     }
     if (part.shape === "arc") {
+      const [x, y] = this.handPoint(part.at, frame);
       const radius = roundHalfAway(this.handExtent(part.radius, 0, effective, "radius", frame));
       const thickness = Math.max(1, roundHalfAway(this.handExtent(part.thickness, 1, effective, "thickness", frame)));
       const startAngle = (part.start_angle ?? new Angle(0.0)).degrees;
       const sweep = (part.sweep ?? new Angle(360.0)).degrees;
-      return ResolvedArcPart.create({ id: part.id, color: part.color, reach: radius + thickness / 2.0, radius, thickness, start_angle: startAngle, sweep });
+      const reach = hypot(x, y) + radius + thickness / 2.0;
+      return ResolvedArcPart.create({
+        id: part.id, color: part.color, reach, x: roundHalfAway(x), y: roundHalfAway(y), radius, thickness, start_angle: startAngle, sweep,
+      });
     }
     if (part.shape === "text") {
       const [x0, y0] = this.handPoint(part.at, frame);

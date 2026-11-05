@@ -638,7 +638,6 @@ function writtenPart(view: View, target: PartTarget): [Map<unknown, unknown>, nu
 function anchorsOf(part: ResolvedHandPart): [number, number][] {
   if (part.shape === "polygon") return part.points.map(([x, y]) => [x, y]);
   if (part.shape === "line") return [[part.x1, part.y1], [part.x2, part.y2]];
-  if (part.shape === "arc") return [[0, 0]];
   return [[part.x, part.y]];
 }
 
@@ -680,7 +679,9 @@ function movePart(view: View, target: PartTarget, dx: number, dy: number, scope:
     const goal = shifted(polygonPoints(before), ldx, ldy);
     return settle(view, view.index, keys, target.elementId, (p) => samePoints(polygonPoints(partAfter(view, target, p)[1]), goal));
   }
-  if (ir.shape === "arc") throw new Refused(`${target.name} is an arc part: it is centred on the axis and has no at: to move`);
+  if (ir.shape === "arc" && placed instanceof PlacedPattern) {
+    throw new Refused(`${target.name} is an arc part of a pattern: it is centred on the copy's origin and has no at: to move`);
+  }
   const goals: [number, number][] = [];
   const checks: ((anchors: [number, number][], after: AnyHandPart) => boolean)[] = [];
   if (part === "both" || part === "at") {

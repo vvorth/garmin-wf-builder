@@ -915,7 +915,7 @@ test("a part's keys are edited at its path: a point's dx, a point removed, the p
   // an arc part is centred on its copy's origin: it turns and resizes, and does not move
   const patterns = openExample(doc.studio, "examples/features/patterns/face.yaml");
   refusedAlone(patterns, [
-    [/centred on the axis and has no at: to move/, () => patterns.drag("static/segments/parts/segment", { kind: "move", dx: 1, dy: 0 }, "fr955", "auto", patterns.version)],
+    [/an arc part of a pattern: it is centred on the copy's origin and has no at: to move/, () => patterns.drag("static/segments/parts/segment", { kind: "move", dx: 1, dy: 0 }, "fr955", "auto", patterns.version)],
     [/is not a part/, () => patterns.drag("static/segments/parts/segment/radius", { kind: "move", dx: 1, dy: 0 }, "fr955", "auto", patterns.version)],
   ]);
 });

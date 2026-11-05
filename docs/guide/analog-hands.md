@@ -15,7 +15,7 @@ watch. Ticks and numerals around the dial are `pattern` elements, covered in
 |---|---|---|---|---|
 | `hand_sets:` | `resources:`, beside `fonts:`/`palette:` | named hand sets | — | declares hand shapes; a `type: hands` element places one on screen |
 | `hour:` / `minute:` / `second:` | inside a hand set | `{color?, parts}` | — | at least one required; always drawn hour, then minute, then second |
-| `parts` | a hand | 1–16 parts keyed by id, each a `polygon`\|`rectangle`\|`line`\|`circle` | — | drawn in document order — keys per type below; a plain list is accepted as shorthand |
+| `parts` | a hand | 1–16 parts keyed by id, each a `polygon`\|`rectangle`\|`line`\|`circle`\|`arc` | — | drawn in document order — keys per type below; a plain list is accepted as shorthand |
 | `color` | a hand, or a part | `color.<name>`, a literal, a conditional (no data) | — | a part with neither its own nor its hand's colour is an error |
 | `mirror` | a `polygon` part | `x` | — | `points` lists one half; the other is its reflection — see [Symmetric hands](#symmetric-hands-mirror-x) |
 | `set` | `type: hands` element | a `hand_sets:` entry's name | required | which set this element places |
@@ -63,8 +63,8 @@ layouts:
 |---|---|
 | ![analog dial](../screenshots/showcase-dial.png) | ![analog asleep](../screenshots/showcase-asleep.png) |
 
-The numerals stay upright as they go around the dial. Hands take four part
-types: `polygon`, `rectangle`, `line` and `circle`. The ticks and numerals
+The numerals stay upright as they go around the dial. Hands take five part
+types: `polygon`, `rectangle`, `line`, `circle` and `arc`. The ticks and numerals
 are in a `static:` block, so the watch draws them once and then copies them.
 
 ### Analog hands
@@ -115,7 +115,7 @@ A set has any of `hour:`, `minute:`, `second:`, and needs at least one — a
 set with only `second:` is a valid small-seconds subdial. Each hand is
 `{color?, parts}`: a mapping of 1 to 16 **parts, keyed by id** (`blade`,
 `hub`, `counterweight`, …), each a primitive (`polygon`/`rectangle`/`line`/
-`circle`, the four `Dc` calls this compiler can rotate — see the table
+`circle`/`arc`, the five `Dc` calls this compiler can turn — see the table
 below), drawn in document order. The id is a name like an element's (a
 letter or underscore, then letters, digits and underscores), unique within
 the hand: it is what a diagnostic calls the part
@@ -161,11 +161,37 @@ one `sin`/`cos` pair per hand and the `runtime-lib/WfbHands.mc` barrel.
 | `rectangle` | `at` (its centre, default the axis), `size`, `align` | **becomes a 4-point polygon at build time**, then as above | a rotated rectangle is a polygon |
 | `line` | `at` (start, default the axis), `to`, `thickness` (default 1px) | rotate both ends, `setPenWidth`, `drawLine` | end points rotate exactly |
 | `circle` | `at` (centre, default the axis), `radius`, `filled` (default true), `thickness` (only when `filled: false`), `align` | rotate the centre, `fillCircle`/`drawCircle` | a circle is its own rotation |
+| `arc` | `at` (centre, default the axis), `radius`, `thickness` (default 1px), `start_angle` (default 0deg), `sweep` (default 360deg) | rotate the centre, add the hand's angle to the start, `setPenWidth`, `drawArc` | an arc about a turned centre, turned, is an arc |
+
+An `arc` part is a stroke, like [`type: arc`](shapes.md#arc): `thickness:`
+is its pen width and `filled:` is an error (there is no filled arc). Its
+`start_angle:` and `sweep:` are read as the hand looks at 12 o'clock, in the
+format's clockwise-from-12 convention, and the hand's own angle is added on
+the watch. **An arc turns in whole degrees**, because `dc.drawArc` takes
+nothing finer: the hour hand sits on a half degree every other minute, and
+then its arc parts are a half degree behind or ahead of its polygons,
+lines and circles — under a pixel at any radius a watch has, and the
+preview sweeps clean (no part breaks up; see
+[`docs/limitations.md`](../limitations.md#there-is-no-rotated-primitive-draw-call-so-analog-hands-rotate-in-monkey-c)).
+The minute and second hands move in whole degrees, so their arcs are
+exact. A crescent-tipped hand is an off-axis `arc` whose opening faces the
+axis, as [`examples/features/arc-hands`](../../examples/features/arc-hands/face.yaml)
+shows; a ring segment riding on the axis (`at:` omitted) is a hand that
+is all arc.
+
+**Arcs that meet end to end must overlap.** `drawArc` truncates each
+arc's turned centre to whole pixels on its own, so two bends of a
+serpentine hand that merely touch land a pixel apart at some angles and
+the hand comes apart there. Sweep each bend about 10° past both of its
+joints (a 180° bend written as 200°, started 10° early) and give it a pen
+of 2 px or more: so written, a four-bend serpentine stays in one piece at
+every second and every half-degree of the hour hand in the preview, while
+butted 1 px bends come apart at most seconds whatever the overlap
+(`ts/test/arc-parts.test.ts` holds both). A hand takes at most 16 parts,
+which bounds the bends.
 
 A rounded rectangle (`corner_radius:`) and `ellipse` are rejected (no `Dc` call draws either
-rotated — approximate with a `polygon`), as is `arc` (its start angle would
-need to rotate with the hand too, which is not implemented yet — see
-[Not yet implemented](../limitations.md#2-not-implemented-yet)) and `text`/`icon` (a bitmap font
+rotated — approximate with a `polygon`), and so are `text`/`icon` (a bitmap font
 cannot rotate). `filled: false` is rejected on `polygon`/`rectangle` — there
 is no `drawPolygon`. A key a part's type does not read is an error, the
 same `SHAPE_GEOMETRY_KEYS` precedent the primitive elements use —
@@ -217,8 +243,8 @@ are symmetric about their own centre already. A pattern's and a needle's
 would otherwise inherit from its `type: hands` element — the one level
 deeper than `antialias:` that this key alone reaches (a part has no
 `antialias:` of its own). It governs exactly the `%`/`%r` lengths in the
-table above: a `rectangle` part's `size:`, a `line`/`circle`'s
-`thickness:`, a `circle`'s `radius:`. See [`min_1px:`](elements.md#min_1px--never-let-a-relative-length-round-to-nothing).
+table above: a `rectangle` part's `size:`, a `line`/`circle`/`arc`'s
+`thickness:`, a `circle`/`arc`'s `radius:`. See [`min_1px:`](elements.md#min_1px--never-let-a-relative-length-round-to-nothing).
 
 **Colours** take what a primitive's `color:` does — swatches, roles
 (`color.accent`, `color.data`, a scheme's roles), literal colours, and
@@ -369,8 +395,7 @@ CPU cost of the rotation. See [`docs/limitations.md`](../limitations.md).
 ## Not built yet
 
 Still open for [analog hands](#analog-hands): `seconds: always` (a second
-hand while asleep), `arc` hand parts, data-driven hand colours and 24-hour
-hands. `wfb new -t analog` starts a three-hand dial. A needle driven by a
+hand while asleep), data-driven hand colours and 24-hour hands. `wfb new -t analog` starts a three-hand dial. A needle driven by a
 reading rather than the clock is a [gauge
 needle](progress-and-graphs.md#gauge-needles), a `gauge` with `style:
 needle`, which authors its parts the same way. `outline:` on the `hands`
@@ -382,7 +407,8 @@ See [`docs/limitations.md`](../limitations.md) §2 for all of it.
 ## See also
 
 - [The editor](studio.md#the-face-tab) — the **Hand sets** list: each set drawn alone, its hands' colours, presets, rename with every `set:`, and its parts in the YAML tab.
-- [`examples/features/analog/face.yaml`](../../examples/features/analog/face.yaml) — two hand sets, an off-centre small-seconds subdial, all four part types and a `config:` colour role on a hand.
+- [`examples/features/analog/face.yaml`](../../examples/features/analog/face.yaml) — two hand sets, an off-centre small-seconds subdial, four of the five part types and a `config:` colour role on a hand.
+- [`examples/features/arc-hands/face.yaml`](../../examples/features/arc-hands/face.yaml) — `arc` parts: a crescent-tipped hour hand, a minute hand collared by a ring segment, and a date needle in the manner of a moon-tipped pointer.
 - [`examples/analog-custom/face.yaml`](../../examples/analog-custom/face.yaml) — a hand-tuned dial with a custom numeral font, hour numerals and date windows.
 - [Always-on display](always-on-display.md) — `aod:` on a `type: hands` element, applied uniformly to every part of every hand in the set.
 - [Patterns](patterns.md) — the ticks and numerals around a dial.

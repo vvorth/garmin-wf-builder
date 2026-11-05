@@ -160,6 +160,13 @@ export const HAND_ANGLES: ReadonlyMap<string, (hour: number, minute: number, sec
   ["hour", hourAngle], ["minute", minuteAngle], ["second", secondAngle],
 ]);
 
+/** `WfbHands.hourDegrees`/`minuteDegrees`/`secondDegrees`: the same angles in degrees, exact (a half or whole degree). */
+export const HAND_DEGREES: ReadonlyMap<string, (hour: number, minute: number, second: number) => number> = new Map([
+  ["hour", (hour, minute) => (((hour % 12) + 12) % 12 * 60 + minute) * 0.5],
+  ["minute", (_hour, minute) => minute * 6.0],
+  ["second", (_hour, _minute, second) => second * 6.0],
+]);
+
 /** Monkey C `/` on two `Number`s: truncates toward zero. */
 function wholeDiv(a: number, b: number): number {
   return Math.trunc(a / b);

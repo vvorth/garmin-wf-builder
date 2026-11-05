@@ -6,7 +6,7 @@ import type { Data, DataKey } from "../edit/yaml.ts";
 import * as expr from "../expr.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { type AnyHandPart, type Element, Expression, Gauge, HOLD_AUTO } from "../ir/model.ts";
-import { arcBox, type Placed, PlacedGauge, type Resolver, rotatableParts, strokePad } from "../layout.ts";
+import { arcBox, type Placed, PlacedGauge, type Resolver, strokePad, turnedParts } from "../layout.ts";
 import { formatG, isNumber, num, quoted, str } from "../py.ts";
 import { Angle, Box, IntBox, roundPx as round } from "../units.ts";
 import { type Common, type ContrastSubject, ElementKind, type LiveHandle, type LiveHandleInput, register } from "./base.ts";
@@ -14,7 +14,7 @@ import { resolveSlotReference } from "./data.ts";
 import {
   AodDimmed, AodPart, AodPick, AodRestyled, ArcProgress, ArcSpan, Assign, Bin, Blank, Call, Cmp, Comment, type Cond, Const, Conv,
   type DrawContext, FloatLit, For, Grown, If, Let, LetAutoScale, LetSlotPick, Lit, LocalsSet, NotPulsing, type Num, NumLocal,
-  NumPick, type Op, type Paint, PaintPick, Paren, Part, Present, Primitive, Read, RingColor, SetColor, Shifted,
+  NumPick, type Op, type Paint, PaintPick, Paren, Present, Primitive, Read, RingColor, SetColor, Shifted,
 } from "../draw/program.ts";
 import { flt } from "../draw/barrel.ts";
 import { colorCode } from "../draw/printer.ts";
@@ -22,7 +22,8 @@ import { article, constPrefix } from "../emit/monkeyc/common.ts";
 import * as lc from "../emit/monkeyc/layout_constants.ts";
 import { discPerimeterOffsets } from "../ir/model.ts";
 import { configDataIds, configField } from "../ir/naming.ts";
-import type { RotatablePart } from "../layout.ts";
+import type { TurnedPart } from "../layout.ts";
+import { hasArcPart, needsTrig, turnedPart } from "./turned.ts";
 import { radians } from "../py.ts";
 import { SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX } from "../sample.ts";
 import * as vocab from "../vocab.ts";
@@ -480,20 +481,23 @@ class Lowering {
     const element = this.element, placed = this.placed, prefix = this.prefix;
     const c = (s: string): Const => this.c(s);
     const angle = NumLocal("angle");
-    const ops: Op[] = [
-      Let("cx", c("CX")), Let("cy", c("CY")),
-      Let("angle", Bin("+", FloatLit(radians(placed.start_angle)), Bin("*", Paren(fraction), FloatLit(radians(placed.sweep))))),
-      Let("sin", Call("Math.sin", [angle])),
-      Let("cos", Call("Math.cos", [angle])),
-    ];
+    const ops: Op[] = [Let("cx", c("CX")), Let("cy", c("CY"))];
+    if (needsTrig(placed.needle)) { // a needle that is all arcs on the axis turns no point
+      ops.push(Let("angle", Bin("+", FloatLit(radians(placed.start_angle)), Bin("*", Paren(fraction), FloatLit(radians(placed.sweep))))),
+        Let("sin", Call("Math.sin", [angle])), Let("cos", Call("Math.cos", [angle])));
+    }
+    if (hasArcPart(placed.needle)) {
+      // an arc part's start angle turns in whole degrees: the same angle, in degrees
+      ops.push(Let("deg", Bin("+", FloatLit(placed.start_angle), Bin("*", Paren(fraction), FloatLit(placed.sweep)))));
+    }
     const asleep = placed.aod_thickness !== null ? Const(`${prefix}_AOD_THICKNESS`, placed.aod_thickness) : null;
-    const pen = (partPrefix: string, part: RotatablePart): AodPick =>
+    const pen = (partPrefix: string, part: TurnedPart): AodPick =>
       AodPick(Const(`${partPrefix}_THICKNESS`, "thickness" in part ? part.thickness : 1), asleep);
-    const parts = placed.needle.map((part, index): [string, RotatablePart] => [`${prefix}_NEEDLE_${index}`, part]);
+    const parts = placed.needle.map((part, index): [string, TurnedPart] => [`${prefix}_NEEDLE_${index}`, part]);
     if (this.stamp !== null) {
       const [paint, width] = this.stamp;
       ops.push(SetColor(paint));
-      for (const [partPrefix, part] of parts) ops.push(Part(part, partPrefix, true, pen(partPrefix, part), { ring: width }));
+      for (const [partPrefix, part] of parts) ops.push(...turnedPart(part, partPrefix, pen(partPrefix, part), width));
       if (this.ctx.ring !== null) return ops;
     }
     let current: string | null = null;
@@ -504,7 +508,7 @@ class Lowering {
         ops.push(SetColor(paint));
         current = code;
       }
-      ops.push(Part(part, partPrefix, true, pen(partPrefix, part)));
+      ops.push(...turnedPart(part, partPrefix, pen(partPrefix, part)));
     }
     return ops;
   }
@@ -547,7 +551,7 @@ class GaugeKind extends ElementKind<Gauge> {
       return PlacedGauge.create({
         element, box: disc.rounded(), center: [round(cx), round(cy)], depth,
         start_angle: element.start_angle!.degrees, sweep: element.sweep!.degrees,
-        needle: rotatableParts(parts, `${element.id}.needle`), reach, aod_thickness: r.aodExtent(element, "thickness", parent, 1),
+        needle: turnedParts(parts, `${element.id}.needle`), reach, aod_thickness: r.aodExtent(element, "thickness", parent, 1),
         part_frame: partFrame,
       });
     }

@@ -126,7 +126,8 @@ export function numValue(n: Num, aod = false, env: ReadonlyMap<string, LocalValu
     case "FontDrop": return value(n.base);
     case "HandAngle": {
       const unit = (u: string): number => Math.trunc(val(asNum(values.get(`time.${u}`) || 0)));
-      return flt(barrel.HAND_ANGLES.get(n.hand)!(unit("hour"), unit("minute"), unit("second")));
+      const table = n.function.endsWith("Degrees") ? barrel.HAND_DEGREES : barrel.HAND_ANGLES;
+      return flt(table.get(n.hand)!(unit("hour"), unit("minute"), unit("second")));
     }
     default: {
       // A chain of infix operators, printed bare: evaluate it the way Monkey

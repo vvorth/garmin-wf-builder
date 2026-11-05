@@ -593,9 +593,10 @@ export class CirclePart extends HandPart {
   static create(init: Partial<CirclePart>): CirclePart { return make(CirclePart, init); }
 }
 
-/** Pattern-only; always centred on the copy's own origin. */
+/** A stroked arc: on a hand or a needle centred at `at` (default the axis); in a pattern always on the copy's own origin. */
 export class ArcPart extends HandPart {
   get shape(): "arc" { return "arc"; }
+  at: Position = new Position();
   radius: Length | null = null;
   thickness: Length | null = null;
   start_angle: Angle | null = null;

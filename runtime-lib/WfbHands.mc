@@ -27,4 +27,21 @@ module WfbHands {
     function secondAngle(clock as System.ClockTime) as Float {
         return clock.sec * (Math.PI / 30.0);
     }
+
+    //! The same three angles in degrees, for an arc part: `dc.drawArc`
+    //! takes whole degrees, and a hand's angle is a whole or half degree
+    //! (hour) or a multiple of six (minute, second).  Converting the
+    //! radians back would land a half degree a hair either side of .5 in
+    //! `Float` and round it unpredictably; these are exact.
+    function hourDegrees(clock as System.ClockTime) as Float {
+        return ((clock.hour % 12) * 60 + clock.min) * 0.5;
+    }
+
+    function minuteDegrees(clock as System.ClockTime) as Float {
+        return clock.min * 6.0;
+    }
+
+    function secondDegrees(clock as System.ClockTime) as Float {
+        return clock.sec * 6.0;
+    }
 }

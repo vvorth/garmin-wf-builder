@@ -62,6 +62,7 @@ says what it is on the watch.
 | [`features/shapes/`](features/shapes/face.yaml) | every native `shape` primitive | [Shapes](../docs/guide/shapes.md) |
 | [`features/graph/`](features/graph/face.yaml) | `graph` styles (line, area, bars) and series | [Gauges and graphs](../docs/guide/progress-and-graphs.md) |
 | [`features/analog/`](features/analog/face.yaml) | `hand_sets:`, `type: hands`, a subdial, switched by style | [Analog hands](../docs/guide/analog-hands.md) |
+| [`features/arc-hands/`](features/arc-hands/face.yaml) | `arc` parts on hands and a needle: a crescent-tipped hour hand, a collared minute hand, a moon-tipped date pointer | [Analog hands](../docs/guide/analog-hands.md) |
 | [`features/patterns/`](features/patterns/face.yaml) | radial and linear `pattern` repeats | [Patterns](../docs/guide/patterns.md) |
 | [`features/grid/`](features/grid/face.yaml) | `pattern: grid` -- a month of dots in rows of 7 with today lit, a row of weekday initials, and a week strip whose bars are sized in `%` of their group | [Patterns](../docs/guide/patterns.md#grids) |
 | [`features/vector-text/`](features/vector-text/face.yaml) | vector (`face:`) fonts and `curve:` | [Fonts](../docs/guide/fonts.md), [Text](../docs/guide/text.md) |

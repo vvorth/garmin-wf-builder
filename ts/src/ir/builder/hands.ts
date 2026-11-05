@@ -21,6 +21,7 @@ export const HAND_PART_GEOMETRY_KEYS: KeyTable = new Map([
   ["rectangle", new Set(["at", "size", "align"])],
   ["line", new Set(["at", "to"])],
   ["circle", new Set(["at", "radius", "align"])],
+  ["arc", new Set(["at", "radius", "start_angle", "sweep"])],
 ]);
 const ALL_HAND_PART_GEOMETRY_KEYS = allKeys(HAND_PART_GEOMETRY_KEYS);
 
@@ -33,14 +34,11 @@ export const HAND_PART_NO_UNFILLED: ReadonlySet<string> = new Set(["polygon", "r
 /** `type:` values the hand-part schema accepts only so this message fires instead of an enum mismatch. */
 export const HAND_PART_REJECTED_SHAPES: ReadonlyMap<string, string> = new Map([
   ["ellipse", "no Dc call draws a rotated ellipse -- approximate it with 'polygon'"],
-  ["arc", "an arc part would need its start angle to rotate with the hand too, "
-    + "which is not implemented yet (docs/limitations.md) -- "
-    + "approximate a wedge with 'polygon', or use 'circle' for a disc"],
   ["text", "a bitmap font cannot rotate"],
   ["icon", "a bitmap font cannot rotate"],
 ]);
 
-/** A pattern template part: the hand vocabulary plus `arc` and `text`. */
+/** A pattern template part: the hand vocabulary plus `text`, its `arc` always on the copy's origin (no `at`). */
 export const PATTERN_PART_GEOMETRY_KEYS: KeyTable = new Map([
   ...HAND_PART_GEOMETRY_KEYS,
   ["arc", new Set(["radius", "start_angle", "sweep"])],
@@ -57,7 +55,7 @@ const HAND_PART_NO_ALIGNMENT_REASON: ReadonlyMap<string, string> = new Map([
     + "is no 'at:' to offset in the first place"],
 ]);
 
-/** Like `HAND_PART_REJECTED_SHAPES`, minus `arc` and `text`, which a pattern part can draw. */
+/** Like `HAND_PART_REJECTED_SHAPES`, minus `text`, which a pattern part can draw. */
 export const PATTERN_PART_REJECTED_SHAPES: ReadonlyMap<string, string> = new Map([
   ["ellipse", "no Dc call draws a rotated or translated ellipse -- approximate it with 'polygon'"],
   ["icon", "a bitmap font cannot rotate or translate through this loop"],
@@ -282,7 +280,7 @@ export class HandParts extends ConfigAxes {
     if (shape === "circle") {
       return CirclePart.create({ ...common, at, radius, thickness, filled, align, vertical_align: verticalAlign });
     }
-    if (shape === "arc") return ArcPart.create({ ...common, radius, thickness, start_angle: startAngle, sweep });
+    if (shape === "arc") return ArcPart.create({ ...common, at, radius, thickness, start_angle: startAngle, sweep });
     return TextPart.create({ ...common, at, align, vertical_align: verticalAlign, ...textFields! });
   }
 
@@ -394,11 +392,10 @@ export class HandParts extends ConfigAxes {
       code: "element", disc: "type", prefix: `${partWhere}: `, qualifier: `a ${noun} `, suffix: " part", extraNotes,
     });
     const filled = truthy(node.has("filled") ? node.get("filled") : true);
-    const thicknessAlways = isHand ? ["line"] : ["line", "arc"];
-    const thicknessOk = thicknessAlways.includes(shape) || (shape === "circle" && !filled);
+    const thicknessOk = shape === "line" || shape === "arc" || (shape === "circle" && !filled);
     if (node.has("thickness") && !thicknessOk) {
       const reason = shape === "circle" ? "a filled 'type: circle' part" : `a ${noun} 'type: ${shape}' part`;
-      const only = "'line'" + (!isHand ? " and 'arc'" : "");
+      const only = "'line' and 'arc'";
       this.bag.error("element", `${partWhere}: 'thickness' is not used by ${reason}`,
         this.doc.span(node, "thickness") ?? this.doc.span(node), {
           notes: shape === "circle"

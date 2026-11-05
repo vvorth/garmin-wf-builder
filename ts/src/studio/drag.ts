@@ -179,7 +179,7 @@ export function partGeometry(p: PartPlacement, owner: Placed, device: Device): [
     return [boxOf(part.ink(...t)), center, part.radius > 0 ? [{ kind: "size", key: ["radius"], axis: "x", gain: 1, x: hx, y: hy }] : []];
   }
   if (part.shape === "arc") {
-    const [cx, cy] = whole(t[0], t[1]);
+    const [cx, cy] = whole(...at(part.x, part.y));
     const frameAngle = Math.atan2(t[2], t[3]) * 180 / Math.PI;
     const start = part.start_angle + frameAngle;
     const handles: Handle[] = [];

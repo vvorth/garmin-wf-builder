@@ -25,7 +25,10 @@ or AOD-related has been observed on a watch or in the simulator.
   are the two places the watch does layout arithmetic (`WfbHands.mc`,
   `WfbGeom.mc`); baked pattern copies measured ~30× the memory
   (`docs/research/probes/pattern-cost/`). `docs/guide/elements.md`,
-  `shapes.md`, `analog-hands.md`, `patterns.md`.
+  `shapes.md`, `analog-hands.md`, `patterns.md`. An `arc` part of a hand
+  or a needle (its centre turned like a circle's, its start angle shifted
+  by the hand's angle in whole degrees through `WfbArc.drawSpan`), on or
+  off the axis; `examples/features/arc-hands/`.
 - **Placement and drawing** — `align:` everywhere (nine anchor names and
   compass aliases), `static:` blocks, `antialias:`, `visible:`,
   `monospace:`, `min_1px:`. `rotate:` on `type: icon`, the glyph baked

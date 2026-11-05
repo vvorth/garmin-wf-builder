@@ -3289,7 +3289,7 @@
       ]
     },
     "handPart": {
-      "description": "One primitive of a hand, in the hand's own frame: origin = the axis, +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points' and 'mirror'; rectangle reads 'at' (default the axis), 'size', 'corner_radius' is not read, and 'align'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false') and 'align'. 'filled: false' is rejected on polygon and rectangle.",
+      "description": "One primitive of a hand, in the hand's own frame: origin = the axis, +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points' and 'mirror'; rectangle reads 'at' (default the axis), 'size', 'corner_radius' is not read, and 'align'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false') and 'align'; arc reads 'at' (its centre, default the axis), 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' -- its centre turns with the hand like a circle's and its start angle turns with it too, in the whole degrees dc.drawArc takes. 'filled: false' is rejected on polygon and rectangle; 'filled' on an arc.",
       "type": "object",
       "required": [
         "type"
@@ -3297,7 +3297,7 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "description": "The four rotatable primitives are polygon/rectangle/line/circle. ellipse, arc, text and icon are recognised here only so the compiler can reject each with its own platform reason instead of a bare 'not one of ...'.",
+          "description": "The five turnable primitives are polygon/rectangle/line/circle/arc. ellipse, text and icon are recognised here only so the compiler can reject each with its own platform reason instead of a bare 'not one of ...'.",
           "enum": [
             "polygon",
             "rectangle",
@@ -3339,6 +3339,14 @@
         "radius": {
           "$ref": "#/$defs/handLength"
         },
+        "start_angle": {
+          "description": "'type: arc' only. Where the arc starts as the hand looks at 12 o'clock (12 o'clock = 0, clockwise); the hand's own angle adds to it on the watch. Default 0deg.",
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "description": "'type: arc' only. How far the arc spans, clockwise positive, default 360deg (a full ring) when omitted.",
+          "$ref": "#/$defs/angle"
+        },
         "filled": {
           "type": "boolean",
           "default": true
@@ -3358,7 +3366,7 @@
       }
     },
     "needlePart": {
-      "description": "One primitive of a gauge needle, in the needle's own frame, drawn pointing at 12 o'clock: origin = the axis (the gauge's 'at:'), +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Lengths are px, %r, or % of the smaller side of the box the gauge sits in. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points' and 'mirror'; rectangle reads 'at' (default the axis), 'size', 'corner_radius' is not read, and 'align'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false') and 'align'. 'filled: false' is rejected on polygon and rectangle.",
+      "description": "One primitive of a gauge needle, in the needle's own frame, drawn pointing at 12 o'clock: origin = the axis (the gauge's 'at:'), +x right, +y down (so the tip is at negative dy). 'anchor:' is rejected -- the axis is the anchor. Lengths are px, %r, or % of the smaller side of the box the gauge sits in. Only the keys the chosen 'type:' reads are accepted: polygon reads 'points' and 'mirror'; rectangle reads 'at' (default the axis), 'size', 'corner_radius' is not read, and 'align'; line reads 'at' (default the axis), 'to' and 'thickness' (default 1px); circle reads 'at' (default the axis), 'radius', 'filled' (default true), 'thickness' (only when 'filled: false') and 'align'; arc reads 'at' (its centre, default the axis), 'radius', 'thickness' (default 1px), 'start_angle' and 'sweep' -- its centre and start angle turn with the needle, the angle in the whole degrees dc.drawArc takes. 'filled: false' is rejected on polygon and rectangle; 'filled' on an arc.",
       "type": "object",
       "required": [
         "type"
@@ -3366,7 +3374,7 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "description": "The four rotatable primitives are polygon/rectangle/line/circle. ellipse, arc, text and icon are recognised here only so the compiler can reject each with its own platform reason instead of a bare 'not one of ...'.",
+          "description": "The five turnable primitives are polygon/rectangle/line/circle/arc. ellipse, text and icon are recognised here only so the compiler can reject each with its own platform reason instead of a bare 'not one of ...'.",
           "enum": [
             "polygon",
             "rectangle",
@@ -3407,6 +3415,14 @@
         },
         "radius": {
           "$ref": "#/$defs/partLength"
+        },
+        "start_angle": {
+          "description": "'type: arc' only. Where the arc starts as the needle looks at 12 o'clock (12 o'clock = 0, clockwise); the needle's own angle adds to it on the watch. Default 0deg.",
+          "$ref": "#/$defs/angle"
+        },
+        "sweep": {
+          "description": "'type: arc' only. How far the arc spans, clockwise positive, default 360deg (a full ring) when omitted.",
+          "$ref": "#/$defs/angle"
         },
         "filled": {
           "type": "boolean",

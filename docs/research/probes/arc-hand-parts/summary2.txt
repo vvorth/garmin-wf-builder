@@ -1,0 +1,110 @@
+== A. crescent hand, tip 130 px from the axis (arc r 26, pen 3) (720 frames)
+  arc_px: min 316 max 333 mean 330.65
+  arc_pieces: min 1 max 1 mean 1.00
+  stem_pieces: min 1 max 1 mean 1.00
+  touching: min 1 max 1 mean 1.00
+== A. crescent hand, tip 65 px from the axis (arc r 13, pen 3) (720 frames)
+  arc_px: min 156 max 159 mean 157.39
+  arc_pieces: min 1 max 1 mean 1.00
+  stem_pieces: min 1 max 1 mean 1.00
+  touching: min 1 max 1 mean 1.00
+== A. crescent hand, tip 32 px from the axis (arc r 6, pen 2) (720 frames)
+  arc_px: min 44 max 47 mean 45.37
+  arc_pieces: min 1 max 1 mean 1.00
+  stem_pieces: min 1 max 1 mean 1.00
+  touching: min 1 max 1 mean 1.00
+== B. needle, 31 steps over 348.387deg (days 1..31 shown) (31 frames)
+  moon_px: min 109 max 112 mean 110.32
+  moon_pieces: min 1 max 1 mean 1.00
+  ring_px: min 22 max 27 mean 25.13
+  ring_pieces: min 1 max 1 mean 1.00
+  blade_pieces: min 2 max 2 mean 2.00
+  off_whole_deg: min 0 max 0.48 mean 0.25
+== B. needle, 60 steps over 354deg (days 1..31 shown) (31 frames)
+  moon_px: min 109 max 111 mean 110.00
+  moon_pieces: min 1 max 1 mean 1.00
+  ring_px: min 23 max 27 mean 25.13
+  ring_pieces: min 1 max 1 mean 1.00
+  blade_pieces: min 2 max 2 mean 2.00
+  off_whole_deg: min 0 max 0 mean 0.00
+== B. needle, 60 steps over 360deg (days 1..31 shown) (31 frames)
+  moon_px: min 109 max 112 mean 110.26
+  moon_pieces: min 1 max 1 mean 1.00
+  ring_px: min 22 max 27 mean 24.94
+  ring_pieces: min 1 max 1 mean 1.00
+  blade_pieces: min 2 max 2 mean 2.00
+  off_whole_deg: min 0 max 0.49 mean 0.24
+== C. tiny arc r2 pen1 at the tip (720 frames)
+  px: min 6 max 7 mean 6.02
+  pieces: min 1 max 1 mean 1.00
+== C. tiny arc r3 pen2 full ring (720 frames)
+  px: min 36 max 36 mean 36.00
+  pieces: min 1 max 1 mean 1.00
+== C. 1-degree sweep at r 100 (720 frames)
+  px: min 3 max 6 mean 5.24
+  pieces: min 1 max 1 mean 1.00
+== C. 2-degree sweep at r 60 (720 frames)
+  px: min 3 max 6 mean 4.31
+  pieces: min 1 max 1 mean 1.00
+== C. 0.4-degree sweep (draws nothing) (720 frames)
+  px: min 0 max 0 mean 0.00
+  pieces: min 0 max 0 mean 0.00
+== C. wrapping start 350 sweep 20 (720 frames)
+  px: min 81 max 84 mean 82.50
+  pieces: min 1 max 1 mean 1.00
+== C. negative sweep -20 from 10 (720 frames)
+  px: min 81 max 84 mean 82.50
+  pieces: min 1 max 1 mean 1.00
+== C. start -370 (a turn and ten back) (720 frames)
+  px: min 81 max 84 mean 82.50
+  pieces: min 1 max 1 mean 1.00
+== C. even pen 4, r 50, 90 sweep (720 frames)
+  px: min 321 max 325 mean 321.08
+  pieces: min 1 max 1 mean 1.00
+== C. thick pen 9, r 40, 60 sweep (720 frames)
+  px: min 368 max 375 mean 370.84
+  pieces: min 1 max 1 mean 1.00
+== C. off the rim: r 30 at 125 px (720 frames)
+  px: min 30 max 276 mean 122.90
+  pieces: min 1 max 2 mean 1.79
+== C. off-axis sideways: at dx 20 (720 frames)
+  px: min 76 max 78 mean 76.04
+  pieces: min 1 max 1 mean 1.00
+== C. polar at: angle 30 radius 70 (720 frames)
+  px: min 102 max 105 mean 103.37
+  pieces: min 1 max 1 mean 1.00
+== C. full 360 off-axis ring (720 frames)
+  px: min 96 max 96 mean 96.00
+  pieces: min 1 max 1 mean 1.00
+== D1. a full-ring arc part vs an unfilled circle part, same centre, every 6 degrees (60 frames)
+  arc_px: min 96 max 96 mean 96.00
+  circle_px: min 84 max 84 mean 84.00
+  differing: min 98 max 98 mean 98.00
+== D2. an on-axis arc part at minute m vs a fixed type: arc at start+6m (7 frames)
+  minute: min 0 max 52 mean 24.57
+  differing: min 0 max 0 mean 0.00
+D3. overlay written: D-half-degree-overlay.png (red = whole-degree frame only, green = the next half-degree frame only, white = both)
+== E1. outline: {width: 2} round a crescent hand (ring pieces: 1 = the ring closes round the hand; 2 = stem and crescent ringed apart) (240 frames)
+  ring_px: min 592 max 732 mean 680.53
+  ring_pieces: min 2 max 2 mean 2.00
+  ink_pieces: min 2 max 2 mean 2.00
+== F. serpentine second hand, r 12, 4 bends, pen 2 (60 frames)
+  px: min 385 max 415 mean 403.53
+  pieces: min 1 max 3 mean 1.27
+   frames where the chain is not one piece: 8 (3, 14, 18, 29, 33, 44, 48, 59)
+== F. serpentine second hand, r 7, 7 bends, pen 1 (60 frames)
+  px: min 168 max 182 mean 176.53
+  pieces: min 1 max 7 mean 4.83
+   frames where the chain is not one piece: 58 (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, ...)
+== F. serpentine hour hand, r 12, 4 bends, pen 2 (half degrees) (720 frames)
+  px: min 380 max 420 mean 402.88
+  pieces: min 1 max 3 mean 1.38
+   frames where the chain is not one piece: 192 (7, 8, 9, 17, 18, 19, 23, 25, 26, 27, 28, 29, 36, 40, 42, 49, 55, 63, 65, 68, 70, 97, 111, 113, ...)
+== F. serpentine hour hand, r 7, 7 bends, pen 3 (half degrees) (720 frames)
+  px: min 520 max 586 mean 559.01
+  pieces: min 1 max 4 mean 1.56
+   frames where the chain is not one piece: 236 (2, 3, 4, 5, 6, 10, 11, 12, 14, 15, 16, 17, 20, 22, 27, 29, 30, 31, 38, 43, 45, 46, 47, 54, ...)
+== F. serpentine hour hand, r 4, 12 bends, pen 1 (half degrees) (720 frames)
+  px: min 159 max 177 mean 169.85
+  pieces: min 1 max 12 mean 7.78
+   frames where the chain is not one piece: 716 (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, ...)
