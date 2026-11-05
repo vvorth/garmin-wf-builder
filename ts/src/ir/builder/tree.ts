@@ -150,8 +150,10 @@ export class ElementTree extends StaticPass {
           if (visible === false) element.override_hidden.add(key);
           const picked = new Map<string, Expression>();
           for (const field of COLOR_FIELDS) {
+            const mine = own[field];
+            if (mine === null || mine === undefined) continue; // the own colour failed to compile: its error is reported, and the build fails
             const patch = patches.filter((p) => colors.get(p)?.has(field)).at(-1);
-            if (patch !== undefined && colors.get(patch)!.get(field)!.code !== own[field]!.code) picked.set(field, colors.get(patch)!.get(field)!);
+            if (patch !== undefined && colors.get(patch)!.get(field)!.code !== mine.code) picked.set(field, colors.get(patch)!.get(field)!);
           }
           if (picked.size === 0) continue;
           const signature = quoted(COLOR_FIELDS.map((field) => picked.get(field)?.code ?? null));

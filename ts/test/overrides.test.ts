@@ -101,3 +101,22 @@ test("a display: selector no target matches is the override-unreachable warning"
   checkOverrideSelectors(face(lcd), db.ids(), [db.get("venusq")], venu);
   assert.equal(venu.items.filter((d) => d.code === "override-unreachable" && d.message.includes("display:lcd")).length, 0);
 });
+
+test("an own colour that fails to compile beside a colour override is the colour's error, not a crash", () => {
+  // a scheme role with no style axis to select the scheme: the role is unbound, so the own colour fails
+  const design = MINIMAL.replace("elements:", `theme:
+  schemes:
+    dark: {label: Dark, colors: {ink: color.fg}}
+elements:`) + `
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: {anchor: center}
+    color: color.ink
+    overrides:
+      "display:amoled": {color: color.fg}
+`;
+  const messages = errors(design).map((d) => d.message);
+  assert.ok(messages.length > 0 && messages.some((m) => m.includes("ink")), messages.join("\n"));
+});
