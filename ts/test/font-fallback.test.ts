@@ -195,7 +195,7 @@ test("a curved text the fallback cannot draw fails under unsupported: error, nam
 test("font-unavailable offers fallback: to a font that has none, and says it cannot curve", () => {
   const bare = "      face: BionicSemiBold\n      size: 12%r\n";
   const upright = checked(design(bare, { targets: "fr255", curved: null })).find((d) => d.code === "font-unavailable")!;
-  assert.match(upright.notes.join("\n"), /give 'font.dial' a 'fallback: \{source: \.\.\.\}'/);
+  assert.match(upright.notes.join("\n"), /give 'font.dial' a 'fallback: auto' \(the free-font registry's stand-in for the face, named in the 'font-fallback' note\) or a 'fallback: \{source: <your file>\}'/);
   const curved = checked(design(bare + "      unsupported: hide\n", { targets: "fr255" }).replace("unsupported: hide\n    lint", "unsupported: error\n    lint"))
     .find((d) => d.code === "font-unavailable" && d.message.startsWith("rim"))!;
   assert.match(curved.notes.join("\n"), /a 'fallback:' on 'font.dial' would not draw this one/);

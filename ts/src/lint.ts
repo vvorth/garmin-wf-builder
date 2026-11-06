@@ -346,8 +346,9 @@ function fallbackSuggestion(font: string, spec: FontSpec, curve: Curve | null): 
   if (curve !== null) {
     return `a 'fallback:' on 'font.${font}' would not draw this one: a baked sheet draws upright text only, and 'curve:' needs the face`;
   }
-  return `or give 'font.${font}' a 'fallback: {source: ...}': a device without a usable face then draws upright text in it `
-    + "from a sheet baked from your own TrueType/OpenType file";
+  return `or give 'font.${font}' a 'fallback: auto' (the free-font registry's stand-in for the face, named in the `
+    + "'font-fallback' note) or a 'fallback: {source: <your file>}': a device without a usable face then draws upright "
+    + "text in it from a baked sheet";
 }
 
 function vectorFontFailureReason(device: Device, spec: FontSpec, curve: Curve | null): string {

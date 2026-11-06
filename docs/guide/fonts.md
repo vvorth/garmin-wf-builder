@@ -316,10 +316,12 @@ registry's Roboto Condensed Bold, the face the other two draw.*
   face, in the order written, that the registry knows, and bakes the
   registry's file for it: the very face where its file is free (Roboto and
   Roboto Condensed are Google's, and Garmin ships them unchanged, so the
-  sheet has the device's own letterforms), or a free face of similar look
-  for a proprietary one (Bionic is Garmin's own, and stands in as Roboto
-  Condensed Bold). The `font-fallback` note names the stand-in, whether it
-  is `exact`, the same `family` or a `substitute`, and its licence. `auto`
+  sheet has the device's own letterforms), or, for a proprietary face such
+  as Garmin's own Bionic, a free face of similar look. The `font-fallback`
+  note names the stand-in, whether it is `exact`, the same `family` or a
+  `substitute`, and its licence; the registry itself,
+  `ts/src/data/font-registry.json`, lists every face it knows and the
+  stand-in for each. `auto`
   never bakes Garmin's own font files, even where they are installed: the
   sheet ships inside the built app, and only a redistributable file may.
   The stand-ins are downloaded by `./tools/setup-env.sh` (or
