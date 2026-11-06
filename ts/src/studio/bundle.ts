@@ -3,9 +3,9 @@
 //
 // The format is a `.zip` with the face at its root (`face.yaml` by
 // convention) and its files beneath it, `assets/` by convention, or a plain
-// `.yaml` when the face references no file. The only file a design
-// references is a baked font's `resources.fonts.<name>.source`, relative to
-// the design.
+// `.yaml` when the face references no file. The only files a design
+// references are a baked font's `resources.fonts.<name>.source` and a `face:`
+// font's `resources.fonts.<name>.fallback.source`, relative to the design.
 //
 // Every path in a bundle is checked before anything is unpacked: no
 // absolute path, no `..`, no link, and the uncompressed sizes within limits.
@@ -79,6 +79,10 @@ export function references(text: string): Reference[] {
       const source = get(spec, "source");
       if (typeof source === "string") {
         out.push({ font: String(name), path: ["resources", "fonts", String(name), "source"], value: source, inside: inside(source) });
+      }
+      const fallback = get(get(spec, "fallback"), "source");
+      if (typeof fallback === "string") {
+        out.push({ font: String(name), path: ["resources", "fonts", String(name), "fallback", "source"], value: fallback, inside: inside(fallback) });
       }
     }
   }

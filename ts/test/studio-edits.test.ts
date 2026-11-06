@@ -11,7 +11,7 @@ import { indexFor, Refused } from "../src/edit/spans.ts";
 import { runDesign } from "../src/lint.ts";
 import { decodePng } from "../src/png.ts";
 import * as starters from "../src/starters.ts";
-import { bundle } from "../src/studio/bundle.ts";
+import { bundle, readUpload, references } from "../src/studio/bundle.ts";
 import { type Document, frameKey, LABEL_WIDTH, type Studio } from "../src/studio/document.ts";
 import { inspect, vocabulary } from "../src/studio/inspect.ts";
 import { Client, dataOf, db, newStudio, openExample, read, SHOWCASE, versionOf } from "./studio-client.ts";
@@ -1060,4 +1060,30 @@ test("a fonts: entry inspects as its own branch and its options are edited throu
   // each target's published faces come with the vocabulary, to suggest
   const devices = (await client.call("vocabulary", {})).json.devices;
   assert.ok(devices.find((d: any) => d.id === "fenix8solar47mm").faces.includes("BionicSemiBold"));
+});
+
+test("a face: font's fallback: round-trips: inspected, kept through an unrelated edit, and its file bundled", async () => {
+  const client = await Client.open();
+  const doc = openExample(client.studio, "examples/features/font-fallback/face.yaml");
+  assert.deepEqual(doc.missing(), []);
+  assert.notEqual(doc.analysis().face, null);
+  // the Properties tree: the fallback as the schema gives it, its written keys first
+  const dial = (await client.call("inspect", { id: doc.id, element: ["resources", "fonts", "dial"] })).json;
+  assert.deepEqual(dial.fields.map((f: any) => f.key), ["face", "size", "fallback", "unsupported"]);
+  const fallback = dial.fields.find((f: any) => f.key === "fallback");
+  assert.equal(fallback.kind, "object");
+  assert.deepEqual(fallback.children.map((c: any) => c.key), ["source", "size", "glyphs", "antialias", "monospace", "align"]);
+  assert.equal(fallback.children[0].value, "assets/ChivoMono-Bold.ttf");
+  assert.equal(fallback.children[3].value, true);
+  // an edit elsewhere leaves it as written
+  const r = await client.call("edit", { id: doc.id, version: doc.version, edit: { op: "set", path: ["elements", "brand", "color"], value: "color.white" } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(dataOf(doc).resources.fonts.dial.fallback, { source: "assets/ChivoMono-Bold.ttf", antialias: true });
+  assert.equal(dataOf(doc).elements.brand.color, "color.white");
+  // and the download carries the fallback's file
+  const zip = await client.call("download", { id: doc.id });
+  const again = readUpload("x.zip", zip.body!);
+  assert.deepEqual(again.files.get("assets/ChivoMono-Bold.ttf"), read("examples/features/font-fallback/assets/ChivoMono-Bold.ttf"));
+  assert.deepEqual(references(again.text).map((ref) => [ref.path.join("."), ref.inside]),
+    [["resources.fonts.dial.fallback.source", "assets/ChivoMono-Bold.ttf"]]);
 });
