@@ -10,7 +10,6 @@ back here.
 
 | Plan | Status |
 |---|---|
-| [39 a fleet-wide Store export](39-fleet-export.md): `fallback:` on a `face:` font, `--all-devices` dropping what a device cannot draw | in progress; two slices in parallel, D1–D12 decided |
 | [34 a curved slot](34-curved-slot.md): `rotate:` and `slot:` on `type: icon`, `curve:` on `type: data`, a group's `on_hold:` following its slot | in progress; slices 1–5 done, slice 6 built and not yet verified on a watch, D1–D8 decided |
 
 ## Built and deleted
@@ -54,3 +53,4 @@ records its own slices and decisions. Its commits are
 | 36 icon rules | `git show 8b0e778:docs/plans/36-icon-rules.md` (commits `git log --grep "plan 36"`: one `steps`/`table` rule per source in `icons.json` read by the compiler, the preview, the generated `IconGlyphs.<rule>Icon` choosers and the editor; `absent: hide | {icon:}` on `type: icon`; alarm, do-not-disturb, phone and moon-phase rules; `examples/features/status/`; the icon picker's "follows data" tab) |
 | 37 phone-side settings | `git show d9a6b9e:docs/plans/37-phone-settings.md` (commits `git log --grep "plan 37"`: `settings.xml`/`properties.xml` per settings-menu device, derived from `config:`, shared strings, `onSettingsChanged`, the `wfb export` phone-settings line; the §5 phone checks are still the user's) |
 | 38 element names unique among siblings | `git show 21144b7:docs/plans/38-scoped-element-ids.md` (commits `git log --grep "plan 38"`: an element's id is its key qualified by its groups (`top.label`), generated symbols derive from it, the editor is keyed on it and checks a name among its siblings only; `ts/src/element_ids.ts`) |
+| 39 a fleet-wide Store export | `git show db039df:docs/plans/39-fleet-export.md` (commits `git log --grep "plan 39"`: `fallback:` on a `face:` font, baked per device where no listed face is published and drawn upright, with `font-fallback` and the `examples/features/font-fallback/` example; `wfb export --all-devices` dropping each device whose errors are all its own lack, through `Diagnostic.devices` and `dropUnsupported`, reported by `device-dropped`, the `dropped` line and `export-info.json`) |

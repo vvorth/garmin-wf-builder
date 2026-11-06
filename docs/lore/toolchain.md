@@ -126,7 +126,10 @@ glitch.
     product (a device with two part numbers builds twice), printing a
     `Build Stats:` block per build, each naming its `Device:`;
   - it **stops at the first device that fails to compile**, so one bad
-    device fails the whole export;
+    device fails the whole export; `--all-devices` drops the devices that
+    cannot draw the design before it runs, and a device measured over its
+    memory limit afterwards, then runs it again (`dropUnsupported` in
+    `ts/src/build.ts`), but a `monkeyc` error of its own still fails it;
   - a device with no real part number is dropped with `WARNING: Device '…'
     is being ignored by the package tool` (`IqPackager.removeSimProducts`
     in `bin/monkeybrains.jar`);
