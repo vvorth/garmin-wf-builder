@@ -47,7 +47,7 @@ import { unzipSync } from "fflate";
 import { DeviceDatabase } from "../devices/device.ts";
 import { REPO_ROOT } from "../devices/node.ts";
 import { Bag } from "../diagnostics.ts";
-import { type FontFile, type FontFiles, locate } from "../fonts/files.ts";
+import { type FontFile, type FontFiles, locate, REGISTRY } from "../fonts/files.ts";
 import { NodeFontFiles } from "../fonts/node.ts";
 import { ICON_FONT, SCHEMA } from "../node.ts";
 import { prgName } from "../build.ts";
@@ -198,9 +198,10 @@ class Recording implements FontFiles {
 /**
  * One device's skin and the font files the compiler looks up for it: its
  * system fonts, measured through a database whose font files record every
- * lookup, and the vector faces `faces` names.
+ * lookup, the vector faces `faces` names, and the free-font registry's
+ * `standIns` a `fallback: auto` bakes.
  */
-function extras(db: DeviceDatabase, id: string, fonts: FontFiles, faces: readonly string[]): unknown {
+export function extras(db: DeviceDatabase, id: string, fonts: FontFiles, faces: readonly string[], standIns: readonly string[] = []): unknown {
   const recording = new Recording(fonts);
   const recorded = new DeviceDatabase(db.files, recording);
   const device = recorded.get(id);
@@ -208,6 +209,7 @@ function extras(db: DeviceDatabase, id: string, fonts: FontFiles, faces: readonl
   for (const face of faces) {
     if (device.scalableFaces.includes(face)) locate(recording, device.scalableFaceFiles.get(face) ?? face, face);
   }
+  for (const key of standIns) if (Object.hasOwn(REGISTRY.fonts, key)) recording.registry(key);
   const files: Record<string, string> = {};
   for (const [path, bytes] of recording.bytes) files[path] = base64(bytes);
   const skin = device.skinName;
@@ -465,8 +467,9 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
       if (extra) {
         const id = decodeURIComponent(extra[1]!);
         const faces = (url.searchParams.get("faces") ?? "").split(",").filter(Boolean).sort();
-        const cacheKey = `${id}\0${faces.join(",")}`;
-        if (!extrasCache.has(cacheKey)) extrasCache.set(cacheKey, gzipSync(JSON.stringify(extras(db, id, fonts, faces))));
+        const standIns = (url.searchParams.get("stand_ins") ?? "").split(",").filter(Boolean).sort();
+        const cacheKey = `${id}\0${faces.join(",")}\0${standIns.join(",")}`;
+        if (!extrasCache.has(cacheKey)) extrasCache.set(cacheKey, gzipSync(JSON.stringify(extras(db, id, fonts, faces, standIns))));
         return send(response, 200, extrasCache.get(cacheKey)!, "application/json", { "Content-Encoding": "gzip", "Cache-Control": "private, max-age=3600" });
       }
       if (path === "/api/build" && request.method === "POST") {

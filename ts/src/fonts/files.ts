@@ -26,7 +26,7 @@ export interface FontFiles {
 }
 
 interface Registry {
-  sources: Record<string, { sha256: string }>;
+  sources: Record<string, { sha256: string; license?: string }>;
   fonts: Record<string, { source: string; match: string }>;
   names: Record<string, string>;
   patterns: { regex: string; key: string }[];
@@ -41,6 +41,28 @@ export function resolveRegistryKey(name: string, face: string | null = null): st
   if (Object.hasOwn(REGISTRY.names, name)) return REGISTRY.names[name]!;
   for (const { regex, key } of PATTERNS) if (regex.test(name)) return key;
   if (face !== null && Object.hasOwn(REGISTRY.faces, face)) return REGISTRY.faces[face]!;
+  return null;
+}
+
+/** A `face:` font's `fallback: auto` stand-in: the registry key of the first listed face the registry maps. */
+export interface StandIn {
+  /** The listed face it stands in for. */
+  face: string;
+  key: string;
+  /** `exact`, `family` or `substitute`. */
+  match: string;
+  /** The SPDX-style licence of the key's source, or `null` when the registry records none. */
+  license: string | null;
+}
+
+/** The stand-in for the first of `faces`, in order, that the registry maps; `null` when it maps none. */
+export function standIn(faces: readonly string[]): StandIn | null {
+  for (const face of faces) {
+    const key = resolveRegistryKey(face);
+    const font = key === null ? undefined : REGISTRY.fonts[key];
+    if (key === null || font === undefined) continue;
+    return { face, key, match: font.match, license: REGISTRY.sources[font.source]?.license || null };
+  }
   return null;
 }
 

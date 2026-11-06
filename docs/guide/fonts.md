@@ -25,7 +25,7 @@ device-resident scalable faces reachable with `face:` (below).
 | `fonts.<name>.align:` | `resources:` | `left`/`center`/`right` | `center` | [`monospace:`](#monospace-stops-a-clock-from-jittering) (needs `monospace: true`) |
 | `fonts.<name>.face:` | `resources:` | a face name, or a list tried in order | — | [Vector (`face:`) fonts](#vector-face-fonts-device-resident-scalable-and-turnable) |
 | `fonts.<name>.unsupported:` | `resources:`, or a `text` element | `error`/`hide` | `error` | [`unsupported:`](#unsupported--and-what-error-actually-promises) |
-| `fonts.<name>.fallback:` | a `face:` entry | `{source:, size:, glyphs:, antialias:, monospace:, align:}` | none | [`fallback:`](#fallback--a-baked-stand-in-for-a-missing-face) (`size:` defaults to the entry's) |
+| `fonts.<name>.fallback:` | a `face:` entry | `auto`, or `{source:, size:, glyphs:, antialias:, monospace:, align:}` (`source:` a path or `auto`) | none | [`fallback:`](#fallback--a-baked-stand-in-for-a-missing-face) (`size:` defaults to the entry's) |
 
 ## Example
 
@@ -266,13 +266,23 @@ than reading as an unknown key.
   `wfb fonts <device>` shows exactly which faces one device publishes and
   whether it can pair `Graphics.getVectorFont` with `curve: {style: radial}`
   or `curve: {style: angled}`. Where the face is missing, a
-  [`fallback:`](#fallback--a-baked-stand-in-for-a-missing-face) draws your
-  own font instead.
+  [`fallback:`](#fallback--a-baked-stand-in-for-a-missing-face) draws a
+  free stand-in for the face, or your own font, instead.
 
 #### `fallback:` — a baked stand-in for a missing face
 
 A `face:` entry, named or written inline, can carry a `fallback:`: a baked
-font, from your own file, for the devices that cannot draw any listed face.
+font for the devices that cannot draw any listed face, baked from a free
+stand-in for the face (`fallback: auto`) or from your own file.
+
+```yaml
+resources:
+  fonts:
+    numbers:
+      face: RobotoCondensedBold
+      size: 12%r
+      fallback: auto        # the free Roboto Condensed Bold, baked only where the face is missing
+```
 
 ```yaml
 resources:
@@ -294,11 +304,31 @@ so it draws the upright text from the baked sheet and leaves the curve out.*
 * **Each device takes one of three paths, decided at build time.** A device
   with `Graphics.getVectorFont` that publishes a listed face draws the face,
   exactly as without a fallback. A device that lacks either draws the
-  fallback: a sheet baked from `source:` for that device alone, the way a
-  `source:` font is. With no fallback, the font is unavailable there, and
-  `unsupported:` decides. A build note, `font-fallback`, names the devices
-  each fallback is baked for.
-* **Its keys are a baked font's**: `source:` (required), `size:` (a
+  fallback: a sheet baked for that device alone, the way a `source:` font
+  is. With no fallback, the font is unavailable there, and `unsupported:`
+  decides. A build note, `font-fallback`, names the devices each fallback is
+  baked for.
+* **`auto` picks the free stand-in for the face.** The compiler carries a
+  registry of free fonts standing in for Garmin's device-resident faces,
+  each pinned to a download with its licence. `auto` takes the first listed
+  face, in the order written, that the registry knows, and bakes the
+  registry's file for it: the very face where its file is free (Roboto and
+  Roboto Condensed are Google's, and Garmin ships them unchanged, so the
+  sheet has the device's own letterforms), or a free face of similar look
+  for a proprietary one (Bionic is Garmin's own, and stands in as Roboto
+  Condensed Bold). The `font-fallback` note names the stand-in, whether it
+  is `exact`, the same `family` or a `substitute`, and its licence. `auto`
+  never bakes Garmin's own font files, even where they are installed: the
+  sheet ships inside the built app, and only a redistributable file may.
+  The stand-ins are downloaded by `./tools/setup-env.sh` (or
+  `node ts/tools/fetch-system-fonts.ts --registry`); a build that needs one
+  that is missing is an error naming it and those commands. A face the
+  registry does not know (`KosugiRegular`, today) is a build error at the
+  `fallback:` key: write `fallback: {source: <your own file>}` instead.
+  `fallback: auto` is short for `fallback: {source: auto}`, and the mapping
+  takes the keys below beside it. In `wfb studio`, the server sends the
+  stand-in's file, and a downloaded bundle holds no file for it.
+* **Its keys are a baked font's**: `source:` (required: a path, or `auto`), `size:` (a
   `Length`, `px` or `%r`; omit it to bake at the entry's own `size:`),
   `glyphs:`, `antialias:`, `monospace:` and `align:` (which needs
   `monospace: true`), each meaning what it means on a `source:` entry, and a

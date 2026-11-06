@@ -314,7 +314,14 @@
         },
         "fallback": {
           "description": "Vector-font key. A build error here: a baked font is rasterised from your own 'source:' at build time, so it is never unsupported and has nothing to fall back from.",
-          "type": "object"
+          "oneOf": [
+            {
+              "const": "auto"
+            },
+            {
+              "type": "object"
+            }
+          ]
         }
       }
     },
@@ -378,50 +385,59 @@
         },
         "fallback": {
           "$ref": "#/$defs/fallbackFont",
-          "description": "A baked sheet from your own TrueType/OpenType file, drawn on a device that cannot draw any listed face -- see the fallbackFont definition. Upright text only: 'curve:' still needs the face."
+          "description": "A baked sheet drawn on a device that cannot draw any listed face: 'auto' for the free-font registry's stand-in for the face, or {source: <path>} for your own TrueType/OpenType file -- see the fallbackFont definition. Upright text only: 'curve:' still needs the face."
         }
       }
     },
     "fallbackFont": {
-      "description": "A baked sheet to draw this font from on a device that cannot draw the face: one without Graphics.getVectorFont, or one that publishes none of the listed 'face:' names. It is baked from your own TrueType/OpenType file exactly as a 'source:' font is, and only for the devices that need it. It draws upright text only: Dc.drawAngledText and Dc.drawRadialText take a VectorFont, so an element with 'curve:' in this font is still unavailable on such a device, and 'unsupported:' decides what happens to it there. A fallback that no upright element draws -- every element in the font has 'curve:' -- is a build error. 'face:', 'unsupported:' and 'fallback:' are not accepted inside it.",
-      "type": "object",
-      "required": [
-        "source"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "source": {
-          "description": "Path to the TrueType/OpenType file to bake, relative to the design file.",
-          "type": "string"
+      "description": "A baked sheet to draw this font from on a device that cannot draw the face: one without Graphics.getVectorFont, or one that publishes none of the listed 'face:' names. 'auto' bakes the free-font registry's stand-in for the face; {source: <path>} bakes your own TrueType/OpenType file. Either is baked exactly as a 'source:' font is, and only for the devices that need it. It draws upright text only: Dc.drawAngledText and Dc.drawRadialText take a VectorFont, so an element with 'curve:' in this font is still unavailable on such a device, and 'unsupported:' decides what happens to it there. A fallback that no upright element draws -- every element in the font has 'curve:' -- is a build error. 'face:', 'unsupported:' and 'fallback:' are not accepted inside it.",
+      "oneOf": [
+        {
+          "const": "auto",
+          "description": "The free-font registry's stand-in for the first listed 'face:' name it knows, in author order: the very face where its file is free (Roboto, Roboto Condensed), or a free face of similar look for a proprietary one (Bionic). The 'font-fallback' note names the stand-in, whether it is exact, the same family or a substitute, and its licence. It is baked from the registry's own redistributable file, never from Garmin's font files, because the sheet ships inside the built app; a face the registry does not know is a build error, and 'fallback: {source: ...}' then bakes a file of your own. Short for {source: auto}."
         },
-        "size": {
-          "$ref": "#/$defs/length",
-          "description": "The em size to bake the sheet at, per device; px or %r only, as a baked font's 'size:'. Omit it to bake at the face's own 'size:'."
-        },
-        "glyphs": {
-          "description": "The characters to bake. Omit to let the compiler derive the set from every string the design can render.",
-          "type": "string"
-        },
-        "antialias": {
-          "description": "Bitmap fonts default to 1-bit to save runtime RAM. Anti-aliasing costs memory (SDK: Resources, Fonts).",
-          "type": "boolean",
-          "default": false
-        },
-        "monospace": {
-          "description": "Bake every glyph at one shared advance, the widest the set needs. A digital clock in a proportional face shifts as its digits change ('1' is narrower than '0'); one cell width stops that. Works on a proportional source as well as a monospaced one -- the cell is measured from the glyphs actually baked.",
-          "type": "boolean",
-          "default": false
-        },
-        "align": {
-          "description": "Where a glyph's ink sits inside its cell. Only meaningful with monospace: true, and an error without it.",
-          "enum": [
-            "left",
-            "center",
-            "right"
+        {
+          "type": "object",
+          "required": [
+            "source"
           ],
-          "default": "center"
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "description": "Path to the TrueType/OpenType file to bake, relative to the design file; or 'auto', the free-font registry's stand-in for the first listed 'face:' it knows, as the scalar 'fallback: auto' (see the fallbackFont definition).",
+              "type": "string"
+            },
+            "size": {
+              "$ref": "#/$defs/length",
+              "description": "The em size to bake the sheet at, per device; px or %r only, as a baked font's 'size:'. Omit it to bake at the face's own 'size:'."
+            },
+            "glyphs": {
+              "description": "The characters to bake. Omit to let the compiler derive the set from every string the design can render.",
+              "type": "string"
+            },
+            "antialias": {
+              "description": "Bitmap fonts default to 1-bit to save runtime RAM. Anti-aliasing costs memory (SDK: Resources, Fonts).",
+              "type": "boolean",
+              "default": false
+            },
+            "monospace": {
+              "description": "Bake every glyph at one shared advance, the widest the set needs. A digital clock in a proportional face shifts as its digits change ('1' is narrower than '0'); one cell width stops that. Works on a proportional source as well as a monospaced one -- the cell is measured from the glyphs actually baked.",
+              "type": "boolean",
+              "default": false
+            },
+            "align": {
+              "description": "Where a glyph's ink sits inside its cell. Only meaningful with monospace: true, and an error without it.",
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "default": "center"
+            }
+          },
+          "description": "The mapping form: 'source:' a file of your own, or 'auto', with the baking keys a 'source:' font takes beside it."
         }
-      }
+      ]
     },
     "font": {
       "description": "One 'fonts:' entry -- either a custom bitmap font baked from a TrueType/OpenType source at build time (only the glyphs the design actually uses are rendered into the sheet), or a device-resident scalable face reached through Graphics.getVectorFont at draw time -- the only way to get rotated or curved text ('curve:' on a 'text' element), since Dc.drawAngledText/drawRadialText refuse a resource font outright. A 'face:' entry may also carry a baked 'fallback:' for the devices without the face (upright text only). 'source:' and 'face:' are mutually exclusive and jointly required, so an entry naming neither, or both, is rejected here rather than read as an unknown-key mismatch.",

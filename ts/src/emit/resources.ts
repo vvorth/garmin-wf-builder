@@ -3,7 +3,7 @@
 // launcher icon and the native editor's config..
 import { usesSettingsMenu, vectorFontMode } from "../availability.ts";
 import type { Device } from "../devices/device.ts";
-import { bake, dilate, inkSize, toFnt } from "../fonts/bake.ts";
+import { bake, dilate, FontFileError, inkSize, toFnt } from "../fonts/bake.ts";
 import { CONFIG_SYMBOL } from "../ir/model.ts";
 import { configDataIds, configLabelId, configStyleLabelId } from "../ir/naming.ts";
 import { Color } from "../palette.ts";
@@ -17,7 +17,7 @@ import { type Face, FontSpec } from "../ir/model.ts";
 import { type PinnedTurn, SteppedTurn, stepKey } from "../icons.ts";
 import { comparePoints } from "../kinds/data.ts";
 import * as kinds from "../kinds/index.ts";
-import { roundHalfEven } from "../py.ts";
+import { quoted, roundHalfEven } from "../py.ts";
 import * as units from "../units.ts";
 
 /** Reads a font file a design names (`FontSpec.source`) or the icon font. */
@@ -147,6 +147,22 @@ function memoBake(memo: BakeMemo | null, source: FontFile, options: Parameters<t
   return baked;
 }
 
+/**
+ * A `fallback: auto` sheet's file: the registry's stand-in, through the
+ * font files the device's database holds (from disk in Node, from the
+ * server in the browser), never a Garmin font file, since the sheet ships
+ * inside the built app.
+ */
+function standInFile(device: Device, spec: FontSpec): FontFile {
+  const file = device.db.fonts.registry(spec.registry!);
+  if (file === undefined) {
+    throw new FontFileError(`font ${quoted(spec.name)}: 'fallback: auto' bakes the free stand-in ${spec.registry}, which is not installed`, spec.span, [
+      "install it with ./tools/setup-env.sh, or node ts/tools/fetch-system-fonts.ts --registry",
+    ]);
+  }
+  return file;
+}
+
 export function bakeFonts(face: Face, device: Device, read: FontReader, memo: BakeMemo | null = null): Map<string, BakedFont> {
   const sets = glyphSet(face);
   const baked = new Map<string, BakedFont>();
@@ -154,7 +170,7 @@ export function bakeFonts(face: Face, device: Device, read: FontReader, memo: Ba
     // A `face:` font is drawn from the device's own resident face; its `fallback:` is baked only where it draws.
     const spec = entry.isVector ? entry.fallback : entry;
     if (spec === null || (entry.isVector && (!sets.has(name) || vectorFontMode(entry, device) !== "fallback"))) continue;
-    baked.set(name, memoBake(memo, read(spec.source!), {
+    baked.set(name, memoBake(memo, spec.registry !== null ? standInFile(device, spec) : read(spec.source!), {
       name, size: spec.pixelSize(device.minorRadius), glyphs: sets.get(name) || "0123456789",
       antialias: spec.antialias, monospace: spec.monospace, align: spec.align,
     }));
@@ -197,8 +213,6 @@ function ringFontSpecs(face: Face, specs: ReadonlyMap<string, FontSpec>): Map<st
     [name, FontSpec.create({ ...specs.get(base)!, name, glyphs: [...glyphs].sort(comparePoints).join("") })]));
 }
 
-const basename = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
-
 /**
  * One device's resource bundle: its fonts' entries, the launcher icon at its
  * size, and the native editor's config -- or, on a settings-menu device, the
@@ -216,7 +230,7 @@ export function buildBundle(face: Face, device: Device, baked: ReadonlyMap<strin
     for (const [name, font] of baked) {
       const spec = specs.get(name)!;
       const rawChars = sets.get(name) ?? spec.glyphs ?? "";
-      lines.push(`    <!-- ${name}: ${basename(spec.source!)} at ${font.size}px, ${font.glyphs.size} glyphs -->`);
+      lines.push(`    <!-- ${name}: ${spec.fileName} at ${font.size}px, ${font.glyphs.size} glyphs -->`);
       if ([...rawChars].some((c) => c.codePointAt(0)! >= 0x10000)) {
         lines.push(`    <!-- filter omitted: ${name} needs a glyph above U+FFFF, which the resource compiler's filter parsing cannot represent -->`);
         lines.push(`    <font id="${spec.resourceId}" filename="${font.fnt_name}" antialias="${spec.antialias ? "true" : "false"}" />`);

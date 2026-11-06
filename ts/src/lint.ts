@@ -11,6 +11,7 @@ import * as complications from "./complications.ts";
 import * as series from "./series.ts";
 import type { IntBox } from "./units.ts";
 import { compareVersions, Device, DeviceError } from "./devices/device.ts";
+import { standIn } from "./fonts/files.ts";
 import { Bag, Diagnostic, type DiagnosticOptions, getCloseMatches, type Severity, type Span } from "./diagnostics.ts";
 import { authoredDrawOrder, CONFIG_SYMBOL, type Curve, type Element, type Face, type FontSpec, Graph, holdSlot, neverTogether, PatternElement, slotOf, walkElements } from "./ir/model.ts";
 import * as kinds from "./kinds/index.ts";
@@ -295,10 +296,19 @@ export function checkVectorFontAvailability(face: Face, resolved: ReadonlyMap<st
     if (spec.fallback === null || !kinds.faceTextRuns(face).some(([, run]) => run.font === name && !run.aod_only && run.curve === null)) continue;
     const baking = sorted([...resolved].filter(([, rf]) => availability.vectorFontMode(spec, rf.device) === "fallback").map(([id]) => id));
     if (baking.length === 0) continue;
-    bag.note("font-fallback", `font ${quoted(name)}: drawn from its baked 'fallback:' on ${baking.join(", ")} -- no usable face there`,
+    const those = baking.length === 1 ? "that device" : "those devices";
+    // An `auto` fallback names the stand-in, how closely it matches the face and its licence.
+    const auto = spec.fallback.registry !== null ? standIn(spec.face ?? []) : null;
+    const message = auto === null
+      ? `font ${quoted(name)}: drawn from its baked 'fallback:' on ${baking.join(", ")} -- no usable face there`
+      : `font ${quoted(name)}: drawn from its 'fallback: auto' on ${baking.join(", ")} -- ${auto.key} (${auto.match}, ${auto.license}), no usable face there`;
+    bag.note("font-fallback", message,
       spec.fallback.span ?? spec.span, {
         notes: [
-          `the sheet is baked from ${spec.fallback.source} for ${baking.length === 1 ? "that device" : "those devices"} only`,
+          auto === null
+            ? `the sheet is baked from ${spec.fallback.source} for ${those} only`
+            : `the sheet is baked from the free-font registry's ${auto.key}, its stand-in for ${quoted(auto.face)}, for ${those} only`
+              + (auto.match === "substitute" ? ": a free face of similar look, not the face itself" : ""),
           "it draws upright text; an element with 'curve:' in this font still needs the face, and 'unsupported:' decides it there",
         ],
         confidence: "exact -- resolved per-device gates 1-3",

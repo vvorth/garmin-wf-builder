@@ -12,11 +12,19 @@ import { runDesign } from "../src/lint.ts";
 import { decodePng } from "../src/png.ts";
 import * as starters from "../src/starters.ts";
 import { bundle, readUpload, references } from "../src/studio/bundle.ts";
-import { type Document, frameKey, LABEL_WIDTH, type Studio } from "../src/studio/document.ts";
+import { type Document, frameKey, LABEL_WIDTH, Studio } from "../src/studio/document.ts";
 import { inspect, vocabulary } from "../src/studio/inspect.ts";
 import { Client, dataOf, db, newStudio, openExample, read, SHOWCASE, versionOf } from "./studio-client.ts";
 import { addLayoutLabel, addLayoutSteps } from "../app/values.ts";
 import { globalsOf } from "../src/studio/inspect.ts";
+import { DeviceDatabase } from "../src/devices/device.ts";
+import { drawnText } from "../src/draw/index.ts";
+import { ICON_FONT } from "../src/emit/resources.ts";
+import type { FontFile, FontFiles } from "../src/fonts/files.ts";
+import { readFontFile } from "../src/node.ts";
+import { Router } from "../src/studio/router.ts";
+import { extras } from "../src/studio/server.ts";
+import { MemoryBackend, Store } from "../src/studio/store.ts";
 
 /** + Layout as the page sends it: the steps it composes from the face's styles, as one batch. */
 function addLayout(doc: Document, name: string): void {
@@ -1070,7 +1078,9 @@ test("a face: font's fallback: round-trips: inspected, kept through an unrelated
   // the Properties tree: the fallback as the schema gives it, its written keys first
   const dial = (await client.call("inspect", { id: doc.id, element: ["resources", "fonts", "dial"] })).json;
   assert.deepEqual(dial.fields.map((f: any) => f.key), ["face", "size", "fallback", "unsupported"]);
-  const fallback = dial.fields.find((f: any) => f.key === "fallback");
+  const choice = dial.fields.find((f: any) => f.key === "fallback");
+  assert.equal(choice.kind, "choice");
+  const fallback = choice.branches[choice.chosen];
   assert.equal(fallback.kind, "object");
   assert.deepEqual(fallback.children.map((c: any) => c.key), ["source", "size", "glyphs", "antialias", "monospace", "align"]);
   assert.equal(fallback.children[0].value, "assets/ChivoMono-Bold.ttf");
@@ -1086,4 +1096,76 @@ test("a face: font's fallback: round-trips: inspected, kept through an unrelated
   assert.deepEqual(again.files.get("assets/ChivoMono-Bold.ttf"), read("examples/features/font-fallback/assets/ChivoMono-Bold.ttf"));
   assert.deepEqual(references(again.text).map((ref) => [ref.path.join("."), ref.inside]),
     [["resources.fonts.dial.fallback.source", "assets/ChivoMono-Bold.ttf"]]);
+});
+
+test("a face: font's fallback: auto round-trips, bundles no file, and the worker bakes the stand-in the server sends", async () => {
+  const text = `format: 2
+face:
+  id: 0b4e6a52-8c1d-4f3e-9a7b-5d2c1e0f9a83
+  name: Auto
+build:
+  targets: [fr255]
+resources:
+  fonts:
+    dial:
+      face: RobotoCondensedBold
+      size: 12%r
+      fallback: auto
+  palette:
+    bg: "#000000"
+    fg: "#FFFFFF"
+elements:
+  background: { type: rectangle, at: { anchor: center }, size: { width: 100%, height: 100% }, color: color.bg }
+  brand: { type: text, text: "AUTO", font: font.dial, at: { anchor: center }, color: color.fg }
+`;
+  // The worker's font files: only what the server's extras recorded for the devices and stand-ins asked for.
+  const answers = new Map<string, FontFile | undefined>();
+  const recorded: FontFiles = {
+    garmin: (name, suffixes) => answers.get(`garmin\0${name}\0${suffixes.join(",")}`),
+    registry: (key) => answers.get(`registry\0${key}`),
+  };
+  const asked: string[][] = [];
+  const studio = new Studio(await Store.open(new MemoryBackend()), new DeviceDatabase(db.files, recorded), () => readFontFile(ICON_FONT));
+  const router = new Router(studio, {
+    prepare: async (ids, faces = [], standIns = []) => {
+      asked.push([...standIns]);
+      for (const id of ids) {
+        const sent = JSON.parse(JSON.stringify(extras(db, id, db.fonts, faces, standIns))) as { calls: [string, string, string | null][]; files: Record<string, string> };
+        for (const [kind, argument, path] of sent.calls) {
+          answers.set(`${kind}\0${argument}`, path === null ? undefined : { path, bytes: Uint8Array.from(Buffer.from(sent.files[path]!, "base64")) });
+        }
+      }
+    },
+    build: async (_zip, device) => ({ ok: false, device, log: "no builds in tests", seconds: 0, memory: null, download: null }),
+    emit: () => {},
+  });
+  const call = async (op: string, args: Record<string, unknown> = {}, body: Uint8Array | null = null): Promise<any> =>
+    await router.handle({ op, args, body, tab: null } as never);
+  const opened = await call("upload", { filename: "auto.yaml" }, new TextEncoder().encode(text));
+  assert.equal(opened.status, 200, JSON.stringify(opened.json));
+  const doc = studio.document(opened.json.id);
+  // the inspect asks the server for the stand-in the fallback bakes
+  const dial = (await call("inspect", { id: doc.id, element: ["resources", "fonts", "dial"] })).json;
+  assert.ok(asked.some((keys) => keys.includes("roboto-condensed-bold")), JSON.stringify(asked));
+  // the Properties tree shows it as written: the scalar branch of the choice
+  const fallback = dial.fields.find((f: any) => f.key === "fallback");
+  assert.equal(fallback.kind, "choice");
+  assert.equal(fallback.branches[fallback.chosen].value, "auto");
+  // fr255 has no getVectorFont: the sheet is baked from the registry's file, and draws
+  const analysis = doc.analysis();
+  assert.deepEqual(analysis.bag.errors.map((d) => d.message), []);
+  const r = analysis.resolved.get("fr255")!;
+  assert.ok(r.fonts.has("dial"));
+  assert.ok(r.fonts.get("dial")!.glyphs.size >= 4);
+  assert.equal(drawnText(r, r.items.find((p) => p.id === "brand")!, new Map() as never), "AUTO");
+  const frame = await call("frame", { id: doc.id, device: "fr255" });
+  assert.equal(frame.status, 200, JSON.stringify(frame.json));
+  // an unrelated edit keeps it, and the download references no file for it
+  const edited = await call("edit", { id: doc.id, version: doc.version, edit: { op: "set", path: ["elements", "brand", "color"], value: "color.bg" } });
+  assert.equal(edited.status, 200, JSON.stringify(edited.json));
+  assert.equal(dataOf(doc).resources.fonts.dial.fallback, "auto");
+  assert.deepEqual(references(doc.text), []);
+  assert.deepEqual(references(doc.text.replace("fallback: auto", "fallback: { source: auto, size: 9px }")), []);
+  const zip = await call("download", { id: doc.id });
+  assert.equal(readUpload(zip.filename ?? "x.yaml", zip.body!).files.size, 0);
 });

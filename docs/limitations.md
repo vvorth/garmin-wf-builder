@@ -266,8 +266,9 @@ and a `text` **element**, a slot's `type: data` reading, or a pattern's
 own `type: text` part, can bend it along a line (`style: angled`) or
 around a circle (`style: radial`). A `face:` font draws from the face only
 on the 44 of 136 watch-face devices that publish one. On any other target,
-an entry with a `fallback:` draws upright text from a sheet baked from the
-author's own file for that device (`docs/guide/fonts.md`), and a curved
+an entry with a `fallback:` draws upright text from a sheet baked for that
+device from the author's own file, or with `fallback: auto` from the
+free-font registry's stand-in for the face (`docs/guide/fonts.md`), and a curved
 element in it is unavailable there, since the sheet is a resource font;
 without a `fallback:` every element in the font is unavailable. An
 unavailable element fails the build, or with `unsupported: hide` is left out

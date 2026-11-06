@@ -150,10 +150,20 @@ export class FontSpec {
    * that a device which cannot draw any listed face bakes and draws instead.
    */
   fallback: FontSpec | null = null;
+  /**
+   * A `fallback: auto`'s free-font registry key, baked from the device
+   * database's `FontFiles.registry` (Node and the browser alike); `source`
+   * is then `null`. Only ever set on a `fallback`.
+   */
+  registry: string | null = null;
 
   static create(init: Partial<FontSpec>): FontSpec { return make(FontSpec, init); }
 
   get isBaked(): boolean { return this.source !== null; }
+  /** The file a baked sheet comes from, as its fonts.xml comment names it: the source's own name, or a stand-in's file. */
+  get fileName(): string {
+    return this.registry !== null ? `${this.registry}.ttf` : this.source!.slice(this.source!.lastIndexOf("/") + 1);
+  }
   get isVector(): boolean { return this.face !== null; }
   get resourceId(): string { return fontResourceId(this.name); }
 

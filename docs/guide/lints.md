@@ -195,8 +195,15 @@ Three checks look across every target in the build at once, not one device at
 a time: `font-unavailable` (above), the `font-fallback` note and the
 `shared-view` note. `font-fallback` names, once per `face:` font with a
 [`fallback:`](fonts.md#fallback--a-baked-stand-in-for-a-missing-face), the
-devices that draw it from the baked sheet instead of the face; it is
-informational and, like every note, not something a `lint: {allow:}` takes. One generated
+devices that draw it from the baked sheet instead of the face, and, for a
+`fallback: auto`, the free stand-in it bakes, how closely it matches the
+face (`exact`, `family` or `substitute`) and its licence:
+
+```
+note[font-fallback]: font 'dial': drawn from its 'fallback: auto' on fr255 -- roboto-condensed-bold (exact, Apache-2.0), no usable face there
+```
+
+It is informational and, like every note, not something a `lint: {allow:}` takes. One generated
 view serves every target, so in a build with both AMOLED and MIP targets the
 AMOLED always-on frame is compiled into the MIP targets too, where it never
 runs. The note names them. It is informational, since their measured memory

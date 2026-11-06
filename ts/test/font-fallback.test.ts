@@ -15,6 +15,9 @@ import type { Image } from "../src/raster/pillow.ts";
 import { readFontFile } from "../src/node.ts";
 import { checked, db, divergences, drawn, errors, face, generated, load, resolved, view } from "./designs.ts";
 import { REPO_ROOT } from "../src/devices/node.ts";
+import { DeviceDatabase } from "../src/devices/device.ts";
+import { resolveAll } from "../src/build.ts";
+import { type FontFiles, REGISTRY } from "../src/fonts/files.ts";
 import { join } from "node:path";
 
 const TTF = "examples/features/vector-text/assets/ChivoMono-Bold.ttf";
@@ -356,4 +359,100 @@ test("with a target older than drawRadialText in the build, each curved draw car
   // every target at 4.2.1 or later: no checks
   const modern = view(text.replace("targets: [fenix8solar47mm, venu]", "targets: [fenix8solar47mm, fr955, fr255]"));
   assert.doesNotMatch(modern, /has :draw(Radial|Angled)Text|has :RADIAL_TEXT/);
+});
+
+// -- fallback: auto, the free-font registry's stand-in ----------------------------
+
+const AUTO = `      face: RobotoCondensedBold
+      size: 12%r
+      fallback: auto
+`;
+/** The same stand-in's file, named as a path: what `auto` must bake identically. */
+const STAND_IN_PATH = "ts/assets/system-fonts/roboto-condensed-bold.ttf";
+
+test("fallback: auto is {source: auto}, resolved to the registry key of the first face it maps", () => {
+  const scalar = face(design(AUTO)).fonts.get("dial")!.fallback!;
+  assert.deepEqual([scalar.registry, scalar.source, scalar.name, String(scalar.size)], ["roboto-condensed-bold", null, "dial", "12%r"]);
+  const mapping = face(design(AUTO.replace("fallback: auto", "fallback: { source: auto, size: 9px, monospace: true, align: left, antialias: true, glyphs: \"BRAND\" }")))
+    .fonts.get("dial")!.fallback!;
+  assert.deepEqual([mapping.registry, String(mapping.size), mapping.monospace, mapping.align, mapping.antialias, mapping.glyphs],
+    ["roboto-condensed-bold", "9px", true, "left", true, "BRAND"]);
+  // author order: a face the registry knows only by a substitute still wins when it is listed first
+  const first = face(design(AUTO.replace("face: RobotoCondensedBold", "face: [KosugiRegular, BionicSemiBold, RobotoCondensedBold]"))).fonts.get("dial")!;
+  assert.equal(first.fallback!.registry, "bionic-substitute");
+  // an inline font takes it too
+  const inline = design(AUTO, { curved: null }).replace("    font: font.dial\n", "    font: { face: RobotoCondensedBold, size: 12%r, fallback: auto }\n");
+  assert.equal(face(inline).fonts.get("brand_font")!.fallback!.registry, "roboto-condensed-bold");
+});
+
+test("fallback: auto on a baked font is the error any fallback: there is; another scalar is a schema error", () => {
+  const baked = errors(design(`      source: ${TTF}\n      size: 12%r\n      fallback: auto\n`));
+  assert.deepEqual(baked.map((d) => d.message), ["font 'dial': 'fallback:' is not accepted on a baked font"]);
+  const other = errors(design(AUTO.replace("fallback: auto", "fallback: automatic")));
+  assert.ok(other.length > 0 && other.every((d) => d.code === "schema"), other.map((d) => d.message).join("\n"));
+});
+
+test("fallback: auto with no listed face the registry knows is an error at the fallback, naming them", () => {
+  const found = errors(design(AUTO.replace("face: RobotoCondensedBold", "face: [KosugiRegular, NanumGothicExtraBold]")));
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.code, "font");
+  assert.equal(found[0]!.message, "font 'dial': 'fallback: auto' has no free stand-in for 'KosugiRegular', 'NanumGothicExtraBold'");
+  assert.equal(found[0]!.span!.line, 13);
+  assert.match(found[0]!.notes.join("\n"), /write 'fallback: \{source: <your own file>\}' instead/);
+});
+
+test("fallback: auto refuses a stand-in whose source records no licence", () => {
+  const source = REGISTRY.sources["roboto-condensed-bold"]!;
+  const license = source.license;
+  delete source.license;
+  try {
+    const found = errors(design(AUTO));
+    assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+    assert.equal(found[0]!.message, "font 'dial': 'fallback: auto' cannot bake roboto-condensed-bold, the stand-in for 'RobotoCondensedBold': "
+      + "the free-font registry records no licence for its file");
+    assert.equal(found[0]!.span!.line, 13);
+  } finally {
+    if (license !== undefined) source.license = license;
+  }
+  assert.equal(errors(design(AUTO)).length, 0);
+});
+
+test("a stand-in not installed is one build error at the fallback, naming the key and how to install it", () => {
+  const missing: FontFiles = { garmin: (n, s) => db.fonts.garmin(n, s), registry: () => undefined };
+  const bare = new DeviceDatabase(db.files, missing);
+  const text = design(AUTO.replace("face: RobotoCondensedBold", "face: BionicSemiBold"));
+  const [f, bag] = load(text);
+  resolveAll(f!, ["fenix8solar47mm", "fr955", "fr255"].map((id) => bare.get(id)), bag, (face, device) => bakeFonts(face, device, read));
+  const found = bag.errors;
+  assert.equal(found.length, 1, bag.render());
+  assert.equal(found[0]!.message, "font 'dial': 'fallback: auto' bakes the free stand-in bionic-substitute, which is not installed");
+  assert.equal(found[0]!.span!.line, 13);
+  assert.match(found[0]!.notes.join("\n"), /\.\/tools\/setup-env\.sh, or node ts\/tools\/fetch-system-fonts\.ts --registry/);
+  // the device that builds the face bakes nothing, and resolves
+  assert.equal(errors(text).length, 0);
+});
+
+test("note[font-fallback] for auto names the stand-in, its match and its licence", () => {
+  const notes = checked(design(AUTO)).filter((d) => d.code === "font-fallback");
+  assert.deepEqual(notes.map((d) => d.message), ["font 'dial': drawn from its 'fallback: auto' on fr255 -- roboto-condensed-bold (exact, Apache-2.0), no usable face there"]);
+  assert.match(notes[0]!.notes.join("\n"), /baked from the free-font registry's roboto-condensed-bold, its stand-in for 'RobotoCondensedBold', for that device only/);
+  const bionic = checked(design(AUTO.replace("face: RobotoCondensedBold", "face: [BionicSemiBold, RobotoCondensedBold]"))).filter((d) => d.code === "font-fallback");
+  assert.deepEqual(bionic.map((d) => d.message), ["font 'dial': drawn from its 'fallback: auto' on fr255 -- bionic-substitute (substitute, Apache-2.0), no usable face there"]);
+  assert.match(bionic[0]!.notes.join("\n"), /a free face of similar look, not the face itself/);
+});
+
+test("an auto sheet is the stand-in's file baked as a path fallback bakes it: same resources, same pixels", () => {
+  const auto = design(AUTO);
+  const byPath = design(AUTO.replace("fallback: auto", `fallback: { source: ${STAND_IN_PATH} }`));
+  assert.deepEqual([...bakeFonts(face(auto), db.get("fr255"), read).keys()], ["dial"]);
+  assert.equal(bakeFonts(face(auto), db.get("fr955"), read).has("dial"), false);
+  const [a, p] = [generated(auto), generated(byPath)];
+  assert.deepEqual([...a.keys()], [...p.keys()]);
+  for (const [name, content] of a) assert.equal(content, p.get(name), name);
+  assert.match(a.get("resources-fr255/fonts/fonts.xml")!, /<!-- dial: roboto-condensed-bold\.ttf at \d+px, 5 glyphs -->/);
+  const box = resolved(auto, "fr255").items.find((item) => item.id === "brand")!.box;
+  const pixels = crop(frame(auto, "fr255"), box);
+  assert.ok(pixels.some((v) => v > 0));
+  assert.deepEqual(pixels, crop(frame(byPath, "fr255"), box));
+  assert.equal(drawn(auto, "brand", {}, "fr255"), "BRAND");
 });

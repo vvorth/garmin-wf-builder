@@ -26,6 +26,7 @@
 // page and the other tabs' workers.
 import { slug } from "../build.ts";
 import { DeviceError } from "../devices/device.ts";
+import { standIn } from "../fonts/files.ts";
 import { indexFor, Refused } from "../edit/spans.ts";
 import { encodePng } from "../png.ts";
 import { skinFor } from "../preview.ts";
@@ -47,8 +48,11 @@ export type { Request, Response };
 type Json = Record<string, unknown>;
 
 export interface Host {
-  /** Load whatever the named devices need before the compiler reads them (fonts, skins, the vector `faces` named); nothing in Node. */
-  prepare(deviceIds: readonly string[], faces?: readonly string[]): Promise<void>;
+  /**
+   * Load whatever the named devices need before the compiler reads them (fonts, skins, the vector `faces` named, the
+   * free-font registry's `standIns` a `fallback: auto` bakes); nothing in Node.
+   */
+  prepare(deviceIds: readonly string[], faces?: readonly string[], standIns?: readonly string[]): Promise<void>;
   /** Build a face's bundle for one watch on the server. */
   build(zip: Uint8Array, device: string, version: number, stem: string): Promise<BuildResult>;
   /** Tell the page, and the other tabs, what the studio did. */
@@ -125,14 +129,17 @@ function key(args: Json, scale: number | null = null): FrameKey {
   });
 }
 
-/** The devices a face's text targets and the vector faces its fonts name, as far as it parses. */
-function needs(text: string): [string[], string[]] {
+/**
+ * The devices a face's text targets, the vector faces its fonts name, and the registry keys its `fallback: auto`
+ * fonts bake (named or inline), as far as it parses.
+ */
+function needs(text: string): [string[], string[], string[]] {
   const get = (m: unknown, k: string): unknown => (m instanceof Map ? m.get(k) : undefined);
   let data: unknown;
   try {
     data = indexFor(text).data;
   } catch {
-    return [[], []];
+    return [[], [], []];
   }
   const targets = get(get(data, "build"), "targets");
   const fonts = get(get(data, "resources"), "fonts");
@@ -140,7 +147,19 @@ function needs(text: string): [string[], string[]] {
     const face = get(spec, "face");
     return Array.isArray(face) ? face.map(String) : [];
   }) : [];
-  return [Array.isArray(targets) ? targets.map(String) : [], faces];
+  const standIns = new Set<string>();
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) node.forEach(walk);
+    if (!(node instanceof Map)) return;
+    const face = node.get("face"), fallback = node.get("fallback");
+    if ((fallback === "auto" || get(fallback, "source") === "auto") && (typeof face === "string" || Array.isArray(face))) {
+      const found = standIn(typeof face === "string" ? [face] : face.map(String));
+      if (found !== null) standIns.add(found.key);
+    }
+    for (const value of node.values()) walk(value);
+  };
+  walk(data);
+  return [Array.isArray(targets) ? targets.map(String) : [], faces, [...standIns]];
 }
 
 /** One ask waiting its turn: its lane, and the promise its asker holds; `pending` keeps asks in the order made. */
@@ -247,9 +266,9 @@ export class Router {
   private async open(id: string, device: string | null = null): Promise<Document> {
     if (!this.studio.store.has(id)) throw new UnknownDocument(id);
     const doc = this.studio.document(id);
-    const [wanted, faces] = needs(doc.text);
+    const [wanted, faces, standIns] = needs(doc.text);
     if (device && !wanted.includes(device)) wanted.push(device);
-    await this.host.prepare(wanted, faces);
+    await this.host.prepare(wanted, faces, standIns);
     return doc;
   }
 
@@ -409,7 +428,10 @@ export class Router {
 
   private async drag(doc: Document, args: Json, tab: string | null): Promise<Response> {
     const device = text(args, "device");
-    if (device) await this.host.prepare([device], needs(doc.text)[1]);
+    if (device) {
+      const [, faces, standIns] = needs(doc.text);
+      await this.host.prepare([device], faces, standIns);
+    }
     const gesture = object(args, "gesture");
     const elements = args["elements"];
     if (elements !== undefined && elements !== null

@@ -2,6 +2,7 @@
 // at build time) or a vector `face:` (a device-resident scalable font).
 //
 import type { Span } from "../../diagnostics.ts";
+import { standIn } from "../../fonts/files.ts";
 import { isNumber, quoted, str, truthy } from "../../py.ts";
 import * as units from "../../units.ts";
 import { Length, UnitError } from "../../units.ts";
@@ -56,16 +57,25 @@ export class FontBlock extends VisibilityHelpers {
   /**
    * A baked font: a `source:` entry, or with `fallbackOf` the `fallback:`
    * mapping of the `face:` entry `name`, whose `size:` it takes when it
-   * writes none of its own.
+   * writes none of its own. A fallback's `source: auto` takes the registry's
+   * stand-in for the first of `faces` it maps.
    */
-  private buildBakedFont(name: string, spec: Node, base: string, span: Span | null, fallbackOf: Length | null = null): FontSpec | null {
+  private buildBakedFont(name: string, spec: Node, base: string, span: Span | null, fallbackOf: Length | null = null,
+    faces: readonly string[] = []): FontSpec | null {
     const what = fallbackOf === null ? quoted(name) : `${quoted(name)} 'fallback:'`;
-    const written = joinPath(base, str(spec.get("source")));
-    const source = normalizePath(written);
-    if (!this.fileExists(written)) {
-      this.bag.error("font", `font ${what}: source file not found: ${str(spec.get("source"))}`,
-        this.doc.span(spec, "source"), { notes: [`resolved against the design file, to ${written}`] });
-      return null;
+    let source: string | null = null;
+    let registry: string | null = null;
+    if (fallbackOf !== null && spec.get("source") === "auto") {
+      registry = this.standInKey(name, faces, span);
+      if (registry === null) return null;
+    } else {
+      const written = joinPath(base, str(spec.get("source")));
+      source = normalizePath(written);
+      if (!this.fileExists(written)) {
+        this.bag.error("font", `font ${what}: source file not found: ${str(spec.get("source"))}`,
+          this.doc.span(spec, "source"), { notes: [`resolved against the design file, to ${written}`] });
+        return null;
+      }
     }
     const size = fallbackOf !== null && !spec.has("size") ? fallbackOf : this.fontSize(name, spec);
     if (size === null) return null;
@@ -110,6 +120,7 @@ export class FontBlock extends VisibilityHelpers {
     return FontSpec.create({
       name,
       source,
+      registry,
       size,
       glyphs: (spec.get("glyphs") ?? null) as string | null,
       // No tree to inherit through: the face default applies directly.
@@ -138,15 +149,46 @@ export class FontBlock extends VisibilityHelpers {
     }
     const size = this.fontSize(name, spec);
     if (!ok || size === null) return null;
-    let fallback: FontSpec | null = null;
-    if (spec.has("fallback")) {
-      const raw = spec.get("fallback") as Node;
-      fallback = this.buildBakedFont(name, raw, dirname(this.doc.path), this.doc.span(spec, "fallback"), size);
-      if (fallback === null) return null;
-    }
     const rawFace = spec.get("face");
     const face = typeof rawFace === "string" ? [rawFace] : [...(rawFace as string[])];
+    let fallback: FontSpec | null = null;
+    if (spec.has("fallback")) {
+      // `fallback: auto` is short for `fallback: {source: auto}`.
+      const written = spec.get("fallback");
+      const raw = (written === "auto" ? new Map([["source", "auto"]]) : written) as Node;
+      fallback = this.buildBakedFont(name, raw, dirname(this.doc.path), this.doc.span(spec, "fallback"), size, face);
+      if (fallback === null) return null;
+    }
     return FontSpec.create({ name, size, span, face, unsupported: str(spec.get("unsupported") ?? "error"), fallback });
+  }
+
+  /**
+   * `fallback: auto`'s registry key: the free stand-in for the first listed
+   * face the registry maps, refused when it maps none or the key's source
+   * records no licence (the sheet ships inside the built app).
+   */
+  private standInKey(name: string, faces: readonly string[], span: Span | null): string | null {
+    const found = standIn(faces);
+    if (found === null) {
+      this.bag.error("font", `font ${quoted(name)}: 'fallback: auto' has no free stand-in for ${faces.map((f) => quoted(f)).join(", ")}`, span, {
+        notes: [
+          "'auto' bakes the free-font registry's stand-in for the first listed face it knows, and it knows none of these",
+          "write 'fallback: {source: <your own file>}' instead: a TrueType/OpenType file beside the design, baked the same way",
+        ],
+      });
+      return null;
+    }
+    if (found.license === null) {
+      this.bag.error("font", `font ${quoted(name)}: 'fallback: auto' cannot bake ${found.key}, the stand-in for ${quoted(found.face)}: `
+        + "the free-font registry records no licence for its file", span, {
+        notes: [
+          "an 'auto' sheet ships inside the built app, so only a file whose licence allows that may be baked",
+          "write 'fallback: {source: <your own file>}' instead: a TrueType/OpenType file beside the design, baked the same way",
+        ],
+      });
+      return null;
+    }
+    return found.key;
   }
 
   /** `fonts.<name>.size` as a `Length`; a bare number is refused with the exact conversion named. */

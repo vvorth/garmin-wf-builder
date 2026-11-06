@@ -116,13 +116,16 @@ async function start(): Promise<Router> {
   const fonts = new RecordedFonts();
   const db = new DeviceDatabase(files, fonts);
   const prepared = new Map<string, Promise<void>>();
-  // Once per device and set of vector faces: a face naming a new one loads its file then.
-  const prepare = (id: string, faces: readonly string[]): Promise<void> => {
-    const key = `${id}\0${[...new Set(faces)].sort().join(",")}`;
+  // Once per device, set of vector faces and set of stand-ins: a face naming a new one loads its file then.
+  const prepare = (id: string, faces: readonly string[], standIns: readonly string[]): Promise<void> => {
+    const key = `${id}\0${[...new Set(faces)].sort().join(",")}\0${[...new Set(standIns)].sort().join(",")}`;
     if (!prepared.has(key)) {
       prepared.set(key, (async () => {
         if (!db.ids().includes(id)) return;
-        const query = faces.length > 0 ? `?faces=${encodeURIComponent([...new Set(faces)].join(","))}` : "";
+        const params = new URLSearchParams();
+        if (faces.length > 0) params.set("faces", [...new Set(faces)].join(","));
+        if (standIns.length > 0) params.set("stand_ins", [...new Set(standIns)].sort().join(","));
+        const query = params.size > 0 ? `?${params.toString()}` : "";
         const extras = await (await fetchOk(`../api/devices/${encodeURIComponent(id)}/extras${query}`)).json() as {
           calls: [string, string, string | null][]; files: Record<string, string>; skin: { name: string; data: string } | null;
         };
@@ -148,8 +151,8 @@ async function start(): Promise<Router> {
     self.postMessage(event);
   };
   const router = new Router(studio, {
-    prepare: async (ids, faces = []) => {
-      await Promise.all(ids.map((id) => prepare(id, faces)));
+    prepare: async (ids, faces = [], standIns = []) => {
+      await Promise.all(ids.map((id) => prepare(id, faces, standIns)));
     },
     build: async (zip, device, _version, stem) => {
       let response: globalThis.Response, body: Record<string, unknown>;

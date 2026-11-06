@@ -9,6 +9,7 @@
 // 16x is the measured knee (`SUPERSAMPLE`). Outlines
 // come from opentype.js, used nowhere else.
 import opentype, { type Command, type Font } from "opentype.js";
+import type { Span } from "../diagnostics.ts";
 import { discPerimeterOffsets } from "../ir/model.ts";
 import { roundHalfEven } from "../py.ts";
 import { BakedFont, GlyphBox, type Sheet } from "./bmfont.ts";
@@ -43,7 +44,16 @@ interface Parsed {
 const parsed = new Map<string, Parsed>();
 
 /** A font file the bake cannot read. */
-export class FontFileError extends Error {}
+export class FontFileError extends Error {
+  /** Where the design asked for the file, when the error is the design's rather than one device's. */
+  readonly span: Span | null;
+  readonly notes: string[];
+  constructor(message: string, span: Span | null = null, notes: string[] = []) {
+    super(message);
+    this.span = span;
+    this.notes = notes;
+  }
+}
 
 function load(source: FontFile): Parsed {
   let found = parsed.get(source.path);

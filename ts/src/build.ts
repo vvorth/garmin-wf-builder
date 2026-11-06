@@ -181,7 +181,14 @@ export function resolveAll(face: Face, devices: readonly Device[], bag: Bag, bak
       fonts = baker(face, device);
     } catch (error) {
       if (!(error instanceof FontFileError)) throw error;
-      bag.error("font", `${device.id}: ${error.message}`);
+      if (error.span === null) {
+        bag.error("font", `${device.id}: ${error.message}`);
+        continue;
+      }
+      // The design's own line, said once however many targets bake it.
+      const key = JSON.stringify([error.message, error.span.toString()]);
+      if (!failed.has(key)) bag.error("font", error.message, error.span, { notes: error.notes });
+      failed.add(key);
       continue;
     }
     baked.set(device.id, fonts);
