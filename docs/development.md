@@ -52,8 +52,9 @@ install), generates a developer key, installs the device definitions (on macOS:
 reads the SDK Manager's in place), copies Garmin's own font files in from
 `vendor/fonts/` if present (Linux only, optional — see below), downloads the Nerd Fonts icon font
 (`ts/tools/fetch-icon-font.ts`, pinned and hash-checked; the font is not committed)
-and prefetches the registry's system-font stand-ins the same way
-(`ts/tools/fetch-system-fonts.ts`; see `docs/lore/toolchain.md`), and
+and prefetches every stand-in the font registry pins the same way, script
+faces included (`ts/tools/fetch-system-fonts.ts --registry`, about 34 MB the
+first time; see `docs/lore/toolchain.md`), and
 installs Node 24.22.1 when the one on `PATH` cannot run TypeScript or is
 unpatched, with `ts/`'s npm dependencies.
 

@@ -82,6 +82,7 @@ jobs:
             test/export.test.ts
             test/expr.test.ts
             test/fixture-device.test.ts
+            test/font-registry.test.ts
             test/gate.test.ts
             test/kinds.test.ts
             test/lint.test.ts

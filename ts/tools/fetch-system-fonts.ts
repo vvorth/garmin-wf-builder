@@ -6,20 +6,23 @@
 // (`deviceNeededNames`). Each name is resolved to a font-key of
 // `src/data/font-registry.json` and its pinned source downloaded, unzipped
 // when it is an archive member, hash-checked and installed into
-// `ts/assets/system-fonts/` with its licence. Several keys can share one
-// source, and several sources one archive: each archive is downloaded once.
-// Re-running is cheap: a key already installed with its pinned bytes is left
-// alone.
+// `ts/assets/system-fonts/` with its licence: the licence's name and URL,
+// then its text (the source's `license_member` out of the same archive, else
+// the `license_url` itself). Several keys can share one source, and several
+// sources one archive: each URL is downloaded once. Re-running is cheap: a
+// key already installed with its pinned bytes, beside its licence, is left
+// alone and nothing is downloaded for it.
 //
 //   node ts/tools/fetch-system-fonts.ts [--device ID ...] [--all | --registry] [DEST]
 //
 // With no `--device`, every installed device's fonts; `--all`, every device
 // the SDK device reference has a file for; `--registry`, every font the
-// registry knows (the Docker build, which has neither device definitions nor
-// an SDK). `WFB_FONTS_MIRROR` swaps every source URL's scheme
-// and host for a mirror's. Garmin's own font files are never installed here
-// (`vendor/fonts/` is the user's licensed copy); this only says how many
-// needed names that root already covers.
+// registry knows, script faces included, so `fallback: auto` never needs a
+// download at build time (what `tools/setup-env.sh` and the Docker build
+// run). `WFB_FONTS_MIRROR` swaps every source URL's scheme and host, a
+// licence's included, for a mirror's. Garmin's own font files are never
+// installed here (`vendor/fonts/` is the user's licensed copy); this only
+// says how many needed names that root already covers.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -31,7 +34,7 @@ import { deviceNeededNames, garminFontRoot, NodeFontFiles, SYSTEM_FONTS_DEST } f
 import registry from "../src/data/font-registry.json" with { type: "json" };
 import { download, writeAtomic } from "./fetch-icon-font.ts";
 
-interface Source { url: string; member?: string; sha256: string; license?: string; license_url?: string }
+interface Source { url: string; member?: string; sha256: string; size?: number; license?: string; license_url?: string; license_member?: string }
 const SOURCES = registry.sources as Record<string, Source>;
 const FONTS = registry.fonts as Record<string, { source: string }>;
 
@@ -56,43 +59,60 @@ function extract(data: Uint8Array, member: string): Uint8Array {
   throw new Error(`archive does not contain '${member}'`);
 }
 
-const licence = (source: Source): string =>
-  [source.license ?? "unknown license", ...(source.license_url ? [`license: ${source.license_url}`] : []), `font source: ${source.url}`].join("\n") + "\n";
+/** The licence file: its name, where it is, where the font came from, then its text when `text` is given. */
+const licence = (source: Source, text: string | null): string =>
+  [source.license ?? "unknown license", ...(source.license_url ? [`license: ${source.license_url}`] : []), `font source: ${source.url}`].join("\n") + "\n" +
+  (text === null ? "" : `\n${text.endsWith("\n") ? text : `${text}\n`}`);
 
 /** Install every key in `keys` into `dest`: `{key: installed}`, a failure's reason printed. */
-async function install(keys: string[], dest: string): Promise<Record<string, boolean>> {
+async function install(keys: string[], dest: string, log: (key: string, status: string) => void = () => {}): Promise<Record<string, boolean>> {
   const result: Record<string, boolean> = {};
   const fetched = new Map<string, Uint8Array | null>(); // url -> its bytes, or null when the download failed
+  const get = async (url: string, what: string): Promise<Uint8Array | null> => {
+    if (!fetched.has(url)) {
+      try {
+        fetched.set(url, await download(mirrored(url)));
+      } catch (error) {
+        console.error(`note: could not download ${url} for ${what} (${(error as Error).message})`);
+        fetched.set(url, null);
+      }
+    }
+    return fetched.get(url) ?? null;
+  };
   mkdirSync(dest, { recursive: true });
   for (const key of keys) {
     const sourceId = FONTS[key]!.source, source = SOURCES[sourceId]!;
-    const target = join(dest, `${key}.ttf`);
-    if (existsSync(target) && sha256(readFileSync(target)) === source.sha256) {
+    const target = join(dest, `${key}.ttf`), licenceFile = join(dest, `${sourceId}.LICENSE.txt`);
+    if (existsSync(target) && existsSync(licenceFile) && sha256(readFileSync(target)) === source.sha256) {
       result[key] = true;
+      log(key, "present");
       continue;
     }
-    if (!fetched.has(source.url)) {
-      try {
-        fetched.set(source.url, await download(mirrored(source.url)));
-      } catch (error) {
-        console.error(`note: could not download ${source.url} for font '${key}' (${(error as Error).message})`);
-        fetched.set(source.url, null);
-      }
-    }
-    const data = fetched.get(source.url);
-    if (data === null || data === undefined) {
+    const data = await get(source.url, `font '${key}'`);
+    if (data === null) {
       result[key] = false;
+      log(key, "FAILED");
       continue;
     }
     try {
       const content = source.member ? extract(data, source.member) : data;
       if (sha256(content) !== source.sha256) throw new Error(`'${sourceId}' does not match its pinned SHA-256`);
+      // The licence text is not pinned: a licence that cannot be fetched still
+      // leaves its name and URL beside the font, with a note.
+      let text: string | null = null;
+      if (source.license_member) text = new TextDecoder().decode(extract(data, source.license_member));
+      else if (source.license_url && /^https?:\/\/\S+$/.test(source.license_url)) {
+        const bytes = await get(source.license_url, `the licence of '${sourceId}'`);
+        if (bytes !== null) text = new TextDecoder().decode(bytes);
+      }
       writeAtomic(target, content);
-      writeAtomic(join(dest, `${sourceId}.LICENSE.txt`), licence(source));
+      writeAtomic(licenceFile, licence(source, text));
       result[key] = true;
+      log(key, "installed");
     } catch (error) {
       console.error(`note: ${source.url} did not verify (${(error as Error).message}); font '${key}' not installed`);
       result[key] = false;
+      log(key, "FAILED");
     }
   }
   return result;
@@ -112,14 +132,20 @@ async function main(): Promise<number> {
   let ids: string[];
   if (values.registry) {
     const keys = Object.keys(FONTS).sort();
-    console.log(`prefetching every registry font (${keys.length}) into ${dest}`);
-    const result = await install(keys, dest);
+    const sources = new Map(keys.map((key) => [FONTS[key]!.source, SOURCES[FONTS[key]!.source]!]));
+    const megabytes = ([...sources.values()].reduce((sum, source) => sum + (source.size ?? 0), 0) / 1e6).toFixed(1);
+    console.log(`prefetching every registry font (${keys.length} keys over ${sources.size} files, ${megabytes} MB of fonts) into ${dest}`);
+    const tally = new Map<string, number>();
+    const result = await install(keys, dest, (key, status) => {
+      tally.set(status, (tally.get(status) ?? 0) + 1);
+      if (status !== "present") console.log(`  ${status.padEnd(9)} ${key}`);
+    });
     const failed = keys.filter((key) => !result[key]);
+    console.log(`${keys.length} font(s): ${[...tally].map(([status, n]) => `${n} ${status}`).join(", ")}`);
     if (failed.length > 0) {
       console.error(`error: ${failed.length} font(s) not installed: ${failed.join(", ")}`);
       return 1;
     }
-    console.log(`installed ${keys.length} font(s)`);
     return 0;
   }
   if (values.all) {

@@ -284,13 +284,13 @@ why each part matters:
 | **Device definitions** | `~/.Garmin/ConnectIQ/Devices/` | **Cannot be downloaded.** See below. |
 | Garmin's own font files (optional) | `~/.Garmin/ConnectIQ/Fonts/` | Also cannot be downloaded; copied from `vendor/fonts/` the same incremental way, if present. See below. |
 | SDK device reference | `.cache/device-reference/`, or `~/.cache/wfb/device-reference/` when the checkout is not writable | Derived, never committed: `ts/src/devices/reference.ts` parses the SDK's own `doc/docs/Device_Reference/*.html` (one JSON per device, 178 on SDK 9.3.0; `ts/tools/extract-device-reference.ts` is its command line). The only source of each panel's real palette size and per-device system-font pixel metrics, and of the font names `ts/tools/fetch-system-fonts.ts` prefetches, so `setup-env.sh` generates it before the fonts. **`wfb` extracts it itself** (`ensureDeviceReference` in `ts/src/devices/node.ts`, about a second for the fleet, a line on stderr) whenever it is missing or `sdk-version.txt` names another release than the SDK `findSdk` finds, provided that SDK has the pages (a pruned one may not: then what is there is used, and `wfb build` warns). `WFB_DEVICE_REFERENCE` names a folder of pages outright and is never extracted into (the fixture device's). `wfb build` compares `sdk-version.txt` with the SDK it compiles with (`checkSdk` in `ts/src/node_build.ts`: a `sdk` warning when they differ, a note when the reference records none) and writes both into `build-info.json` in the build directory. `wfb` refuses to load devices with no reference at all (`DeviceReferenceMissing`), which now only happens with no SDK installed. |
-| System-font registry stand-ins | `ts/assets/system-fonts/` | Free fonts, downloaded and hash-checked by `ts/tools/fetch-system-fonts.ts`. |
+| System-font and vector-face stand-ins | `ts/assets/system-fonts/` | Free fonts, one or more for every system font and every device-resident scalable face (`ts/src/data/font-registry.json`): 47 keys over 39 files, 28.7 MB installed, about 34 MB downloaded the first time (Noto Sans SC alone is 8.4 MB). `setup-env.sh` installs all of them with `ts/tools/fetch-system-fonts.ts --registry`, each hash-checked and beside its licence text. |
 | Env vars | `/etc/sandbox-persistent.sh` | `CIQ_SDK`, and SDK `bin/` on `PATH`. |
 | Node 24.22.1 | `~/.local/share/wfb/node-v<version>`, when the `node` on `PATH` cannot run `.ts` files or predates 22.23.4, 24.22.1 or 26.12.1 (the October 2026 security releases) | An official build, checked against `SHASUMS256.txt`, prepended to `PATH`; then `npm ci` in `ts/` (`yaml`, `fflate`, `opentype.js`; `typescript` and `esbuild` for development). |
 
-The icon font, the device reference and the system fonts are fetched by the
-tools in `ts/tools/`, which need `ts/`'s npm dependencies, so Node is set up
-before them.
+The icon font, the device reference and the system fonts are fetched or
+extracted by the tools in `ts/tools/`, which need `ts/`'s npm dependencies,
+so Node is set up before them.
 
 ### The Developer Agreement: why the SDK is the user's, not the image's
 
@@ -398,14 +398,25 @@ pure and reads only `ts/src/data/font-registry.json`: an exact `names` hit,
 then the first matching `patterns` regex, then, only with a face given, the
 `faces` table.
 
-**Prefetch.** `ts/tools/fetch-system-fonts.ts` (run by `setup-env.sh` and
-the Dockerfile) resolves every name the devices need and downloads each
-key's pinned source, checking the download and (for an archive source)
-the extracted member against the pinned SHA-256 before writing anything.
-An archive shared by several font-keys (the Roboto release backs nine of
-them, including every `*-substitute` alias) is downloaded once per run.
-`WFB_FONTS_MIRROR` overrides every source URL's host, for an internal
-mirror that reproduces the same paths.
+**Prefetch.** `ts/tools/fetch-system-fonts.ts --registry` (what
+`setup-env.sh` and the Dockerfile run) installs every key the registry
+has, the script faces included, so `fallback: auto` never downloads at
+build time. Without the flag it installs only what the installed devices'
+system fonts need (`--device ID`, `--all` for every device in the
+reference). Each key's pinned source is downloaded, and the download and
+(for an archive source) the extracted member are checked against the
+pinned SHA-256 before anything is written. Each URL is downloaded once
+per run: the Roboto release backs 16 keys, every `*-substitute` alias
+among them. Beside each font goes `<source>.LICENSE.txt`: the licence's
+name and URL, then its text, from the source's `license_member` in the
+same archive or from the `license_url` file. The text is not pinned, and
+a licence that cannot be fetched leaves the name and URL alone, with a
+note. A key already installed with its pinned bytes, beside its licence,
+is left alone and costs no download. Noto Sans SC's stand-in is Adobe's
+CFF OpenType, installed under its key's `.ttf` name like every other
+file; the readers go by contents, not name. `WFB_FONTS_MIRROR`
+overrides every source URL's host, for an internal mirror that
+reproduces the same paths.
 
 **Garmin's own font files rank above the registry**: the SDK
 Manager's `Fonts` directory (next to `Devices`) is the user's own licensed
@@ -422,8 +433,9 @@ different family's letterforms, not just an estimate of the right one.**
 `locate`'s `"garmin"` match and a registry `"exact"`/`"family"` match both
 draw the *same* glyph shapes the device does (a free release of the same,
 or a closely related, typeface); only `"substitute"` (a different family
-entirely, picked for a similar role -- most of Bionic's own weights have
-no free release at all and resolve this way absent the root) and `"none"`
+entirely: Amiri for Sakkal Majalla and Arimo for Swiss 721 Hebrew, picked
+by look; Roboto Condensed Bold for Bionic Cond and the older proprietary
+number faces, picked by role) and `"none"`
 (Pillow's own bundled default) actually change what a preview draws.
 `wfb preview` records every distinct face a run resolved
 (`render` in `ts/src/preview.ts`'s own `used_faces` parameter) and prints one warning
@@ -432,6 +444,16 @@ instead, whenever any were -- never suppressed by `-q`/`-o -`, since it is
 a correctness warning, not progress. `wfb doctor`'s `Garmin fonts` line
 states the same consequence next to the root it did or did not find. Both
 commands take `--fonts DIR` as a one-off override, same as `WFB_FONTS`.
+
+**A `family` match can still move digits.** Bionic, the fēnix 8's
+`FONT_NUMBER_*` face, is Rajdhani with its digits redrawn to one tabular
+width (0.516 em), every other glyph Rajdhani's own outline, so its
+stand-in is Rajdhani (`family`). Without Garmin's files a preview draws
+Bionic's letterforms but Rajdhani's proportional digit advances, and the
+layout measures digit strings narrow: about 6% over ten digits, a third
+for `11:11`. On the metrics probe's 16 Bionic readings that is 296 px of
+total error, against 20 px with Garmin's own file (research 40 §4.1).
+`wfb preview` does not warn of it, since the match is not `substitute`.
 
 **One root serves measuring, deriving and drawing.** The font root is
 owned by `DeviceDatabase` in `ts/src/devices/device.ts` (`DeviceDatabase.discover(...,

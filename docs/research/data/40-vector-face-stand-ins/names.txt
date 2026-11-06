@@ -1,0 +1,80 @@
+Bionic_Bold.ttf | Bionic / Bold | full=Bionici Bold | Version 1.201;PS 1.0;hotconv 1.0.78;makeotf.lib2.5.61930; ttfautohint (v1.1) -l 7 -r 28 -G | glyphs=1100 upm=1000 wght=700 fvar=False | sha=4006c969ec6e8af2
+    (c) Copyright (c) 2014 by Austen. All rights reserved. | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=ITFO
+Bionic_Bold_Number_Only.ttf | Bionic / Bold | full=Bionici Bold | Version 1.201;PS 1.0;hotconv 1.0.78;makeotf.lib2.5.61930; ttfautohint (v1.1) -l 7 -r 28 -G | glyphs=22 upm=1000 wght=700 fvar=False | sha=1f877b9055ed661f
+    (c) Copyright (c) 2014 by Austen. All rights reserved. | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=ITFO
+Bionic_Medium.ttf | Bionic Medium / Regular | full=Bionic Medium | Version 1.201;PS 1.0;hotconv 1.0.78;makeotf.lib2.5.61930; ttfautohint (v1.1) -l 7 -r 28 -G | glyphs=1100 upm=1000 wght=500 fvar=False | sha=bf47f63db4259b55
+    (c) Copyright (c) 2014 by . All rights reserved. | lic= | vendor=ITFO
+Bionic_semibold.ttf | Bionic / Regular | full=Bionic SemiBold | Version 1.201;May 20, 2021;FontCreator 11.5.0.2430 64-bit | glyphs=1043 upm=1000 wght=600 fvar=False | sha=2be9287f1a546879
+    (c) Copyright (c) 2021 by Garmin. All rights reserved. | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=ITFO
+Kosugi-Regular-2.ttf | MotoyaLCedar / W3 mono | full=MotoyaLCedar Regular | Version 4.00;November 8, 2021;FontCreator 11.5.0.2430 64-bit | glyphs=7576 upm=1024 wght=400 fvar=False | sha=1f55c4344e6b3801
+    (c) Copyright(C)2010 MOTOYA CO.,LTD. | lic=Licensed under the Apache License, Version 2.0 | vendor=MTY 
+Kosugi-Regular-3.ttf | MotoyaLCedar / W3 mono | full=MotoyaLCedar Regular | Version 4.00;November 8, 2021;FontCreator 11.5.0.2430 64-bit | glyphs=7574 upm=1024 wght=400 fvar=False | sha=8c1f36b661e49509
+    (c) Copyright(C)2010 MOTOYA CO.,LTD. | lic=Licensed under the Apache License, Version 2.0 | vendor=MTY 
+Kosugi-Regular-Outdoor.ttf | MotoyaLCedar / W3 mono | full=MotoyaLCedar Regular | Version 4.00;November 8, 2021;FontCreator 11.5.0.2430 64-bit | glyphs=7576 upm=1024 wght=400 fvar=False | sha=1f55c4344e6b3801
+    (c) Copyright(C)2010 MOTOYA CO.,LTD. | lic=Licensed under the Apache License, Version 2.0 | vendor=MTY 
+Kosugi-Regular.ttf | MotoyaLCedar / W3 mono | full=MotoyaLCedar | Version 1.01 | glyphs=7574 upm=1024 wght=400 fvar=False | sha=2125264db9a509b7
+    (c) Copyright(C)2010 MOTOYA CO.,LTD. | lic=Licensed under the Apache License, Version 2.0 | vendor=MTY 
+NanumGothic-Bold.ttf | NanumGothic / Bold | full=NanumGothicBold | Version 3.020;PS 1;hotconv 1.0.57;makeotf.lib2.0.21895 | glyphs=18730 upm=1000 wght=600 fvar=False | sha=9c5c9877e835017c
+    (c) Copyright © 2011 NHN Corporation. All rights reserved. Font designed by Sandoll Communicat | lic=NHN Corporation | vendor=SAND
+NanumGothic-ExtraBold.ttf | NanumGothicExtraBold / Regular | full=NanumGothicExtraBold | Version 3.020;PS 1;hotconv 1.0.57;makeotf.lib2.0.21895 | glyphs=18866 upm=1000 wght=700 fvar=False | sha=31c991b5ff5f8a35
+    (c) Copyright © 2011 NHN Corporation. All rights reserved. Font designed by Sandoll Communicat | lic=NHN Corporation | vendor=SAND
+NanumGothic-Regular.ttf | NanumGothic / Regular | full=NanumGothic | Version 4.00;November 8, 2021;FontCreator 11.5.0.2430 64-bit | glyphs=18490 upm=1000 wght=400 fvar=False | sha=73335668386e118f
+    (c) Copyright © 2011 NHN Corporation. All rights reserved. Font designed by Sandoll Communicat | lic=NHN Corporation | vendor=SAND
+NotoNaskhArabic-Bold.ttf | Noto Naskh Arabic / Bold | full=Noto Naskh Arabic Bold | Version 1.06 | glyphs=1540 upm=2048 wght=700 fvar=False | sha=f61cabfecaa1b80f
+    (c) Copyright 2014 Google Inc. All Rights Reserved. | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=GOOG
+NotoNaskhArabic-Regular.ttf | Noto Naskh Arabic / Regular | full=Noto Naskh Arabic | Version 1.06 | glyphs=1533 upm=2048 wght=400 fvar=False | sha=a0bc0de437cc88f0
+    (c) Copyright 2014 Google Inc. All Rights Reserved. | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=GOOG
+NotoSansArmenian-Bold.ttf | Noto Sans Armenian / Bold | full=Noto Sans Armenian Bold | Version 2.040;GOOG;noto-source:20170915:90ef993387c0; ttfautohint (v1.7) | glyphs=103 upm=1000 wght=700 fvar=False | sha=0d4e78d4b28500de
+    (c) Copyright 2016 Google Inc. All Rights Reserved. | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=GOOG
+NotoSansArmenian-Regular.ttf | Noto Sans Armenian / Regular | full=Noto Sans Armenian Regular | Version 2.040;GOOG;noto-source:20170915:90ef993387c0; ttfautohint (v1.7) | glyphs=103 upm=1000 wght=400 fvar=False | sha=9dfe2abaf9d2db72
+    (c) Copyright 2016 Google Inc. All Rights Reserved. | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=GOOG
+NotoSansHebrew-Bold.ttf | Noto Sans Hebrew / Bold | full=Noto Sans Hebrew Bold | Version 1.04 | glyphs=155 upm=2048 wght=700 fvar=False | sha=bc929b4e85dc3bc4
+    (c) Copyright 2012 Google Inc. All Rights Reserved. | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=GOOG
+NotoSansHebrew-Regular.ttf | Noto Sans Hebrew / Regular | full=Noto Sans Hebrew | Version 1.04 | glyphs=155 upm=2048 wght=400 fvar=False | sha=f51d96a6e503d195
+    (c) Copyright 2012 Google Inc. All Rights Reserved. | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=GOOG
+NotoSansSC-Medium-2.ttf | Noto Sans SC Medium / Regular | full=Noto Sans SC Medium | Version 1.004;October 18, 2021;FontCreator 11.5.0.2430 64-bit | glyphs=29899 upm=1000 wght=500 fvar=False | sha=2eacebb7b3bdb332
+    (c) Copyright © 2014, 2015 Adobe Systems Incorporated (http://www.adobe.com/). | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=GOOG
+NotoSansSC-Medium-3.ttf | Noto Sans SC Medium / Regular | full=Noto Sans SC Medium | Version 1.004;November 8, 2021;FontCreator 11.5.0.2430 64-bit | glyphs=29886 upm=1000 wght=500 fvar=False | sha=bc210b80ec984ce6
+    (c) Copyright © 2014, 2015 Adobe Systems Incorporated (http://www.adobe.com/). | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=GOOG
+NotoSansSC-Medium-Outdoor.ttf | Noto Sans SC Medium / Regular | full=Noto Sans SC Medium | Version 1.004;October 18, 2021;FontCreator 11.5.0.2430 64-bit | glyphs=29899 upm=1000 wght=500 fvar=False | sha=2eacebb7b3bdb332
+    (c) Copyright © 2014, 2015 Adobe Systems Incorporated (http://www.adobe.com/). | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=GOOG
+NotoSansSC-Medium.ttf | Noto Sans SC Medium / Regular | full=Noto Sans SC Medium | Version 1.004;October 18, 2021;FontCreator 11.5.0.2430 64-bit | glyphs=30859 upm=1000 wght=500 fvar=False | sha=e4c7ab18be6bb1bf
+    (c) Copyright © 2014, 2015 Adobe Systems Incorporated (http://www.adobe.com/). | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=GOOG
+Pridi-Regular.ttf | Pridi / Regular | full=Pridi Regular | Version 1.001 | glyphs=764 upm=1000 wght=400 fvar=False | sha=f5b1a5d8e79de7f1
+    (c) Copyright (c) 2015, Cadson Demak (info@cadsondemak.com) | lic=Copyright (c) 2015, Cadson Demak (info@cadsondemak.com)  This Font Software is l | vendor=CDK 
+Pridi-Regular_Garmin.ttf | Pridi / Regular | full=Pridi | Version 1.001;January 6, 2022;FontCreator 11.5.0.2430 64-bit | glyphs=764 upm=1000 wght=400 fvar=False | sha=2965f18224c60d5d
+    (c) Copyright (c) 2015, Cadson Demak (info@cadsondemak.com) | lic=Copyright (c) 2015, Cadson Demak (info@cadsondemak.com)  This Font Software is l | vendor=CDK 
+Pridi-SemiBold_Garmin.ttf | Pridi SemiBold / Regular | full=Pridi SemiBold | Version 1.001;October 27, 2020;FontCreator 11.5.0.2430 64-bit | glyphs=764 upm=1000 wght=600 fvar=False | sha=d5845c91cdae5298
+    (c) Copyright (c) 2015, Cadson Demak (info@cadsondemak.com) | lic=Copyright (c) 2015, Cadson Demak (info@cadsondemak.com)  This Font Software is l | vendor=CDK 
+Roboto-Black.ttf | Roboto Black / Regular | full=Roboto Black | Version 2.138 | glyphs=3387 upm=2048 wght=900 fvar=False | sha=50f0aab10018fc18
+    (c) Copyright 2011 Google Inc. All Rights Reserved. | lic=Licensed under the Apache License, Version 2.0 | vendor=GOOG
+Roboto-Condensed_0.ttf | Roboto Cn / Regular | full=Roboto Condensed | Version 1.00000; 2011 | glyphs=1037 upm=2048 wght=400 fvar=False | sha=2efe5301b93d1e4a
+    (c) Font data copyright Google 2011 | lic= | vendor=pyrs
+Roboto-Italic.ttf | Roboto Wide / Italic | full=Roboto Wide Italic | Version 2.137;January 18, 2023;FontCreator 11.5.0.2430 64-bit | glyphs=1296 upm=2048 wght=400 fvar=False | sha=cbaba6391c785577
+    (c)  | lic=Licensed under the Apache License, Version 2.0 | vendor=GOOG
+Roboto-Medium-Outdoor.ttf | Roboto Medium / Regular | full=Roboto Medium | Version 2.136; 2016 | glyphs=3387 upm=2048 wght=500 fvar=False | sha=0284f7f742319b31
+    (c) Copyright 2011 Google Inc. All Rights Reserved. | lic=Licensed under the Apache License, Version 2.0 | vendor=GOOG
+Roboto-Medium.ttf | Roboto Medium / Regular | full=Roboto Medium | Version 3.005; 2022 | glyphs=1311 upm=2048 wght=500 fvar=False | sha=edccc7f374e3ac6b
+    (c) Copyright 2011 Google Inc. All Rights Reserved. | lic=Licensed under the Apache License, Version 2.0 | vendor=GOOG
+Roboto-Regular.ttf | Roboto / Regular | full=Roboto | Version 2.137;September 2, 2022;FontCreator 11.5.0.2430 64-bit | glyphs=1296 upm=2048 wght=400 fvar=False | sha=31d218ca177e4c21
+    (c) Copyright 2011 Google Inc. All Rights Reserved. | lic= | vendor=GOOG
+RobotoCondensed-Bold.ttf | Roboto Condensed / Bold | full=Roboto Condensed Bold | Version 2.000980; 2014 | glyphs=1077 upm=2048 wght=700 fvar=False | sha=abeadf49b687d165
+    (c) Font data copyright Google 2014 | lic=Licensed under the Apache License, Version 2.0 | vendor=pyrs
+RobotoCondensed-Regular.ttf | Roboto Condensed / Regular | full=Roboto Condensed Regular | Version 2.000980; 2014 | glyphs=1077 upm=2048 wght=400 fvar=False | sha=4650a016cd9fb6d9
+    (c) Font data copyright Google 2014 | lic=Licensed under the Apache License, Version 2.0 | vendor=pyrs
+RobotoCondensed-RegularItalic.ttf | Roboto Condensed / Italic | full=Roboto Condensed Italic | Version 2.137; 2017 | glyphs=1294 upm=2048 wght=400 fvar=False | sha=3663d3854f990ce3
+    (c) Copyright 2011 Google Inc. All Rights Reserved. | lic=Licensed under the Apache License, Version 2.0 | vendor=GOOG
+sakkal_majalla_bold.ttf | Sakkal Majalla Unicode / Bold | full=Sakkal Majalla Unicode Bold | Version 0.78 Build 86 | glyphs=1854 upm=2048 wght=700 fvar=False | sha=85464ba269104d17
+    (c) © 2004 Mamoun Sakkal, Sakkal Design. | lic= | vendor=SKKL
+sakkal_majalla_roman.ttf | Sakkal Majalla Unicode / Regular | full=Sakkal Majalla Unicode | Version 0.78 Build 86 | glyphs=1856 upm=2048 wght=400 fvar=False | sha=9c0472a155bde2af
+    (c) © 2004 Mamoun Sakkal, Sakkal Design. | lic= | vendor=SKKL
+swiss_721_bd.ttf | Swis721Hebrew BT / Bold | full=Swis721Hebrew BT Bold | Version 2.00 Bitstream Hebrew Set | glyphs=203 upm=2048 wght=700 fvar=False | sha=5c7220d68b906a38
+    (c) Copyright 1990-2001 Bitstream Inc.  All rights reserved. | lic= | vendor=Bits
+swiss_721_reg.ttf | Swis721Hebrew BT / Roman | full=Swis721Hebrew BT Roman | Version 2.00 Bitstream Hebrew Set | glyphs=203 upm=2048 wght=400 fvar=False | sha=6e241fc03c14a0eb
+    (c) Copyright 1990-2001 Bitstream Inc.  All rights reserved. | lic= | vendor=Bits
+rajdhani-bold.ttf | Rajdhani / Bold | full=Rajdhani Bold | Version 1.201;PS 1.0;hotconv 1.0.78;makeotf.lib2.5.61930; ttfautohint (v1.1) -l 7 -r 28 -G | glyphs=1100 upm=1000 wght=700 fvar=False | sha=691470dd3286a14e
+    (c) Copyright (c) 2014 Indian Type Foundry (info@indiantypefoundry.com) | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=ITFO
+rajdhani-medium.ttf | Rajdhani Medium / Regular | full=Rajdhani Medium | Version 1.201;PS 1.0;hotconv 1.0.78;makeotf.lib2.5.61930; ttfautohint (v1.1) -l 7 -r 28 -G | glyphs=1100 upm=1000 wght=500 fvar=False | sha=12ff7dcfe4c206e3
+    (c) Copyright (c) 2014 Indian Type Foundry (info@indiantypefoundry.com) | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=ITFO
+rajdhani-semibold.ttf | Rajdhani SemiBold / Regular | full=Rajdhani SemiBold | Version 1.201;PS 1.0;hotconv 1.0.78;makeotf.lib2.5.61930; ttfautohint (v1.1) -l 7 -r 28 -G | glyphs=1100 upm=1000 wght=600 fvar=False | sha=94bbd25a18ca6659
+    (c) Copyright (c) 2014 Indian Type Foundry (info@indiantypefoundry.com) | lic=This Font Software is licensed under the SIL Open Font License, Version 1.1. Thi | vendor=ITFO

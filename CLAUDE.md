@@ -97,7 +97,8 @@ dependencies. Device install is
 copies in just that one, without touching what is already installed
 (`docs/lore/toolchain.md`). It also copies `vendor/fonts/` (Garmin's own,
 optional font files) into place the same incremental way, and prefetches
-`ts/src/data/font-registry.json`'s free system-font stand-ins (`docs/lore/toolchain.md`).
+every free stand-in `ts/src/data/font-registry.json` pins, script faces
+included (`docs/lore/toolchain.md`).
 
 **Device definitions cannot be downloaded:** Garmin's API returns 401 without
 an SSO login. They are vendored at `vendor/devices/`, which is

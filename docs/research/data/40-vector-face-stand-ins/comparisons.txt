@@ -1,0 +1,66 @@
+Bionic Bold (BionicBold, 43 devices)  (sample '0123456789 10:08 ABCXYZ', ink matched on 'H')
+| candidate | width at same em | ink overlap | scale | covers |
+|---|---|---|---|---|
+| Bionic Bold (Garmin, real) | 1.000 | 1.00 | 1.00 | 21/21 |
+| Rajdhani Bold | 0.970 | 0.88 | 1.00 | 21/21 |
+| Roboto Condensed Bold | 1.008 | 0.68 | 0.90 | 21/21 |
+| Saira Semi Condensed Bold | 1.036 | 0.76 | 0.93 | 21/21 |
+| Barlow Semi Condensed Bold | 0.949 | 0.64 | 0.92 | 21/21 |
+| Khand Bold | 0.854 | 0.54 | 0.93 | 21/21 |
+| Teko SemiBold | 0.830 | 0.62 | 1.01 | 21/21 |
+| Roboto Black | 1.151 | 0.77 | 0.90 | 21/21 |
+Bionic SemiBold (BionicSemiBold, 6 devices)  (sample '0123456789 10:08 ABCXYZ', ink matched on 'H')
+| candidate | width at same em | ink overlap | scale | covers |
+|---|---|---|---|---|
+| Bionic SemiBold (Garmin, real) | 1.000 | 1.00 | 1.00 | 21/21 |
+| Rajdhani SemiBold | 0.959 | 0.86 | 1.00 | 21/21 |
+| Roboto Condensed Bold | 1.009 | 0.62 | 0.90 | 21/21 |
+| Saira Semi Condensed SemiBold | 1.029 | 0.70 | 0.93 | 21/21 |
+| Barlow Semi Condensed SemiBold | 0.934 | 0.57 | 0.92 | 21/21 |
+| Khand SemiBold | 0.828 | 0.43 | 0.94 | 21/21 |
+| Teko SemiBold | 0.831 | 0.53 | 1.01 | 21/21 |
+Bionic Medium (BionicMedium, 14 devices)  (sample '0123456789 10:08 ABCXYZ', ink matched on 'H')
+| candidate | width at same em | ink overlap | scale | covers |
+|---|---|---|---|---|
+| Bionic Medium (Garmin, real) | 1.000 | 1.00 | 1.00 | 21/21 |
+| Rajdhani Medium | 0.968 | 0.82 | 1.00 | 21/21 |
+| Roboto Condensed Bold | 1.031 | 0.52 | 0.90 | 21/21 |
+| Saira Semi Condensed SemiBold | 1.051 | 0.57 | 0.93 | 21/21 |
+| Barlow Semi Condensed SemiBold | 0.954 | 0.48 | 0.92 | 21/21 |
+| Teko Medium | 0.768 | 0.37 | 1.02 | 21/21 |
+Sakkal Majalla Roman (SakkalMajallaRoman, 21 devices)  (sample 'الثلاثاء ١٠:٠٨ 10:08', ink matched on 'ا')
+| candidate | width at same em | ink overlap | scale | covers |
+|---|---|---|---|---|
+| Sakkal Majalla (Garmin, real) | 1.000 | 1.00 | 1.00 | 18/18 |
+| Noto Naskh Arabic Regular | 1.156 | 0.31 | 0.70 | 18/18 |
+| Amiri Regular | 1.265 | 0.47 | 0.78 | 18/18 |
+| Scheherazade New Regular | 1.304 | 0.30 | 0.77 | 18/18 |
+| Lateef Regular | 0.835 | 0.33 | 1.01 | 18/18 |
+| Noto Sans Arabic Regular | 1.205 | 0.34 | 0.76 | 18/18 |
+Sakkal Majalla Bold (SakkalMajallaBold, 21 devices)  (sample 'الثلاثاء ١٠:٠٨ 10:08', ink matched on 'ا')
+| candidate | width at same em | ink overlap | scale | covers |
+|---|---|---|---|---|
+| Sakkal Majalla Bold (Garmin, real) | 1.000 | 1.00 | 1.00 | 18/18 |
+| Noto Naskh Arabic Bold | 1.190 | 0.48 | 0.74 | 18/18 |
+| Amiri Bold | 1.240 | 0.52 | 0.82 | 18/18 |
+| Scheherazade New Bold | 1.327 | 0.49 | 0.84 | 18/18 |
+| Lateef Bold | 0.843 | 0.40 | 1.09 | 18/18 |
+| Noto Sans Arabic Bold | 1.265 | 0.33 | 0.80 | 18/18 |
+Swiss 721 Hebrew Regular (Swiss721Regular, 21 devices)  (sample 'יום שלישי 10:08 Tue ABCxyz', ink matched on 'ה')
+| candidate | width at same em | ink overlap | scale | covers |
+|---|---|---|---|---|
+| Swis721Hebrew BT Roman (Garmin, real) | 1.000 | 1.00 | 1.00 | 22/22 |
+| Arimo Regular | 1.030 | 0.49 | 0.89 | 22/22 |
+| Noto Sans Hebrew Regular | 1.088 | 0.61 | 0.89 | 8/22 |
+| Heebo Regular | 1.026 | 0.55 | 0.93 | 22/22 |
+| Assistant Regular | 0.880 | 0.41 | 0.97 | 22/22 |
+| Rubik Regular | 1.014 | 0.58 | 0.94 | 22/22 |
+Swiss 721 Hebrew Bold (Swiss721Bold, 21 devices)  (sample 'יום שלישי 10:08 Tue ABCxyz', ink matched on 'ה')
+| candidate | width at same em | ink overlap | scale | covers |
+|---|---|---|---|---|
+| Swis721Hebrew BT Bold (Garmin, real) | 1.000 | 1.00 | 1.00 | 22/22 |
+| Arimo Bold | 1.030 | 0.59 | 0.90 | 22/22 |
+| Noto Sans Hebrew Bold | 1.059 | 0.70 | 0.90 | 8/22 |
+| Heebo Bold | 1.011 | 0.68 | 0.93 | 22/22 |
+| Assistant Bold | 0.886 | 0.56 | 0.96 | 22/22 |
+| Rubik Bold | 1.023 | 0.74 | 0.96 | 22/22 |

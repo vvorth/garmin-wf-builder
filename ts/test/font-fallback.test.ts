@@ -377,9 +377,9 @@ test("fallback: auto is {source: auto}, resolved to the registry key of the firs
     .fonts.get("dial")!.fallback!;
   assert.deepEqual([mapping.registry, String(mapping.size), mapping.monospace, mapping.align, mapping.antialias, mapping.glyphs],
     ["roboto-condensed-bold", "9px", true, "left", true, "BRAND"]);
-  // author order: a face the registry knows only by a substitute still wins when it is listed first
-  const first = face(design(AUTO.replace("face: RobotoCondensedBold", "face: [KosugiRegular, BionicSemiBold, RobotoCondensedBold]"))).fonts.get("dial")!;
-  assert.equal(first.fallback!.registry, "bionic-substitute");
+  // author order: a face the registry does not know is skipped, and a family match listed before an exact one still wins
+  const first = face(design(AUTO.replace("face: RobotoCondensedBold", "face: [NoSuchFace, BionicSemiBold, RobotoCondensedBold]"))).fonts.get("dial")!;
+  assert.equal(first.fallback!.registry, "rajdhani-semibold");
   // an inline font takes it too
   const inline = design(AUTO, { curved: null }).replace("    font: font.dial\n", "    font: { face: RobotoCondensedBold, size: 12%r, fallback: auto }\n");
   assert.equal(face(inline).fonts.get("brand_font")!.fallback!.registry, "roboto-condensed-bold");
@@ -393,10 +393,10 @@ test("fallback: auto on a baked font is the error any fallback: there is; anothe
 });
 
 test("fallback: auto with no listed face the registry knows is an error at the fallback, naming them", () => {
-  const found = errors(design(AUTO.replace("face: RobotoCondensedBold", "face: [KosugiRegular, NanumGothicExtraBold]")));
+  const found = errors(design(AUTO.replace("face: RobotoCondensedBold", "face: [NoSuchFace, AnotherUnknownFace]")));
   assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
   assert.equal(found[0]!.code, "font");
-  assert.equal(found[0]!.message, "font 'dial': 'fallback: auto' has no free stand-in for 'KosugiRegular', 'NanumGothicExtraBold'");
+  assert.equal(found[0]!.message, "font 'dial': 'fallback: auto' has no free stand-in for 'NoSuchFace', 'AnotherUnknownFace'");
   assert.equal(found[0]!.span!.line, 13);
   assert.match(found[0]!.notes.join("\n"), /write 'fallback: \{source: <your own file>\}' instead/);
 });
@@ -425,7 +425,7 @@ test("a stand-in not installed is one build error at the fallback, naming the ke
   resolveAll(f!, ["fenix8solar47mm", "fr955", "fr255"].map((id) => bare.get(id)), bag, (face, device) => bakeFonts(face, device, read));
   const found = bag.errors;
   assert.equal(found.length, 1, bag.render());
-  assert.equal(found[0]!.message, "font 'dial': 'fallback: auto' bakes the free stand-in bionic-substitute, which is not installed");
+  assert.equal(found[0]!.message, "font 'dial': 'fallback: auto' bakes the free stand-in rajdhani-semibold, which is not installed");
   assert.equal(found[0]!.span!.line, 13);
   assert.match(found[0]!.notes.join("\n"), /\.\/tools\/setup-env\.sh, or node ts\/tools\/fetch-system-fonts\.ts --registry/);
   // the device that builds the face bakes nothing, and resolves
@@ -437,8 +437,12 @@ test("note[font-fallback] for auto names the stand-in, its match and its licence
   assert.deepEqual(notes.map((d) => d.message), ["font 'dial': drawn from its 'fallback: auto' on fr255 -- roboto-condensed-bold (exact, Apache-2.0), no usable face there"]);
   assert.match(notes[0]!.notes.join("\n"), /baked from the free-font registry's roboto-condensed-bold, its stand-in for 'RobotoCondensedBold', for that device only/);
   const bionic = checked(design(AUTO.replace("face: RobotoCondensedBold", "face: [BionicSemiBold, RobotoCondensedBold]"))).filter((d) => d.code === "font-fallback");
-  assert.deepEqual(bionic.map((d) => d.message), ["font 'dial': drawn from its 'fallback: auto' on fr255 -- bionic-substitute (substitute, Apache-2.0), no usable face there"]);
-  assert.match(bionic[0]!.notes.join("\n"), /a free face of similar look, not the face itself/);
+  assert.deepEqual(bionic.map((d) => d.message), ["font 'dial': drawn from its 'fallback: auto' on fr255 -- rajdhani-semibold (family, OFL-1.1), no usable face there"]);
+  assert.doesNotMatch(bionic[0]!.notes.join("\n"), /not the face itself/);
+  // a proprietary face's substitute says so
+  const swiss = checked(design(AUTO.replace("face: RobotoCondensedBold", "face: [Swiss721Regular, RobotoCondensedBold]"))).filter((d) => d.code === "font-fallback");
+  assert.deepEqual(swiss.map((d) => d.message), ["font 'dial': drawn from its 'fallback: auto' on fr255 -- arimo-regular (substitute, OFL-1.1), no usable face there"]);
+  assert.match(swiss[0]!.notes.join("\n"), /a free face of similar look, not the face itself/);
 });
 
 test("an auto sheet is the stand-in's file baked as a path fallback bakes it: same resources, same pixels", () => {
