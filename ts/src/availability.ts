@@ -138,6 +138,8 @@ export function usesComplications(face: Face): boolean {
 export const SINCE = {
   /** `Toybox.Complications`, the module itself. */
   complications: "4.2.0",
+  /** `Dc.drawAngledText`, `Dc.drawRadialText` and `Graphics.RADIAL_TEXT_DIRECTION_*`: curved text. */
+  curved_text: "4.2.1",
   /** The native editor: `Application.WatchFaceConfig`, `WatchFaceDelegate.setSelectedComplication`, `WatchUi.ComplicationDrawableRef`, `Graphics.BoundingBox.addRectangle`. */
   editor: "5.1.0",
   /** `Graphics.ResourceReference`, whose `get` a buffered bitmap's reference inherits. */
@@ -269,6 +271,8 @@ export interface Guards {
   resource_reference_level: boolean;
   /** Some target predates `WatchUi.Drawable.isVisible` (`SINCE.drawable_visible`). */
   drawable_visible_level: boolean;
+  /** The design draws curved text and some target predates `SINCE.curved_text`: every curved draw carries `has` checks. */
+  curved_text_level: boolean;
   /** Elements in the subscreen window, when some target has none. */
   subscreen_hidden: ReadonlySet<string>;
   /** Elements some target hides with `overrides: visible: false`, their subtrees included. */
@@ -279,7 +283,7 @@ export interface Guards {
 export const NO_GUARDS: Guards = {
   complications: false, fields: new Set(), vector_fonts: new Set(), amoled_target: false, burn_in_field_guarded: false,
   display_mode_guarded: false, modules: new Set(), partial_update_unsupported: false, config_menu: false, config_native: false,
-  editor_level: false, resource_reference_level: false, drawable_visible_level: false, subscreen_hidden: new Set(), override_hidden: new Set(),
+  editor_level: false, resource_reference_level: false, drawable_visible_level: false, curved_text_level: false, subscreen_hidden: new Set(), override_hidden: new Set(),
 };
 
 /** Every element laid out in the subscreen window: each top-level `anchor: subscreen` element and its subtree. */
@@ -365,6 +369,7 @@ export function computeGuards(face: Face, devices: readonly Device[]): Guards {
     editor_level: face.hasConfig && predates(devices, SINCE.editor),
     resource_reference_level: predates(devices, SINCE.resource_reference),
     drawable_visible_level: predates(devices, SINCE.drawable_visible),
+    curved_text_level: kinds.faceTextRuns(face).some(([, run]) => !run.aod_only && run.curve !== null) && predates(devices, SINCE.curved_text),
     subscreen_hidden: devices.some((d) => d.subscreen === null) ? subscreenElementIds(face) : new Set(),
     override_hidden: overrideHiddenIds(face, devices),
   };

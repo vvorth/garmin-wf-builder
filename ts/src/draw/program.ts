@@ -316,7 +316,8 @@ export const LetText = (initial: Str, value: Str, guards: readonly string[], nam
   ({ t: "LetText", initial, value, guards: [...guards], name });
 
 /** `if (<local> != null) { <body> }`; on the host the body runs unless `present` says otherwise. */
-export interface IfNotNull { t: "IfNotNull"; local: string; body: Op[]; present: boolean }
+/** `if (<local> != null)`; `has`, when given, adds `has` checks the printer writes into the same condition and the host ignores. */
+export interface IfNotNull { t: "IfNotNull"; local: string; body: Op[]; present: boolean; has?: string[] }
 export const IfNotNull = (local: string, body: readonly Op[], present = true): IfNotNull => ({ t: "IfNotNull", local, body: [...body], present });
 
 /** `if (_aod) { <then> } else { <otherwise> }`. */

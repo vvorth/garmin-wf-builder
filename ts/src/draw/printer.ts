@@ -216,7 +216,7 @@ function printOp(w: Writer, op: Op, aod: AodStyle): void {
       w.line(`var ${op.name} = ${strCode(op.initial, aod)};`);
       w.block(`if (${op.guards.map((g) => `${g} != null`).join(" && ")})`, () => w.line(`${op.name} = ${strCode(op.value, aod)};`));
       break;
-    case "IfNotNull": w.block(`if (${op.local} != null)`, () => printOps(w, op.body, aod)); break;
+    case "IfNotNull": w.block(`if (${[`${op.local} != null`, ...(op.has ?? [])].join(" && ")})`, () => printOps(w, op.body, aod)); break;
     case "IfAod":
       w.block("if (_aod)", () => printOps(w, op.then, aod));
       if (op.otherwise.length > 0) w.block("else", () => printOps(w, op.otherwise, aod));

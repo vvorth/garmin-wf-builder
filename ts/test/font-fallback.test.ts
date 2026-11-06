@@ -329,3 +329,31 @@ test("the preview draws a fallback device's text from the baked sheet, and the c
   assert.ok(crop(im, fenix.items.find((p) => p.id === "rim")!.box).some((v) => v > 0), "fenix: rim drawn");
   assert.equal(drawn(text, "brand", {}, "fr255"), "BRAND");
 });
+
+// -- curved draws on a target older than the curved-text APIs ---------------------
+
+test("with a target older than drawRadialText in the build, each curved draw carries has checks inside its null check", () => {
+  const text = design(FALLBACK, { targets: "fenix8solar47mm, venu" }).replace("  brand:\n", `  ring:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 4
+    color: color.fg
+    parts:
+      bent: { type: text, text: "B", font: font.dial, at: { dy: -80%r }, curve: { style: angled, angle: 0deg }, unsupported: hide }
+    lint: { allow: [font-unavailable], reason: test }
+  brand:
+`);
+  assert.deepEqual(divergences(text), []);
+  const v = view(text);
+  const rim = v.split("function drawRim")[1]!.split("\n    }")[0]!;
+  assert.match(rim, /if \(font != null && \(dc has :drawRadialText\) && \(Graphics has :RADIAL_TEXT_DIRECTION_COUNTER_CLOCKWISE\)\) \{/);
+  const ring = v.split("function drawRing")[1]!.split("\n    }")[0]!;
+  assert.match(ring, /if \(font0 != null && \(dc has :drawAngledText\)\) \{/);
+  // the upright text keeps its plain null check
+  const brand = v.split("function drawBrand")[1]!.split("\n    }")[0]!;
+  assert.match(brand, /if \(font != null\) \{/);
+  // every target at 4.2.1 or later: no checks
+  const modern = view(text.replace("targets: [fenix8solar47mm, venu]", "targets: [fenix8solar47mm, fr955, fr255]"));
+  assert.doesNotMatch(modern, /has :draw(Radial|Angled)Text|has :RADIAL_TEXT/);
+});

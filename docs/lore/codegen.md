@@ -374,6 +374,25 @@ These cost real time to discover; do not rediscover them.
   catalogue include any of the requested faces" has no runtime query at
   all and can only be decided at build time, per device.
 
+  **A curved draw on a target older than the curved-text APIs** needs
+  `has` checks even though it can never run there (no face is built on
+  such a device, so the font is null). `Dc.drawAngledText`,
+  `Dc.drawRadialText` and `Graphics.RADIAL_TEXT_DIRECTION_*` are API 4.2.1
+  (`SINCE.curved_text`), and `monkeyc` 9.3.0 refused a build carrying
+  `unsupported: hide` curved text on `venu` (3.3.1) and `fenix5` (3.1.6):
+  "Value '$.Toybox.Graphics.Dc.drawRadialText' is not supported for device
+  'venu'", and the same for
+  `$.Toybox.Graphics.RADIAL_TEXT_DIRECTION_COUNTER_CLOCKWISE`
+  (constraint 6d; a null check is not a `has` check). When the design
+  draws curved text and some target predates 4.2.1
+  (`Guards.curved_text_level`), each curved draw's font null check gains the
+  checks inline, `if (font != null && (dc has :drawRadialText) && (Graphics
+  has :RADIAL_TEXT_DIRECTION_COUNTER_CLOCKWISE))` or `... && (dc has
+  :drawAngledText))` (`guardCurvedText` in `ts/src/draw/index.ts`, through
+  `IfNotNull.has`, which the preview ignores); with every target at 4.2.1 or
+  later the output is unchanged. Built warning-free on `venu` and `fenix5`
+  (text element) and `venu` (a pattern text part and a ringed radial text).
+
   **A `face:` font with a `fallback:`** keeps that one shared view, with a
   different field shape (the goldens hold every font without one to the
   shape above). Its field is `Graphics.FontType?`, holding the face where

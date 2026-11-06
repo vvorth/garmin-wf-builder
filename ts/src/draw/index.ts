@@ -6,6 +6,7 @@
 // element's own guards (`visible:`, absence, `antialias:`) around it.
 import * as catalog from "../catalog.ts";
 import { AodStyle, type RingPass, shownMask } from "../emit/monkeyc/common.ts";
+import { RADIAL_DIRECTION } from "../emit/monkeyc/shapes.ts";
 import type { Writer } from "../emit/writer.ts";
 import { printOps } from "./printer.ts";
 import { ReadPlan } from "../emit/monkeyc/readplan.ts";
@@ -117,5 +118,38 @@ export function emitBody(w: Writer, resolved: ResolvedFace, placed: Placed, plan
   ring: RingPass | null = null, antialiasDefault: boolean | null = null): void {
   const guards = kinds.forPlaced(placed).name === "data" ? [] : plan.valueGuards(placed);
   const ctx = new DrawContext(resolved, aod, guards, ring, { complicationsGuarded: plan.device_guards.complications });
-  printOps(w, program(ctx, placed, plan, antialiasDefault), aod);
+  const ops = program(ctx, placed, plan, antialiasDefault);
+  printOps(w, plan.device_guards.curved_text_level ? guardCurvedText(ops) : ops, aod);
+}
+
+/**
+ * `ops` with each curved draw's `has` checks on the font null check around
+ * it. Since SDK 9.3.0 `monkeyc` refuses `dc.drawRadialText` (and the
+ * direction constant, and `drawAngledText`) on a target whose API level
+ * predates them unless a `has` check naming each encloses the use, even
+ * where the draw can never run (docs/lore/platform-constraints.md, 6d).
+ * Every curved draw is in a `face:` font, so inside that null check.
+ */
+function guardCurvedText(ops: readonly Op[], within: string[] | null = null): Op[] {
+  return ops.map((op): Op => {
+    if (op.t === "Text" && op.style !== null && !op.joined) {
+      if (within === null) throw new Error("a curved draw outside its font's null check");
+      const checks = op.style === "angled" ? ["(dc has :drawAngledText)"]
+        : ["(dc has :drawRadialText)", `(Graphics has :${RADIAL_DIRECTION[op.direction ?? "clockwise"]})`];
+      for (const check of checks) if (!within.includes(check)) within.push(check);
+      return op;
+    }
+    if (op.t === "IfNotNull") {
+      const has: string[] = [];
+      const body = guardCurvedText(op.body, has);
+      return has.length > 0 ? { ...op, body, has } : { ...op, body };
+    }
+    const nested: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(op)) {
+      if (Array.isArray(value) && value.length > 0 && typeof value[0] === "object" && value[0] !== null && "t" in value[0]) {
+        nested[key] = guardCurvedText(value as Op[], within);
+      }
+    }
+    return Object.keys(nested).length > 0 ? { ...op, ...nested } as Op : op;
+  });
 }
