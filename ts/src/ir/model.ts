@@ -145,6 +145,11 @@ export class FontSpec {
   glyph_sizes: Map<string, number> | null = null;
   face: string[] | null = null;
   unsupported: string | null = null;
+  /**
+   * A `face:` font's `fallback:`: the baked font, under this entry's own name,
+   * that a device which cannot draw any listed face bakes and draws instead.
+   */
+  fallback: FontSpec | null = null;
 
   static create(init: Partial<FontSpec>): FontSpec { return make(FontSpec, init); }
 

@@ -398,6 +398,10 @@ Bends a `text` element's content along a straight line (`style: angled`,
   only support scalable fonts and do not support custom fonts loaded as
   resources" (`$CIQ_SDK/doc/docs/Core_Topics/Graphics.html` §Scalable
   Fonts). See ["Vector (`face:`) fonts"](fonts.md#vector-face-fonts-device-resident-scalable-and-turnable).
+  A `face:` font's baked [`fallback:`](fonts.md#fallback--a-baked-stand-in-for-a-missing-face)
+  does not change this: on a device that draws the font from its fallback
+  sheet, a curved element in it cannot be drawn, and `unsupported:` decides
+  (below).
 * **`style:` is a required discriminator**, the same precedent a `gauge`'s
   `style:` sets: the *binding* stays identical and only the rendering
   differs. `radius:`/`direction:` are rejected on `angled` — an angled line
@@ -454,7 +458,11 @@ axis](configuration.md#a-curved-reading-curve).
 
 `unsupported:` (`error`/`hide`, see [Fonts](fonts.md#fonts)) works exactly the same
 way on a curved element as on any other `face:`-font `text` element, and can
-still be set on the element to override the font's own value outright.
+still be set on the element to override the font's own value outright. A
+curved element is unavailable on every device that draws its font from a
+`fallback:` sheet as well as on one that cannot draw the font at all, so
+`unsupported: hide` on it keeps such a device's build going while an
+upright text in the same font still draws there.
 
 **On a round screen, `safe-area` checks the curved run's own real shape, not
 its bounding box's corners.** A `style: radial` run's box is a tight annulus

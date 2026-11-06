@@ -54,7 +54,7 @@ export const ALL_CODES: ReadonlySet<string> = new Set([
   "contrast", "dead-element",
   "element-mapping",
   "devices", "duplicate-id", "duplicate-style", "element", "expression",
-  "font", "font-unavailable", "format", "format-version", "graph", "graphics-pool", "hands",
+  "font", "font-fallback", "font-unavailable", "format", "format-version", "graph", "graphics-pool", "hands",
   "icon", "io",
   "layouts", "lint-allow", "memory",
   "metrics", "missing-glyph", "monkeyc", "off-screen", "palette",
@@ -272,6 +272,7 @@ export function checkVectorFontAvailability(face: Face, resolved: ReadonlyMap<st
           ...failing.map((id) => vectorFontFailureReason(resolved.get(id)!.device, spec, run.curve)),
           `set 'unsupported: hide' on 'font.${run.font}' or on '${what}' to let it disappear on a target that cannot `
           + "draw it, drop the device from 'targets:', or add a face it actually publishes",
+          fallbackSuggestion(run.font, spec, run.curve),
         ],
         confidence: "exact -- resolved per-device gates 1-3",
       });
@@ -287,9 +288,40 @@ export function checkVectorFontAvailability(face: Face, resolved: ReadonlyMap<st
         confidence: "exact -- resolved per-device gates 1-3",
       });
   }
+  for (const [name, spec] of availability.vectorFontsUsed(face)) {
+    if (spec.fallback === null) continue;
+    const baking = sorted([...resolved].filter(([, rf]) => availability.vectorFontMode(spec, rf.device) === "fallback").map(([id]) => id));
+    if (baking.length === 0) continue;
+    bag.note("font-fallback", `font ${quoted(name)}: drawn from its baked 'fallback:' on ${baking.join(", ")} -- no usable face there`,
+      spec.fallback.span ?? spec.span, {
+        notes: [
+          `the sheet is baked from ${spec.fallback.source} for ${baking.length === 1 ? "that device" : "those devices"} only`,
+          "it draws upright text; an element with 'curve:' in this font still needs the face, and 'unsupported:' decides it there",
+        ],
+        confidence: "exact -- resolved per-device gates 1-3",
+      });
+  }
+}
+
+/** The `font-unavailable` error's note on `fallback:`: what one would draw, or why the one declared cannot draw this. */
+function fallbackSuggestion(font: string, spec: FontSpec, curve: Curve | null): string {
+  if (spec.fallback !== null) {
+    return `'font.${font}' has a 'fallback:', but a baked sheet draws upright text only -- Dc.drawAngledText and `
+      + "Dc.drawRadialText take a VectorFont, so 'curve:' cannot be drawn from it";
+  }
+  if (curve !== null) {
+    return `a 'fallback:' on 'font.${font}' would not draw this one: a baked sheet draws upright text only, and 'curve:' needs the face`;
+  }
+  return `or give 'font.${font}' a 'fallback: {source: ...}': a device without a usable face then draws upright text in it `
+    + "from a sheet baked from your own TrueType/OpenType file";
 }
 
 function vectorFontFailureReason(device: Device, spec: FontSpec, curve: Curve | null): string {
+  const reason = vectorFaceFailureReason(device, spec, curve);
+  return availability.vectorFontMode(spec, device) === "fallback" ? `${reason}; the baked 'fallback:' it draws instead cannot curve` : reason;
+}
+
+function vectorFaceFailureReason(device: Device, spec: FontSpec, curve: Curve | null): string {
   if (!device.hasSymbol(Device.VECTOR_FONT_SYMBOL)) {
     return `${device.id}: has no ${quoted(Device.VECTOR_FONT_SYMBOL)} at all (gate 1) -- no device-resident face, of any name, can ever be drawn here`;
   }
@@ -640,6 +672,8 @@ function missingGlyphError(bag: Bag, what: string, fontReference: string, missin
 
 export function checkGlyphs(resolved: ResolvedFace, bag: Bag): void {
   for (const [, run] of kinds.placedTextRuns(resolved.items, resolved.face)) {
+    // A curved text in a `face:` font never draws from that font's `fallback:` sheet.
+    if (run.curve !== null && run.isVector(resolved.face)) continue;
     const font = run.samples.length > 0 ? resolved.fonts.get(run.font) : undefined;
     if (font === undefined) continue;
     const missing = new Set<string>();

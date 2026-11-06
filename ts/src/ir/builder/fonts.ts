@@ -53,19 +53,25 @@ export class FontBlock extends VisibilityHelpers {
     }
   }
 
-  private buildBakedFont(name: string, spec: Node, base: string, span: Span | null): FontSpec | null {
+  /**
+   * A baked font: a `source:` entry, or with `fallbackOf` the `fallback:`
+   * mapping of the `face:` entry `name`, whose `size:` it takes when it
+   * writes none of its own.
+   */
+  private buildBakedFont(name: string, spec: Node, base: string, span: Span | null, fallbackOf: Length | null = null): FontSpec | null {
+    const what = fallbackOf === null ? quoted(name) : `${quoted(name)} 'fallback:'`;
     const written = joinPath(base, str(spec.get("source")));
     const source = normalizePath(written);
     if (!this.fileExists(written)) {
-      this.bag.error("font", `font ${quoted(name)}: source file not found: ${str(spec.get("source"))}`,
+      this.bag.error("font", `font ${what}: source file not found: ${str(spec.get("source"))}`,
         this.doc.span(spec, "source"), { notes: [`resolved against the design file, to ${written}`] });
       return null;
     }
-    const size = this.fontSize(name, spec);
+    const size = fallbackOf !== null && !spec.has("size") ? fallbackOf : this.fontSize(name, spec);
     if (size === null) return null;
     const monospace = truthy(spec.get("monospace") ?? false);
     if (spec.has("align") && !monospace) {
-      this.bag.error("font", `font ${quoted(name)}: 'align' needs 'monospace: true'`, this.doc.span(spec, "align"), {
+      this.bag.error("font", `font ${what}: 'align' needs 'monospace: true'`, this.doc.span(spec, "align"), {
         notes: [
           "align says where a glyph's ink sits inside its cell, and a "
           + "proportional font has no cell -- every glyph is exactly as "
@@ -85,6 +91,18 @@ export class FontBlock extends VisibilityHelpers {
             + "on any device",
             "drop 'unsupported:', or switch this entry to 'face:' if "
             + "you meant a device-resident font",
+          ],
+        });
+      return null;
+    }
+    if (spec.has("fallback")) {
+      this.bag.error("font", `font ${quoted(name)}: 'fallback:' is not accepted on a baked font`,
+        this.doc.span(spec, "fallback"), {
+          notes: [
+            "a baked font is rasterised from your own 'source:' at build time, so it "
+            + "is never unsupported on any device and has nothing to fall back from",
+            "drop 'fallback:', or switch this entry to 'face:' if you meant a "
+            + "device-resident font with a baked stand-in",
           ],
         });
       return null;
@@ -120,9 +138,15 @@ export class FontBlock extends VisibilityHelpers {
     }
     const size = this.fontSize(name, spec);
     if (!ok || size === null) return null;
+    let fallback: FontSpec | null = null;
+    if (spec.has("fallback")) {
+      const raw = spec.get("fallback") as Node;
+      fallback = this.buildBakedFont(name, raw, dirname(this.doc.path), this.doc.span(spec, "fallback"), size);
+      if (fallback === null) return null;
+    }
     const rawFace = spec.get("face");
     const face = typeof rawFace === "string" ? [rawFace] : [...(rawFace as string[])];
-    return FontSpec.create({ name, size, span, face, unsupported: str(spec.get("unsupported") ?? "error") });
+    return FontSpec.create({ name, size, span, face, unsupported: str(spec.get("unsupported") ?? "error"), fallback });
   }
 
   /** `fonts.<name>.size` as a `Length`; a bare number is refused with the exact conversion named. */

@@ -1032,7 +1032,7 @@ test("a fonts: entry inspects as its own branch and its options are edited throu
   assert.deepEqual(Object.fromEntries(baked.fields.map((f: any) => [f.key, f.widget])),
     { source: "text", size: "length", monospace: "bool", antialias: "bool", glyphs: "text", align: "enum" });
   const vector = await ask("dial");
-  assert.deepEqual(vector.fields.map((f: any) => f.key), ["face", "size", "unsupported"]);
+  assert.deepEqual(vector.fields.map((f: any) => f.key), ["face", "size", "unsupported", "fallback"]);
   const face = vector.fields[0];
   assert.equal(face.kind, "choice");
   assert.equal(face.chosen, 1, "a list of faces");

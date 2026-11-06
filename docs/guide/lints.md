@@ -36,7 +36,7 @@ messages; see `ts/src/lint.ts` if unsure.
 | `duplicate-style` | two `config: style:` entries resolve to the same layout/colours and are indistinguishable on the wrist |
 | `unreachable-layout` | a `layouts:` entry that no `config: style:` entry names as its `layout:`, so it can never be drawn |
 | `sub-pixel-length` | a `%`/`%r` length resolves below 1 px on this device, with `min_1px:` off |
-| `font-unavailable` | a `face:` font (or an element using one) with `unsupported: hide` fails to resolve a usable face on this device |
+| `font-unavailable` | a `face:` font (or an element using one) with `unsupported: hide` cannot draw the element on this device: no usable face and no `fallback:`, or a curved element where the font draws from its `fallback:` sheet |
 | `text-outline-interior` | an `outline:`-bearing element's (ring-grown) box overlaps an earlier-drawn element in a way that can't be shown to repaint it invisibly -- the interior pass paints over what's underneath, it does not reveal it |
 | `aod-unreachable` | an element's own `aod:` block can never draw because an ancestor group already writes `aod: {visible: false}`, which is sticky |
 | `aod-empty` | an AMOLED target where nothing in the design draws in always-on display |
@@ -191,8 +191,12 @@ See `docs/limitations.md` 3.
 - palette and anti-aliasing dither
 - the power cost of sleep updates
 
-Two checks look across every target in the build at once, not one device at
-a time: `font-unavailable` (above) and the `shared-view` note. One generated
+Three checks look across every target in the build at once, not one device at
+a time: `font-unavailable` (above), the `font-fallback` note and the
+`shared-view` note. `font-fallback` names, once per `face:` font with a
+[`fallback:`](fonts.md#fallback--a-baked-stand-in-for-a-missing-face), the
+devices that draw it from the baked sheet instead of the face; it is
+informational and, like every note, not something a `lint: {allow:}` takes. One generated
 view serves every target, so in a build with both AMOLED and MIP targets the
 AMOLED always-on frame is compiled into the MIP targets too, where it never
 runs. The note names them. It is informational, since their measured memory

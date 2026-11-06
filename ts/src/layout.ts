@@ -15,6 +15,7 @@ import * as kinds from "./kinds/index.ts";
 import { degrees, hypot, floorMod, radians } from "./py.ts";
 import * as units from "./units.ts";
 import { visibleMask } from "./visible_area.ts";
+import { vectorFontMode } from "./availability.ts";
 import { Angle, type Axis, Box, IntBox, type Length, roundPx } from "./units.ts";
 
 const round = roundPx;
@@ -376,7 +377,10 @@ export class ResolvedFont {
   metric: FontMetric | null = null;
   /** Vector fonts only: the face this device publishes, or empty. */
   face = "";
+  /** A `face:` font: the shared code holds it as a vector font, whichever way this device draws it. */
   is_vector = false;
+  /** A `face:` font this device draws from its baked `fallback:` sheet, under `reference`. */
+  fallback = false;
   available = true;
 
   static create(init: Partial<ResolvedFont> = {}): ResolvedFont { return make(ResolvedFont, init); }
@@ -786,10 +790,12 @@ export class LayoutFont {
   readonly face: string;
   readonly isVector: boolean;
   readonly available: boolean;
+  /** A `face:` font drawn here from its baked `fallback:` sheet, which `baked` holds. */
+  readonly fallback: boolean;
   readonly device: Device;
 
   constructor(device: Device, px: number, reference: string, isCustom: boolean, baked: BakedFont | null, metric: FontMetric | null,
-    face = "", isVector = false, available = true) {
+    face = "", isVector = false, available = true, fallback = false) {
     this.device = device;
     this.px = px;
     this.reference = reference;
@@ -799,6 +805,7 @@ export class LayoutFont {
     this.face = face;
     this.isVector = isVector;
     this.available = available;
+    this.fallback = fallback;
   }
 
   /** `text`'s advance: exact for a baked sheet, an estimate for a system or vector font, 0 with no metrics. */
@@ -815,7 +822,7 @@ export class LayoutFont {
   resolved(): ResolvedFont {
     return ResolvedFont.create({
       reference: this.reference, is_custom: this.isCustom, px: this.px, metric: this.metric,
-      face: this.face, is_vector: this.isVector, available: this.available,
+      face: this.face, is_vector: this.isVector, available: this.available, fallback: this.fallback,
     });
   }
 }
@@ -944,12 +951,20 @@ export class Resolver {
     return this.sizedBox(element, parent, cx, cy)[0];
   }
 
-  /** `fontForRef`, plus gates 1-3 for a `face:` (vector) font. */
+  /**
+   * `fontForRef`, plus gates 1-3 for a `face:` (vector) font. A device that
+   * draws the font from its baked `fallback:` measures against that sheet,
+   * and can draw it upright only: a curved element is unavailable there.
+   */
   textFont(font: string, isCustom: boolean, curve: Curve | null): LayoutFont {
     const resolved = this.fontForRef(font, isCustom);
     if (!resolved.isCustom) return resolved;
     const spec = this.face.fonts.get(font)!;
     if (!spec.isVector) return resolved;
+    if (vectorFontMode(spec, this.device) === "fallback") {
+      const px = resolved.baked !== null ? resolved.baked.size : spec.fallback!.pixelSize(this.minorRadius);
+      return new LayoutFont(this.device, px, resolved.reference, true, resolved.baked, null, "", true, curve === null, true);
+    }
     const [face, available] = this.resolveVectorFace(spec, curve);
     return new LayoutFont(this.device, resolved.px, resolved.reference, resolved.isCustom, null,
       this.vectorFontMetric(face, resolved.px), face, true, available);

@@ -109,6 +109,18 @@ export function vectorFontFace(spec: FontSpec, device: Device): string {
   return "";
 }
 
+/**
+ * How `device` draws the `face:` font `spec`: `vector` from the face it
+ * publishes, `fallback` from the entry's baked `fallback:` sheet, or `none`.
+ * A property of the font on the device, whatever an element's `curve:` asks.
+ */
+export type VectorFontMode = "vector" | "fallback" | "none";
+
+export function vectorFontMode(spec: FontSpec, device: Device): VectorFontMode {
+  if (vectorFontFace(spec, device) !== "") return "vector";
+  return spec.fallback !== null ? "fallback" : "none";
+}
+
 /** Every declared `face:` font a text element or a pattern text part uses, in declaration order. */
 export function vectorFontsUsed(face: Face): Map<string, FontSpec> {
   const named = new Set(kinds.faceTextRuns(face).filter(([, run]) => run.icon === null && !run.aod_only).map(([, run]) => run.font));

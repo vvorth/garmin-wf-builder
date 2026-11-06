@@ -311,11 +311,15 @@
             "error",
             "hide"
           ]
+        },
+        "fallback": {
+          "description": "Vector-font key. A build error here: a baked font is rasterised from your own 'source:' at build time, so it is never unsupported and has nothing to fall back from.",
+          "type": "object"
         }
       }
     },
     "vectorFont": {
-      "description": "A device-resident scalable face, drawn through Graphics.getVectorFont instead of a baked sheet. Only Garmin's own fixed catalogue of on-device faces is reachable this way -- about 14 Latin ones, published on 44 of the 136 watch-face-capable devices in the reference -- and nothing can add a face to that list, so an author's own typeface can never be one. 'glyphs:', 'monospace:', 'align:' and 'antialias:' are all properties of baking a sheet, and this schema still parses them here (rather than rejecting them as unknown keys) purely so the compiler can name the actual mistake -- 'a vector font has no sheet' -- instead of jsonschema's generic 'unknown key' message; every one of the four is a build error on a 'face:' entry.",
+      "description": "A device-resident scalable face, drawn through Graphics.getVectorFont instead of a baked sheet. Only Garmin's own fixed catalogue of on-device faces is reachable this way -- about 14 Latin ones, published on 44 of the 136 watch-face-capable devices in the reference -- and nothing can add a face to that list, so an author's own typeface can never be one -- though 'fallback:' bakes one into a sheet for the devices that cannot draw the face, for upright text. 'glyphs:', 'monospace:', 'align:' and 'antialias:' are all properties of baking a sheet, and this schema still parses them here (rather than rejecting them as unknown keys) purely so the compiler can name the actual mistake -- 'a vector font has no sheet' -- instead of jsonschema's generic 'unknown key' message; every one of the four is a build error on a 'face:' entry.",
       "type": "object",
       "required": [
         "face",
@@ -344,7 +348,7 @@
           ]
         },
         "face": {
-          "description": "The device-resident face name(s) to ask Graphics.getVectorFont for, tried in the order given -- a string for one, or an array for several acceptable alternatives. Resolved per target device at build time to the single face that device actually publishes; ':face' is then emitted as that one resolved string, never the array. Garmin's own runtime array fallback is deliberately not used here: it would pick a face at draw time, so the build could not say which one renders, or measure the layout box against it. A device that publishes none of the listed faces fails this font's availability gates -- governed by 'unsupported:'.",
+          "description": "The device-resident face name(s) to ask Graphics.getVectorFont for, tried in the order given -- a string for one, or an array for several acceptable alternatives. Resolved per target device at build time to the single face that device actually publishes; ':face' is then emitted as that one resolved string, never the array. Garmin's own runtime array fallback is deliberately not used here: it would pick a face at draw time, so the build could not say which one renders, or measure the layout box against it. A device that publishes none of the listed faces draws from 'fallback:' when the entry has one (upright text only), and otherwise fails this font's availability gates -- governed by 'unsupported:'.",
           "oneOf": [
             {
               "type": "string",
@@ -365,17 +369,62 @@
           "description": "The pixel height to draw this face at, per device. px or %r only, the same rule a baked font's 'size:' follows -- but unlike a baked font, nothing is rasterised at this size at build time: Graphics.getVectorFont takes it directly, in pixels, at draw time, so one face serves any number of sizes with no extra sheets."
         },
         "unsupported": {
-          "description": "What to do on a target device that fails to publish any of the listed 'face:' names, or lacks Graphics.getVectorFont entirely. 'error' (the default) fails the build, naming the device, the face(s) asked for, and the faces that device does publish -- a missing clock is not a cosmetic problem. 'hide' lets every element using this font simply not draw on that one device; every other device is unaffected. This is a build-time guarantee only: Graphics.getVectorFont can still return null at runtime even when every build-time gate passed (the platform offers no other way to fail), and the generated code always null-checks regardless of this setting -- there is no way to promise a live face never goes missing, only that it was published at build time. An element using this font may override this outright with its own 'unsupported:'.",
+          "description": "What to do on a target device that cannot draw an element in this font: one that fails to publish any of the listed 'face:' names, or lacks Graphics.getVectorFont entirely, and has no 'fallback:' to draw it from instead (a 'curve:' element is never drawn from the fallback). 'error' (the default) fails the build, naming the device, the face(s) asked for, and the faces that device does publish -- a missing clock is not a cosmetic problem. 'hide' lets every element using this font simply not draw on that one device; every other device is unaffected. This is a build-time guarantee only: Graphics.getVectorFont can still return null at runtime even when every build-time gate passed (the platform offers no other way to fail), and the generated code always null-checks regardless of this setting -- there is no way to promise a live face never goes missing, only that it was published at build time. An element using this font may override this outright with its own 'unsupported:'.",
           "enum": [
             "error",
             "hide"
           ],
           "default": "error"
+        },
+        "fallback": {
+          "$ref": "#/$defs/fallbackFont",
+          "description": "A baked sheet from your own TrueType/OpenType file, drawn on a device that cannot draw any listed face -- see the fallbackFont definition. Upright text only: 'curve:' still needs the face."
+        }
+      }
+    },
+    "fallbackFont": {
+      "description": "A baked sheet to draw this font from on a device that cannot draw the face: one without Graphics.getVectorFont, or one that publishes none of the listed 'face:' names. It is baked from your own TrueType/OpenType file exactly as a 'source:' font is, and only for the devices that need it. It draws upright text only: Dc.drawAngledText and Dc.drawRadialText take a VectorFont, so an element with 'curve:' in this font is still unavailable on such a device, and 'unsupported:' decides what happens to it there. 'face:', 'unsupported:' and 'fallback:' are not accepted inside it.",
+      "type": "object",
+      "required": [
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "description": "Path to the TrueType/OpenType file to bake, relative to the design file.",
+          "type": "string"
+        },
+        "size": {
+          "$ref": "#/$defs/length",
+          "description": "The em size to bake the sheet at, per device; px or %r only, as a baked font's 'size:'. Omit it to bake at the face's own 'size:'."
+        },
+        "glyphs": {
+          "description": "The characters to bake. Omit to let the compiler derive the set from every string the design can render.",
+          "type": "string"
+        },
+        "antialias": {
+          "description": "Bitmap fonts default to 1-bit to save runtime RAM. Anti-aliasing costs memory (SDK: Resources, Fonts).",
+          "type": "boolean",
+          "default": false
+        },
+        "monospace": {
+          "description": "Bake every glyph at one shared advance, the widest the set needs. A digital clock in a proportional face shifts as its digits change ('1' is narrower than '0'); one cell width stops that. Works on a proportional source as well as a monospaced one -- the cell is measured from the glyphs actually baked.",
+          "type": "boolean",
+          "default": false
+        },
+        "align": {
+          "description": "Where a glyph's ink sits inside its cell. Only meaningful with monospace: true, and an error without it.",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "default": "center"
         }
       }
     },
     "font": {
-      "description": "One 'fonts:' entry -- either a custom bitmap font baked from a TrueType/OpenType source at build time (only the glyphs the design actually uses are rendered into the sheet), or a device-resident scalable face reached through Graphics.getVectorFont at draw time -- the only way to get rotated or curved text ('curve:' on a 'text' element), since Dc.drawAngledText/drawRadialText refuse a resource font outright. 'source:' and 'face:' are mutually exclusive and jointly required, so an entry naming neither, or both, is rejected here rather than read as an unknown-key mismatch.",
+      "description": "One 'fonts:' entry -- either a custom bitmap font baked from a TrueType/OpenType source at build time (only the glyphs the design actually uses are rendered into the sheet), or a device-resident scalable face reached through Graphics.getVectorFont at draw time -- the only way to get rotated or curved text ('curve:' on a 'text' element), since Dc.drawAngledText/drawRadialText refuse a resource font outright. A 'face:' entry may also carry a baked 'fallback:' for the devices without the face (upright text only). 'source:' and 'face:' are mutually exclusive and jointly required, so an entry naming neither, or both, is rejected here rather than read as an unknown-key mismatch.",
       "oneOf": [
         {
           "$ref": "#/$defs/bakedFont"
