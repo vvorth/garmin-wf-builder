@@ -155,14 +155,16 @@ own licences: the SIL Open Font License, in an `OFL.txt` next to each set of
 fonts, and Apache-2.0 for the test fixture's Open Sans. The Nerd Fonts icon
 font isn't in the repository; setup downloads it with its licence.
 
-Previews and width/height estimates for Garmin's own system fonts use free
-stand-ins — Roboto, DejaVu, Bebas Neue, Rajdhani, and others, each an
+Previews and width/height estimates for Garmin's own system fonts and
+device-resident faces use free stand-ins — Roboto, Rajdhani, Noto, DejaVu,
+Amiri, Arimo and others, each an
 `exact`/`family`/`substitute` match recorded in
 [`ts/src/data/font-registry.json`](ts/src/data/font-registry.json) with its own pinned
 source, licence (mostly Apache-2.0 or OFL-1.1) and rationale.
 None of them is in the repository either; setup (or
-`ts/tools/fetch-system-fonts.ts`) downloads whichever ones your installed devices
-need, each with a licence file alongside it. If you have Garmin's own font
+`ts/tools/fetch-system-fonts.ts --registry`) downloads all of them, a
+stand-in for every system font and every device-resident face, each with its
+licence alongside it. If you have Garmin's own font
 files — from the SDK Manager's `Fonts` directory — they take priority over
 these stand-ins; put them at `vendor/fonts/` (gitignored, like
 `vendor/devices/`: it's your own licensed copy, never committed) or point

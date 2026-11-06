@@ -152,7 +152,9 @@ doctor` reports on the host. Mounted on their own:
 beyond the mount itself. Unlike the SDK and the device definitions, this one is
 **optional** — without it, builds and previews fall back to the registry's
 fonts, which `ts/tools/fetch-system-fonts.ts --registry` prefetched into the
-image at build time, every font the registry knows.
+image at build time: every font the registry knows, a stand-in for every
+system font and every device-resident scalable face (about 34 MB), each
+beside its licence text.
 
 **Not baked in, by design:** `.dockerignore` keeps all of `vendor/` out of
 the build context, `vendor/fonts/` included, because like the device
@@ -380,10 +382,10 @@ Node runs its `.ts` sources directly, so nothing is compiled.
 
 **Stage 2** builds on stage 1 and runs two of its tools: `ts/tools/fetch-icon-font.ts`
 downloads the Nerd Fonts icon font, and `ts/tools/fetch-system-fonts.ts
---registry` the registry's system-font stand-ins (free substitutes previews
-and width estimates use for Garmin's own system fonts), every font the
-registry knows, since there are no device definitions and no SDK at image
-build time to say which a device needs. Each is checked against a pinned
+--registry` the registry's stand-ins (the free fonts previews, width
+estimates and `fallback: auto` use for Garmin's own system fonts and
+device-resident faces), every font the registry knows, as
+`tools/setup-env.sh` installs on a host. Each is checked against a pinned
 SHA-256 hash; stage 3 copies both into `ts/assets/icons/` and
 `ts/assets/system-fonts/`. Neither is in the repository, and
 `.dockerignore` keeps a host copy out of the build context.

@@ -18,8 +18,9 @@
 #   - the SDK device reference    -> .cache/device-reference/ (extracted from
 #                                    the SDK's own pages)
 #   - the Nerd Fonts icon font    -> ts/assets/icons/ (downloaded, hash-checked)
-#   - the system fonts registry   -> ts/assets/system-fonts/ (downloaded,
-#                                    hash-checked; docs/lore/toolchain.md)
+#   - the system fonts registry   -> ts/assets/system-fonts/ (every stand-in
+#                                    the registry pins, about 34 MB the first
+#                                    time; hash-checked; docs/lore/toolchain.md)
 #
 # The SDK downloads unauthenticated. Device definitions CANNOT be downloaded
 # (api.gcs.garmin.com returns HTTP 401, Garmin SSO); they must come from a host
@@ -404,8 +405,7 @@ echo "installed ts/ dependencies"
 # --------------------------------------------- SDK device reference ---------
 # Derived data, never committed: extracted from the SDK's own
 # doc/docs/Device_Reference pages into .cache/device-reference/. wfb reads each
-# panel's palette size and per-font pixel metrics from it, and the system-fonts
-# step below reads which font names each device needs. Regenerated only when
+# panel's palette size and per-font pixel metrics from it. Regenerated only when
 # missing or extracted from a different SDK (source.txt names the one it came
 # from, sdk-version.txt its release, which wfb build compares).
 say "SDK device reference"
@@ -427,8 +427,12 @@ say "icon font"
 "${NODE}" "${REPO_ROOT}/ts/tools/fetch-icon-font.ts"
 
 # ------------------------------------------------------ system fonts --------
+# Every font the registry pins, script faces included, not only the installed
+# devices' system fonts: `fallback: auto` bakes any device-resident face from
+# its stand-in, and never downloads at build time. A font already installed
+# with its pinned bytes is left alone.
 say "system fonts"
-"${NODE}" "${REPO_ROOT}/ts/tools/fetch-system-fonts.ts"
+"${NODE}" "${REPO_ROOT}/ts/tools/fetch-system-fonts.ts" --registry
 
 # ------------------------------------------------------------- env ----------
 say "environment"
