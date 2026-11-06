@@ -7,7 +7,7 @@ import { ABSENCE_IS_NORMAL } from "../ir/builder/absence.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { andPaths, dedupAppend } from "../ir/builder/state.ts";
 import {
-  type AnyHandPart, drawnCopies, type Element, type Expression, PATTERN_LOOP_INDEX, PatternElement, Position,
+  type AnyHandPart, drawnCopies, type Element, type Expression, type Face, PATTERN_LOOP_INDEX, PatternElement, Position,
   ROLE_COLOR, ROLE_PART_VISIBLE, type TextPart,
 } from "../ir/model.ts";
 import type { Device } from "../devices/device.ts";
@@ -23,7 +23,7 @@ import {
   PerCopy, Reading, RingColor, SetColor, SetPen, Shifted, type Str, StrLit, Text as DrawText, Truthy,
 } from "../draw/program.ts";
 import { colorCode } from "../draw/printer.ts";
-import { constPrefix, fontField } from "../emit/monkeyc/common.ts";
+import { constPrefix, fontField, vectorFontField } from "../emit/monkeyc/common.ts";
 import * as lc from "../emit/monkeyc/layout_constants.ts";
 import { discPerimeterOffsets } from "../ir/model.ts";
 import { radians } from "../py.ts";
@@ -222,9 +222,9 @@ function patternAngle(element: PatternElement): [Num, string] {
 
 /** One template part, drawn for the current copy `i`; with `ring`, only its ring. */
 function lowerPart(element: PatternElement, prefix: string, index: number, part: ResolvedHandPart, radial: boolean,
-  hoistPen: boolean, textFonts: Map<string, string>, pen: AodPick, stamp: [Paint, number] | null, ring: number | null): Op[] {
+  hoistPen: boolean, textFonts: Map<string, string>, pen: AodPick, stamp: [Paint, number] | null, ring: number | null, face: Face): Op[] {
   const partPrefix = `${prefix}_${index}`;
-  if (part.shape === "text") return lowerTextPart(element, part, partPrefix, index, radial, textFonts, stamp, ring);
+  if (part.shape === "text") return lowerTextPart(element, part, partPrefix, index, radial, textFonts, stamp, ring, face);
   if (part.shape !== "arc") return [Part(part, partPrefix, radial, pen, { setPen: !hoistPen, ring })];
   const g0 = FloatLit(90.0 - (part.start_angle + element.start_angle));
   const start: Num = radial ? Bin("-", g0, Bin("*", NumLocal("i"), FloatLit(element.step_angle))) : g0;
@@ -232,6 +232,11 @@ function lowerPart(element: PatternElement, prefix: string, index: number, part:
   const radius = Const(`${partPrefix}_RADIUS`, part.radius);
   const offsets: [number, number][] = ring !== null ? discPerimeterOffsets(ring) : [[0, 0]];
   return offsets.map(([dx, dy]) => ArcSpan(Shifted(cx, dx), Shifted(cy, dy), radius, pen, start, FloatLit(part.sweep), true));
+}
+
+/** The view field a custom-font text part's draw reads. */
+function patternFontField(face: Face, part: ResolvedTextPart): string {
+  return part.font.is_vector ? vectorFontField(face, part.font.reference, part.curve.style !== null) : fontField(part.font.reference);
 }
 
 /** The per-copy Garmin-degrees angle a text part's own `curve:` draws at. */
@@ -244,16 +249,18 @@ function textAngle(element: PatternElement, part: ResolvedTextPart): Num {
 
 /** One copy's `shape: text` part, or with `ring` only its ring; a vector font's draws inside its null check. */
 function lowerTextPart(element: PatternElement, part: ResolvedTextPart, partPrefix: string, index: number, radial: boolean,
-  textFonts: Map<string, string>, stamp: [Paint, number] | null, ring: number | null): Op[] {
+  textFonts: Map<string, string>, stamp: [Paint, number] | null, ring: number | null, face: Face): Op[] {
   const irPart = element.parts[index] as TextPart;
   const printed: Str = irPart.text_literal !== null ? StrLit(irPart.text_literal) : Reading(irPart.format || "{}", irPart.text_value!);
   const text = PerCopy(printed, part.texts);
-  const fontCode = part.font.is_custom ? textFonts.get(part.font.reference)! : `Graphics.${part.font.reference}`;
-  const vector = part.font.is_vector;
-  const font = Font(fontCode, {
-    baked: part.font.is_custom && !vector ? part.font.reference : null, metric: part.font.metric, vector,
-  });
   const style = part.curve.style;
+  const fontCode = part.font.is_custom ? textFonts.get(patternFontField(face, part))! : `Graphics.${part.font.reference}`;
+  const vector = part.font.is_vector;
+  // A `face:` font drawn from its baked `fallback:` here draws from the sheet in the preview; the code is the same.
+  const font = Font(fontCode, {
+    baked: part.font.is_custom && (!vector || part.font.fallback) ? part.font.reference : null, metric: part.font.metric,
+    vector: vector && !part.font.fallback,
+  });
   const px = Const(`${partPrefix}_X`, part.x), py = Const(`${partPrefix}_Y`, part.y);
   let x: Num, y: Num;
   if (radial) {
@@ -481,16 +488,18 @@ class PatternKind extends ElementKind<PatternElement> {
     const ops: Op[] = [];
     if (radial) ops.push(Let("cx", Const(`${prefix}_X`, p.center[0])), Let("cy", Const(`${prefix}_Y`, p.center[1])));
 
+    // One local per view field a text part reads: a `face:` font with a `fallback:` has a second for its curved parts.
     const textFonts = new Map<string, string>();
     const vectorTextFonts = new Set<string>();
     for (const [, part] of live) {
-      if (part.shape === "text" && part.font.is_custom && !textFonts.has(part.font.reference)) {
-        textFonts.set(part.font.reference, `font${textFonts.size}`);
-        if (part.font.is_vector) vectorTextFonts.add(part.font.reference);
-      }
+      if (part.shape !== "text" || !part.font.is_custom) continue;
+      const field = patternFontField(ctx.resolved.face, part);
+      if (textFonts.has(field)) continue;
+      textFonts.set(field, `font${textFonts.size}`);
+      if (part.font.is_vector) vectorTextFonts.add(field);
     }
-    for (const [reference, local] of textFonts) {
-      ops.push(LoadFont(local, `_${fontField(reference)}`, { onNull: vectorTextFonts.has(reference) ? "none" : "return" }), Blank());
+    for (const [field, local] of textFonts) {
+      ops.push(LoadFont(local, `_${field}`, { onNull: vectorTextFonts.has(field) ? "none" : "return" }), Blank());
     }
 
     const paints = live.map(([, part]) => AodPart(element, part.color));
@@ -539,7 +548,7 @@ class PatternKind extends ElementKind<PatternElement> {
           out.push(SetColor(paints[k]!));
           current = codes[k]!;
         }
-        const drawn = lowerPart(element, prefix, index, part, radial, hoistPen, textFonts, pen(index, part), stamp, ring);
+        const drawn = lowerPart(element, prefix, index, part, radial, hoistPen, textFonts, pen(index, part), stamp, ring, ctx.resolved.face);
         const visible = element.parts[index]!.visible;
         if (visible !== null) out.push(Comment(`visible: ${visible.text}`), If(Truthy(visible), drawn));
         else out.push(...drawn);

@@ -33,6 +33,21 @@ export function fontField(name: string): string {
   return "font" + parts.map((p) => p.slice(0, 1).toUpperCase() + p.slice(1)).join("");
 }
 
+/**
+ * The view field a `face:` font's draw reads. A font with a `fallback:` holds
+ * a `Graphics.FontType` (the face, or the baked sheet) in its plain field, so
+ * a curved draw reads its second, `VectorFont`-typed field instead: null
+ * wherever the face is not built, which is every device drawing the fallback.
+ */
+export function vectorFontField(face: Face, name: string, curved: boolean): string {
+  return curved && face.fonts.get(name)!.fallback !== null ? `${fontField(name)}Vector` : fontField(name);
+}
+
+/** The `Layout` function returning a `face:` font's loaded `fallback:` sheet, or null where the device builds the face. */
+export function fallbackFontFunction(name: string): string {
+  return `${fontField(name)}Fallback`;
+}
+
 /** The view field a baked font used only by an `aod: {font: ...}` override is loaded into. */
 export function aodFontField(name: string): string {
   return `${fontField(name)}Aod`;
@@ -316,6 +331,14 @@ export function aodOnlyFonts(resolved: ResolvedFace): string[] {
 export function vectorFontsUsedIn(resolved: ResolvedFace): string[] {
   const face = resolved.face;
   return [...new Set(kinds.placedTextRuns(resolved.items, face).filter(([, run]) => !run.aod_only && run.isVector(face)).map(([, run]) => run.font))];
+}
+
+/** The `face:` fonts with a `fallback:` that some element draws curved: each needs its `VectorFont`-typed second field. */
+export function curvedFallbackFontsUsedIn(resolved: ResolvedFace): Set<string> {
+  const face = resolved.face;
+  return new Set(kinds.placedTextRuns(resolved.items, face)
+    .filter(([, run]) => !run.aod_only && run.isVector(face) && run.curve !== null && face.fonts.get(run.font)!.fallback !== null)
+    .map(([, run]) => run.font));
 }
 
 export function describe(placed: Placed): string {

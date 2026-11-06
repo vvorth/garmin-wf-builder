@@ -19,7 +19,7 @@ import {
   type Str, StrLit, Text as DrawText,
 } from "../draw/program.ts";
 import { flt } from "../draw/barrel.ts";
-import { type AodStyle, aodFontField, constPrefix, fontField } from "../emit/monkeyc/common.ts";
+import { type AodStyle, aodFontField, constPrefix, fontField, vectorFontField } from "../emit/monkeyc/common.ts";
 import type { Constants } from "../emit/monkeyc/layout_constants.ts";
 import { aodOutlineChoice, discPerimeterOffsets, type Face, type Outline } from "../ir/model.ts";
 import { formatG } from "../py.ts";
@@ -344,7 +344,8 @@ class TextKind extends ElementKind<Text> {
       body.push(SetColor(AodRestyled(element, "color")), draw(main));
     }
     if (p.font.is_vector) {
-      ops.push(LoadFont("font", `_${fontField(p.font.reference)}`, { onNull: "none" }), IfNotNull("font", body));
+      const field = vectorFontField(ctx.resolved.face, p.font.reference, curve.style !== null);
+      ops.push(LoadFont("font", `_${field}`, { onNull: "none" }), IfNotNull("font", body));
     } else {
       ops.push(...body);
     }
@@ -378,6 +379,8 @@ class TextKind extends ElementKind<Text> {
     const element = placed.element;
     const aod = ctx.aod;
     const metric = placed.font.metric;
+    // A `face:` font drawn from its baked `fallback:` here: the same code, the sheet in the preview.
+    if (placed.font.fallback) return Font("font", { baked: placed.font.reference, metric });
     if (placed.font.is_vector) return Font("font", { metric, vector: true });
     let overrideCode: string | null = null;
     let asleep: Font | null = null;

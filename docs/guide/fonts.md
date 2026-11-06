@@ -25,6 +25,7 @@ device-resident scalable faces reachable with `face:` (below).
 | `fonts.<name>.align:` | `resources:` | `left`/`center`/`right` | `center` | [`monospace:`](#monospace-stops-a-clock-from-jittering) (needs `monospace: true`) |
 | `fonts.<name>.face:` | `resources:` | a face name, or a list tried in order | — | [Vector (`face:`) fonts](#vector-face-fonts-device-resident-scalable-and-turnable) |
 | `fonts.<name>.unsupported:` | `resources:`, or a `text` element | `error`/`hide` | `error` | [`unsupported:`](#unsupported--and-what-error-actually-promises) |
+| `fonts.<name>.fallback:` | a `face:` entry | `{source:, size:, glyphs:, antialias:, monospace:, align:}` | none | [`fallback:`](#fallback--a-baked-stand-in-for-a-missing-face) (`size:` defaults to the entry's) |
 
 ## Example
 
@@ -264,7 +265,61 @@ than reading as an unknown key.
   typeface can never be one.
   `wfb fonts <device>` shows exactly which faces one device publishes and
   whether it can pair `Graphics.getVectorFont` with `curve: {style: radial}`
-  or `curve: {style: angled}`.
+  or `curve: {style: angled}`. Where the face is missing, a
+  [`fallback:`](#fallback--a-baked-stand-in-for-a-missing-face) draws your
+  own font instead.
+
+#### `fallback:` — a baked stand-in for a missing face
+
+A `face:` entry, named or written inline, can carry a `fallback:`: a baked
+font, from your own file, for the devices that cannot draw any listed face.
+
+```yaml
+resources:
+  fonts:
+    dial:
+      face: BionicSemiBold
+      size: 12%r
+      fallback:
+        source: assets/ChivoMono-Bold.ttf   # baked only where the face is missing
+        antialias: true
+```
+
+![the face on fenix8solar47mm](../screenshots/font-fallback.png)
+![the fallback on fr255](../screenshots/font-fallback-fr255.png)
+*`examples/features/font-fallback/face.yaml`: `fenix8solar47mm` draws the
+face, the curved rim text included; `fr255` has no `Graphics.getVectorFont`,
+so it draws the upright text from the baked sheet and leaves the curve out.*
+
+* **Each device takes one of three paths, decided at build time.** A device
+  with `Graphics.getVectorFont` that publishes a listed face draws the face,
+  exactly as without a fallback. A device that lacks either draws the
+  fallback: a sheet baked from `source:` for that device alone, the way a
+  `source:` font is. With no fallback, the font is unavailable there, and
+  `unsupported:` decides. A build note, `font-fallback`, names the devices
+  each fallback is baked for.
+* **Its keys are a baked font's**: `source:` (required), `size:` (a
+  `Length`, `px` or `%r`; omit it to bake at the entry's own `size:`),
+  `glyphs:`, `antialias:`, `monospace:` and `align:` (which needs
+  `monospace: true`), each meaning what it means on a `source:` entry, and a
+  missing file is the same error, at the fallback's own line. `face:`,
+  `unsupported:` and `fallback:` are not accepted inside it, and `fallback:`
+  on a `source:` entry is a build error: a baked font is never missing, so it
+  has nothing to fall back from.
+* **Upright text only.** `Dc.drawAngledText` and `Dc.drawRadialText` take a
+  `VectorFont` and refuse a baked one, so a `curve:` element in this font
+  still needs the face. On a device drawing the fallback it is unavailable,
+  and its `unsupported:` applies as below: `error` fails the build naming the
+  curve, `hide` leaves the element out there. A fallback cannot draw it any
+  more than a `source:` font can.
+* **The layout measures against what the device draws**: the sheet's own
+  advances on a fallback device, so `text-overflow` and the other placement
+  lints read the real box, and `wfb preview` draws from the sheet. Without
+  `glyphs:`, the sheet holds the characters of the font's upright texts.
+* **An `outline:` ring is stamped** around a text in a fallback font on
+  every device, as it is around any `face:` text: no ring sheet is baked.
+* An `aod: {font:}` override naming a `face:` font is still refused,
+  fallback or not.
 
 #### `unsupported:` — and what `error` actually promises
 
@@ -273,10 +328,12 @@ independently, on any `text` or `data` element that uses one — **the element's
 value wins outright** over the font's, the same "a descendant's own value
 wins over its group's" rule `antialias:` already follows.
 
-* **`error`**: if *any* target device does not publish one of the requested
-  faces, the build fails, naming the device, the face(s) asked for, and the
-  faces that device does publish. This is the default because a missing
-  clock is not a cosmetic problem.
+* **`error`**: if *any* target device cannot draw the element -- it does not
+  publish one of the requested faces and the font has no `fallback:`, or the
+  element is curved and that device would draw the fallback -- the build
+  fails, naming the device, the face(s) asked for, and the faces that device
+  does publish. This is the default because a missing clock is not a
+  cosmetic problem.
 * **`hide`**: the element simply does not draw on the devices that fail
   (a `data` element's icon included).
   Every other device is unaffected. Where it does not draw, it has no
@@ -303,5 +360,6 @@ never missing from the wrist.
 - [`examples/showcase/face.yaml`](../../examples/showcase/face.yaml) — the two-tone monospaced clock shown above.
 - [`examples/system-fonts/text/face.yaml`](../../examples/system-fonts/text/face.yaml) — every system font, one per row.
 - [`examples/features/vector-text/face.yaml`](../../examples/features/vector-text/face.yaml) — `face:` fonts paired with `curve:`.
+- [`examples/features/font-fallback/face.yaml`](../../examples/features/font-fallback/face.yaml) — a `face:` font with a baked `fallback:`, on a device of each path.
 - [Text](text.md#curve--rotated-and-radial-text) — `curve:`, which requires a `face:` font.
 - [Elements: common keys and groups](elements.md#antialias--soften-an-edge) — `antialias:`'s face-wide default.

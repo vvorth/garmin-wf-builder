@@ -1,0 +1,105 @@
+# A baked `fallback:` on a `face:` font (docs/guide/fonts.md "`fallback:`
+# -- a baked stand-in for a missing face").
+#
+# One font, `dial`, asks for the device-resident face `BionicSemiBold`, and
+# carries a `fallback:` baked from `assets/ChivoMono-Bold.ttf`. The three
+# targets take the three paths a `face:` font can take:
+#
+# * **`fenix8solar47mm` publishes `BionicSemiBold`**: the face is built on
+#   the watch, nothing is baked, and both texts below draw from it.
+# * **`fr955` has `Graphics.getVectorFont` but not that face** (it publishes
+#   `RobotoBlack`, `BionicBold` and others, under different names), so it
+#   draws `dial` from the baked fallback sheet instead.
+# * **`fr255` has no `Graphics.getVectorFont` at all**, so it too draws the
+#   fallback sheet.
+#
+# What this exercises:
+#
+# * **`brand`, an upright text in `dial`**, draws on all three: from the
+#   face on fenix8solar47mm and from the baked sheet on fr955 and fr255.
+#   Compare the three renders: the letterforms change, the position does
+#   not, because each device's layout measures the text against whichever
+#   font that device draws.
+# * **`rim`, a curved text in the same font**, draws only on
+#   fenix8solar47mm. A baked sheet cannot curve (`Dc.drawRadialText` takes a
+#   `VectorFont`), so on fr955 and fr255 the element is unavailable and its
+#   `unsupported: hide` leaves it out there. Without that key the build
+#   fails on those two, naming the curve.
+# * **The build note `font-fallback`** lists the devices the sheet is baked
+#   for (fr255, fr955); the fenix's resources hold no sheet at all.
+#
+# Build it with:    ./wfb build examples/features/font-fallback/face.yaml
+# Preview it with:  ./wfb preview examples/features/font-fallback/face.yaml
+#
+# yaml-language-server: $schema=../../../schema/wfb-face-2.schema.json
+
+format: 2
+
+face:
+  id: 54689db2-05e9-4eb3-ae0a-b2771552b4ec
+  name: Feature Font Fallback
+  version: 1.0.0
+
+build:
+  targets:
+    - fenix8solar47mm
+    - fr955
+    - fr255
+
+# Every colour is one the 64-colour MIP panel shows without dithering: each
+# channel is 0x00, 0x55, 0xAA or 0xFF (CLAUDE.md constraint 13).
+resources:
+  fonts:
+    dial:
+      face: BionicSemiBold
+      size: 12%r
+      # baked only for the devices without BionicSemiBold: fr955 and fr255
+      fallback:
+        source: assets/ChivoMono-Bold.ttf
+        antialias: true
+
+  palette:
+    black: "#000000"
+    white: "#FFFFFF"
+    gray: "#AAAAAA"
+    amber: "#FF5500"
+
+elements:
+  background:
+    type: rectangle
+    at: { anchor: center }
+    size: { width: 100%, height: 100% }
+    color: color.black
+
+  clock:
+    type: text
+    text: "{time.clock:%H:%M}"
+    font: FONT_NUMBER_MEDIUM
+    at: { anchor: center }
+    color: color.white
+
+  # Upright: drawn on every target, from the face or from the baked sheet.
+  brand:
+    type: text
+    text: "FALLBACK"
+    font: font.dial
+    at: { anchor: center, dy: -40%r }
+    color: color.amber
+
+  # Curved: the face only. Hidden where the font draws from its sheet.
+  rim:
+    type: text
+    text: "CURVED FACE"
+    font: font.dial
+    color: color.gray
+    at: { anchor: center }
+    curve:
+      style: radial
+      angle: 180deg
+      radius: 70%r
+      direction: counter_clockwise
+    unsupported: hide
+    lint:
+      allow: [font-unavailable]
+      reason: "a baked fallback cannot curve, so the rim text is left out on
+        fr955 and fr255, which draw font.dial from its sheet."

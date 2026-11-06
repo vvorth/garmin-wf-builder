@@ -1,7 +1,7 @@
 // Resource generation: every declared font baked at the device's size,
 // every icon and ring font, the fonts' resource entries, the strings, the
 // launcher icon and the native editor's config..
-import { usesSettingsMenu } from "../availability.ts";
+import { usesSettingsMenu, vectorFontMode } from "../availability.ts";
 import type { Device } from "../devices/device.ts";
 import { bake, dilate, inkSize, toFnt } from "../fonts/bake.ts";
 import { CONFIG_SYMBOL } from "../ir/model.ts";
@@ -26,12 +26,22 @@ export type FontReader = (path: string) => FontFile;
 /** The icon font, relative to the repository. */
 export const ICON_FONT = "ts/assets/icons/SymbolsNerdFont-Regular.ttf";
 
-/** The characters each declared baked font must hold: its `glyphs:` if written, else what the design draws with it. */
+/** Can `run`, in a `face:` font, draw from its font's `fallback:` sheet: upright, awake, and the font has one. */
+export function drawsFromFallback(face: Face, run: kinds.TextRun): boolean {
+  return !run.aod_only && run.curve === null && face.fonts.get(run.font)!.fallback !== null;
+}
+
+/**
+ * The characters each declared baked font must hold: its `glyphs:` if
+ * written, else what the design draws with it. A used `face:` font with a
+ * `fallback:` is here too, for the devices that bake that sheet, with the
+ * characters of its upright texts: a curved one never draws from the sheet.
+ */
 export function glyphSet(face: Face): Map<string, string> {
   const needed = new Map<string, Set<string>>();
   for (const [name, spec] of face.fonts) if (spec.isBaked) needed.set(name, new Set());
   for (const [, run] of kinds.faceTextRuns(face)) {
-    if (run.icon === null && !run.isVector(face)) {
+    if (run.icon === null && (!run.isVector(face) || drawsFromFallback(face, run))) {
       let set = needed.get(run.font);
       if (set === undefined) needed.set(run.font, set = new Set());
       for (const c of run.glyphs) set.add(c);
@@ -39,7 +49,8 @@ export function glyphSet(face: Face): Map<string, string> {
   }
   const out = new Map<string, string>();
   for (const [name, chars] of needed) {
-    const declared = face.fonts.get(name)!.glyphs;
+    const spec = face.fonts.get(name)!;
+    const declared = (spec.fallback ?? spec).glyphs;
     out.set(name, declared !== null ? declared : [...chars].sort(comparePoints).join(""));
   }
   return out;
@@ -139,8 +150,10 @@ function memoBake(memo: BakeMemo | null, source: FontFile, options: Parameters<t
 export function bakeFonts(face: Face, device: Device, read: FontReader, memo: BakeMemo | null = null): Map<string, BakedFont> {
   const sets = glyphSet(face);
   const baked = new Map<string, BakedFont>();
-  for (const [name, spec] of face.fonts) {
-    if (spec.isVector) continue; // drawn from the device's own resident face
+  for (const [name, entry] of face.fonts) {
+    // A `face:` font is drawn from the device's own resident face; its `fallback:` is baked only where it draws.
+    const spec = entry.isVector ? entry.fallback : entry;
+    if (spec === null || (entry.isVector && (!sets.has(name) || vectorFontMode(entry, device) !== "fallback"))) continue;
     baked.set(name, memoBake(memo, read(spec.source!), {
       name, size: spec.pixelSize(device.minorRadius), glyphs: sets.get(name) || "0123456789",
       antialias: spec.antialias, monospace: spec.monospace, align: spec.align,
@@ -195,7 +208,8 @@ export function buildBundle(face: Face, device: Device, baked: ReadonlyMap<strin
   const bundle: ResourceBundle = { device_id: device.id, directory: `resources-${device.id}`, files: new Map(), fonts: new Map(), images: new Map() };
   const sets = glyphSet(face);
   const hasIcons = [...kinds.faceTextRuns(face)].some(([, run]) => run.icon !== null);
-  const specs = new Map<string, FontSpec>([...face.fonts, ...(hasIcons ? iconFontSpecs(face, device, read(ICON_FONT)) : new Map<string, FontSpec>())]);
+  const declared = [...face.fonts].map(([name, spec]): [string, FontSpec] => [name, spec.fallback ?? spec]);
+  const specs = new Map<string, FontSpec>([...declared, ...(hasIcons ? iconFontSpecs(face, device, read(ICON_FONT)) : new Map<string, FontSpec>())]);
   for (const [name, spec] of ringFontSpecs(face, specs)) specs.set(name, spec);
   if (baked.size > 0) {
     const lines = [`<fonts ${XMLNS} xsi:noNamespaceSchemaLocation="${XSD}">`];

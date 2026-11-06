@@ -18,8 +18,9 @@ import * as vocab from "../../vocab.ts";
 import * as usage from "../usage.ts";
 import { Writer } from "../writer.ts";
 import {
-  andList, aodFontField, aodOnlyFonts, AodStyle, CONFIG_LAYOUT_METHOD, constPrefix, describe, editorSlots, fontField, gatedHolds, header,
-  HOLDS_SHOWN, holdTargets, loadedFonts, mcBool, NO_AOD, RingPass, type SourceFile, steppedFonts, vectorFontsUsedIn,
+  andList, aodFontField, aodOnlyFonts, AodStyle, CONFIG_LAYOUT_METHOD, constPrefix, curvedFallbackFontsUsedIn, describe, editorSlots,
+  fallbackFontFunction, fontField, gatedHolds, header, HOLDS_SHOWN, holdTargets, loadedFonts, mcBool, NO_AOD, RingPass, type SourceFile,
+  steppedFonts, vectorFontField, vectorFontsUsedIn,
 } from "./common.ts";
 import * as configMenu from "./config_menu.ts";
 import {
@@ -407,7 +408,20 @@ function emitFields(w: Writer, resolved: ResolvedFace, aodOnly: string[]): void 
       + "VectorFont handed back by Graphics.getVectorFont, not a loaded\n"
       + "resource; null wherever this device cannot build it, which every\n"
       + "draw call below checks before using it.");
-    for (const name of vectorFonts) w.line(`private var _${fontField(name)} as Graphics.VectorFont?;`);
+    const face = resolved.face;
+    const curved = curvedFallbackFontsUsedIn(resolved);
+    for (const name of vectorFonts) {
+      if (face.fonts.get(name)!.fallback === null) {
+        w.line(`private var _${fontField(name)} as Graphics.VectorFont?;`);
+        continue;
+      }
+      w.comment(`font.${name} has a baked 'fallback:': the face where this device builds it, else the sheet`);
+      w.line(`private var _${fontField(name)} as Graphics.FontType?;`);
+      if (curved.has(name)) {
+        w.comment(`font.${name}'s face alone, for its curved draws: never the sheet, which cannot curve`);
+        w.line(`private var _${vectorFontField(face, name, true)} as Graphics.VectorFont?;`);
+      }
+    }
     w.blank();
   }
 }
@@ -547,13 +561,30 @@ function emitInitialize(w: Writer, face: Face, guards: Guards): void {
   w.blank();
 }
 
-function emitVectorFontConstruction(w: Writer, name: string, guards: Guards): void {
+function emitVectorFontConstruction(w: Writer, resolved: ResolvedFace, name: string, guards: Guards): void {
+  const face = resolved.face;
   const field = `_${fontField(name)}`;
   const prefix = `FONT_${constPrefix(name)}`;
-  const assignment = `${field} = Graphics.getVectorFont({:face => Layout.${prefix}_FACE, :size => Layout.${prefix}_SIZE});`;
+  const construct = `Graphics.getVectorFont({:face => Layout.${prefix}_FACE, :size => Layout.${prefix}_SIZE})`;
   const guarded = guards.vector_fonts.has(name);
+  const fallback = face.fonts.get(name)!.fallback !== null;
+  const curved = fallback && curvedFallbackFontsUsedIn(resolved).has(name);
   if (guarded) w.comment(`font.${name}: some target device in this build does not publish any requested face`);
-  w.blockIf(guarded ? `if (Layout.${prefix}_AVAILABLE && (Graphics has :getVectorFont))` : null, () => w.line(assignment));
+  w.blockIf(guarded ? `if (Layout.${prefix}_AVAILABLE && (Graphics has :getVectorFont))` : null, () => {
+    if (!curved) {
+      w.line(`${field} = ${construct};`);
+      return;
+    }
+    const vector = `_${vectorFontField(face, name, true)}`;
+    w.line(`${vector} = ${construct};`);
+    w.line(`${field} = ${vector};`);
+  });
+  if (guarded && fallback) {
+    w.block("else", () => {
+      w.comment("the baked 'fallback:' sheet, which this device's Layout loads (null where it builds the face)");
+      w.line(`${field} = Layout.${fallbackFontFunction(name)}();`);
+    });
+  }
 }
 
 function emitOnLayout(w: Writer, resolved: ResolvedFace, plan: ReadPlan, statics: StaticPlan | null, guards: Guards, hasSlots: boolean): void {
@@ -585,7 +616,7 @@ function emitOnLayout(w: Writer, resolved: ResolvedFace, plan: ReadPlan, statics
       + "\nCalled from onLayout, and from drawableFor when the native editor asks\nfor a slot before onLayout has run.");
     w.block(`private function ${LOAD_RESOURCES_METHOD}() as Void`, () => {
       w.line(`${RESOURCES_LOADED_FIELD} = true;`);
-      emitFontLoads(w, loaded, vectorFonts, guards);
+      emitFontLoads(w, resolved, loaded, vectorFonts, guards);
       if (hasConfig) {
         if (loaded.length > 0 || vectorFonts.length > 0) w.blank();
         emitFirstConfigRead(w);
@@ -598,7 +629,7 @@ function emitOnLayout(w: Writer, resolved: ResolvedFace, plan: ReadPlan, statics
     if (loaded.length === 0 && vectorFonts.length === 0 && event.length === 0 && statics === null && !hasConfig) {
       w.line("// No resources to load: this face draws entirely from system fonts.");
     }
-    emitFontLoads(w, loaded, vectorFonts, guards);
+    emitFontLoads(w, resolved, loaded, vectorFonts, guards);
     if (event.length > 0) {
       if (loaded.length > 0 || vectorFonts.length > 0) w.blank();
       emitSubscriptions(w, plan, event);
@@ -615,11 +646,11 @@ function emitOnLayout(w: Writer, resolved: ResolvedFace, plan: ReadPlan, statics
   w.blank();
 }
 
-function emitFontLoads(w: Writer, loaded: string[], vectorFonts: string[], guards: Guards): void {
+function emitFontLoads(w: Writer, resolved: ResolvedFace, loaded: string[], vectorFonts: string[], guards: Guards): void {
   for (const name of loaded) w.line(`_${fontField(name)} = WatchUi.loadResource(Rez.Fonts.${fontResourceId(name)}) as FontResource;`);
   if (vectorFonts.length > 0) {
     if (loaded.length > 0) w.blank();
-    for (const name of vectorFonts) emitVectorFontConstruction(w, name, guards);
+    for (const name of vectorFonts) emitVectorFontConstruction(w, resolved, name, guards);
   }
 }
 

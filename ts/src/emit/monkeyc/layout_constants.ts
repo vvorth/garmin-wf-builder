@@ -2,7 +2,7 @@
 // from: the shared helpers.
 import type { WatchNumber } from "../../draw/program.ts";
 import { flt } from "../../draw/barrel.ts";
-import { type Guards, NO_GUARDS, shownGuarded, vectorFontFace } from "../../availability.ts";
+import { type Guards, NO_GUARDS, shownGuarded, vectorFontFace, vectorFontMode } from "../../availability.ts";
 import { discPerimeterOffsets, type Element, overrideKeyFor, slotOf, variantConstant } from "../../ir/model.ts";
 import { ringGroups } from "../../ir/rings.ts";
 import * as kinds from "../../kinds/index.ts";
@@ -15,7 +15,8 @@ import { formatFixed, formatG } from "../../py.ts";
 import { IntBox } from "../../units.ts";
 import { Writer } from "../writer.ts";
 import {
-  constPrefix, describe, type EditorSlot, editorSlots, header, McLiteral, mcNumber, mcType, type SourceFile, vectorFontsUsedIn,
+  constPrefix, describe, type EditorSlot, editorSlots, fallbackFontFunction, header, McLiteral, mcNumber, mcType, type SourceFile,
+  vectorFontsUsedIn,
 } from "./common.ts";
 import * as configMenu from "./config_menu.ts";
 import * as profileMod from "./profile.ts";
@@ -130,6 +131,23 @@ function vectorFontConstants(resolved: ResolvedFace, name: string, guards: Guard
   return out;
 }
 
+/**
+ * The function the shared view calls for a `face:` font's `fallback:` where it
+ * does not build the face: the sheet's resource is baked into this device's
+ * own resources only where it draws it, so only this file may name it.
+ */
+function emitFallbackFont(w: Writer, resolved: ResolvedFace, name: string): void {
+  const spec = resolved.face.fonts.get(name)!;
+  const device = resolved.device;
+  const drawn = vectorFontMode(spec, device) === "fallback";
+  w.blank();
+  w.doc(drawn ? `\`font.${name}\`'s baked 'fallback:' sheet: ${device.id} has no usable face, so the view draws this.`
+    : `\`font.${name}\`'s baked 'fallback:' sheet: none, ${device.id} builds the face, so nothing is baked for it.`);
+  w.block(`function ${fallbackFontFunction(name)}() as Graphics.FontType?`, () => {
+    w.line(drawn ? `return WatchUi.loadResource(Rez.Fonts.${spec.resourceId}) as WatchUi.FontResource;` : "return null;");
+  });
+}
+
 function highlight(placed: Placed): IntBox {
   return (placed as unknown as { highlight?: IntBox | null }).highlight ?? placed.box;
 }
@@ -181,8 +199,11 @@ export function emitLayout(resolved: ResolvedFace, guards: Guards = NO_GUARDS, p
   w.doc(header(face, `Device:    ${device.id} -- ${device.width}x${device.height} ${device.shape}, ${device.displayType}, family ${device.deviceFamily}`)).blank();
   const perItem = resolved.items.map((placed): [Placed, Constants] =>
     [placed, [...shownConstants(resolved, placed, guards), ...variantConstants(resolved, placed), ...kinds.forPlaced(placed).layoutConstants(constPrefix(placed.id), placed), ...holdConstants(resolved, placed)]]);
-  const needsGraphics = perItem.some(([, constants]) => constants.some(([, value]) => value instanceof McLiteral && value.type.includes("Graphics.")));
+  const fallbacks = vectorFontsUsedIn(resolved).filter((name) => guards.vector_fonts.has(name) && face.fonts.get(name)!.fallback !== null);
+  const needsGraphics = fallbacks.length > 0
+    || perItem.some(([, constants]) => constants.some(([, value]) => value instanceof McLiteral && value.type.includes("Graphics.")));
   const imports = needsGraphics ? ["import Toybox.Graphics;", "import Toybox.Lang;"] : ["import Toybox.Lang;"];
+  if (fallbacks.length > 0) imports.push("import Toybox.WatchUi;");
   const menuSlots = guards.config_menu && face.config_data.size > 0;
   if (menuSlots) imports.unshift("import Toybox.Complications;");
   w.lines(...imports).blank();
@@ -220,6 +241,7 @@ export function emitLayout(resolved: ResolvedFace, guards: Guards = NO_GUARDS, p
         w.blank();
         w.doc(`\`font.${name}\``);
         emitConstants(w, vectorFontConstants(resolved, name, guards));
+        if (fallbacks.includes(name)) emitFallbackFont(w, resolved, name);
       }
     }
     const outlineWidths = outlineWidthsUsed(resolved);

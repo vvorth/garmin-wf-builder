@@ -24,7 +24,7 @@ import {
   Lit, LoadFont, Local, LocalsSet, type Num, NumLocal, NumPick, type Op, type Paint, Paren, Return, SetColor, SlotIcon, SlotPull, SlotText,
   type Str, Text as DrawText, TextWidth,
 } from "../draw/program.ts";
-import { constPrefix, fontField, McLiteral } from "../emit/monkeyc/common.ts";
+import { constPrefix, fontField, McLiteral, vectorFontField } from "../emit/monkeyc/common.ts";
 import type { Constants } from "../emit/monkeyc/layout_constants.ts";
 import { configDataIds, configField } from "../ir/naming.ts";
 import { SAMPLE } from "../sample.ts";
@@ -659,9 +659,10 @@ class DataKind extends ElementKind<DataElement> {
     }
     let font: Font;
     if (p.font.is_vector) {
-      // A device-resident face: null where the device publishes none, and then nothing draws.
-      ops.push(LoadFont("textFont", `_${fontField(p.font.reference)}`, { onNull: "none" }));
-      font = Font("textFont", { metric: p.font.metric, vector: true });
+      // A device-resident face: null where the device publishes none (and has no `fallback:`), and then nothing draws.
+      ops.push(LoadFont("textFont", `_${vectorFontField(face, p.font.reference, element.curve !== null)}`, { onNull: "none" }));
+      font = p.font.fallback ? Font("textFont", { baked: p.font.reference, metric: p.font.metric, px: p.font.px })
+        : Font("textFont", { metric: p.font.metric, vector: true });
     } else if (p.font.is_custom) {
       ops.push(LoadFont("textFont", `_${fontField(p.font.reference)}`));
       font = Font("textFont", { baked: p.font.reference, metric: p.font.metric, px: p.font.px });

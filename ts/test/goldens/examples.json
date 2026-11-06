@@ -1162,6 +1162,111 @@
    }
   }
  },
+ "examples/features/font-fallback/face.yaml": {
+  "diagnostics": "examples/features/font-fallback/face.yaml:58:9: note[font-fallback]: font 'dial': drawn from its baked 'fallback:' on fr255, fr955 -- no usable face there\n   58 |         source: assets/ChivoMono-Bold.ttf\n                ^\n      note: the sheet is baked from examples/features/font-fallback/assets/ChivoMono-Bold.ttf for those devices only\n      note: it draws upright text; an element with 'curve:' in this font still needs the face, and 'unsupported:' decides it there\n      confidence: exact -- resolved per-device gates 1-3",
+  "projects": {
+   "targets": {
+    "manifest.xml": "ab90a414c534acdf14e71272a7aec938",
+    "monkey.jungle": "6f89915d1a11ca5c4d04d0dc1fb659bc",
+    "resources/strings/strings.xml": "d97d855b9019053aae6ee5ea2e0afcf0",
+    "source/FeatureFontFallbackApp.mc": "16e57bdb34c51ca037392721b2bc4185",
+    "source/Palette.mc": "ff595998526f2144ee94641cb1852bae",
+    "source-fenix8solar47mm/Layout.mc": "f948ae25f3d5c7597acd70e3cd67db85",
+    "source-fr955/Layout.mc": "8ae08096a6bff5c5834d0bc451610251",
+    "source-fr255/Layout.mc": "0d339f646bfc26d93bce37a5dee46ade",
+    "source/FeatureFontFallbackView.mc": "5bf6d21faf58b79f68d8123395b451c9",
+    "resources-fenix8solar47mm/drawables/drawables.xml": "9ef2b40fb8dd6db3f3d600f8519b02a3",
+    "resources-fenix8solar47mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fr955/fonts/fonts.xml": "77710b1ad0d9774c8467b9d3a124415d",
+    "resources-fr955/drawables/drawables.xml": "dffad047491b9ffefecbfb6ec2a25d7c",
+    "resources-fr955/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fr955/fonts/dial.fnt": "d7f87eb6d6951b758f0aa31790b8c52b",
+    "resources-fr955/fonts/dial.png": "d4f2073f1f98cc117acdf2388fdd35fd",
+    "resources-fr255/fonts/fonts.xml": "77710b1ad0d9774c8467b9d3a124415d",
+    "resources-fr255/drawables/drawables.xml": "01313c2981483b3577c9dd16f4c412ec",
+    "resources-fr255/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fr255/fonts/dial.fnt": "d7f87eb6d6951b758f0aa31790b8c52b",
+    "resources-fr255/fonts/dial.png": "d4f2073f1f98cc117acdf2388fdd35fd"
+   },
+   "amoled-mix": {
+    "manifest.xml": "ad33da2c4117048a265d5d7cadec16c1",
+    "monkey.jungle": "370a97cdc5ddfaceb2c639e7c4dd9f01",
+    "resources/strings/strings.xml": "d97d855b9019053aae6ee5ea2e0afcf0",
+    "source/FeatureFontFallbackApp.mc": "16e57bdb34c51ca037392721b2bc4185",
+    "source/Palette.mc": "ff595998526f2144ee94641cb1852bae",
+    "source-fenix847mm/Layout.mc": "1cf8031c3677b3c399aee804aed1eb83",
+    "source-fenix8solar47mm/Layout.mc": "f948ae25f3d5c7597acd70e3cd67db85",
+    "source-fr245/Layout.mc": "9bcb3f51a219186da1b989e85ea66e6e",
+    "source-fenix6/Layout.mc": "e20826f62e93432f882b1fd7756c1e83",
+    "source/FeatureFontFallbackView.mc": "f7713550c45511b6d445d057084477a4",
+    "resources-fenix847mm/fonts/fonts.xml": "996306000620152d09e295d5c47e03f8",
+    "resources-fenix847mm/drawables/drawables.xml": "44512f137dba34fd16c7806a5f384d99",
+    "resources-fenix847mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
+    "resources-fenix847mm/fonts/dial.fnt": "8367ec3581fcd0bc69e280d249c3b6df",
+    "resources-fenix847mm/fonts/dial.png": "1e80d63d593fb1225d077a3458f11b1e",
+    "resources-fenix8solar47mm/drawables/drawables.xml": "9ef2b40fb8dd6db3f3d600f8519b02a3",
+    "resources-fenix8solar47mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fr245/fonts/fonts.xml": "f55df0cfc31cd62069eb67e800341c8b",
+    "resources-fr245/drawables/drawables.xml": "d769fd35560219ee9a12e187a5524d9d",
+    "resources-fr245/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fr245/fonts/dial.fnt": "bbfbedaaf6e859bdcbd852200ced6312",
+    "resources-fr245/fonts/dial.png": "e8653fd0f08b7f769aa73672eaf3fdf6",
+    "resources-fenix6/fonts/fonts.xml": "77710b1ad0d9774c8467b9d3a124415d",
+    "resources-fenix6/drawables/drawables.xml": "8f4101ed40f34d6c3ea525e270802091",
+    "resources-fenix6/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fenix6/fonts/dial.fnt": "d7f87eb6d6951b758f0aa31790b8c52b",
+    "resources-fenix6/fonts/dial.png": "d4f2073f1f98cc117acdf2388fdd35fd"
+   },
+   "fenix9-mix": {
+    "manifest.xml": "bd664363f45318808999a6c27c6a33b9",
+    "monkey.jungle": "c4a2227ef6e19d98f4b9330b96c0a9eb",
+    "resources/strings/strings.xml": "d97d855b9019053aae6ee5ea2e0afcf0",
+    "source/FeatureFontFallbackApp.mc": "16e57bdb34c51ca037392721b2bc4185",
+    "source/Palette.mc": "ff595998526f2144ee94641cb1852bae",
+    "source-fenix947mm/Layout.mc": "3aa02be4136321cd961dcee738020d9e",
+    "source-fr955/Layout.mc": "8ae08096a6bff5c5834d0bc451610251",
+    "source/FeatureFontFallbackView.mc": "f7713550c45511b6d445d057084477a4",
+    "resources-fenix947mm/fonts/fonts.xml": "996306000620152d09e295d5c47e03f8",
+    "resources-fenix947mm/drawables/drawables.xml": "7e21448ff35a5496f76ef0ed5dff38a1",
+    "resources-fenix947mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
+    "resources-fenix947mm/fonts/dial.fnt": "8367ec3581fcd0bc69e280d249c3b6df",
+    "resources-fenix947mm/fonts/dial.png": "1e80d63d593fb1225d077a3458f11b1e",
+    "resources-fr955/fonts/fonts.xml": "77710b1ad0d9774c8467b9d3a124415d",
+    "resources-fr955/drawables/drawables.xml": "dffad047491b9ffefecbfb6ec2a25d7c",
+    "resources-fr955/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
+    "resources-fr955/fonts/dial.fnt": "d7f87eb6d6951b758f0aa31790b8c52b",
+    "resources-fr955/fonts/dial.png": "d4f2073f1f98cc117acdf2388fdd35fd"
+   }
+  },
+  "previews": {
+   "default": {
+    "fenix8solar47mm": "ce7a21c916eea01ed93e3ecfdfe5dd0a",
+    "fr955": "4983832f13da9ad3a9fca96c7213f136",
+    "fr255": "b3ef227cb2e14a7cccaec9b2c67fcc2a"
+   },
+   "asleep": {
+    "fenix8solar47mm": "ce7a21c916eea01ed93e3ecfdfe5dd0a",
+    "fr955": "4983832f13da9ad3a9fca96c7213f136",
+    "fr255": "b3ef227cb2e14a7cccaec9b2c67fcc2a"
+   },
+   "time": {
+    "fenix8solar47mm": "58564bc113ffac6aa373fd943453f79d",
+    "fr955": "6cade9befd61c5ace8bef6ca308ef779",
+    "fr255": "e065e0f913a1f089fa491130b6c58e44"
+   },
+   "all-styles": {
+    "fenix8solar47mm": "refused: 'Feature Font Fallback' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
+    "fr955": "refused: 'Feature Font Fallback' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
+    "fr255": "refused: 'Feature Font Fallback' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out"
+   },
+   "aod": {
+    "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
+   },
+   "aod-minute-7": {
+    "fenix847mm": "76d0ee95a97413a9b4fd25e94a88e3a3"
+   }
+  }
+ },
  "examples/features/gauge/face.yaml": {
   "diagnostics": "examples/features/gauge/face.yaml:47:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fenix8solar47mm\n   47 | static:\n        ^\n      note: 260x260 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/gauge/face.yaml:47:1: note[graphics-pool]: the static content buffers 78,400 B of the 1,048,576 B graphics pool (7.5%) on fenix8solar51mm\n   47 | static:\n        ^\n      note: 280x280 pixels at the display's own 8 bits/pixel; the buffer is full-screen because Dc has no translate\n      note: the graphics pool is separate from the 131,072 B watch-face limit, so this is not charged against the face's own memory\n      note: it is shared with every font and bitmap loaded at runtime, and a buffer held with .get() is locked and cannot be purged to make room for them\n      confidence: estimate -- bytes per pixel for a BufferedBitmap is not published; this uses the display's bitsPerPixel and ignores any per-surface overhead\n\nexamples/features/gauge/face.yaml:47:1: note[graphics-pool]: the static content buffers 67,600 B of the 1,048,576 B graphics pool (6.4%) on fr955\n   47 | static:\n        ^\n      note: same notes as the earlier [graphics-pool] above",
   "projects": {

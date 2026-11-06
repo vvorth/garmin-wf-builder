@@ -40,6 +40,9 @@ const EXAMPLES: Record<string, [string, string[], [Box, number] | null]> = {
   shapes: ["features/shapes", [], null],
   "analog-styles": ["features/analog", ["--all-styles"], null],
   "vector-text": ["features/vector-text", [], null],
+  // A face: font with its baked fallback: the face and the curve on the fenix, the sheet alone on fr255.
+  "font-fallback": ["features/font-fallback", [], null],
+  "font-fallback-fr255": ["features/font-fallback", [], null],
   outline: ["features/outline", [], null],
   outlines: ["features/rings", ["--time", "10:08:37"], null],
   styles: ["features/styles", ["--all-styles"], null],
@@ -56,8 +59,8 @@ const EXAMPLES: Record<string, [string, string[], [Box, number] | null]> = {
   aod: ["features/aod", ["--aod"], null],
 };
 
-/** The topic examples not drawn on DEVICE: the AMOLED one, align on a rectangle, and the semi-octagon. */
-const EXAMPLE_DEVICE: Record<string, string> = { aod: "fenix847mm", "align-venusq2": "venusq2", instinct: "instinct2" };
+/** The topic examples not drawn on DEVICE: the AMOLED one, align on a rectangle, the semi-octagon, and a font's fallback device. */
+const EXAMPLE_DEVICE: Record<string, string> = { aod: "fenix847mm", "align-venusq2": "venusq2", instinct: "instinct2", "font-fallback-fr255": "fr255" };
 
 /** `wfb new` starters: name -> [-t value or null for the default, face name]. */
 const NEW_TEMPLATES: Record<string, [string | null, string]> = {

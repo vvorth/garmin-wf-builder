@@ -123,6 +123,26 @@ test("each device draws a face: font from the face, its fallback, or nothing", (
   assert.deepEqual(modes(without), ["vector", "none", "none"]);
 });
 
+test("on a fallback device an upright text draws and measures from the sheet, a curved one is hidden", () => {
+  const text = design(FALLBACK);
+  for (const id of ["fr955", "fr255"]) {
+    const r = resolved(text, id);
+    const brand = r.items.find((p) => p.id === "brand") as PlacedText;
+    assert.ok(brand.font.available && brand.font.fallback && brand.font.is_vector, id);
+    assert.ok(r.fonts.has("dial"), id);
+    assert.equal(brand.measured_width, r.fonts.get("dial")!.measure("BRAND")[0], id);
+    assert.equal(brand.width_is_estimated, false, id);
+    assert.equal(r.hidden.get("rim"), HIDDEN_BY_FONT, id);
+    assert.equal(r.hidden.has("brand"), false, id);
+  }
+  const fenix = resolved(text, "fenix8solar47mm");
+  const brand = fenix.items.find((p) => p.id === "brand") as PlacedText;
+  assert.ok(brand.font.available && !brand.font.fallback);
+  assert.equal(brand.font.face, "BionicSemiBold");
+  assert.equal(fenix.fonts.has("dial"), false);
+  assert.equal(fenix.hidden.size, 0);
+});
+
 // -- diagnostics ---------------------------------------------------------------
 
 test("a curved text the fallback cannot draw fails under unsupported: error, naming the curve", () => {
@@ -162,4 +182,118 @@ test("font-fallback is a code lint: {allow:} refuses as unsuppressible", () => {
   const all = checked(text).filter((d) => d.code === "lint-allow");
   assert.equal(all.length, 1, bag.render());
   assert.match(all[0]!.message, /'font-fallback' is a real diagnostic code, but it is deliberately not suppressible/);
+});
+
+// -- the bake ------------------------------------------------------------------
+
+test("the sheet is baked only where it draws, with the upright texts' characters", () => {
+  const f = face(design(FALLBACK));
+  assert.equal(glyphSet(f).get("dial"), "ABDNR");
+  for (const [id, baked] of [["fenix8solar47mm", false], ["fr955", true], ["fr255", true]] as const) {
+    assert.equal(bakeFonts(f, db.get(id), read).has("dial"), baked, id);
+  }
+  const files = generated(design(FALLBACK));
+  assert.equal(files.has("resources-fenix8solar47mm/fonts/fonts.xml"), false);
+  for (const id of ["fr955", "fr255"]) {
+    const xml = files.get(`resources-${id}/fonts/fonts.xml`)!;
+    assert.match(xml, /<!-- dial: ChivoMono-Bold.ttf at \d+px, 5 glyphs -->/);
+    assert.match(xml, /<font id="FontDial" filename="dial.fnt" filter="ABDNR" antialias="false" \/>/);
+  }
+});
+
+test("a fallback font's ring is stamped, with no ring sheet", () => {
+  const text = design(FALLBACK, { curved: null, outline: true });
+  const f = face(text);
+  assert.deepEqual([...bakeFonts(f, db.get("fr255"), read).keys()], ["dial"]);
+  const draw = view(text).split("function drawBrand")[1]!.split("\n    }")[0]!;
+  assert.equal((draw.match(/dc\.drawText/g) ?? []).length, discPerimeterOffsets(2).length + 1); // the ring's stamps, then the text
+  assert.doesNotMatch(draw, /Ring|ring/);
+});
+
+// -- the generated sources -----------------------------------------------------
+
+test("one shared view: a FontType field and a VectorFont field, constructed or loaded through Layout", () => {
+  const text = design(FALLBACK);
+  assert.deepEqual(divergences(text), []);
+  const v = view(text);
+  assert.match(v, /private var _fontDial as Graphics\.FontType\?;/);
+  assert.match(v, /private var _fontDialVector as Graphics\.VectorFont\?;/);
+  assert.match(v, /if \(Layout\.FONT_DIAL_AVAILABLE && \(Graphics has :getVectorFont\)\) \{\n\s+_fontDialVector = Graphics\.getVectorFont\(\{:face => Layout\.FONT_DIAL_FACE, :size => Layout\.FONT_DIAL_SIZE\}\);\n\s+_fontDial = _fontDialVector;\n\s+\}\n\s+else \{\n(\s+\/\/.*\n)?\s+_fontDial = Layout\.fontDialFallback\(\);/);
+  assert.doesNotMatch(v, /Rez\.Fonts/);
+  const brand = v.split("function drawBrand")[1]!.split("\n    }")[0]!;
+  assert.match(brand, /var font = _fontDial;\n\s+if \(font != null\) \{/);
+  const rim = v.split("function drawRim")[1]!.split("\n    }")[0]!;
+  assert.match(rim, /var font = _fontDialVector;\n\s+if \(font != null\) \{/);
+  assert.match(rim, /dc\.drawRadialText\(/);
+});
+
+test("each device's Layout loads the sheet where it draws it and returns null where it builds the face", () => {
+  const files = generated(design(FALLBACK));
+  const fenix = files.get("source-fenix8solar47mm/Layout.mc")!;
+  assert.match(fenix, /const FONT_DIAL_AVAILABLE as Boolean = true;/);
+  assert.match(fenix, /function fontDialFallback\(\) as Graphics\.FontType\? \{\n\s+return null;\n\s+\}/);
+  assert.doesNotMatch(fenix, /Rez\.Fonts/);
+  for (const id of ["fr955", "fr255"]) {
+    const layout = files.get(`source-${id}/Layout.mc`)!;
+    assert.match(layout, /const FONT_DIAL_AVAILABLE as Boolean = false;/, id);
+    assert.match(layout, /function fontDialFallback\(\) as Graphics\.FontType\? \{\n\s+return WatchUi\.loadResource\(Rez\.Fonts\.FontDial\) as WatchUi\.FontResource;\n\s+\}/, id);
+    assert.match(layout, /import Toybox\.WatchUi;/, id);
+  }
+});
+
+test("with no device drawing the fallback, nothing loads it, and an upright-only font has one field", () => {
+  const vectorOnly = view(design(FALLBACK, { targets: "fenix8solar47mm" }));
+  assert.match(vectorOnly, /_fontDialVector = Graphics\.getVectorFont/);
+  assert.doesNotMatch(vectorOnly, /Fallback\(\)|AVAILABLE/);
+  const upright = view(design(FALLBACK, { curved: null }));
+  assert.match(upright, /private var _fontDial as Graphics\.FontType\?;/);
+  assert.doesNotMatch(upright, /_fontDialVector/);
+  assert.match(upright, /_fontDial = Graphics\.getVectorFont\(/);
+});
+
+test("a pattern's curved and upright parts in one fallback font read the two fields", () => {
+  const text = design(FALLBACK, { curved: null }).replace("  brand:\n", `  ring:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 4
+    color: color.fg
+    parts:
+      up: { type: text, text: "U", font: font.dial, at: { dy: -60%r } }
+      bent: { type: text, text: "B", font: font.dial, at: { dy: -80%r }, curve: { style: angled, angle: 0deg }, unsupported: hide }
+    lint: { allow: [font-unavailable], reason: test }
+  brand:
+`);
+  assert.deepEqual(divergences(text), []);
+  const ring = view(text).split("function drawRing")[1]!.split("\n    }")[0]!;
+  assert.match(ring, /var font0 = _fontDial;/);
+  assert.match(ring, /var font1 = _fontDialVector;/);
+  assert.match(ring, /dc\.drawAngledText\([^;]*font1/);
+});
+
+// -- the preview -----------------------------------------------------------------
+
+const frame = (text: string, id: string): Image => render(resolved(text, id), previewOptions({ scale: 1, quantise: false, mask_shape: false }));
+const crop = (im: Image, box: { x: number; y: number; width: number; height: number }): number[] => {
+  const out: number[] = [];
+  for (let y = box.y; y < box.y + box.height; y++) for (let x = box.x; x < box.x + box.width; x++) out.push(im.data[(y * im.width + x) * 4]!);
+  return out;
+};
+
+test("the preview draws a fallback device's text from the baked sheet, and the curve only where the face is", () => {
+  const text = design(FALLBACK);
+  const asBaked = design(`      source: ${TTF}\n      size: 12%r\n`, { curved: null });
+  for (const id of ["fr955", "fr255"]) {
+    const r = resolved(text, id);
+    const box = r.items.find((p) => p.id === "brand")!.box;
+    const pixels = crop(frame(text, id), box);
+    assert.ok(pixels.some((v) => v > 0), `${id}: brand drawn`);
+    assert.deepEqual(pixels, crop(frame(asBaked, id), box), `${id}: drawn from the sheet a source: font bakes`);
+    const rim = r.items.find((p) => p.id === "rim")!.box;
+    assert.ok(crop(frame(text, id), rim).every((v) => v === 0), `${id}: rim not drawn`);
+  }
+  const fenix = resolved(text, "fenix8solar47mm");
+  const im = frame(text, "fenix8solar47mm");
+  assert.ok(crop(im, fenix.items.find((p) => p.id === "rim")!.box).some((v) => v > 0), "fenix: rim drawn");
+  assert.equal(drawn(text, "brand", {}, "fr255"), "BRAND");
 });

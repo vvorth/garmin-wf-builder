@@ -374,6 +374,29 @@ These cost real time to discover; do not rediscover them.
   catalogue include any of the requested faces" has no runtime query at
   all and can only be decided at build time, per device.
 
+  **A `face:` font with a `fallback:`** keeps that one shared view, with a
+  different field shape (the goldens hold every font without one to the
+  shape above). Its field is `Graphics.FontType?`, holding the face where
+  the device builds it and the loaded baked sheet elsewhere; a font some
+  curved element draws gets a second, `Graphics.VectorFont?` field
+  (`_font<Name>Vector`, `vectorFontField` in
+  `ts/src/emit/monkeyc/common.ts`), set only with the face, because a
+  `drawAngledText`/`drawRadialText` call needs a `VectorFont` (handing it
+  the `FontType` field fails strict typing: "Passing 'PolyType<...FontDefinition
+  or ...FontReference or ...VectorFont or ...FontResource>' as parameter 3 of
+  non-poly type '...VectorFont'", built on `fenix8solar47mm`), and so a
+  curved draw on a device drawing the sheet finds null and draws nothing.
+  When the font is guarded, the construction's `else` branch calls
+  `Layout.font<Name>Fallback()`: each device's own `Layout.mc` defines it,
+  returning `WatchUi.loadResource(Rez.Fonts.<Id>)` on a device that draws
+  the sheet and `null` on one that builds the face. The `Rez.Fonts` symbol
+  can live only there, because the sheet is baked (`bakeFonts` in
+  `ts/src/emit/resources.ts`, `vectorFontMode` in `ts/src/availability.ts`)
+  into the resources of the devices that draw it alone, and the shared view
+  compiles against every device's resources. Built warning-free under
+  `-l 3` on `fenix8solar47mm`, `fr955` and `fr255`
+  (`examples/features/font-fallback/`).
+
   **Gate 4 -- `Graphics.getVectorFont` returning `null` even when every
   build-time gate passed -- has no guard of any kind, ever, in either
   `unsupported:` mode**, because the platform gives none: every draw
