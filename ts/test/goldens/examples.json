@@ -1163,7 +1163,7 @@
   }
  },
  "examples/features/font-fallback/face.yaml": {
-  "diagnostics": "examples/features/font-fallback/face.yaml:58:9: note[font-fallback]: font 'dial': drawn from its baked 'fallback:' on fr255, fr955 -- no usable face there\n   58 |         source: assets/ChivoMono-Bold.ttf\n                ^\n      note: the sheet is baked from examples/features/font-fallback/assets/ChivoMono-Bold.ttf for those devices only\n      note: it draws upright text; an element with 'curve:' in this font still needs the face, and 'unsupported:' decides it there\n      confidence: exact -- resolved per-device gates 1-3",
+  "diagnostics": "examples/features/font-fallback/face.yaml:66:9: note[font-fallback]: font 'dial': drawn from its baked 'fallback:' on fr255, fr955 -- no usable face there\n   66 |         source: assets/ChivoMono-Bold.ttf\n                ^\n      note: the sheet is baked from examples/features/font-fallback/assets/ChivoMono-Bold.ttf for those devices only\n      note: it draws upright text; an element with 'curve:' in this font still needs the face, and 'unsupported:' decides it there\n      confidence: exact -- resolved per-device gates 1-3\n\nexamples/features/font-fallback/face.yaml:72:17: note[font-fallback]: font 'stand_in': drawn from its 'fallback: auto' on fr255 -- roboto-condensed-bold (exact, Apache-2.0), no usable face there\n   72 |       fallback: auto\n                        ^\n      note: the sheet is baked from the free-font registry's roboto-condensed-bold, its stand-in for 'RobotoCondensedBold', for that device only\n      note: it draws upright text; an element with 'curve:' in this font still needs the face, and 'unsupported:' decides it there\n      confidence: exact -- resolved per-device gates 1-3",
   "projects": {
    "targets": {
     "manifest.xml": "ab90a414c534acdf14e71272a7aec938",
@@ -1171,10 +1171,10 @@
     "resources/strings/strings.xml": "d97d855b9019053aae6ee5ea2e0afcf0",
     "source/FeatureFontFallbackApp.mc": "16e57bdb34c51ca037392721b2bc4185",
     "source/Palette.mc": "ff595998526f2144ee94641cb1852bae",
-    "source-fenix8solar47mm/Layout.mc": "f948ae25f3d5c7597acd70e3cd67db85",
-    "source-fr955/Layout.mc": "8ae08096a6bff5c5834d0bc451610251",
-    "source-fr255/Layout.mc": "0d339f646bfc26d93bce37a5dee46ade",
-    "source/FeatureFontFallbackView.mc": "5bf6d21faf58b79f68d8123395b451c9",
+    "source-fenix8solar47mm/Layout.mc": "0413059522c8690ad384e42dfc47a8ba",
+    "source-fr955/Layout.mc": "3822a2a01fd9e312080cbf1cd637a8d1",
+    "source-fr255/Layout.mc": "0f6729a64a0c77c99847f4c613a58374",
+    "source/FeatureFontFallbackView.mc": "e6ae911268dc0ee24f3d8103202caea4",
     "resources-fenix8solar47mm/drawables/drawables.xml": "9ef2b40fb8dd6db3f3d600f8519b02a3",
     "resources-fenix8solar47mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fr955/fonts/fonts.xml": "77710b1ad0d9774c8467b9d3a124415d",
@@ -1182,11 +1182,13 @@
     "resources-fr955/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fr955/fonts/dial.fnt": "d7f87eb6d6951b758f0aa31790b8c52b",
     "resources-fr955/fonts/dial.png": "d4f2073f1f98cc117acdf2388fdd35fd",
-    "resources-fr255/fonts/fonts.xml": "77710b1ad0d9774c8467b9d3a124415d",
+    "resources-fr255/fonts/fonts.xml": "cd7788cf69ed17984c10c6a5b8fb548a",
     "resources-fr255/drawables/drawables.xml": "01313c2981483b3577c9dd16f4c412ec",
     "resources-fr255/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fr255/fonts/dial.fnt": "d7f87eb6d6951b758f0aa31790b8c52b",
-    "resources-fr255/fonts/dial.png": "d4f2073f1f98cc117acdf2388fdd35fd"
+    "resources-fr255/fonts/dial.png": "d4f2073f1f98cc117acdf2388fdd35fd",
+    "resources-fr255/fonts/stand_in.fnt": "72bb78b4bc723e930bd7669cf0d8de16",
+    "resources-fr255/fonts/stand_in.png": "03d080b922a861c7f4208625246d8185"
    },
    "amoled-mix": {
     "manifest.xml": "ad33da2c4117048a265d5d7cadec16c1",
@@ -1194,11 +1196,11 @@
     "resources/strings/strings.xml": "d97d855b9019053aae6ee5ea2e0afcf0",
     "source/FeatureFontFallbackApp.mc": "16e57bdb34c51ca037392721b2bc4185",
     "source/Palette.mc": "ff595998526f2144ee94641cb1852bae",
-    "source-fenix847mm/Layout.mc": "1cf8031c3677b3c399aee804aed1eb83",
-    "source-fenix8solar47mm/Layout.mc": "f948ae25f3d5c7597acd70e3cd67db85",
-    "source-fr245/Layout.mc": "9bcb3f51a219186da1b989e85ea66e6e",
-    "source-fenix6/Layout.mc": "e20826f62e93432f882b1fd7756c1e83",
-    "source/FeatureFontFallbackView.mc": "71e7dba49c588de4f4cdefe2861bbe65",
+    "source-fenix847mm/Layout.mc": "790c1e562ead618b441c2953626f0c49",
+    "source-fenix8solar47mm/Layout.mc": "0413059522c8690ad384e42dfc47a8ba",
+    "source-fr245/Layout.mc": "39a7d042b6899d05e24aa92260be9993",
+    "source-fenix6/Layout.mc": "efd9eb826d882d0e11f9669b4549faf9",
+    "source/FeatureFontFallbackView.mc": "15ecaa627001a5bb190573ed563a7759",
     "resources-fenix847mm/fonts/fonts.xml": "996306000620152d09e295d5c47e03f8",
     "resources-fenix847mm/drawables/drawables.xml": "44512f137dba34fd16c7806a5f384d99",
     "resources-fenix847mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
@@ -1206,16 +1208,20 @@
     "resources-fenix847mm/fonts/dial.png": "1e80d63d593fb1225d077a3458f11b1e",
     "resources-fenix8solar47mm/drawables/drawables.xml": "9ef2b40fb8dd6db3f3d600f8519b02a3",
     "resources-fenix8solar47mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
-    "resources-fr245/fonts/fonts.xml": "f55df0cfc31cd62069eb67e800341c8b",
+    "resources-fr245/fonts/fonts.xml": "68cb827989787eb1ff98534914b406ee",
     "resources-fr245/drawables/drawables.xml": "d769fd35560219ee9a12e187a5524d9d",
     "resources-fr245/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fr245/fonts/dial.fnt": "bbfbedaaf6e859bdcbd852200ced6312",
     "resources-fr245/fonts/dial.png": "e8653fd0f08b7f769aa73672eaf3fdf6",
-    "resources-fenix6/fonts/fonts.xml": "77710b1ad0d9774c8467b9d3a124415d",
+    "resources-fr245/fonts/stand_in.fnt": "6aa169734ead6505705e7cda5ee2fc07",
+    "resources-fr245/fonts/stand_in.png": "b50c734a059d88aeaf673041fa306782",
+    "resources-fenix6/fonts/fonts.xml": "cd7788cf69ed17984c10c6a5b8fb548a",
     "resources-fenix6/drawables/drawables.xml": "8f4101ed40f34d6c3ea525e270802091",
     "resources-fenix6/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
     "resources-fenix6/fonts/dial.fnt": "d7f87eb6d6951b758f0aa31790b8c52b",
-    "resources-fenix6/fonts/dial.png": "d4f2073f1f98cc117acdf2388fdd35fd"
+    "resources-fenix6/fonts/dial.png": "d4f2073f1f98cc117acdf2388fdd35fd",
+    "resources-fenix6/fonts/stand_in.fnt": "72bb78b4bc723e930bd7669cf0d8de16",
+    "resources-fenix6/fonts/stand_in.png": "03d080b922a861c7f4208625246d8185"
    },
    "fenix9-mix": {
     "manifest.xml": "bd664363f45318808999a6c27c6a33b9",
@@ -1223,9 +1229,9 @@
     "resources/strings/strings.xml": "d97d855b9019053aae6ee5ea2e0afcf0",
     "source/FeatureFontFallbackApp.mc": "16e57bdb34c51ca037392721b2bc4185",
     "source/Palette.mc": "ff595998526f2144ee94641cb1852bae",
-    "source-fenix947mm/Layout.mc": "3aa02be4136321cd961dcee738020d9e",
-    "source-fr955/Layout.mc": "8ae08096a6bff5c5834d0bc451610251",
-    "source/FeatureFontFallbackView.mc": "f7713550c45511b6d445d057084477a4",
+    "source-fenix947mm/Layout.mc": "34b3e2f912105bd4023dddce9cab1e93",
+    "source-fr955/Layout.mc": "ee018ff46c788cdeb01a89c3c55ae40b",
+    "source/FeatureFontFallbackView.mc": "eaf061be97f6fde2c90dda8206fc66e1",
     "resources-fenix947mm/fonts/fonts.xml": "996306000620152d09e295d5c47e03f8",
     "resources-fenix947mm/drawables/drawables.xml": "7e21448ff35a5496f76ef0ed5dff38a1",
     "resources-fenix947mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
@@ -1240,19 +1246,19 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "ce7a21c916eea01ed93e3ecfdfe5dd0a",
-    "fr955": "4983832f13da9ad3a9fca96c7213f136",
-    "fr255": "b3ef227cb2e14a7cccaec9b2c67fcc2a"
+    "fenix8solar47mm": "1410e8e77ce25075008aadf3fcca048e",
+    "fr955": "5b64008187154ae1cd387d5d77772862",
+    "fr255": "7d8ff31b1261e5ca17fc4fb0cc232e98"
    },
    "asleep": {
-    "fenix8solar47mm": "ce7a21c916eea01ed93e3ecfdfe5dd0a",
-    "fr955": "4983832f13da9ad3a9fca96c7213f136",
-    "fr255": "b3ef227cb2e14a7cccaec9b2c67fcc2a"
+    "fenix8solar47mm": "1410e8e77ce25075008aadf3fcca048e",
+    "fr955": "5b64008187154ae1cd387d5d77772862",
+    "fr255": "7d8ff31b1261e5ca17fc4fb0cc232e98"
    },
    "time": {
-    "fenix8solar47mm": "58564bc113ffac6aa373fd943453f79d",
-    "fr955": "6cade9befd61c5ace8bef6ca308ef779",
-    "fr255": "e065e0f913a1f089fa491130b6c58e44"
+    "fenix8solar47mm": "f95ef56e2ea151f70be19407d93cc5ee",
+    "fr955": "1ec6dda47250366fa559877bfe464cb7",
+    "fr255": "f318147a57d9e855ec3726438b89b46e"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Feature Font Fallback' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",

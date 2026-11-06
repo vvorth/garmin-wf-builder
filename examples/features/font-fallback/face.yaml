@@ -1,7 +1,7 @@
 # A baked `fallback:` on a `face:` font (docs/guide/fonts.md "`fallback:`
-# -- a baked stand-in for a missing face").
+# -- a baked stand-in for a missing face"), from a file and from `auto`.
 #
-# One font, `dial`, asks for the device-resident face `BionicSemiBold`, and
+# The first font, `dial`, asks for the device-resident face `BionicSemiBold`, and
 # carries a `fallback:` baked from `assets/ChivoMono-Bold.ttf`. The three
 # targets take the three paths a `face:` font can take:
 #
@@ -25,8 +25,16 @@
 #   `VectorFont`), so on fr955 and fr255 the element is unavailable and its
 #   `unsupported: hide` leaves it out there. Without that key the build
 #   fails on those two, naming the curve.
-# * **The build note `font-fallback`** lists the devices the sheet is baked
-#   for (fr255, fr955); the fenix's resources hold no sheet at all.
+# * **`free`, an upright text in a second font, `stand_in`,** asks for
+#   `RobotoCondensedBold` with `fallback: auto`: no file beside the design,
+#   the compiler bakes the free-font registry's stand-in for the face, here
+#   Google's Roboto Condensed Bold, the very file Garmin ships. fenix8solar47mm
+#   and fr955 publish that face and draw it; only fr255 bakes the sheet, so
+#   the text keeps the face's letterforms on all three.
+# * **The build note `font-fallback`** lists, per font, the devices its
+#   sheet is baked for (fr255 and fr955 for `dial`, fr255 for `stand_in`,
+#   naming the stand-in, its match and its licence); the fenix's resources
+#   hold no sheet at all.
 #
 # Build it with:    ./wfb build examples/features/font-fallback/face.yaml
 # Preview it with:  ./wfb preview examples/features/font-fallback/face.yaml
@@ -57,6 +65,11 @@ resources:
       fallback:
         source: assets/ChivoMono-Bold.ttf
         antialias: true
+    stand_in:
+      face: RobotoCondensedBold
+      size: 9%r
+      # the registry's free Roboto Condensed Bold, baked only for fr255
+      fallback: auto
 
   palette:
     black: "#000000"
@@ -85,6 +98,14 @@ elements:
     font: font.dial
     at: { anchor: center, dy: -40%r }
     color: color.amber
+
+  # Upright, in the `auto` font: the face where published, the stand-in on fr255.
+  free:
+    type: text
+    text: "STAND-IN"
+    font: font.stand_in
+    at: { anchor: center, dy: 30%r }
+    color: color.white
 
   # Curved: the face only. Hidden where the font draws from its sheet.
   rim:

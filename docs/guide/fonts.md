@@ -299,7 +299,9 @@ resources:
 ![the fallback on fr255](../screenshots/font-fallback-fr255.png)
 *`examples/features/font-fallback/face.yaml`: `fenix8solar47mm` draws the
 face, the curved rim text included; `fr255` has no `Graphics.getVectorFont`,
-so it draws the upright text from the baked sheet and leaves the curve out.*
+so it draws the upright text from the baked sheet and leaves the curve out,
+and draws `STAND-IN`, in a second font with `fallback: auto`, from the
+registry's Roboto Condensed Bold, the face the other two draw.*
 
 * **Each device takes one of three paths, decided at build time.** A device
   with `Graphics.getVectorFont` that publishes a listed face draws the face,
@@ -393,6 +395,6 @@ never missing from the wrist.
 - [`examples/showcase/face.yaml`](../../examples/showcase/face.yaml) — the two-tone monospaced clock shown above.
 - [`examples/system-fonts/text/face.yaml`](../../examples/system-fonts/text/face.yaml) — every system font, one per row.
 - [`examples/features/vector-text/face.yaml`](../../examples/features/vector-text/face.yaml) — `face:` fonts paired with `curve:`.
-- [`examples/features/font-fallback/face.yaml`](../../examples/features/font-fallback/face.yaml) — a `face:` font with a baked `fallback:`, on a device of each path.
+- [`examples/features/font-fallback/face.yaml`](../../examples/features/font-fallback/face.yaml) — `face:` fonts with a baked `fallback:` from a file and with `fallback: auto`, on a device of each path.
 - [Text](text.md#curve--rotated-and-radial-text) — `curve:`, which requires a `face:` font.
 - [Elements: common keys and groups](elements.md#antialias--soften-an-edge) — `antialias:`'s face-wide default.
