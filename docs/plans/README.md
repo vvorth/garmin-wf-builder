@@ -10,7 +10,6 @@ back here.
 
 | Plan | Status |
 |---|---|
-| [40 `fallback: auto`](40-auto-fallback.md): a universal free stand-in for every device-resident face, the registry completed, prefetched on setup | in progress; two slices in parallel, D1–D10 decided |
 | [34 a curved slot](34-curved-slot.md): `rotate:` and `slot:` on `type: icon`, `curve:` on `type: data`, a group's `on_hold:` following its slot | in progress; slices 1–5 done, slice 6 built and not yet verified on a watch, D1–D8 decided |
 
 ## Built and deleted
@@ -55,3 +54,4 @@ records its own slices and decisions. Its commits are
 | 37 phone-side settings | `git show d9a6b9e:docs/plans/37-phone-settings.md` (commits `git log --grep "plan 37"`: `settings.xml`/`properties.xml` per settings-menu device, derived from `config:`, shared strings, `onSettingsChanged`, the `wfb export` phone-settings line; the §5 phone checks are still the user's) |
 | 38 element names unique among siblings | `git show 21144b7:docs/plans/38-scoped-element-ids.md` (commits `git log --grep "plan 38"`: an element's id is its key qualified by its groups (`top.label`), generated symbols derive from it, the editor is keyed on it and checks a name among its siblings only; `ts/src/element_ids.ts`) |
 | 39 a fleet-wide Store export | `git show db039df:docs/plans/39-fleet-export.md` (commits `git log --grep "plan 39"`: `fallback:` on a `face:` font, baked per device where no listed face is published and drawn upright, with `font-fallback` and the `examples/features/font-fallback/` example; `wfb export --all-devices` dropping each device whose errors are all its own lack, through `Diagnostic.devices` and `dropUnsupported`, reported by `device-dropped`, the `dropped` line and `export-info.json`) |
+| 40 `fallback: auto` | `git show 959b539:docs/plans/40-auto-fallback.md` (commits `git log --grep "plan 40"`: every device-resident scalable face mapped to a free, licensed stand-in in `ts/src/data/font-registry.json`, chosen by look where the face is proprietary and prefetched whole on setup, built from `docs/research/40-vector-face-stand-ins.md`; `fallback: auto` baking that stand-in, named with its match and licence in `font-fallback`) |
