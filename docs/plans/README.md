@@ -10,6 +10,7 @@ back here.
 
 | Plan | Status |
 |---|---|
+| [40 `fallback: auto`](40-auto-fallback.md): a universal free stand-in for every device-resident face, the registry completed, prefetched on setup | in progress; two slices in parallel, D1–D10 decided |
 | [34 a curved slot](34-curved-slot.md): `rotate:` and `slot:` on `type: icon`, `curve:` on `type: data`, a group's `on_hold:` following its slot | in progress; slices 1–5 done, slice 6 built and not yet verified on a watch, D1–D8 decided |
 
 ## Built and deleted
