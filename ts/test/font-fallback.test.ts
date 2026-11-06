@@ -113,6 +113,38 @@ test("an inline font's fallback becomes its entry's", () => {
   assert.equal(f.fonts.get("brand_font")!.fallback!.source, TTF);
 });
 
+test("a fallback no upright text draws is a build error at its key; an unused font is not", () => {
+  const curvedOnly = design(FALLBACK).replace(/  brand:\n(    .*\n)+/, "");
+  const found = checked(curvedOnly).filter((d) => d.severity === "error");
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.code, "font");
+  assert.equal(found[0]!.message, "font 'dial': 'fallback:' is never drawn -- every element in this font has 'curve:', which a baked sheet cannot draw");
+  assert.equal(found[0]!.span!.line, 14);
+  assert.match(found[0]!.notes.join("\n"), /drawn in 'font.dial': rim/);
+  assert.match(found[0]!.notes.join("\n"), /drop 'fallback:', or use the font upright somewhere/);
+  // and no note claims the sheet is drawn anywhere
+  assert.equal(checked(curvedOnly).filter((d) => d.code === "font-fallback").length, 0);
+  // a curved pattern text part alone is the same
+  const part = design(FALLBACK, { curved: null }).replace(/  brand:\n(    .*\n)+/, `  ring:
+    type: pattern
+    pattern: radial
+    at: { anchor: center }
+    count: 4
+    color: color.fg
+    parts:
+      bent: { type: text, text: "B", font: font.dial, at: { dy: -80%r }, curve: { style: angled, angle: 0deg }, unsupported: hide }
+    lint: { allow: [font-unavailable], reason: test }
+`);
+  const partErrors = checked(part).filter((d) => d.severity === "error");
+  assert.deepEqual(partErrors.map((d) => d.message), ["font 'dial': 'fallback:' is never drawn -- every element in this font has 'curve:', which a baked sheet cannot draw"]);
+  assert.match(partErrors[0]!.notes.join("\n"), /drawn in 'font.dial': ring\.parts\.bent/);
+  // declared and drawn by nothing: no error, as for any unused font
+  const unused = design(FALLBACK, { curved: null }).replace(/  brand:\n(    .*\n)+/, "");
+  assert.equal(checked(unused).filter((d) => d.severity === "error").length, 0);
+  // one upright use is enough
+  assert.equal(checked(design(FALLBACK)).filter((d) => d.severity === "error").length, 0);
+});
+
 // -- the mode, per font per device ------------------------------------------
 
 test("each device draws a face: font from the face, its fallback, or nothing", () => {

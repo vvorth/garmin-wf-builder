@@ -312,6 +312,9 @@ so it draws the upright text from the baked sheet and leaves the curve out.*
   and its `unsupported:` applies as below: `error` fails the build naming the
   curve, `hide` leaves the element out there. A fallback cannot draw it any
   more than a `source:` font can.
+  A `fallback:` on a font that only curved elements use would never be
+  drawn, so it is a build error at the `fallback:` key: drop it, or use the
+  font upright somewhere.
 * **The layout measures against what the device draws**: the sheet's own
   advances on a fallback device, so `text-overflow` and the other placement
   lints read the real box, and `wfb preview` draws from the sheet. Without

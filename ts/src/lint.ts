@@ -289,7 +289,8 @@ export function checkVectorFontAvailability(face: Face, resolved: ReadonlyMap<st
       });
   }
   for (const [name, spec] of availability.vectorFontsUsed(face)) {
-    if (spec.fallback === null) continue;
+    // A fallback only curved elements use is never baked, and an error of its own (checkFallbackDrawn).
+    if (spec.fallback === null || !kinds.faceTextRuns(face).some(([, run]) => run.font === name && !run.aod_only && run.curve === null)) continue;
     const baking = sorted([...resolved].filter(([, rf]) => availability.vectorFontMode(spec, rf.device) === "fallback").map(([id]) => id));
     if (baking.length === 0) continue;
     bag.note("font-fallback", `font ${quoted(name)}: drawn from its baked 'fallback:' on ${baking.join(", ")} -- no usable face there`,
@@ -299,6 +300,27 @@ export function checkVectorFontAvailability(face: Face, resolved: ReadonlyMap<st
           "it draws upright text; an element with 'curve:' in this font still needs the face, and 'unsupported:' decides it there",
         ],
         confidence: "exact -- resolved per-device gates 1-3",
+      });
+  }
+}
+
+/**
+ * A `face:` font's `fallback:` some upright text draws: every run in it
+ * curved means no device ever draws the sheet, so the key would do nothing.
+ * A font no element uses is not checked, as an unused font never is.
+ */
+export function checkFallbackDrawn(face: Face, bag: Bag): void {
+  const runs = kinds.faceTextRuns(face).map(([, run]) => run).filter((run) => run.icon === null && !run.aod_only);
+  for (const [name, spec] of face.fonts) {
+    if (!spec.isVector || spec.fallback === null) continue;
+    const using = runs.filter((run) => run.font === name);
+    if (using.length === 0 || using.some((run) => run.curve === null)) continue;
+    bag.error("font", `font ${quoted(name)}: 'fallback:' is never drawn -- every element in this font has 'curve:', which a baked sheet cannot draw`,
+      spec.fallback.span ?? spec.span, {
+        notes: [
+          `drawn in 'font.${name}': ${using.map((run) => run.label).join(", ")}`,
+          "drop 'fallback:', or use the font upright somewhere: only an upright text, data reading or pattern text part draws from the sheet",
+        ],
       });
   }
 }
@@ -1608,7 +1630,7 @@ export function checkMemory(device: Device, buildOutput: string, bag: Bag): Memo
 
 /** Checks that read the design alone, in the order `runDesign` runs them. */
 const DESIGN_CHECKS: readonly ((face: Face, bag: Bag) => void)[] = [
-  checkPermissions, checkLintAllow, checkDuplicateStyle, checkUnreachableLayout,
+  checkPermissions, checkLintAllow, checkDuplicateStyle, checkUnreachableLayout, checkFallbackDrawn,
 ];
 
 /** Per-device checks, in the order `run` runs them: the order their diagnostics reach the author. */

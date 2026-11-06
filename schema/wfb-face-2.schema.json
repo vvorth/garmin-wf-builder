@@ -383,7 +383,7 @@
       }
     },
     "fallbackFont": {
-      "description": "A baked sheet to draw this font from on a device that cannot draw the face: one without Graphics.getVectorFont, or one that publishes none of the listed 'face:' names. It is baked from your own TrueType/OpenType file exactly as a 'source:' font is, and only for the devices that need it. It draws upright text only: Dc.drawAngledText and Dc.drawRadialText take a VectorFont, so an element with 'curve:' in this font is still unavailable on such a device, and 'unsupported:' decides what happens to it there. 'face:', 'unsupported:' and 'fallback:' are not accepted inside it.",
+      "description": "A baked sheet to draw this font from on a device that cannot draw the face: one without Graphics.getVectorFont, or one that publishes none of the listed 'face:' names. It is baked from your own TrueType/OpenType file exactly as a 'source:' font is, and only for the devices that need it. It draws upright text only: Dc.drawAngledText and Dc.drawRadialText take a VectorFont, so an element with 'curve:' in this font is still unavailable on such a device, and 'unsupported:' decides what happens to it there. A fallback that no upright element draws -- every element in the font has 'curve:' -- is a build error. 'face:', 'unsupported:' and 'fallback:' are not accepted inside it.",
       "type": "object",
       "required": [
         "source"

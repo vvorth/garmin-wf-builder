@@ -2,7 +2,7 @@
 // from: the shared helpers.
 import type { WatchNumber } from "../../draw/program.ts";
 import { flt } from "../../draw/barrel.ts";
-import { type Guards, NO_GUARDS, shownGuarded, vectorFontFace, vectorFontMode } from "../../availability.ts";
+import { type Guards, NO_GUARDS, shownGuarded, vectorFontFace } from "../../availability.ts";
 import { discPerimeterOffsets, type Element, overrideKeyFor, slotOf, variantConstant } from "../../ir/model.ts";
 import { ringGroups } from "../../ir/rings.ts";
 import * as kinds from "../../kinds/index.ts";
@@ -139,7 +139,8 @@ function vectorFontConstants(resolved: ResolvedFace, name: string, guards: Guard
 function emitFallbackFont(w: Writer, resolved: ResolvedFace, name: string): void {
   const spec = resolved.face.fonts.get(name)!;
   const device = resolved.device;
-  const drawn = vectorFontMode(spec, device) === "fallback";
+  // The sheet is in this device's resources only when its bake wrote it.
+  const drawn = resolved.fonts.has(name);
   w.blank();
   w.doc(drawn ? `\`font.${name}\`'s baked 'fallback:' sheet: ${device.id} has no usable face, so the view draws this.`
     : `\`font.${name}\`'s baked 'fallback:' sheet: none, ${device.id} builds the face, so nothing is baked for it.`);
