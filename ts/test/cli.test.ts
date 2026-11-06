@@ -100,7 +100,17 @@ describe("the command line", { concurrency: true }, () => {
     assert.deepEqual(headers, [...headers].sort((a, b) => compareVersions(a, b)));
     const section = text.split("\n\n").find((block) => block.includes("fenix8solar47mm"))!;
     assert.ok(section.startsWith("# API 6.0.3 ("), section);
-    assert.ok(section.split("\n").slice(1).join(" ").split(", ").includes("fenix8solar47mm"), section);
+    const sub = section.split("## ").find((block) => block.includes("fenix8solar47mm"))!;
+    assert.ok(sub.startsWith("mip round ("), section);
+    assert.ok(sub.split("\n").slice(1).join(" ").split(", ").includes("fenix8solar47mm"), section);
+    assert.ok(section.includes("## amoled round ("), section);
+    // A filter keeps only its devices, in both views, and one display and shape left drops the subsections.
+    const mip = plain(wfb(["devices", "--targets", "--display", "mip", "--shape", "round"]).stdout);
+    assert.ok(mip.includes("fenix8solar47mm") && !mip.includes("fenix847mm") && !mip.includes("venusq") && !mip.includes("## "), mip);
+    const table = plain(wfb(["devices", "--shape", "rectangle", "--shape", "semi-octagon"]).stdout);
+    assert.ok(table.includes("venusq") && table.includes("instinct2") && !table.includes("fenix8solar47mm"), table);
+    assert.equal(plain(wfb(["devices", "--targets", "--shape", "semi-round"]).stdout), "no installed semi-round devices found\n");
+    assert.equal(wfb(["devices", "--display", "oled"]).code, 2);
   });
 
   test("new: lists, refuses to overwrite, reads only its own templates, mints an id each", () => {

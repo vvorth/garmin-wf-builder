@@ -59,7 +59,7 @@ wfb export    design.yaml [-d DEVICE | --all-devices] [--id UUID] [-o DIR]  # on
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
 wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [--sample NAME=VALUE] [--time HH:MM[:SS]] [--date YYYY-MM-DD] [-q] [-o -]  # render to PNG; no simulator
 wfb simulate  design.yaml [-d DEVICE] [-f] [--trace] [--screenshot PNG]  # run it in the simulator
-wfb devices   [--targets]          # installed device definitions and their limits; --targets: ids only, by API level
+wfb devices   [--targets] [--display CLASS] [--shape SHAPE]  # installed devices and their limits; --targets: ids only, by API level
 wfb fonts     [DEVICE ...] [-d DEVICE]  # fonts per device: scalable (vector) and system (bitmap)
 wfb sources                        # the data-source catalogue, each source's icon rule, and the icon names
 wfb complications                  # what an element's `on_hold:` may launch
@@ -75,10 +75,16 @@ target; an unlisted one draws a `target` note, and the generated manifest
 lists exactly the devices asked for.
 
 `wfb devices --targets` is for writing that `targets:` list: it prints the
-installed device ids alone, one section per API level from the oldest up,
-each section comma-separated so it pastes straight into the flow list. Pick
-the sections at or above the API level your design needs. Devices that
-cannot run a watch face are listed last, in a section of their own.
+installed device ids alone, one section per API level from the oldest up
+and, within it, a subsection per display class and shape (`mip round`,
+`amoled rectangle`), each ids line comma-separated so it pastes straight
+into the flow list. Pick the sections at or above the API level your design
+needs. `--display mip|amoled|lcd` and `--shape
+round|rectangle|semi-round|semi-octagon` (repeatable, the same words as the
+`display:`/`shape:` override selectors) keep only those devices, in the
+table too; with one display and shape left the subsection lines go away.
+Devices that cannot run a watch face are listed last, in a section of
+their own.
 
 `wfb preview --sample NAME=VALUE` renders at a reading of your own instead of
 the sample one, to see a state the sample does not show: `--sample

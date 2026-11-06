@@ -178,9 +178,11 @@ files cannot be downloaded unauthenticated -- run \`wfb init\` for how
 to get them onto this machine.
 
 \`--targets\` prints the ids alone, one section per API level from the
-oldest up, each comma-separated so it pastes into a design's \`targets:\`
-list; devices that cannot run a watch face sit in a last section of their
-own.`,
+oldest up and a subsection per display class and shape within it, each
+ids line comma-separated so it pastes into a design's \`targets:\` list;
+devices that cannot run a watch face sit in a last section of their own.
+\`--display mip|amoled|lcd\` and \`--shape round|rectangle|semi-round|
+semi-octagon\` (each repeatable) keep only those devices, in either view.`,
   fonts: `list fonts available per device, or a detailed font breakdown for one or more
 
 With no device named, lists every installed device definition alongside

@@ -174,6 +174,9 @@ const COLOR: Option = { flags: ["--color"], choices: term.MODES, default: null, 
 const HELP: Option = { flags: ["-h", "--help"], kind: "flag", help: "show this help message and exit" };
 const VERBOSE: Option = { flags: ["-v", "--verbose"], kind: "flag", help: "show every note in full, with its source line and details" };
 const DEVICES_DIR: Option = { flags: ["--devices-dir"], help: "device definitions directory" };
+/** The `--display` and `--shape` words `wfb devices --targets` filters by: the `display:`/`shape:` override selectors' own. */
+const DISPLAY_CLASSES = ["mip", "amoled", "lcd"] as const;
+const SHAPES = ["round", "rectangle", "semi-round", "semi-octagon"] as const;
 const DESIGN: Positional = { dest: "design", help: "the .yaml design file" };
 const deviceOption = (verb: string): Option => ({
   flags: ["-d", "--device"], kind: "append", dest: "devices",
@@ -257,7 +260,9 @@ const COMMAND_LIST: readonly Command[] = [
     { flags: ["--fonts"], dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory, as for `wfb preview`" },
   ]),
   command("devices", devicesCommand, [
-    { flags: ["--targets"], kind: "flag", help: "names only, one section per API level, for building a `targets:` list" },
+    { flags: ["--targets"], kind: "flag", help: "names only, one section per API level with a subsection per display and shape, for building a `targets:` list" },
+    { flags: ["--display"], kind: "append", choices: DISPLAY_CLASSES, help: "only this display class (repeatable)" },
+    { flags: ["--shape"], kind: "append", choices: SHAPES, help: "only this screen shape (repeatable)" },
     DEVICES_DIR,
   ]),
   command("fonts", fontsCommand, [
@@ -1149,14 +1154,19 @@ function schemaCommand(args: Namespace): number {
 function devicesCommand(args: Namespace): number {
   const db = discoverDb(args["devices_dir"] as string | null);
   const color = term.shouldColor(process.stdout);
+  const displays = (args["display"] as string[] | null) ?? [];
+  const shapes = (args["shape"] as string[] | null) ?? [];
+  const kept = (device: Device): boolean =>
+    (displays.length === 0 || displays.includes(device.displayClass)) && (shapes.length === 0 || shapes.includes(device.shape));
   if (args["targets"]) {
-    printDeviceTargets(db, color);
+    printDeviceTargets(db, color, kept, [...displays, ...shapes].join(" "));
     return 0;
   }
   const header = `${"id".padEnd(24)} ${"screen".padEnd(12)} ${"shape".padEnd(12)} ${"display".padEnd(8)} ${"colors".padEnd(7)} ${"api".padEnd(8)} ${"watch face".padEnd(10)} family`;
   out(term.style(header, ["bold"], color));
   for (const id of db.ids()) {
     const device = db.get(id);
+    if (!kept(device)) continue;
     const limit = device.supportsWatchface ? `${Math.floor(device.watchfaceMemoryLimit / 1024)} KB` : "-";
     const colors = device.displayColors ? String(device.displayColors) : "?";
     out(`${device.id.padEnd(24)} ${device.width}x${String(device.height).padEnd(8)} ${device.shape.padEnd(12)} ${device.displayType.padEnd(8)} ${colors.padEnd(7)} ${device.apiLevel.padEnd(8)} ${limit.padEnd(10)} ${device.deviceFamily}`);
@@ -1168,33 +1178,50 @@ const dim = (text: string, color: boolean): string => term.style(text, ["dim"], 
 
 /**
  * `wfb devices --targets`: device ids only, one section per API level
- * (oldest first), comma-separated so a section pastes into a `targets:`
- * flow list. Devices that cannot run a watch face go in a final section of
- * their own, so they are neither hidden nor mistaken for a target.
+ * (oldest first) and, within it, one subsection per display class and
+ * shape, each ids line comma-separated so it pastes into a `targets:` flow
+ * list. `kept` is the `--display`/`--shape` filter, `filter` its words for
+ * the empty message. Devices that cannot run a watch face go in a final
+ * section of their own, so they are neither hidden nor mistaken for a target.
  */
-function printDeviceTargets(db: DeviceDatabase, color: boolean): void {
-  const byLevel = new Map<string, string[]>();
+function printDeviceTargets(db: DeviceDatabase, color: boolean, kept: (device: Device) => boolean, filter: string): void {
+  const kindOf = (device: Device): string => `${device.displayClass} ${device.shape}`;
+  const byLevel = new Map<string, Map<string, string[]>>();
   const noFace: string[] = [];
+  const kinds = new Set<string>();
   for (const id of db.ids()) {
     const device = db.get(id);
+    if (!kept(device)) continue;
     if (!device.supportsWatchface) {
       noFace.push(id);
       continue;
     }
-    const ids = byLevel.get(device.apiLevel) ?? [];
+    kinds.add(kindOf(device));
+    const section = byLevel.get(device.apiLevel) ?? new Map<string, string[]>();
+    const ids = section.get(kindOf(device)) ?? [];
     ids.push(id);
-    byLevel.set(device.apiLevel, ids);
+    section.set(kindOf(device), ids);
+    byLevel.set(device.apiLevel, section);
   }
   if (byLevel.size === 0 && noFace.length === 0) {
-    out("no installed devices found");
+    out(filter ? `no installed ${filter} devices found` : "no installed devices found");
     return;
   }
   const plural = (n: number): string => `${n} device${n === 1 ? "" : "s"}`;
   const levels = [...byLevel.keys()].sort(compareVersions);
+  // One display and shape across the whole list (a narrow filter, or a
+  // single installed watch) needs no subsection headers.
+  const subsections = kinds.size > 1;
   levels.forEach((level, i) => {
     if (i > 0) out();
-    out(term.style(`# API ${level} (${plural(byLevel.get(level)!.length)})`, ["bold"], color));
-    out(fill(byLevel.get(level)!.join(", "), 88));
+    const section = byLevel.get(level)!;
+    const total = [...section.values()].reduce((n, ids) => n + ids.length, 0);
+    out(term.style(`# API ${level} (${plural(total)})`, ["bold"], color));
+    for (const kind of [...section.keys()].sort()) {
+      const ids = section.get(kind)!;
+      if (subsections) out(dim(`## ${kind} (${plural(ids.length)})`, color));
+      out(fill(ids.join(", "), 88));
+    }
   });
   if (noFace.length > 0) {
     if (levels.length > 0) out();
