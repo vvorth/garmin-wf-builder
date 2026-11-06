@@ -196,9 +196,12 @@ or AOD-related has been observed on a watch or in the simulator.
   `ts/src/emit/monkeyc/trace.ts`). `docs/guide/preview-and-cli.md`.
 - **Store export** — `wfb export` packages one release-built, signed
   `.iq` for the Connect IQ Store with `monkeyc -e -r` (`exportApp` in
-  `ts/src/node_build.ts`): the design's targets, `-d`, or `--all-devices`;
-  `--id` for a beta app; an app id another example uses, or one that is
-  not a random v4 UUID, warns. `docs/guide/preview-and-cli.md`.
+  `ts/src/node_build.ts`): the design's targets, `-d`, or `--all-devices`,
+  which drops each device whose errors are all its own lack
+  (`Diagnostic.devices`, `dropUnsupported` in `ts/src/build.ts`) or whose
+  memory is over its limit, and reports it (`device-dropped`, the
+  `dropped` line, `export-info.json`); `--id` for a beta app; an app id
+  another example uses, or one that is not a random v4 UUID, warns. `docs/guide/preview-and-cli.md`.
 - **Preview in the watch** — `wfb preview --skin` sets the render into
   the simulator skin the device files ship, at its `display.location`
   (`frameInSkin` in `ts/src/preview.ts`); a device without a skin renders the bare

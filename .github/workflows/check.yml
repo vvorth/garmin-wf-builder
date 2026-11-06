@@ -117,6 +117,7 @@ jobs:
             # test/data-prefix.test.ts
             # test/devices.test.ts
             # test/diagnostics.test.ts
+            # test/export-drop.test.ts
             # test/export-summary.test.ts
             # test/dynamic-icons.test.ts
             # test/edit.test.ts

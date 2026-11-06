@@ -50,6 +50,12 @@ export interface DiagnosticOptions {
   notes?: string[];
   /** Set when the finding rests on estimation rather than measurement (ADR 0008). */
   confidence?: string | null;
+  /**
+   * The devices the finding exists for: removing every one of them from the
+   * build would remove it. Set only where a device lacks a capability the
+   * design needs; a finding about the design itself leaves it unset.
+   */
+  devices?: readonly string[] | null;
 }
 
 export class Diagnostic {
@@ -59,15 +65,18 @@ export class Diagnostic {
   span: Span | null;
   notes: string[];
   confidence: string | null;
+  /** `DiagnosticOptions.devices`; `null` when the finding is not attributed to devices. */
+  devices: string[] | null;
 
   constructor(severity: Severity, code: string, message: string, span: Span | null = null,
-    { notes = [], confidence = null }: DiagnosticOptions = {}) {
+    { notes = [], confidence = null, devices = null }: DiagnosticOptions = {}) {
     this.severity = severity;
     this.code = code;
     this.message = message;
     this.span = span;
     this.notes = notes;
     this.confidence = confidence;
+    this.devices = devices === null ? null : [...devices];
   }
 
   /** Render one diagnostic; plain text with the defaults. */
@@ -119,13 +128,14 @@ function naming(id: string): RegExp {
  * `devices` they name merged into the first of them, which says where else
  * it holds: "… which fr955 lacks -- and the same on fenix8solar47mm". A
  * check run per device says the same thing once per target, and the
- * repeats bury what differs. Order is kept; nothing else is merged.
+ * repeats bury what differs. Order is kept; nothing else is merged. A
+ * merged diagnostic attributed to devices is attributed to all of them.
  */
 export function mergedAcrossDevices(items: readonly Diagnostic[], devices: readonly string[]): Diagnostic[] {
   if (devices.length < 2) return [...items];
   const patterns = devices.map((id) => [id, naming(id)] as const);
   const out: Diagnostic[] = [];
-  const groups = new Map<string, { at: number; also: string[] }>();
+  const groups = new Map<string, { at: number; also: string[]; devices: string[] | null }>();
   for (const d of items) {
     const named = patterns.filter(([, re]) => d.message.search(re) >= 0);
     if (named.length !== 1) {
@@ -137,17 +147,18 @@ export function mergedAcrossDevices(items: readonly Diagnostic[], devices: reado
     const key = JSON.stringify([d.severity, d.code, d.span?.toString() ?? null, mask(d.message), d.notes.map(mask), d.confidence]);
     const group = groups.get(key);
     if (group === undefined) {
-      groups.set(key, { at: out.length, also: [] });
+      groups.set(key, { at: out.length, also: [], devices: d.devices === null ? null : [...d.devices] });
       out.push(d);
-    } else if (!group.also.includes(id) && out[group.at]!.message.search(re) < 0) {
-      group.also.push(id);
+    } else {
+      if (!group.also.includes(id) && out[group.at]!.message.search(re) < 0) group.also.push(id);
+      if (d.devices !== null) group.devices = [...new Set([...group.devices ?? [], ...d.devices])];
     }
   }
-  for (const { at, also } of groups.values()) {
+  for (const { at, also, devices } of groups.values()) {
     if (also.length === 0) continue;
     const d = out[at]!;
     out[at] = new Diagnostic(d.severity, d.code, `${d.message} -- and the same on ${also.join(", ")}`, d.span,
-      { notes: d.notes, confidence: d.confidence });
+      { notes: d.notes, confidence: d.confidence, devices });
   }
   return out;
 }
@@ -205,17 +216,18 @@ export class Bag {
 
   /**
    * Every diagnostic as `shown` (each one, with `merge` off), notes first and errors last. Without `verbose`, notes
-   * are their header lines alone, as one block. A diagnostic repeating an
-   * earlier one's `(code, notes, confidence)` collapses its notes to one
-   * "same notes as" line.
+   * are their header lines alone, as one block, except those `full`
+   * accepts. A diagnostic repeating an earlier one's `(code, notes,
+   * confidence)` collapses its notes to one "same notes as" line.
    */
-  render({ color = false, width = null, verbose = true, merge = true }:
-    { color?: boolean; width?: number | null; verbose?: boolean; merge?: boolean } = {}): string {
+  render({ color = false, width = null, verbose = true, merge = true, full = () => false }:
+    { color?: boolean; width?: number | null; verbose?: boolean; merge?: boolean; full?: (d: Diagnostic) => boolean } = {}): string {
     const ordered = (merge ? this.shown() : this.items).map((d, i) => [d, i] as const)
       .sort((a, b) => RENDER_ORDER[a[0].severity] - RENDER_ORDER[b[0].severity] || a[1] - b[1]).map(([d]) => d);
     const seen = new Set<string>();
     const pieces: string[] = [];
-    const brief = verbose ? [] : ordered.filter((d) => d.severity === "note");
+    const brief = verbose ? [] : ordered.filter((d) => d.severity === "note" && !full(d));
+    const briefSet = new Set(brief);
     if (brief.length > 0) {
       const lines = brief.map((d) => d.render(null, { color, brief: true }));
       if (brief.some((d) => d.notes.length > 0 || d.confidence || d.span)) {
@@ -224,7 +236,7 @@ export class Bag {
       pieces.push(lines.join("\n"));
     }
     for (const d of ordered) {
-      if (brief.length > 0 && d.severity === "note") continue;
+      if (briefSet.has(d)) continue;
       const key = JSON.stringify([d.code, d.notes, d.confidence]);
       let notesAs: string | null = null;
       if ((d.notes.length > 0 || d.confidence) && seen.has(key)) notesAs = `same notes as the earlier [${d.code}] above`;

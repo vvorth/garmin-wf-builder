@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { join } from "node:path";
 import { REPO_ROOT } from "../src/devices/node.ts";
-import { Bag, Diagnostic, Span } from "../src/diagnostics.ts";
+import { Bag, Diagnostic, mergedAcrossDevices, Span } from "../src/diagnostics.ts";
 import { generate } from "../src/emit/project.ts";
 import { ICON_FONT } from "../src/emit/resources.ts";
 import type { Face } from "../src/ir/model.ts";
@@ -768,4 +768,28 @@ test("rule lists: the shape is checked, and a mistake inside a rule is reported 
   found = errorsOf(visibleNumber);
   assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
   assert.match(found[0]!.message, /^elements\.badge\.visible\[0\]\.value: /);
+});
+
+test("a merged repeat is attributed to every device it merges, and a filtered bag keeps the attribution", () => {
+  const lacks = (id: string): Diagnostic => new Diagnostic("error", "partial-update", `${id} does not support onPartialUpdate`, null, { devices: [id] });
+  const design = new Diagnostic("error", "resolve", "venux1 and epix2 both fail");
+  const merged = mergedAcrossDevices([lacks("venux1"), lacks("epix2"), design], ["venux1", "epix2"]);
+  assert.deepEqual(merged.map((d) => [d.message, d.devices]), [
+    ["venux1 does not support onPartialUpdate -- and the same on epix2", ["venux1", "epix2"]],
+    ["venux1 and epix2 both fail", null],
+  ]);
+  const bag = new Bag();
+  bag.add(lacks("venux1"));
+  bag.add(design);
+  assert.deepEqual(bag.only((d) => d.code === "partial-update").items.map((d) => d.devices), [["venux1"]]);
+});
+
+test("a note the render is told to keep whole shows its notes without -v", () => {
+  const bag = new Bag();
+  bag.note("device-dropped", "fr255: dropped from the export (font-unavailable)", null, { notes: ["text.x: no usable face on fr255"] });
+  bag.note("memory", "fr255: 1 B", null, { notes: ["measured"] });
+  const text = bag.render({ verbose: false, full: (d) => d.code === "device-dropped" });
+  assert.match(text, /note: text\.x: no usable face on fr255/);
+  assert.doesNotMatch(text, /note: measured/);
+  assert.doesNotMatch(bag.render({ verbose: false }), /no usable face/);
 });

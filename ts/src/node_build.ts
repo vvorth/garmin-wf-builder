@@ -6,14 +6,14 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { cpus, homedir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
-import { faceCapableDevices, load, prgName, resolveAll, selectDevices, slug } from "./build.ts";
+import { basename, dirname, join, relative, resolve } from "node:path";
+import { droppedCodes, dropUnsupported, faceCapableDevices, load, overMemoryLimit, prgName, resolveAll, selectDevices, slug } from "./build.ts";
 
 export { slug };
 import type { Device, DeviceDatabase } from "./devices/device.ts";
 import { DEVICE_REFERENCE, REPO_ROOT } from "./devices/node.ts";
 import { referenceVersion } from "./devices/reference.ts";
-import type { Bag } from "./diagnostics.ts";
+import { Bag, type Diagnostic } from "./diagnostics.ts";
 import { type GeneratedProject, generate } from "./emit/project.ts";
 import { bakeFonts, type FontReader } from "./emit/resources.ts";
 import * as strhash from "./emit/strhash.ts";
@@ -276,6 +276,8 @@ export interface ExportResult {
   iq: string | null;
   manifest: string;
   memory: Map<string, MemoryStats>;
+  /** Each device `allDevices` left out, with the codes of the errors that dropped it; empty otherwise. */
+  dropped: Map<string, string[]>;
   duration: number;
   sdk_version: string | null;
 }
@@ -342,7 +344,9 @@ function versionPart(version: string): string {
  * Package `path` for the Connect IQ Store: one release-built, signed `.iq`
  * holding a `.prg` for every device in the manifest, which `monkeyc -e`
  * compiles in one run. `allDevices` exports every installed device that can
- * run the face instead of `devicesOnly` or the design's `targets:`.
+ * run the face instead of `devicesOnly` or the design's `targets:`, less
+ * each one that cannot draw the design (`dropUnsupported`) or whose
+ * measured memory is over its limit; those are recorded in `dropped`.
  */
 export async function exportApp(given: string, { output, bag, devicesOnly = null, allDevices = false, appId = null, db, toolchain = null, read = readFontFile, known = exampleAppIds() }: {
   output: string; bag: Bag; devicesOnly?: string[] | null; allDevices?: boolean; appId?: string | null; db: DeviceDatabase;
@@ -358,14 +362,65 @@ export async function exportApp(given: string, { output, bag, devicesOnly = null
     bag.error("toolchain", `no developer key at ${tools.key}`, null, { notes: ["pass --key, set WFB_KEY, or run ./tools/setup-env.sh to generate one"] });
     return null;
   }
-  const only = allDevices ? faceCapableDevices(db) : devicesOnly;
-  const prepared = prepare(pathStr(given), { output, bag, devicesOnly: only, db, clean: true, read, noteUnlisted: !allDevices, appId });
-  if (prepared === null) return null;
+  const path = pathStr(given);
+  const candidates = allDevices ? faceCapableDevices(db) : null;
+  const dropped = new Map<string, Diagnostic[]>();
+  const prepareFor = (ids: string[] | null, passBag: Bag): Prepared | null =>
+    prepare(path, { output, bag: passBag, devicesOnly: ids, db, clean: true, read, noteUnlisted: !allDevices, appId });
+  // Each round compiles once; a round that measures a device over its limit drops it and runs again, so this ends
+  // within one round per candidate.
+  for (;;) {
+    let pass: Bag, prepared: Prepared | null;
+    if (candidates === null) {
+      pass = new Bag();
+      prepared = prepareFor(devicesOnly, pass);
+    } else {
+      const outcome = dropUnsupported(candidates, prepareFor, dropped);
+      [pass, prepared] = [outcome.bag, outcome.result];
+    }
+    if (prepared === null) {
+      absorb(bag, pass);
+      return null;
+    }
+    const result = await compileExport(prepared, pass, tools, known);
+    const errors = pass.errors;
+    const over = candidates !== null && result.iq !== null && errors.every((d) => d.devices !== null) ? overMemoryLimit(result.memory) : [];
+    if (over.length > 0) {
+      for (const id of over) dropped.set(id, errors.filter((d) => d.devices!.includes(id)));
+      continue;
+    }
+    absorb(bag, pass);
+    result.dropped = new Map([...dropped].map(([id, why]) => [id, droppedCodes(why)]));
+    if (result.iq !== null) {
+      writeFileSync(join(result.output_dir, EXPORT_INFO), JSON.stringify({
+        sdk: result.sdk_version,
+        device_reference_sdk: referenceSdkVersion(),
+        app_id: result.face.uuid,
+        version: result.face.version,
+        iq: basename(result.iq),
+        devices: result.devices.map((d) => d.id),
+        dropped: Object.fromEntries(result.dropped),
+      }, null, 2) + "\n");
+    }
+    result.duration = (performance.now() - started) / 1000;
+    return result;
+  }
+}
+
+/** `pass`'s diagnostics and source lines moved into `bag`, the bag a caller holds. */
+function absorb(bag: Bag, pass: Bag): void {
+  bag.items.push(...pass.items);
+  for (const [path, lines] of pass.sources) bag.sources.set(path, lines);
+  if (pass.devices.length > 0) bag.devices = pass.devices;
+}
+
+/** One `monkeyc -e` over a prepared project, its memory measured per device into `bag`; `iq` is `null` when it failed. */
+async function compileExport(prepared: Prepared, bag: Bag, tools: Toolchain, known: ReadonlyMap<string, string>): Promise<ExportResult> {
   const { face, devices, buildDir } = prepared;
   checkAppId(face, bag, known);
   const result: ExportResult = {
-    face, devices, output_dir: buildDir, iq: null, manifest: join(buildDir, "manifest.xml"), memory: new Map(), duration: 0,
-    sdk_version: checkSdk(tools, bag),
+    face, devices, output_dir: buildDir, iq: null, manifest: join(buildDir, "manifest.xml"), memory: new Map(), dropped: new Map(),
+    duration: 0, sdk_version: checkSdk(tools, bag),
   };
   const name = `${slug(face.name)}-${versionPart(face.version)}.iq`;
   const work = join(buildDir, WORK_DIR);
@@ -404,15 +459,6 @@ export async function exportApp(given: string, { output, bag, devicesOnly = null
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
-  writeFileSync(join(buildDir, EXPORT_INFO), JSON.stringify({
-    sdk: result.sdk_version,
-    device_reference_sdk: referenceSdkVersion(),
-    app_id: face.uuid,
-    version: face.version,
-    iq: name,
-    devices: devices.map((d) => d.id),
-  }, null, 2) + "\n");
-  result.duration = (performance.now() - started) / 1000;
   return result;
 }
 

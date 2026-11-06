@@ -1,6 +1,6 @@
 // The front end of a build: a design's text through every load pass to its
 // IR, the devices it builds for, and each one resolved and linted..
-import type { Bag } from "./diagnostics.ts";
+import { Bag, type Diagnostic } from "./diagnostics.ts";
 import { compareVersions, type Device, type DeviceDatabase, DeviceError } from "./devices/device.ts";
 import { FontFileError } from "./fonts/bake.ts";
 import type { BakedFont } from "./fonts/bmfont.ts";
@@ -83,6 +83,87 @@ export function faceCapableDevices(db: DeviceDatabase): string[] {
       throw error;
     }
   });
+}
+
+/** What a run of `dropUnsupported` ends with. */
+export interface DropOutcome<T> {
+  /** The last pass's result: `null` when it failed, or when no device was left to pass. */
+  result: T | null;
+  /** The last pass's diagnostics, then one `device-dropped` note per dropped device (and `devices` when none is left). */
+  bag: Bag;
+  /** The candidates the last pass ran on, in candidate order. */
+  kept: string[];
+  /** Each dropped device, in the order dropped, with the errors that dropped it. */
+  dropped: Map<string, Diagnostic[]>;
+}
+
+/**
+ * Run `pass` over `candidates`, dropping each device that cannot draw the
+ * design. When a pass ends with errors and every one of them is attributed
+ * to devices (`Diagnostic.devices`), those devices leave the set and the
+ * pass runs again on the rest, in a fresh bag: the shared view, the guards
+ * and the cross-device checks all depend on the set, so what the smaller
+ * set reports is worked out anew rather than filtered from the larger one.
+ * It stops at a pass with no error, or with one the design itself owns,
+ * which then fails as it would have without dropping. `dropped` carries
+ * the devices an earlier run dropped (the export's memory check), which
+ * stay out and are reported with the rest.
+ */
+export function dropUnsupported<T>(candidates: readonly string[], pass: (ids: string[], bag: Bag) => T | null,
+  dropped: Map<string, Diagnostic[]> = new Map()): DropOutcome<T> {
+  let kept = candidates.filter((id) => !dropped.has(id));
+  for (;;) {
+    if (kept.length === 0) {
+      const bag = new Bag();
+      reportDropped(bag, dropped, true);
+      return { result: null, bag, kept, dropped };
+    }
+    const bag = new Bag();
+    const result = pass(kept, bag);
+    const errors = bag.errors;
+    const attributed = errors.length > 0 && errors.every((d) => d.devices !== null);
+    const drop = attributed ? kept.filter((id) => errors.some((d) => d.devices!.includes(id))) : [];
+    if (drop.length === 0) {
+      reportDropped(bag, dropped);
+      return { result, bag, kept, dropped };
+    }
+    for (const id of drop) dropped.set(id, errors.filter((d) => d.devices!.includes(id)));
+    kept = kept.filter((id) => !drop.includes(id));
+  }
+}
+
+/** The devices whose measured memory is at or over their watch-face limit. */
+export function overMemoryLimit(memory: ReadonlyMap<string, lint.MemoryStats>): string[] {
+  return [...memory].filter(([, stats]) => stats.total >= stats.limit).map(([id]) => id);
+}
+
+/** The codes of the errors that dropped a device, each once, in order. */
+export function droppedCodes(errors: readonly Diagnostic[]): string[] {
+  return [...new Set(errors.map((d) => d.code))];
+}
+
+/** The most dropping errors a `device-dropped` note quotes; the rest it counts. */
+export const DROP_REASONS_SHOWN = 5;
+
+/** One `device-dropped` note per dropped device, and a `devices` error when nothing is left at all. */
+function reportDropped(bag: Bag, dropped: ReadonlyMap<string, readonly Diagnostic[]>, nothingLeft = false): void {
+  for (const [id, errors] of dropped) {
+    const reasons = [...new Set(errors.map((d) => d.message.split("\n", 1)[0]!))];
+    const more = reasons.length - DROP_REASONS_SHOWN;
+    bag.note("device-dropped", `${id}: dropped from the export (${droppedCodes(errors).join(", ")})`, null, {
+      notes: more > 0
+        ? [...reasons.slice(0, DROP_REASONS_SHOWN), `and ${more} more; \`wfb validate -d\` with this device lists every one`]
+        : reasons,
+    });
+  }
+  if (nothingLeft) {
+    const message = dropped.size > 0 ? "nothing left to export: every candidate device was dropped"
+      : "nothing to export: no installed device can run a watch face";
+    bag.error("devices", message, null, {
+      notes: [...[...dropped].map(([id, errors]) => `${id}: ${droppedCodes(errors).join(", ")}`),
+        "name devices with -d to see every diagnostic for them, or change the design so some of them can draw it"],
+    });
+  }
 }
 
 /** How a build gets a device's baked fonts: the bake itself, or (for parity) fonts baked elsewhere. */
