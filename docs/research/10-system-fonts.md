@@ -100,8 +100,8 @@ shapes:
 - **Version/variant suffixes** on an otherwise-clean name — `-2`, `-3`,
   `-Outdoor`, `_Garmin` (e.g. `NotoSansSC-Medium-Outdoor`,
   `Pridi-Regular_Garmin`) — mark a device- or firmware-generation-specific
-  re-release of the same family; the registry does not distinguish them
-  (all such variants of a CJK/Thai family are unmapped anyway, §6).
+  re-release of the same family; research 40 found what each variant
+  changes, and the registry maps every variant of a family to one key.
 
 ---
 
@@ -278,9 +278,9 @@ exposed via a `FONT_*` symbol at all — see §6.
 | Roboto Medium | `roboto-medium` | exact | |
 | Roboto Light | `roboto-light` | exact | Also used for the `VENU_BOLD_NUMBER_FONT_6`/`_7` scrape anomaly — filename says `BOLD`, scraped `face` column says `Roboto Light`; the face column is trusted (§2 of `05-device-files.md`'s sibling reasoning: prefer the more structured field). |
 | Roboto Wide | `roboto-italic` | exact | Scrape anomaly: every device with face `"Roboto Wide"` has font filename literally `Roboto-Italic`. Treated as a labelling quirk in Garmin's own reference table, not a distinct family — the file name is definitive. |
-| Bionic | `bionic-substitute` (→ `roboto-black`) | substitute | Proprietary. `fr955` uses `Roboto-Black` for the identical `FONT_NUMBER_HOT`/`THAI_HOT` role Bionic fills elsewhere — same slot, same free family already in Garmin's own lineup. |
+| Bionic | `bionic-substitute` (→ `rajdhani-bold`), and the scalable `Bionic_*` names → `rajdhani-bold`/`-semibold` | family | Not proprietary after all: Bionic is Rajdhani with its digits redrawn to one tabular width, every other outline identical (research 40 §2.1). First mapped here to Roboto Black by role (`fr955` uses it in the same `FONT_NUMBER_HOT`/`THAI_HOT` slot), then to Roboto Condensed Bold by width (§9), and by research 40 to Rajdhani by appearance, at the width cost research 40 §4.1 measures. |
 | (Bionic, `*_COND_*` tokens) | `bionic-cond-substitute` (→ `roboto-condensed-bold`) | substitute | Same reasoning, condensed variant: the same devices' own body text (`fenix8solar47mm`, `marq2`, ...) is `Roboto Condensed`. |
-| Rajdhani | `rajdhani-medium` | family | The scrape's own `face` column reads `"Rajdhani"` for font token `Bionic_Medium` (`d2mach2`, `fenix8`/`8pro47mm`/`fenixe` sibling entries) — an unexpected but consistent reading (never `"Bionic"`), taken at face value; downloaded the genuine Google Fonts Rajdhani Medium (OFL), but byte identity to Garmin's internal file cannot be confirmed, hence `family` not `exact`. |
+| Rajdhani | `rajdhani-medium` | family | The scrape's own `face` column reads `"Rajdhani"` for font token `Bionic_Medium` (`d2mach2`, `fenix8`/`8pro47mm`/`fenixe` sibling entries). Right: `Bionic_Medium` is Rajdhani Medium with tabular digits (research 40 §2.1), hence `family`. |
 | Yantramanav | `yantramanav-bold`, `-regular` | exact | Explicit `YANTRAMANAV` tokens and the un-named `NNNNNNNNNN_(BOLD_)?NUMBER_(LARGE\|SMALL\|XLARGE\|XSMALL\|XTINY)` ladder (distinguished from Roboto Condensed's own same-named `_LARGE`/`_MEDIUM`/... tokens by the literal `NUMBER` substring). |
 | Chronos | `chronos-substitute` (→ `roboto-condensed-bold`) | substitute | Proprietary, `fenix5`-era. `fenix5`'s own `FONT_XTINY..LARGE` is Roboto Condensed. |
 | Steelfish Rg | `steelfish-substitute` (→ `roboto-condensed-bold`) | substitute | `d2bravo`/`fenix3`'s own body text is Roboto Condensed. |
@@ -289,7 +289,7 @@ exposed via a `FONT_*` symbol at all — see §6.
 | Digi Narrow | `digi-narrow-substitute` (→ `roboto-condensed-bold`) | substitute | Same caveat; `fr920xt` `FONT_NUMBER_MILD` only. |
 | Bebas Neue Bold / `... Bold DJV Glyph ttf` / `... ttf` | `bebas-neue-regular` | exact | Google Fonts ships Bebas Neue as a single `Regular` style that is itself the heavy display weight; the three scraped face labels are read as the same family (DJV = a device/vendor tag, not a distinct cut — **UNVERIFIED** expansion). |
 | Oswald Light | `oswald-variable` | family | Google Fonts ships Oswald only as a `wght 200–700` variable font (no static Light instance in the repository); a non-variation-aware loader resolves some default instance, not pinned to Light. `hhea` ascent/descent do **not** vary across the `wght` axis in this build (checked directly with fontTools), so the metric model is unaffected — only the rendered stroke weight is approximate. |
-| Noto Sans | `noto-sans-variable` | family | Same variable-font caveat (`wght 100–900`, `wdth 62.5–100`). This is the Latin-script `"Noto Sans"` face (aviation bold numerals), not the CJK `"Noto Sans SC"` face, which stays unmapped (§6). |
+| Noto Sans | `noto-sans-variable` | family | Same variable-font caveat (`wght 100–900`, `wdth 62.5–100`). This is the Latin-script `"Noto Sans"` face (aviation bold numerals), not the CJK `"Noto Sans SC"` face, which has its own key (`noto-sans-sc-medium`, research 40). |
 | DejaVu Sans Medium Condensed B | `dejavu-sans-condensed-bold` | family | DejaVu ships an official Condensed-Bold cut of the same family; `"Medium"` in Garmin's label is read as normal (non-light) weight, not DejaVu's separate `"Medium"` style (which does not exist in this family). |
 | Garmin | `dejavu-sans-bold` | substitute | Garmin's own generic label for DejaVu-derived cycling/hiking numeral bitmaps (`DEJAVU_FITNESS_*`, `GPSMAP66_DEJAVU_REC_*`, `006B345900_FNT_0000_PRO_*`, `DejaVuGarmin_Rec_with_bionic_numbers`). The scraped filename literally contains `DEJAVU`, so the real file is some DejaVu derivative; DejaVu Sans Bold (non-condensed) is the closest still-free relative. |
 | Garmin Robo Units | `roboto-bold` | family | No device ships a file literally named `Roboto-Bold`; this is the same Apache-2.0 family's Bold static instance, standing in for `Garmin_Roboto_Bold` and the `006B416900_ROBOTO_BOLD_*` bitmaps. |
@@ -316,31 +316,15 @@ family).
 
 ## 6. What stays unmapped, and why
 
-**VERIFIED**, one entry per deliberately-unmapped face or name in
-`wfb/fonts/registry.json`'s `unmapped` list (37 entries: 11 faces + 26
-individual `simulator.json` filenames covering those same faces, since
-`simulator.json` names carry no `face` field to key off of).
-
-| Group | Faces | Reason |
-|---|---|---|
-| Japanese | `MotoyaLCedar` (Kosugi) | Scalable-only; never selected for a `FONT_*` symbol on any of the 164 devices — confirmed by the fixed/scalable face set-difference in §4. |
-| Korean | `NanumGothic` | Same. |
-| Chinese | `Noto Sans SC` | Same. |
-| Arabic | `Noto Naskh Arabic`, `Sakkal Majalla Unicode` | Same. |
-| Hebrew | `Noto Sans Hebrew`, `Swis721Hebrew BT` | Same. |
-| Armenian | `Noto Sans Armenian` | Same. |
-| Thai | `Pridi` | Same. |
-| Aviation extras | `Exo`, `Tomorrow` | Scalable-only, each on 1–3 aviation devices (`d2mach1`, `marq2`, `marq2aviator`); never exposed via a `FONT_*` symbol either. |
-
-Plan 09 §3 explicitly allows this: "CJK/Thai/Arabic/Hebrew/Armenian-only
-faces may be listed as unmapped ... because measurement uses the default
-language only." Since none of these 9 faces (11 minus the 2 aviation
-extras, which are not script-specific but are equally never measurement-
-relevant) are in scope for default-language `FONT_*` measurement, extending
-the same "not exercised by the measurement path" reasoning to `Exo`/
-`Tomorrow` keeps the download scope sane per the plan's own instruction,
-rather than fetching two more font families for a combined 4 scraped rows
-across 164 devices.
+Nothing, since research 40. This section listed 37 deliberately unmapped
+entries: the scalable-only CJK, Thai, Arabic, Hebrew and Armenian faces
+(`MotoyaLCedar`, `NanumGothic`, `Noto Sans SC`, `Noto Naskh Arabic`,
+`Sakkal Majalla Unicode`, `Noto Sans Hebrew`, `Swis721Hebrew BT`,
+`Noto Sans Armenian`, `Pridi`), the aviation extras `Exo` and `Tomorrow`,
+and their 26 `simulator.json` file names. None is selected for a `FONT_*`
+symbol, so default-language measurement never needed them (VERIFIED by the
+fixed/scalable face set-difference in §4). `fallback: auto` does need them,
+and research 40 maps every one to a pinned free file.
 
 ---
 
@@ -456,9 +440,12 @@ role. With the real files in hand, the advances say otherwise:
 | RobotoCondensed-Bold | 0.506 | 0.614 | 0.453 | 0.503 |
 | Roboto-Black | 0.580 | 0.703 | 0.515 | 0.576 |
 
-`bionic-substitute` now points at RobotoCondensed-Bold. Without the Garmin
+`bionic-substitute` then pointed at RobotoCondensed-Bold. Without the Garmin
 files, the probe's widths come out 40/54 exact with 87 px total error; the
-earlier stand-in, Roboto Black, gave 645 px. The Roboto Condensed file
+earlier stand-in, Roboto Black, gave 645 px. Research 40 later found Bionic
+is Rajdhani with tabular digits and moved every Bionic name to Rajdhani by
+appearance; on the same 16 Bionic readings that gives 296 px (research 40
+§4.1). The Roboto Condensed file
 shipped with the SDK Manager is v2.000980 (2014), older than the v2.138 the
 registry pins. Both give identical advances on the probe strings.
 

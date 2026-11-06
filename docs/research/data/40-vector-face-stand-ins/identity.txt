@@ -1,0 +1,93 @@
+sha256 4006c969ec6e8af2 691470dd3286a14e
+Bionic_Bold.ttf vs rajdhani-bold.ttf: only-garmin=0 only-free=0 shared=465 same-advance=97.6% same-bbox=97.8% identical-outline=97.4%
+   differ (advance or bbox): 11 '+0123456789'
+sha256 1f877b9055ed661f 691470dd3286a14e
+Bionic_Bold_Number_Only.ttf vs rajdhani-bold.ttf: only-garmin=0 only-free=446 shared=19 same-advance=42.1% same-bbox=47.4% identical-outline=42.1%
+   differ (advance or bbox): 11 '+0123456789'
+sha256 2be9287f1a546879 94bbd25a18ca6659
+Bionic_semibold.ttf vs rajdhani-semibold.ttf: only-garmin=0 only-free=1 shared=464 same-advance=98.3% same-bbox=98.5% identical-outline=97.8%
+   differ (advance or bbox): 8 '01234578'
+sha256 bf47f63db4259b55 12ff7dcfe4c206e3
+Bionic_Medium.ttf vs rajdhani-medium.ttf: only-garmin=0 only-free=0 shared=465 same-advance=97.8% same-bbox=98.1% identical-outline=97.4%
+   differ (advance or bbox): 11 '+0123456789'
+sha256 2125264db9a509b7 f5e81d6a6b865d9b
+Kosugi-Regular.ttf vs kosugi-regular.ttf: only-garmin=1 only-free=26 shared=7500 same-advance=100.0% same-bbox=100.0% identical-outline=0.9%
+   differ (advance or bbox): 0 ''
+sha256 1f55c4344e6b3801 f5e81d6a6b865d9b
+Kosugi-Regular-2.ttf vs kosugi-regular.ttf: only-garmin=1 only-free=26 shared=7500 same-advance=99.2% same-bbox=99.2% identical-outline=0.9%
+   differ (advance or bbox): 58 'ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝﾞﾟ'
+sha256 8c1f36b661e49509 f5e81d6a6b865d9b
+Kosugi-Regular-3.ttf vs kosugi-regular.ttf: only-garmin=1 only-free=26 shared=7500 same-advance=100.0% same-bbox=100.0% identical-outline=0.9%
+   differ (advance or bbox): 0 ''
+sha256 1f55c4344e6b3801 f5e81d6a6b865d9b
+Kosugi-Regular-Outdoor.ttf vs kosugi-regular.ttf: only-garmin=1 only-free=26 shared=7500 same-advance=99.2% same-bbox=99.2% identical-outline=0.9%
+   differ (advance or bbox): 58 'ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝﾞﾟ'
+sha256 e4c7ab18be6bb1bf 5329caacebabedc6
+NotoSansSC-Medium.ttf vs noto-sans-sc-medium.ttf: only-garmin=0 only-free=3 shared=30788 same-advance=100.0% same-bbox=100.0% identical-outline=0.1%
+   differ (advance or bbox): 4 'ℵ♺くぐ'
+sha256 2eacebb7b3bdb332 5329caacebabedc6
+NotoSansSC-Medium-2.ttf vs noto-sans-sc-medium.ttf: only-garmin=0 only-free=616 shared=30175 same-advance=100.0% same-bbox=100.0% identical-outline=0.1%
+   differ (advance or bbox): 2 'ℵ♺'
+sha256 bc210b80ec984ce6 5329caacebabedc6
+NotoSansSC-Medium-3.ttf vs noto-sans-sc-medium.ttf: only-garmin=0 only-free=630 shared=30161 same-advance=100.0% same-bbox=100.0% identical-outline=0.1%
+   differ (advance or bbox): 2 'ℵ♺'
+sha256 2eacebb7b3bdb332 5329caacebabedc6
+NotoSansSC-Medium-Outdoor.ttf vs noto-sans-sc-medium.ttf: only-garmin=0 only-free=616 shared=30175 same-advance=100.0% same-bbox=100.0% identical-outline=0.1%
+   differ (advance or bbox): 2 'ℵ♺'
+sha256 a0bc0de437cc88f0 a0bc0de437cc88f0
+NotoNaskhArabic-Regular.ttf vs noto-naskh-arabic-regular.ttf: only-garmin=0 only-free=0 shared=1122 same-advance=100.0% same-bbox=100.0% identical-outline=100.0%
+   differ (advance or bbox): 0 ''
+sha256 f61cabfecaa1b80f f61cabfecaa1b80f
+NotoNaskhArabic-Bold.ttf vs noto-naskh-arabic-bold.ttf: only-garmin=0 only-free=0 shared=1122 same-advance=100.0% same-bbox=100.0% identical-outline=100.0%
+   differ (advance or bbox): 0 ''
+sha256 f51d96a6e503d195 f51d96a6e503d195
+NotoSansHebrew-Regular.ttf vs noto-sans-hebrew-regular.ttf: only-garmin=0 only-free=0 shared=144 same-advance=100.0% same-bbox=100.0% identical-outline=100.0%
+   differ (advance or bbox): 0 ''
+sha256 bc929b4e85dc3bc4 bc929b4e85dc3bc4
+NotoSansHebrew-Bold.ttf vs noto-sans-hebrew-bold.ttf: only-garmin=0 only-free=0 shared=144 same-advance=100.0% same-bbox=100.0% identical-outline=100.0%
+   differ (advance or bbox): 0 ''
+sha256 9dfe2abaf9d2db72 9dfe2abaf9d2db72
+NotoSansArmenian-Regular.ttf vs noto-sans-armenian-regular.ttf: only-garmin=0 only-free=0 shared=100 same-advance=100.0% same-bbox=100.0% identical-outline=100.0%
+   differ (advance or bbox): 0 ''
+sha256 0d4e78d4b28500de 0d4e78d4b28500de
+NotoSansArmenian-Bold.ttf vs noto-sans-armenian-bold.ttf: only-garmin=0 only-free=0 shared=100 same-advance=100.0% same-bbox=100.0% identical-outline=100.0%
+   differ (advance or bbox): 0 ''
+sha256 73335668386e118f 76f45ef4a6bcff34
+NanumGothic-Regular.ttf vs nanumgothic-regular.ttf: only-garmin=5671 only-free=5 shared=11822 same-advance=99.6% same-bbox=74.7% identical-outline=0.0%
+   differ (advance or bbox): 2993 '!"#$%&\'()*+,-./0123456789:;<>?@ABCDEFGHKLMNOPQRSTUVWXZ[\\]^_`abcdefghklmnopqrstuv'
+sha256 9c5c9877e835017c f96298f9fb18e364
+NanumGothic-Bold.ttf vs nanumgothic-bold.ttf: only-garmin=5676 only-free=4 shared=11821 same-advance=99.6% same-bbox=0.0% identical-outline=0.0%
+   differ (advance or bbox): 11819 '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghjklmnopq'
+sha256 31c991b5ff5f8a35 5c4568e5295a8c52
+NanumGothic-ExtraBold.ttf vs nanumgothic-extrabold.ttf: only-garmin=5675 only-free=4 shared=11822 same-advance=99.6% same-bbox=0.0% identical-outline=0.0%
+   differ (advance or bbox): 11820 '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghjklmnopq'
+sha256 f5b1a5d8e79de7f1 cc5a2ea9660d78fc
+Pridi-Regular.ttf vs pridi-regular.ttf: only-garmin=0 only-free=0 shared=725 same-advance=100.0% same-bbox=100.0% identical-outline=100.0%
+   differ (advance or bbox): 0 ''
+sha256 2965f18224c60d5d cc5a2ea9660d78fc
+Pridi-Regular_Garmin.ttf vs pridi-regular-garmin.ttf: only-garmin=0 only-free=1 shared=724 same-advance=100.0% same-bbox=97.2% identical-outline=96.3%
+   differ (advance or bbox): 20 'ขฃชซญธบปภยรวษอฮ่้๊๋๐'
+sha256 d5845c91cdae5298 afb99e891ab2ada5
+Pridi-SemiBold_Garmin.ttf vs pridi-semibold-garmin.ttf: only-garmin=0 only-free=1 shared=724 same-advance=100.0% same-bbox=99.0% identical-outline=97.2%
+   differ (advance or bbox): 7 'ญธรวอฮ๐'
+sha256 abeadf49b687d165 6a08cf0822ec2b1b
+RobotoCondensed-Bold.ttf vs roboto-condensed-bold.ttf: only-garmin=3 only-free=1888 shared=884 same-advance=94.7% same-bbox=97.3% identical-outline=21.3%
+   differ (advance or bbox): 63 '#¥ďđľŉṭ̌̀́̃̉̏ΈΉΊΌΏχЉ҃҄҅҆ҊҋҔҖҗҚқҢңҲҳҶҷҺӅӆӉӊӍӎӻӼӽԒԓẰằὍ‗‛≤≥ﬂﬃﬄ'
+sha256 4650a016cd9fb6d9 c462dd3947f0ea26
+RobotoCondensed-Regular.ttf vs roboto-condensed-regular.ttf: only-garmin=3 only-free=1888 shared=884 same-advance=94.6% same-bbox=95.0% identical-outline=19.6%
+   differ (advance or bbox): 83 '#¥¹ďđľṭ̌̀́̃̉̏ΈΉΊΌΏχЉ҃҄҅҆҈҉ҊҋҖҗҚқҟҢңҲҳҶҷҺӅӆӉӊӍӎӫӻӼӽԒԓẤấẦầẨẩẮắẰằẾếỀềỂểỐốỒồỔổὍ‛ﬂﬃﬄ'
+sha256 3663d3854f990ce3 a20745044624fe4e
+RobotoCondensed-RegularItalic.ttf vs roboto-condensed-italic.ttf: only-garmin=0 only-free=1876 shared=896 same-advance=10.5% same-bbox=99.0% identical-outline=15.7%
+   differ (advance or bbox): 802 '!"#$%&\'()*+,-./0123456789<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqr'
+sha256 31d218ca177e4c21 f3edb8058e523f56
+Roboto-Regular.ttf vs roboto-regular.ttf: only-garmin=2 only-free=1877 shared=895 same-advance=99.6% same-bbox=99.0% identical-outline=17.3%
+   differ (advance or bbox): 9 'ÐĐħΈΉΊΎχὍ'
+sha256 cbaba6391c785577 2b4076dd3f5a7fad
+Roboto-Italic.ttf vs roboto-italic.ttf: only-garmin=2 only-free=1877 shared=895 same-advance=12.6% same-bbox=75.8% identical-outline=16.0%
+   differ (advance or bbox): 805 '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopq'
+sha256 0284f7f742319b31 b398bb9c791ddb08
+Roboto-Medium-Outdoor.ttf vs roboto-medium.ttf: only-garmin=0 only-free=0 shared=2772 same-advance=98.4% same-bbox=97.3% identical-outline=14.8%
+   differ (advance or bbox): 75 'ÐĐħ̟̱ΈΉΊΌΎχϓḻṟἘἙἚἛἜἝἨἩἪἫἬἭἮἯἸἹἺἻἼἽἾἿὈὉὊὋὌὍὙὛὝὟὪὫὬὭὮὯᾘᾙᾚᾛᾜᾝᾞᾟᾪᾫᾬᾭᾮᾯῈΈῊΉῪΎῬ≤≥'
+sha256 50f0aab10018fc18 50f0aab10018fc18
+Roboto-Black.ttf vs roboto-black.ttf: only-garmin=0 only-free=0 shared=2772 same-advance=100.0% same-bbox=100.0% identical-outline=100.0%
+   differ (advance or bbox): 0 ''

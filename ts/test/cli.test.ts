@@ -257,6 +257,7 @@ describe("the command line", { concurrency: true }, () => {
     assert.ok(watch.code === 1 && watch.stderr.includes("--watch"));
   });
 
+  // fenix6's FONT_NUMBER_MILD is Bionic Cond, whose stand-in is a substitute (another typeface).
   test("a stand-in font is warned of even with -o -, and --fonts silences it", () => {
     const dir = scratch();
     const design = join(dir, "face.yaml");
@@ -266,7 +267,7 @@ face:
   id: 8f4c1e92-4a5b-4d81-9e6f-2b0c8d4a1f58
   name: FontWarningTest
 build:
-  targets: [fenix8solar47mm]
+  targets: [fenix6]
 resources:
   palette:
     bg: "#000000"
@@ -275,18 +276,18 @@ elements:
   label:
     type: text
     text: "88"
-    font: FONT_NUMBER_HOT
+    font: FONT_NUMBER_MILD
     align: center
     at: {anchor: center}
     color: color.fg
 `);
-    const warned = wfb(["preview", design, "-d", "fenix8solar47mm", "-o", "-"]);
+    const warned = wfb(["preview", design, "-d", "fenix6", "-o", "-"]);
     assert.equal(warned.code, 0, warned.stderr);
     assert.ok(warned.stderr.includes("drawn with a stand-in"), warned.stderr);
     const root = join(dir, "fonts");
     mkdirSync(root);
-    writeFileSync(join(root, "Bionic_semibold.ttf"), readFileSync(join(REPO_ROOT, "ts/test/fixtures/slice/assets/OpenSans-Regular.ttf")));
-    const quiet = wfb(["preview", design, "-d", "fenix8solar47mm", "-o", "-", "--fonts", root]);
+    writeFileSync(join(root, "FNT_FENIX6_BIONIC_COND_BOLD_NUMBER_30.ttf"), readFileSync(join(REPO_ROOT, "ts/test/fixtures/slice/assets/OpenSans-Regular.ttf")));
+    const quiet = wfb(["preview", design, "-d", "fenix6", "-o", "-", "--fonts", root]);
     assert.ok(quiet.code === 0 && !quiet.stderr.includes("warning:"), quiet.stderr);
   });
 

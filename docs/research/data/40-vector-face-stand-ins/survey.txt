@@ -1,0 +1,37 @@
+178 devices, 150 watch-face-capable, 58 publish a scalable face, 32 face names
+| face name | family | file stems (devices) | devices |
+|---|---|---|---|
+| `KosugiRegular` | MotoyaLCedar | `Kosugi-Regular-3` (21), `Kosugi-Regular-2` (20), `Kosugi-Regular-Outdoor` (14), `Kosugi-Regular` (2) | 57 |
+| `NotoSansSCMedium` | Noto Sans SC | `NotoSansSC-Medium-3` (21), `NotoSansSC-Medium-2` (20), `NotoSansSC-Medium-Outdoor` (14), `NotoSansSC-Medium` (2) | 57 |
+| `RobotoCondensedBold` | Roboto Condensed | `RobotoCondensed-Bold` (55) | 55 |
+| `RobotoCondensedRegular` | Roboto Condensed | `RobotoCondensed-Regular` (55) | 55 |
+| `BionicBold` | Bionic | `Bionic_Bold` (22), `Bionic_Bold_Number_Only` (21) | 43 |
+| `NotoNaskhArabicRegular` | Noto Naskh Arabic | `NotoNaskhArabic-Regular` (36) | 36 |
+| `NotoSansHebrewRegular` | Noto Sans Hebrew | `NotoSansHebrew-Regular` (36) | 36 |
+| `NotoNaskhArabicBold` | Noto Naskh Arabic | `NotoNaskhArabic-Bold` (34) | 34 |
+| `NotoSansArmenianBold` | Noto Sans Armenian | `NotoSansArmenian-Bold` (34) | 34 |
+| `NotoSansArmenianRegular` | Noto Sans Armenian | `NotoSansArmenian-Regular` (34) | 34 |
+| `NotoSansHebrewBold` | Noto Sans Hebrew | `NotoSansHebrew-Bold` (34) | 34 |
+| `RobotoRegular` | Roboto | `Roboto-Regular` (32) | 32 |
+| `NanumGothicBold` | NanumGothic | `NanumGothic-Bold` (30) | 30 |
+| `PridiRegular` | Pridi | `Pridi-Regular` (30) | 30 |
+| `RobotoItalic` | Roboto Wide | `Roboto-Italic` (28) | 28 |
+| `NanumGothicRegular` | NanumGothic | `NanumGothic-Regular` (21) | 21 |
+| `PridiRegularGarmin` | Pridi | `Pridi-Regular_Garmin` (21) | 21 |
+| `SakkalMajallaBold` | Sakkal Majalla Unicode | `sakkal_majalla_bold` (21) | 21 |
+| `SakkalMajallaRoman` | Sakkal Majalla Unicode | `sakkal_majalla_roman` (21) | 21 |
+| `Swiss721Bold` | Swis721Hebrew BT | `swiss_721_bd` (21) | 21 |
+| `Swiss721Regular` | Swis721Hebrew BT | `swiss_721_reg` (21) | 21 |
+| `BionicMedium` | Rajdhani | `Bionic_Medium` (14) | 14 |
+| `RobotoMedium` | Roboto | `Roboto-Medium-Outdoor` (14) | 14 |
+| `YantramanavRegular` | Yantramanav | `Yantramanav-Regular` (7) | 7 |
+| `NanumGothicExtraBold` | NanumGothic | `NanumGothic-ExtraBold` (6) | 6 |
+| `PridiSemiBoldGarmin` | Pridi | `Pridi-SemiBold_Garmin` (6) | 6 |
+| `RobotoCondensedRegularItalic` | Roboto Condensed | `RobotoCondensed-RegularItalic` (6) | 6 |
+| `BionicSemiBold` | Bionic | `Bionic_semibold` (5) | 5 |
+| `ExoSemiBold` | Exo | `Exo-SemiBold` (3) | 3 |
+| `BionicSemibold` | Bionic | `Bionic_semibold` (1) | 1 |
+| `RobotoBlack` | Roboto | `Roboto-Black` (1) | 1 |
+| `TomorrowBold` | Tomorrow | `Tomorrow-Bold` (1) | 1 |
+
+17 families: Bionic, Exo, MotoyaLCedar, NanumGothic, Noto Naskh Arabic, Noto Sans Armenian, Noto Sans Hebrew, Noto Sans SC, Pridi, Rajdhani, Roboto, Roboto Condensed, Roboto Wide, Sakkal Majalla Unicode, Swis721Hebrew BT, Tomorrow, Yantramanav
