@@ -199,11 +199,14 @@ test("a default the table lacks is the api-gated-unguardable error, on the eleme
   ]);
   assert.equal(drawn.find((d) => d.code === "api-gated-unguardable")!.notes[0],
     "the default is named in code every device shares; pick a default every target has, or drop the target");
+  // the device's lack, so an export over every device leaves it out
+  assert.deepEqual(drawn.find((d) => d.code === "api-gated-unguardable")!.devices, ["wfbmenu"]);
   // no element draws the slot: the slot's own declaration carries it
   const undrawn = slotted(["wfbmenu"], "{ default: sleep_score, choices: any }").replace("    type: data\n    slot: top\n", "    type: text\n    text: \"x\"\n");
   assert.deepEqual(build(stubs, undrawn).diagnostics.filter((d) => d.code.startsWith("api-gated")).map((d) => `${d.code} ${d.message} @${d.span?.line}`), [
     "api-gated-unguardable top: slot 'top''s default 'complication.sleep_score' is not on wfbmenu: wfbmenu has no COMPLICATION_TYPE_SLEEP_SCORE @7",
   ]);
+  assert.deepEqual(build(stubs, undrawn).diagnostics.find((d) => d.code === "api-gated-unguardable")!.devices, ["wfbmenu"]);
 });
 
 test("a read or hold target the table lacks is decided by the table, not the level", () => {

@@ -11,7 +11,7 @@ import * as complications from "./complications.ts";
 import * as series from "./series.ts";
 import type { IntBox } from "./units.ts";
 import { compareVersions, Device, DeviceError } from "./devices/device.ts";
-import { Bag, Diagnostic, getCloseMatches, type Severity, type Span } from "./diagnostics.ts";
+import { Bag, Diagnostic, type DiagnosticOptions, getCloseMatches, type Severity, type Span } from "./diagnostics.ts";
 import { authoredDrawOrder, CONFIG_SYMBOL, type Curve, type Element, type Face, type FontSpec, Graph, holdSlot, neverTogether, PatternElement, slotOf, walkElements } from "./ir/model.ts";
 import * as kinds from "./kinds/index.ts";
 import * as expr from "./expr.ts";
@@ -53,7 +53,7 @@ export const ALL_CODES: ReadonlySet<string> = new Set([
   "config", "config-unsupported",
   "contrast", "dead-element",
   "element-mapping",
-  "devices", "duplicate-id", "duplicate-style", "element", "expression",
+  "device-dropped", "devices", "duplicate-id", "duplicate-style", "element", "expression",
   "font", "font-unavailable", "format", "format-version", "graph", "graphics-pool", "hands",
   "icon", "io",
   "layouts", "lint-allow", "memory",
@@ -84,8 +84,8 @@ export function sorted<T>(items: Iterable<T>, key: (item: T) => string = (item) 
 
 /** A diagnostic, as `Diagnostic(severity, code, message, span, notes=..., confidence=...)`. */
 function diag(severity: Severity, code: string, message: string, span: Span | null = null,
-  { notes = [], confidence = null }: { notes?: string[]; confidence?: string | null } = {}): Diagnostic {
-  return new Diagnostic(severity, code, message, span, { notes, confidence });
+  options: DiagnosticOptions = {}): Diagnostic {
+  return new Diagnostic(severity, code, message, span, options);
 }
 
 export function checkOverrideSelectors(face: Face, installed: Iterable<string>, devices: readonly Device[], bag: Bag): void {
@@ -249,6 +249,7 @@ export function checkSubscreenAvailability(face: Face, resolved: ReadonlyMap<str
           `set 'unsupported: hide' on '${element.id}' to leave it out there, or drop the device from 'targets:'`,
         ],
         confidence: "exact -- the device files' subscreen box and WatchUi.getSubscreen",
+        devices: lacking,
       });
   }
 }
@@ -274,6 +275,7 @@ export function checkVectorFontAvailability(face: Face, resolved: ReadonlyMap<st
           + "draw it, drop the device from 'targets:', or add a face it actually publishes",
         ],
         confidence: "exact -- resolved per-device gates 1-3",
+        devices: failing,
       });
       continue;
     }
@@ -777,6 +779,7 @@ export function checkPartialUpdateBudget(resolved: ResolvedFace, bag: Bag): void
         notes: ["MIP and AMOLED are structurally different low-power paths, not a styling difference; on an AMOLED target the sleep "
           + "frame is 'aod:', not 'sleep_update: true'"],
         confidence: "exact -- device displayType",
+        devices: [device.id],
       });
     return;
   }
@@ -1203,6 +1206,7 @@ function typeMissing(device: Device, name: string, kind: string, slotName: strin
           + `which would name a type ${device.id} does not have`,
         ],
         confidence,
+        devices: [device.id],
       });
   }
   return diag("warning", "api-gated",
@@ -1225,6 +1229,7 @@ function emitSourceGap(bag: Bag, placed: Placed, path: string, span: Span | null
           `drop this target, drop the binding, or add a guard for ${quoted(gap.symbol)} to the generated code before shipping this`,
         ],
         confidence: "exact -- the device's own api.debug.xml",
+        devices: [device.id],
       }));
     return;
   }
@@ -1566,7 +1571,7 @@ export function checkMemory(device: Device, buildOutput: string, bag: Bag): Memo
     + `${thousands(data)} B data, ${thousands(code)} B code`;
   const note = "measured by `monkeyc --build-stats`, not estimated.  This is the static foreground figure; resources loaded at "
     + "runtime (fonts, bitmaps) add to it, and that part is not measured here.";
-  if (share >= 1.0) bag.error("memory", message, null, { notes: [note], confidence: "measured" });
+  if (share >= 1.0) bag.error("memory", message, null, { notes: [note], confidence: "measured", devices: [device.id] });
   else if (share >= 0.85) bag.warning("memory", message, null, { notes: [note], confidence: "measured" });
   else bag.note("memory", message, null, { notes: [note], confidence: "measured" });
   return result;
