@@ -199,9 +199,27 @@ dashboard, where you add the description and screenshots.
 - **Which watches.** The manifest lists exactly the devices exported:
   `targets:` by default, the ones `-d` names (any installed device), or
   every installed device that can run a watch face with `--all-devices`.
-  Each one is resolved and linted, and the compile stops at the first
-  device that fails, so a design that does not build on one watch fails the
-  export. Leave that watch out with `-d`, or fix the design for it.
+  Each one is resolved and linted. With `targets:` or `-d` the list is
+  yours, so a design that does not build on one of those watches fails the
+  export: leave that watch out with `-d`, or fix the design for it.
+  `--all-devices` instead drops each watch that cannot draw the design and
+  exports the rest. A watch is dropped when every error it causes is its
+  own lack: no usable face for a `face:` font (`font-unavailable`), no
+  subscreen window (`subscreen`), an AMOLED screen under low-power elements
+  (`partial-update`), an API the generated code cannot guard
+  (`api-gated-unguardable`), or measured memory at or over its limit
+  (`memory`; the export then compiles again without it). Each dropped
+  watch gets a `device-dropped` note quoting what it lacked, shown without
+  `-v`, and the summary adds a `dropped` line after `exported`:
+
+  ```text
+  exported   my-face-1.0.0.iq  (17 devices: enduro3, ...)
+  dropped    17 devices: fenix5 (font-unavailable), fr255 (font-unavailable), ...
+  ```
+
+  An error in the design itself (a misspelled colour, a missing glyph, a
+  `monkeyc` failure) still fails the export, with the drops so far
+  reported, and dropping every watch is a `devices` error.
 - **The app id is permanent.** The Store knows your face by `face: id:`
   for as long as it is listed, and refuses a second app with an id it has
   already registered. Keep the id; never copy it from another face. An id
@@ -224,7 +242,8 @@ dashboard, where you add the description and screenshots.
   `1.0.0`) names the file and is printed for you to copy.
 
 `export-info.json` beside the `.iq` records the SDK, the app id, the
-version and the devices.
+version, the devices, and under `dropped` each device `--all-devices` left
+out with the codes that dropped it (`{}` when none was).
 
 ## Profiling
 

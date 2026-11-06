@@ -10,6 +10,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { gunzipSync } from "node:zlib";
+import { faceCapableDevices } from "../src/build.ts";
+import { Device } from "../src/devices/device.ts";
 import { REPO_ROOT } from "../src/devices/node.ts";
 import { Bag } from "../src/diagnostics.ts";
 import { build, exportApp, loadDesign, Toolchain } from "../src/node_build.ts";
@@ -121,4 +123,47 @@ test("an export carries phone settings for a settings-menu device and none for a
       assert.ok(!entries.some((e) => e.startsWith(`${pn}/`) && e.includes("settings")), `${id}: ${pn} has no settings`);
     }
   }
+});
+
+test("an export over every device drops each one with no usable face for a curved text, and ships the rest", async () => {
+  const path = join(work, "curved", "face.yaml");
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `format: 2
+face: { id: 0d6e2c4a-8b1f-4e3a-9c5d-7a2b4f6e8c10, name: Curved }
+build: { targets: [fenix8solar47mm] }
+resources:
+  fonts:
+    dial: { face: RobotoCondensedBold, size: 10%r }
+  palette: { bg: "#000000", fg: "#FFFFFF" }
+defaults: { aod: { visible: true } }
+elements:
+  background: { type: rectangle, at: { anchor: center }, size: { width: 100%, height: 100% }, color: color.bg }
+  wordmark:
+    type: text
+    text: "FIELD"
+    font: font.dial
+    color: color.fg
+    at: { anchor: center }
+    curve: { style: radial, angle: 165deg, radius: 60%r, direction: counter_clockwise }
+`);
+  const bag = new Bag();
+  const result = await exportApp(path, { output: join(work, "export-curved"), bag, db, toolchain, allDevices: true, known: new Map() });
+  assert.deepEqual(bag.errors.map((d) => `${d.code}: ${d.message}`), []);
+  assert.ok(result !== null && result.iq !== null, bag.render());
+  const candidates = faceCapableDevices(db);
+  const vectorless = candidates.filter((id) => !db.get(id).hasSymbol(Device.VECTOR_FONT_SYMBOL));
+  assert.ok(vectorless.length > 0, "an installed device without Graphics.getVectorFont");
+  const kept = result.devices.map((d) => d.id);
+  for (const id of vectorless) assert.deepEqual(result.dropped.get(id), ["font-unavailable"], id);
+  assert.deepEqual([...kept, ...result.dropped.keys()].sort(), [...candidates].sort());
+  assert.ok(kept.length > 0);
+  assert.deepEqual(bag.items.filter((d) => d.code === "device-dropped").length, result.dropped.size);
+  const info = JSON.parse(readFileSync(join(result.output_dir, "export-info.json"), "utf8")) as { devices: string[]; dropped: Record<string, string[]> };
+  assert.deepEqual(info.devices, kept);
+  assert.deepEqual(info.dropped, Object.fromEntries(result.dropped));
+  const manifest = readFileSync(result.manifest, "utf8");
+  assert.deepEqual([...manifest.matchAll(/<iq:product id="([^"]+)"/g)].map((m) => m[1]).sort(), [...kept].sort());
+  const entries = list7z(result.iq);
+  for (const id of kept) for (const pn of partNumbers(id)) assert.ok(entries.includes(`${pn}/curved-1.0.0.prg`), `${id}: ${pn}`);
+  for (const id of result.dropped.keys()) for (const pn of partNumbers(id)) assert.ok(!entries.some((e) => e.startsWith(`${pn}/`)), `${id}: ${pn} dropped`);
 });

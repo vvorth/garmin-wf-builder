@@ -19,8 +19,8 @@ export { db };
 /** Where an inline design is said to be: font sources resolve against the repository's root. */
 export const PATH = "face.yaml";
 
-const exists = (p: string): boolean => existsSync(join(REPO_ROOT, p));
-const read = (p: string) => readFontFile(p === ICON_FONT ? p : join(REPO_ROOT, p));
+export const exists = (p: string): boolean => existsSync(join(REPO_ROOT, p));
+export const read = (p: string) => readFontFile(p === ICON_FONT ? p : join(REPO_ROOT, p));
 
 /** `text` loaded: the face (or null) and its diagnostics. */
 export function load(text: string): [Face | null, Bag] {

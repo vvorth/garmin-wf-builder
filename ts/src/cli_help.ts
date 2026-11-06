@@ -49,8 +49,14 @@ project and its manifest.xml.
 The devices are the design's \`targets:\` unless \`-d/--device\` names
 others (repeatable, any installed device) or \`--all-devices\` asks for
 every installed device that can run a watch face at the 3.1.0 API floor.
-Every device still resolves and lints, so a design that fails on one
-fails the export: drop it with \`-d\`, or fix the design.
+Every device resolves and lints. With \`targets:\` or \`-d\`, a design that
+fails on one fails the export: drop it with \`-d\`, or fix the design.
+With \`--all-devices\`, a device whose only errors are its own lack (no
+usable face for a font, no subscreen, low-power elements on AMOLED, an
+API the generator cannot guard, memory over its limit) is dropped
+instead, with a note saying why, and the rest export; the summary's
+\`dropped\` line lists them. An error in the design itself still fails
+the export, and so does dropping every device.
 
 The Store keys an app by \`face: id:\` for good, and every update must be
 signed with the same developer key: keep both. An id another example

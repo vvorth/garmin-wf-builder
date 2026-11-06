@@ -1,10 +1,11 @@
 // `wfb export`'s checks that need no SDK: reading `monkeyc`'s build stats
 // in either layout, splitting an export's run per device, the app id
-// warnings, and which devices `--all-devices` takes.
+// warnings, which devices `--all-devices` takes, and which of them its
+// memory check drops.
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
-import { faceCapableDevices } from "../src/build.ts";
+import { faceCapableDevices, overMemoryLimit } from "../src/build.ts";
 import { DeviceDatabase } from "../src/devices/device.ts";
 import { NodeDeviceFiles, REPO_ROOT } from "../src/devices/node.ts";
 import { Bag } from "../src/diagnostics.ts";
@@ -80,4 +81,15 @@ test("an app id another face uses, or one no generator wrote, warns; a random on
 
 test("--all-devices takes every installed device that can run a face at the floor", () => {
   assert.deepEqual(faceCapableDevices(db), ["wfbtest"]);
+});
+
+test("a device at or over its memory limit is dropped, its error attributed to it; one below is kept", () => {
+  const device = db.get("wfbtest");
+  const limit = device.watchfaceMemoryLimit;
+  const bag = new Bag();
+  const at = checkMemory(device, stats93("wfbtest", limit - 100, 100), bag)!;
+  const below = checkMemory(device, stats93("wfbtest", limit - 101, 100), bag)!;
+  assert.deepEqual(bag.items.map((d) => [d.severity, d.devices]), [["error", ["wfbtest"]], ["warning", null]]);
+  assert.deepEqual(overMemoryLimit(new Map([["at", at], ["below", below], ["over", { ...at, total: limit + 1 }]])), ["at", "over"]);
+  assert.deepEqual(overMemoryLimit(new Map()), []);
 });

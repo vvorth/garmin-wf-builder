@@ -205,7 +205,7 @@ const COMMAND_LIST: readonly Command[] = [
   ], [DESIGN]),
   command("export", exportCommand, [
     VERBOSE, deviceOption("export"),
-    { flags: ["--all-devices"], kind: "flag", help: "export every installed device that can run a watch face at the 3.1.0 API floor, instead of the design's targets" },
+    { flags: ["--all-devices"], kind: "flag", help: "export every installed device that can run a watch face at the 3.1.0 API floor, instead of the design's targets, dropping each one that cannot draw the design" },
     { flags: ["--id"], type: APP_ID, metavar: "UUID", help: "the app id to export under instead of face: id: -- a Store beta app needs its own" },
     { flags: ["-o", "--output"], default: DEFAULT_EXPORT_OUTPUT, help: `export directory (default: ${DEFAULT_EXPORT_OUTPUT})` },
     { flags: ["--sdk"], help: "Connect IQ SDK root, or a folder of them (default: $CIQ_SDK, else the SDK Manager's Sdks folder)" },
@@ -517,7 +517,10 @@ async function exportCommand(args: Namespace): Promise<number> {
     // The "memory" line gives the largest share; -v lists every device's note.
     shown = bag.only((d: Diagnostic) => !(d.code === "memory" && d.severity === "note" && result.memory.has(d.message.split(":", 1)[0]!)));
   }
-  printBag(shown, verboseFlag);
+  // A dropped device's note says why in full: without it the summary's "dropped" line names only the codes.
+  if (shown.items.length > 0) {
+    err(shown.render({ color: term.shouldColor(process.stderr), width: term.width(process.stderr), verbose: verboseFlag, full: (d) => d.code === "device-dropped" }));
+  }
   if (result === null || result.iq === null || !bag.ok()) {
     verdict(bag, process.stderr, "failed", ["bold", "red"], "\nexport ");
     return 1;
@@ -526,6 +529,10 @@ async function exportCommand(args: Namespace): Promise<number> {
   out();
   out(`${status("generated", color)}  ${result.output_dir}`);
   out(`${status("exported", color)}   ${basename(result.iq)}  (${result.devices.length} device${result.devices.length === 1 ? "" : "s"}: ${result.devices.map((d) => d.id).join(", ")})`);
+  if (result.dropped.size > 0) {
+    const listed = [...result.dropped].map(([id, codes]) => `${id} (${codes.join(", ")})`).join(", ");
+    out(`${term.style("dropped", ["bold", "yellow"], color)}    ${result.dropped.size} device${result.dropped.size === 1 ? "" : "s"}: ${listed}`);
+  }
   const largest = [...result.memory].sort(([, a], [, b]) => b.total / b.limit - a.total / a.limit)[0];
   if (largest !== undefined) {
     const [deviceId, stats] = largest;

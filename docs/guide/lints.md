@@ -207,3 +207,24 @@ lint:
   allow: [safe-area]
   reason: "hugs the bezel by design"
 ```
+
+## When an export drops a device
+
+`wfb export --all-devices` reads one more thing off each error: whether it
+exists only because of particular devices. Five do, and name them:
+`font-unavailable` (the error form, under `unsupported: error`),
+`subscreen` (the error form), `partial-update`, `api-gated-unguardable`
+and `memory` (at or over the limit, measured after the compile). When every
+error of a pass is one of these, the export drops the devices they name and
+checks the rest again, since one generated view serves every device and
+what it holds depends on the set. Two codes report the outcome, and
+neither is suppressible:
+
+| Code | Meaning |
+|---|---|
+| `device-dropped` | a note per device the export left out, naming the codes that dropped it and quoting the first few of those errors (shown in full without `-v`) |
+| `devices` | an error when every candidate was dropped and nothing is left to export, naming what each device lacked |
+
+Any other error is the design's own and fails the export as it would
+without `--all-devices`. With `targets:` or `-d` nothing is dropped: the
+list is the author's ([Exporting for the Store](preview-and-cli.md#exporting-for-the-connect-iq-store)).
