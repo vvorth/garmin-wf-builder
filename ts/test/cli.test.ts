@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
+import { compareVersions } from "../src/devices/device.ts";
 import { REPO_ROOT } from "../src/devices/node.ts";
 import { decodePng } from "../src/png.ts";
 import { formatBuilt } from "../src/cli.ts";
@@ -85,6 +86,21 @@ describe("the command line", { concurrency: true }, () => {
     const r = wfb(["devices"], { cwd: scratch() });
     assert.equal(r.code, 0, r.stderr);
     assert.ok(r.stdout.includes("fenix8solar47mm"));
+  });
+
+  test("devices --targets: ids only, one section per API level from the oldest up, pasteable", () => {
+    const fixture = plain(wfb(["devices", "--targets"], { env: { WFB_DEVICES: join(REPO_ROOT, "ts", "test", "fixtures", "devices") } }).stdout);
+    assert.equal(fixture, "# API 5.2.0 (1 device)\nwfbtest\n");
+    const r = wfb(["devices", "--targets"]);
+    assert.equal(r.code, 0, r.stderr);
+    const text = plain(r.stdout);
+    assert.ok(!text.includes("screen") && !text.includes("KB"), text);
+    const headers = text.split("\n").filter((line) => line.startsWith("# API ")).map((line) => line.slice("# API ".length).split(" ")[0]!);
+    assert.ok(headers.length >= 2, text);
+    assert.deepEqual(headers, [...headers].sort((a, b) => compareVersions(a, b)));
+    const section = text.split("\n\n").find((block) => block.includes("fenix8solar47mm"))!;
+    assert.ok(section.startsWith("# API 6.0.3 ("), section);
+    assert.ok(section.split("\n").slice(1).join(" ").split(", ").includes("fenix8solar47mm"), section);
   });
 
   test("new: lists, refuses to overwrite, reads only its own templates, mints an id each", () => {

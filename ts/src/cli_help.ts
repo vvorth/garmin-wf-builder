@@ -175,7 +175,12 @@ Reads the device files (\`~/.Garmin/ConnectIQ/Devices\` by default; see
 \`--devices-dir\`/\`WFB_DEVICES\`) and prints each device's screen, shape,
 display type, colour count, API level and watch-face memory limit. These
 files cannot be downloaded unauthenticated -- run \`wfb init\` for how
-to get them onto this machine.`,
+to get them onto this machine.
+
+\`--targets\` prints the ids alone, one section per API level from the
+oldest up, each comma-separated so it pastes into a design's \`targets:\`
+list; devices that cannot run a watch face sit in a last section of their
+own.`,
   fonts: `list fonts available per device, or a detailed font breakdown for one or more
 
 With no device named, lists every installed device definition alongside

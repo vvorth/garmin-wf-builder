@@ -10,7 +10,7 @@ import { resolveAll, selectDevices } from "./build.ts";
 import * as catalog from "./catalog.ts";
 import { COMMANDS, MAIN } from "./cli_help.ts";
 import * as complications from "./complications.ts";
-import { type Device, DeviceDatabase, DeviceError, type FontMetric } from "./devices/device.ts";
+import { compareVersions, type Device, DeviceDatabase, DeviceError, type FontMetric } from "./devices/device.ts";
 import { DEVICE_REFERENCE, DeviceReferenceMissing, ensureDeviceReference, NodeDeviceFiles } from "./devices/node.ts";
 import { referencePages } from "./devices/reference.ts";
 import { Bag, type Diagnostic } from "./diagnostics.ts";
@@ -256,7 +256,10 @@ const COMMAND_LIST: readonly Command[] = [
     DEVICES_DIR,
     { flags: ["--fonts"], dest: "fonts_dir", help: "Garmin ConnectIQ Fonts directory, as for `wfb preview`" },
   ]),
-  command("devices", devicesCommand, [DEVICES_DIR]),
+  command("devices", devicesCommand, [
+    { flags: ["--targets"], kind: "flag", help: "names only, one section per API level, for building a `targets:` list" },
+    DEVICES_DIR,
+  ]),
   command("fonts", fontsCommand, [
     { flags: ["-d", "--device"], kind: "append", dest: "device_flags", metavar: "DEVICE", help: "another device to inspect (repeatable; alternative or addition to the positional form)" },
     DEVICES_DIR,
@@ -1146,6 +1149,10 @@ function schemaCommand(args: Namespace): number {
 function devicesCommand(args: Namespace): number {
   const db = discoverDb(args["devices_dir"] as string | null);
   const color = term.shouldColor(process.stdout);
+  if (args["targets"]) {
+    printDeviceTargets(db, color);
+    return 0;
+  }
   const header = `${"id".padEnd(24)} ${"screen".padEnd(12)} ${"shape".padEnd(12)} ${"display".padEnd(8)} ${"colors".padEnd(7)} ${"api".padEnd(8)} ${"watch face".padEnd(10)} family`;
   out(term.style(header, ["bold"], color));
   for (const id of db.ids()) {
@@ -1158,6 +1165,43 @@ function devicesCommand(args: Namespace): number {
 }
 
 const dim = (text: string, color: boolean): string => term.style(text, ["dim"], color);
+
+/**
+ * `wfb devices --targets`: device ids only, one section per API level
+ * (oldest first), comma-separated so a section pastes into a `targets:`
+ * flow list. Devices that cannot run a watch face go in a final section of
+ * their own, so they are neither hidden nor mistaken for a target.
+ */
+function printDeviceTargets(db: DeviceDatabase, color: boolean): void {
+  const byLevel = new Map<string, string[]>();
+  const noFace: string[] = [];
+  for (const id of db.ids()) {
+    const device = db.get(id);
+    if (!device.supportsWatchface) {
+      noFace.push(id);
+      continue;
+    }
+    const ids = byLevel.get(device.apiLevel) ?? [];
+    ids.push(id);
+    byLevel.set(device.apiLevel, ids);
+  }
+  if (byLevel.size === 0 && noFace.length === 0) {
+    out("no installed devices found");
+    return;
+  }
+  const plural = (n: number): string => `${n} device${n === 1 ? "" : "s"}`;
+  const levels = [...byLevel.keys()].sort(compareVersions);
+  levels.forEach((level, i) => {
+    if (i > 0) out();
+    out(term.style(`# API ${level} (${plural(byLevel.get(level)!.length)})`, ["bold"], color));
+    out(fill(byLevel.get(level)!.join(", "), 88));
+  });
+  if (noFace.length > 0) {
+    if (levels.length > 0) out();
+    out(term.style(`# cannot run a watch face (${plural(noFace.length)})`, ["bold"], color));
+    out(fill(noFace.join(", "), 88));
+  }
+}
 
 /** The vector-text entry points `fonts` reports, by the name it prints. */
 const VECTOR_GATES: [string, string][] = [
