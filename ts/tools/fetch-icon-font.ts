@@ -12,7 +12,7 @@
 // `WFB_NERD_FONTS_BASE_URL` overrides the download host, for a mirror.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { unzipSync } from "fflate";
 
 const VERSION = "v3.5.1";
@@ -45,7 +45,7 @@ export async function download(url: string, attempts = 3): Promise<Uint8Array> {
 
 /** `path` written whole or not at all. */
 export function writeAtomic(path: string, data: Uint8Array | string): void {
-  const partial = join(resolve(path, ".."), `.${path.split("/").pop()}.partial`);
+  const partial = join(resolve(path, ".."), `.${basename(path)}.partial`);
   writeFileSync(partial, data);
   renameSync(partial, path);
 }
