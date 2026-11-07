@@ -213,9 +213,12 @@ export async function push(toolchain: Toolchain, prg: string, deviceId: string, 
   const log = join(dirname(prg), "simulator.log");
   const sink = openSync(log, "w");
   const [command, ...args] = monkeydoCommand(toolchain, prg, deviceId);
-  // Detached on POSIX so `stop` can signal its process group; on Windows
-  // that would give the JVM a console window of its own.
-  const child = spawn(command!, args, { stdio: ["ignore", sink, sink], detached: !IS_WINDOWS, windowsHide: true });
+  // Detached, so `stop` can signal its process group on POSIX and Windows
+  // does not end it with `wfb`; unreferenced, so `wfb` exits once the push
+  // is good instead of waiting for `monkeydo`, which never exits by itself.
+  // The face keeps running in the simulator either way.
+  const child = spawn(command!, args, { stdio: ["ignore", sink, sink], detached: true, windowsHide: true });
+  child.unref();
   closeSync(sink);
   const session = new Session(child, log);
   const deadline = performance.now() + settle * 1000;
