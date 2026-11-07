@@ -176,7 +176,9 @@ re-litigate these without new evidence.**
      Since SDK 9.3.0 a symbol newer than a device's API level must sit inside
      an inline `has` check naming it or its module; a shared view may still
      use target-only APIs, and nothing but `has_symbol` plus a lint catches a
-     symbol the device's own table lacks.
+     symbol the device's own table lacks. At run time a module check does not
+     protect a constant the table lacks (`fr255` threw on
+     `COMPLICATION_TYPE_SLEEP_SCORE`): it needs its own inline `has`.
    - **6e.** Modules and fields vary per device too; the shared manifest
      floor stays 3.1.0 and newer APIs are `has`-guarded per device
      (`ts/src/availability.ts`). A device below 3.1.0 is a friendly build

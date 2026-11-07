@@ -104,8 +104,9 @@ These are the findings that shaped every decision. Full detail and citations in
      symbol, or a module or class enclosing it, lexically encloses the use**
      (`docs/research/probes/sdk93-has-guards/`, measured on 9.3.0; 9.2.0
      accepts every form). Accepted: `if (Toybox has :Complications) {...}`
-     (it covers every member, even a constant newer than the module, such as
-     `COMPLICATION_TYPE_SLEEP_SCORE` on `fr955`), the same check as a ternary
+     (to the compiler it covers every member, even a constant newer than the
+     module, such as `COMPLICATION_TYPE_SLEEP_SCORE` on `fr955`; not at run
+     time, below), the same check as a ternary
      condition or an earlier `&&` operand, `System has :DISPLAY_MODE_OFF`,
      `WatchUi.WatchFaceDelegate has :setSelectedComplication`, and an
      instance check (`box has :addRectangle`). Refused: a check on a sibling
@@ -113,6 +114,30 @@ These are the findings that shaped every decision. Full detail and citations in
      check on an unrelated module, an early return on the negated check, a
      helper called only from inside a check, `self has :method`, and,
      unreliably, a check kept in a local first.
+   - **Run time: a module check does not protect a constant the device's
+     own table lacks.** The VM resolves a module constant when execution
+     reaches the reference, so `case Complications.COMPLICATION_TYPE_SLEEP_SCORE:`
+     inside `if (Toybox has :Complications)` compiles warning-free for
+     `fr255` (5.2.0, which has the module but not that constant) and then
+     throws as soon as a `switch` on the picked type reaches that label.
+     VERIFIED in the user's simulator on `fr255`, 2026-11-07:
+
+     ```
+     Error: Symbol Not Found Error
+     Details: Could not find symbol 'COMPLICATION_TYPE_SLEEP_SCORE'
+     Stack:
+       - reading() at .../build/trail4/source/SlotText.mc:40
+       - <globals/Trail4View/<>drawTopReading>() at .../Trail4View.mc:1566
+       - onUpdate() at .../Trail4View.mc:775
+     ```
+
+     So the module check is a guard for a missing *module* only. A constant
+     the table lacks needs a `has` check naming the constant itself,
+     `(Complications has :COMPLICATION_TYPE_SLEEP_SCORE) && t ==
+     Complications.COMPLICATION_TYPE_SLEEP_SCORE`, evaluated before the
+     reference (probe case S2 shows 9.3.0 accepts it; `has` on a module
+     constant is an ordinary symbol test at run time). A `case` label is a
+     reference like any other, so a `switch` cannot hold one.
 
    **One shared generated view stays possible**: a runtime guard is still
    all a target-only API needs, as long as it is written where the compiler
@@ -120,7 +145,12 @@ These are the findings that shaped every decision. Full detail and citations in
    per build only where some target's level predates the symbol
    (`computeGuards` in `ts/src/availability.ts`, its `SINCE` table and the
    complication types' own `since`), and the hand-written barrel carries
-   its checks unconditionally.
+   its checks unconditionally. A complication type some target with the
+   module lacks in its own table (`Guards.gated_types`) also gets its own
+   inline `has` check at every reference, a gated `case` moved out of its
+   `switch` into an `if` before it, and `generate` refuses a build whose
+   printed sources name such a constant outside one (a `shared-source`
+   error); the barrel names no type constant.
 
 6e. **Modules and class *fields* are per-device too, not just functions, and
    the manifest floor cannot express any of it.** Discovered adding `fenix6`
@@ -145,7 +175,9 @@ These are the findings that shaped every decision. Full detail and citations in
    the fields at runtime instead (`Toybox has :Complications`, `x has
    :stressScore`), aggregated over every target by `ts/src/availability.ts.
    compute_guards` so the one shared generated view emits a guard only when
-   at least one target actually needs it. **The symbol table over-
+   at least one target actually needs it. A *constant* missing from a module
+   the device has is a third case: the module check does not cover it at
+   run time (6d), so it is checked by name. **The symbol table over-
    approximates presence**, the same way `has_symbol` already does for
    functions (6d): a probe that removed every executed `Complications` call
    from a `fenix6` build still found `Complications` in its compiled

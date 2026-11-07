@@ -7,7 +7,8 @@ enclosing `if`, a ternary's condition, or an earlier operand of the same
 project with `monkeyc` 9.3.0 and 9.2.0 (2026-10-25); 9.2.0 accepts every
 case below, 9.3.0 rejects the ones marked no. Runtime behaviour is not
 what this probe measures: every case is a runtime guard that already
-worked on the watch under 9.2.0.
+worked on the watch under 9.2.0, except S1, which is none (the dated note
+under the table).
 
 ## The failure
 
@@ -64,6 +65,28 @@ Built for `venu` (3.3.6: no `Toybox.Complications`, no `DISPLAY_MODE_OFF`),
 So a check covers the symbol it names and everything inside it (S1, W1),
 and nothing beside it (D1, E1, E8). A check reached by flow rather than by
 enclosure does not count (C7, C8).
+
+**2026-11-07: S1 is a compile-time finding only.** At run time the module
+check does not protect a constant the device's own table lacks: a face
+built warning-free for `fr255` (5.2.0, `Toybox.Complications` present,
+`COMPLICATION_TYPE_SLEEP_SCORE` absent from its `api.debug.xml`), with
+`case Complications.COMPLICATION_TYPE_SLEEP_SCORE:` in a `switch (t)`
+inside `if (Toybox has :Complications)`, threw when the switch reached that
+label. VERIFIED in the user's Connect IQ simulator:
+
+```
+Error: Symbol Not Found Error
+Details: Could not find symbol 'COMPLICATION_TYPE_SLEEP_SCORE'
+Stack:
+  - reading() at .../build/trail4/source/SlotText.mc:40
+```
+
+The VM resolves a module constant when execution reaches it. S2's form,
+`(Complications has :COMPLICATION_TYPE_SLEEP_SCORE) && t ==
+Complications.COMPLICATION_TYPE_SLEEP_SCORE`, is the run-time guard: it
+compiles on 9.3.0 for `fr955` and `fr255`, and `has` tests the constant
+before the reference is evaluated (its run-time behaviour on `fr255` is the
+SDK's documented `has` semantics, not yet observed in the simulator).
 
 **C3 is not to be relied on.** In this probe a local holding the check
 passes, even with an unrelated statement or an `else` between (C3b-C3f);

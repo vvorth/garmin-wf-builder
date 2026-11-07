@@ -27,7 +27,7 @@ messages; see `ts/src/lint.ts` if unsure.
 | `partial-update-budget` | an element with `sleep_update: true` risks overrunning the partial-update budget, whose overrun is permanent: a wide clip, a known-expensive read, or a stamped `outline:` ring (4, 8 or 16 more draws each second at 1, 2 or 3px; a grown ring or a baked ring font is not reported) |
 | `hold-overlap` | two elements' `on_hold:` regions overlap, so a touch in the shared area only ever reaches the first |
 | `hold-unsupported` | the device has no `WatchFaceDelegate.onPress`, so this `on_hold:` can never fire there |
-| `api-gated` | the element's binding names a source, symbol or complication type this device lacks; it reads as absent there. The device's own symbol table decides, never its API level (a type's `since` is used only for a device with no table); a slot's explicit choice the device lacks is left out of its lists there |
+| `api-gated` | the element's binding names a source, symbol or complication type this device lacks; it reads as absent there. The device's own symbol table decides, never its API level (a type's `since` is used only for a device with no table); a slot's explicit choice the device lacks is left out of its lists there, and the code every target shares tests for that type before naming it, so the device never meets it |
 | `dead-element` | the element's `visible:` condition reduces to a constant `false` |
 | `graphics-pool` | the face's static buffers are a large share of the shared graphics pool (an estimate) |
 | `antialias-dither` | antialiasing resolves to on for an element on a 64-colour device, dithering the soft edge |

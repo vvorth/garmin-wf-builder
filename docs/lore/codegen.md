@@ -211,7 +211,9 @@ These cost real time to discover; do not rediscover them.
   Guards are emitted at: `onLayout`'s complication subscribe/register loop,
   every module-gated reader pull `ReadPlan` writes (the check written in
   each read, `(Toybox has :M) ? call : null`: `monkeyc` 9.3.0 does not see a
-  check kept in a local, constraint 6d), a forecast
+  check kept in a local, constraint 6d; a complication type in
+  `gated_types` adds its own `(Complications has :<constant>)`, bullet
+  below), a forecast
   graph's acquisition (`ts/src/emit/monkeyc/graph.ts`), `on_hold:`'s
   `Complications.exitTo` (both the fixed-type and `data`
   `auto` forms), and a `config: data:` slot's `Complications.Id` field. Two
@@ -241,10 +243,30 @@ These cost real time to discover; do not rediscover them.
   kept in a local: a frame's reads are `(Toybox has :M) ? call : null`, and
   every function switching on complication types (`SlotText`, `SlotScale`,
   a slot's icon method, a slot graph's rebuild) puts its body inside
-  `if (Toybox has :Complications)`. A face whose targets all reach every
-  level generates the same view, delegate and modules as before. The barrel (`WfbComplications`,
-  `WfbReading`, `WfbScale`, `WfbProfileScale`, `WfbConditions`) checks
-  unconditionally, since it is one file for every build.
+  `if (Toybox has :Complications)`. That module check satisfies the
+  compiler only: it is no run-time guard for a type constant a target's own
+  table lacks (constraint 6d: `fr255` threw Symbol Not Found on
+  `COMPLICATION_TYPE_SLEEP_SCORE` inside one). Those types are
+  `Guards.gated_types` -- the `complicationTypesNamed` some build device
+  with the module lacks (`lacksComplicationType`, its `api.debug.xml`) --
+  and every reference to one carries `(Complications has :<constant>)`
+  inline, in the same `&&` chain or an enclosing `if`
+  (`ts/src/emit/monkeyc/type_guards.ts`): `emitTypeSwitch` moves a gated
+  `case` out of its `switch` into an `if ((Complications has :X) && t ==
+  Complications.X) { <body> }` before it (a fall-through group ORs each
+  gated member, each with its own check; the types every target has stay
+  in the switch), and the slot graph's pick test, the hold target's
+  `exitTo`, a bound complication's read and subscription and `max: auto`'s
+  scale call add the same check. `generate` then scans every printed source
+  (`unguardedTypes` in `ts/src/emit/project.ts`, a per-device `Layout.mc`
+  against its own device) and refuses a reference to such a constant not
+  covered by a `has :<constant>` earlier in its statement or in an
+  enclosing `if` condition: `node_build.ts` reports it as a `shared-source`
+  internal error. A face whose targets all reach every level and have every
+  named type generates the same view, delegate and modules as before. The
+  barrel (`WfbComplications`, `WfbReading`, `WfbScale`, `WfbProfileScale`,
+  `WfbConditions`) checks unconditionally, since it is one file for every
+  build, and names no type constant.
 - **One view and one delegate for every target, and a check that they
   really are shared.** `ts/src/build.ts` resolves each
   target once (`resolve_all`), and `generate(..., resolved=...)`

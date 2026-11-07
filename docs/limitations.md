@@ -976,6 +976,19 @@ symbol table falls back to comparing the type's `since`
 and never decides. The same answer picks each device's slot lists
 (`slotTypes` in `ts/src/emit/monkeyc/config_menu.ts`).
 
+*A type left out of a device's lists is still named in the shared code*,
+which serves every target, and a device whose table lacks the constant
+throws Symbol Not Found when execution reaches a reference to it, even
+inside `if (Toybox has :Complications)` (VERIFIED on `fr255` in the user's
+simulator, `docs/lore/platform-constraints.md` 6d). So every reference to
+such a type (`Guards.gated_types` in `ts/src/availability.ts`) is preceded
+by its own `(Complications has :COMPLICATION_TYPE_X)` check, a `switch`
+case on one becoming an `if` before the switch, and `generate` refuses a
+build whose sources name one outside such a check (a `shared-source`
+error). The check is textual over the printed source: it recognises a
+`has :<constant>` earlier in the same statement or in an enclosing `if`
+condition, and does not reason about negation.
+
 *By module and field, for every catalogue path.* `ts/src/availability.ts`
 resolves *any* catalogue path (`value:`/`color:`/etc, not just
 `complication.*`) against a target device's own `api.debug.xml` for a missing
