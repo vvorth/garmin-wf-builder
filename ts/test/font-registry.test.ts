@@ -68,6 +68,10 @@ test("names resolve as the research decided, the older ones unchanged", () => {
   };
   for (const [name, key] of Object.entries(expected)) assert.equal(resolveRegistryKey(name), key, name);
   assert.equal(FONTS["bionic-substitute"]!.source, "rajdhani-bold");
+  // Bionic's digits are tabular, so each key standing in for it measures them so; Bionic Cond's substitute does not.
+  const tabular = (key: string) => (FONTS[key] as { tabular_digits?: boolean }).tabular_digits === true;
+  for (const key of ["rajdhani-bold", "rajdhani-semibold", "rajdhani-medium", "bionic-substitute"]) assert.ok(tabular(key), key);
+  assert.ok(!tabular("bionic-cond-substitute"));
   assert.equal(FONTS["amiri-regular"]!.match, "substitute");
   assert.equal(FONTS["noto-sans-hebrew-regular"]!.match, "exact");
 });

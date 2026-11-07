@@ -308,7 +308,7 @@ These cost real time to discover; do not rediscover them.
   a time, with no kerning. That is exact on all 36 Roboto probe readings;
   Pillow's own `getlength` was a pixel short per `FONT_TINY` digit. A
   registry stand-in whose key carries `tabular_digits` (Rajdhani for
-  Garmin's Bionic, and `bionic-substitute`, which draws from the same file)
+  Garmin's Bionic, including `bionic-substitute` for its bitmaps)
   gives `0`-`9` the widest digit's rounded advance, and the preview draws
   each centred in that cell; Garmin's own file, when located, is used as
   is. The

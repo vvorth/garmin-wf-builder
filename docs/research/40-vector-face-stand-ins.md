@@ -352,8 +352,8 @@ Bionic readings (research 10 §9: `Hxg0123` and `0123456789` at four
 | Roboto Black | 0/16 | 645 px |
 
 Since 2026-11-07 a registry key flagged `tabular_digits` (the three
-Rajdhani keys, and `bionic-substitute`, which draws from `rajdhani-bold`'s
-file) measures and previews its digits in one cell, the widest digit's
+Rajdhani keys, and `bionic-substitute`, the key behind Bionic's bitmap
+fonts) measures and previews its digits in one cell, the widest digit's
 `hmtx` advance at the whole-pixel em, each digit centred in it
 (`SystemFace.advances` and `drawOffsets` in `ts/src/fonts/fallback.ts`).
 That halves the error: 296 px became 150 px on the same 16 readings,

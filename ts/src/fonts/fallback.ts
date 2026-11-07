@@ -33,18 +33,11 @@ function digitCell(sfnt: Sfnt, em: number): number {
   return Math.max(...Array.from(DIGITS, (ch) => roundHalfEven((sfnt.advances[sfnt.cmap.get(ch.codePointAt(0)!) ?? 0] ?? 0) * em / sfnt.unitsPerEm)));
 }
 
-/**
- * Whether the registry stand-in for `name` (and `face`) draws its digits
- * tabular: its key carries `tabular_digits`, or it draws from the same file
- * as a key that does (`bionic-substitute`, the fenix 6 Bionic bitmaps, is
- * `rajdhani-bold`'s file under another key).
- */
+/** Whether the registry stand-in for `name` (and `face`) draws its digits tabular: its own key carries `tabular_digits`. */
 function tabularStandIn(name: string, face: string | null): boolean {
   const key = resolveRegistryKey(name, face);
-  const fonts = REGISTRY.fonts as Record<string, { source: string; tabular_digits?: boolean }>;
-  const font = key === null ? undefined : fonts[key];
-  if (font === undefined) return false;
-  return font.tabular_digits === true || Object.values(fonts).some((f) => f.tabular_digits === true && f.source === font.source);
+  const font = key === null ? undefined : REGISTRY.fonts[key] as { tabular_digits?: boolean } | undefined;
+  return font?.tabular_digits === true;
 }
 
 /** A flat width per character, when no face at all is available. */
