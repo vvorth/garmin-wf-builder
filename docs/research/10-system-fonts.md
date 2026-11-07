@@ -278,7 +278,7 @@ exposed via a `FONT_*` symbol at all — see §6.
 | Roboto Medium | `roboto-medium` | exact | |
 | Roboto Light | `roboto-light` | exact | Also used for the `VENU_BOLD_NUMBER_FONT_6`/`_7` scrape anomaly — filename says `BOLD`, scraped `face` column says `Roboto Light`; the face column is trusted (§2 of `05-device-files.md`'s sibling reasoning: prefer the more structured field). |
 | Roboto Wide | `roboto-italic` | exact | Scrape anomaly: every device with face `"Roboto Wide"` has font filename literally `Roboto-Italic`. Treated as a labelling quirk in Garmin's own reference table, not a distinct family — the file name is definitive. |
-| Bionic | `bionic-substitute` (→ `rajdhani-bold`), and the scalable `Bionic_*` names → `rajdhani-bold`/`-semibold` | family | Not proprietary after all: Bionic is Rajdhani with its digits redrawn to one tabular width, every other outline identical (research 40 §2.1). First mapped here to Roboto Black by role (`fr955` uses it in the same `FONT_NUMBER_HOT`/`THAI_HOT` slot), then to Roboto Condensed Bold by width (§9), and by research 40 to Rajdhani by appearance, at the width cost research 40 §4.1 measures. |
+| Bionic | `bionic-substitute` (→ `rajdhani-bold`), and the scalable `Bionic_*` names → `rajdhani-bold`/`-semibold` | family | Not proprietary after all: Bionic is Rajdhani with its digits redrawn to one tabular width, every other outline identical (research 40 §2.1). First mapped here to Roboto Black by role (`fr955` uses it in the same `FONT_NUMBER_HOT`/`THAI_HOT` slot), then to Roboto Condensed Bold by width (§9), and by research 40 to Rajdhani by appearance, at the width cost research 40 §4.1 measures, halved since by measuring its digits tabular (§9). |
 | (Bionic, `*_COND_*` tokens) | `bionic-cond-substitute` (→ `roboto-condensed-bold`) | substitute | Same reasoning, condensed variant: the same devices' own body text (`fenix8solar47mm`, `marq2`, ...) is `Roboto Condensed`. |
 | Rajdhani | `rajdhani-medium` | family | The scrape's own `face` column reads `"Rajdhani"` for font token `Bionic_Medium` (`d2mach2`, `fenix8`/`8pro47mm`/`fenixe` sibling entries). Right: `Bionic_Medium` is Rajdhani Medium with tabular digits (research 40 §2.1), hence `family`. |
 | Yantramanav | `yantramanav-bold`, `-regular` | exact | Explicit `YANTRAMANAV` tokens and the un-named `NNNNNNNNNN_(BOLD_)?NUMBER_(LARGE\|SMALL\|XLARGE\|XSMALL\|XTINY)` ladder (distinguished from Roboto Condensed's own same-named `_LARGE`/`_MEDIUM`/... tokens by the literal `NUMBER` substring). |
@@ -444,8 +444,11 @@ role. With the real files in hand, the advances say otherwise:
 files, the probe's widths come out 40/54 exact with 87 px total error; the
 earlier stand-in, Roboto Black, gave 645 px. Research 40 later found Bionic
 is Rajdhani with tabular digits and moved every Bionic name to Rajdhani by
-appearance; on the same 16 Bionic readings that gives 296 px (research 40
-§4.1). The Roboto Condensed file
+appearance; on the same 16 Bionic readings that gave 296 px (research 40
+§4.1). Measuring Rajdhani's digits tabular, each in the widest digit's
+advance as Bionic's are, brings it to 150 px (2026-11-07, VERIFIED by
+research 40's `probe-widths.ts`): the remaining error is Rajdhani
+SemiBold's widest digit, 0.533 em against Bionic's 0.516. The Roboto Condensed file
 shipped with the SDK Manager is v2.000980 (2014), older than the v2.138 the
 registry pins. Both give identical advances on the probe strings.
 

@@ -393,7 +393,7 @@
     },
     "bionic-substitute": {
       "source": "rajdhani-bold",
-      "match": "family",
+      "match": "family", "tabular_digits": true,
       "note": "Bionic's bitmap number fonts (*_BIONIC_BOLD_NUMBER_*, face 'Bionic') and the face column 'Bionic': Bionic is Garmin's tabular-digit build of Rajdhani (rajdhani-bold's note), so Rajdhani Bold. The condensed bitmaps (BIONIC_COND) have their own key."
     },
     "chronos-substitute": {

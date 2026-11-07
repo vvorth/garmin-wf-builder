@@ -416,16 +416,17 @@ export class Renderer {
     paste(this.image, tile, x, y, color);
   }
 
-  /** A system-font line glyph by glyph, each on the pen position the face's advances give. */
+  /** A system-font line glyph by glyph, each on the pen position the face's advances give (a tabular digit centred in its cell). */
   private drawSystemLine(face: SystemFace, left: number, baselineY: number, text: string, color: RGB): void {
     const chars = Array.from(text);
-    const advances = face.advances(text);
+    const advances = face.advances(text), offsets = face.drawOffsets(text);
     let pen = left;
     chars.forEach((ch, i) => {
       if (face.bitmap !== null) {
         this.drawBitmapGlyph(face, ch, pen, baselineY - face.baseline, color);
       } else {
-        const found = coverage(glyphSegments(face, ch).map(([ax, ay, bx, by]): Segment => [ax + pen, ay + baselineY, bx + pen, by + baselineY]));
+        const x = pen + offsets[i]!;
+        const found = coverage(glyphSegments(face, ch).map(([ax, ay, bx, by]): Segment => [ax + x, ay + baselineY, bx + x, by + baselineY]));
         if (found !== null) this.place(found.tile, found.x, found.y, color);
       }
       pen += advances[i]!;
@@ -521,12 +522,13 @@ export class Renderer {
     const centerX = anchorXy[0] + dx * cos + dy * sin, centerY = anchorXy[1] - dx * sin + dy * cos;
     const turn = (x: number, y: number): [number, number] => [centerX + x * cos + y * sin, centerY - x * sin + y * cos];
     const segments: Segment[] = [];
-    const advances = face.advances(run);
+    const advances = face.advances(run), offsets = face.drawOffsets(run);
     let pen = -width / 2;
     const baseline = -lineHeight / 2 + face.baseline;
     Array.from(run).forEach((ch, i) => {
+      const x = pen + offsets[i]!;
       for (const [ax, ay, bx, by] of glyphSegments(face, ch)) {
-        segments.push([...turn(ax + pen, ay + baseline), ...turn(bx + pen, by + baseline)]);
+        segments.push([...turn(ax + x, ay + baseline), ...turn(bx + x, by + baseline)]);
       }
       pen += advances[i]!;
     });
