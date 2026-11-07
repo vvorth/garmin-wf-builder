@@ -306,7 +306,12 @@ These cost real time to discover; do not rediscover them.
   §9):** `SystemFace.advances` gives each glyph its own `hmtx` advance at
   the whole-pixel em (`round(em_px)`), rounded to whole pixels one glyph at
   a time, with no kerning. That is exact on all 36 Roboto probe readings;
-  Pillow's own `getlength` was a pixel short per `FONT_TINY` digit. The
+  Pillow's own `getlength` was a pixel short per `FONT_TINY` digit. A
+  registry stand-in whose key carries `tabular_digits` (Rajdhani for
+  Garmin's Bionic, and `bionic-substitute`, which draws from the same file)
+  gives `0`-`9` the widest digit's rounded advance, and the preview draws
+  each centred in that cell; Garmin's own file, when located, is used as
+  is. The
   preview draws glyph by glyph on those pen positions, never with Pillow's
   own layout. The test suite sets `WFB_NO_GARMIN_FONTS=1`, so results never
   depend on the user's licensed fonts. None of this reaches

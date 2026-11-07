@@ -347,12 +347,27 @@ Bionic readings (research 10 §9: `Hxg0123` and `0123456789` at four
 |---|---|---|
 | Garmin's own file | 6/16 | 20 px |
 | Roboto Condensed Bold (before) | 2/16 | 87 px |
-| **Rajdhani SemiBold (now)** | 0/16 | 296 px (about 6% narrow) |
+| **Rajdhani SemiBold, digits tabular (now, 2026-11-07)** | 0/16 | 150 px (about 3% wide) |
+| Rajdhani SemiBold, digits proportional | 0/16 | 296 px (about 6% narrow) |
 | Roboto Black | 0/16 | 645 px |
 
-A digit string heavy in `1`s errs further: `11:11` is a third narrower in
-Rajdhani SemiBold than in Bionic SemiBold (1.507 em against 2.263), where
-Roboto Condensed Bold is 2% wider (2.298). `10:08` is 7% narrower (2.115). This
+Since 2026-11-07 a registry key flagged `tabular_digits` (the three
+Rajdhani keys, and `bionic-substitute`, which draws from `rajdhani-bold`'s
+file) measures and previews its digits in one cell, the widest digit's
+`hmtx` advance at the whole-pixel em, each digit centred in it
+(`SystemFace.advances` and `drawOffsets` in `ts/src/fonts/fallback.ts`).
+That halves the error: 296 px became 150 px on the same 16 readings,
+VERIFIED by `probe-widths.ts` (`WFB_NO_GARMIN_FONTS=1
+SOURCES=rajdhani-semibold`). What is left is the cell itself: Rajdhani
+SemiBold's widest digits (`4`, `8`) are 0.533 em, against Bionic
+SemiBold's 0.516, so ten digits come out 6 to 19 px wide at the four
+sizes, and `Hxg0123` 2 to 8 px wide.
+
+With the digits proportional, a string heavy in `1`s erred further:
+`11:11` was a third narrower in Rajdhani SemiBold than in Bionic SemiBold
+(1.507 em against 2.263), where Roboto Condensed Bold is 2% wider (2.298),
+and `10:08` 7% narrower (2.115). With the tabular cell every clock reading
+measures the same, `11:11` 2.331 em (3% wide). This
 cost applies only where Garmin's files are absent: the goldens, CI, and a
 container without the `Fonts` mount. A `fallback: auto` sheet does not pay
 it, because the layout measures the baked sheet itself, and `monospace:` on
@@ -476,9 +491,11 @@ pinning test and the reference test both fail.
 ## 7. Open questions
 
 - **Bionic's width cost** (§4.1). Rajdhani is the look; Roboto Condensed
-  Bold is the width. One mapping per face cannot have both. A measurement
-  that gives a Rajdhani stand-in tabular digits for a Bionic name would
-  have both, and that is compiler work, not a registry change.
+  Bold was the width. The tabular measurement through a flagged key
+  (2026-11-07) brings Rajdhani to 150 px total error against Roboto
+  Condensed Bold's 87; the rest is Rajdhani's widest digit (0.533 em) over
+  Bionic's cell (0.516). A cell taken from Bionic's own width would close
+  it, at the cost of a per-key constant in the registry. Open.
 - **Exo SemiBold and Tomorrow Bold** are not on this machine, so their
   match is UNVERIFIED by bytes.
 - **The installed licence text is not pinned**: the font is, the licence

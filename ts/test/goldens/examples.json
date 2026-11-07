@@ -464,7 +464,7 @@
   }
  },
  "examples/features/aod/face.yaml": {
-  "diagnostics": "examples/features/aod/face.yaml:132:3: note[aod-burn-in]: fenix847mm: with the pixel mask (phase 2, dx=1 dy=1), the AOD frame lights 1.1% of pixels and 0.0% of luminance at 20:08 (Garmin's 10% rule) -- top contributor: clock (68.5%), battery_ring (30.2%), accent_dot (1.2%)\n  132 |   clock:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, the preview's other sample readings unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (defaults: {aod: {mask: ...}}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 1,764 lit pixels at 20:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
+  "diagnostics": "examples/features/aod/face.yaml:132:3: note[aod-burn-in]: fenix847mm: with the pixel mask (phase 2, dx=1 dy=1), the AOD frame lights 1.1% of pixels and 0.0% of luminance at 20:08 (Garmin's 10% rule) -- top contributor: clock (68.1%), battery_ring (30.6%), accent_dot (1.3%)\n  132 |   clock:\n          ^\n      note: worst of 2 sampled clock times 10:08, 20:08 x 4 mask phases, full battery, the preview's other sample readings unchanged -- not every possible time/data value\n      note: lit: any pixel rendering other than pure black (Garmin's own definition); luminance: mean relative luminance (Color.relative_luminance, Rec. 709 primaries over sRGB-decoded channels) as a fraction of full white -- Garmin's own integral is unpublished (docs/guide/always-on-display.md, \"Lints\")\n      note: checked against both AMOLED generations' 10% rules at once (original Venu: lit-pixel share; Venu 2+: luminance share), since the device files do not say which generation a target is\n      note: the moving pixel mask (defaults: {aod: {mask: ...}}, on by default) guarantees no pixel is lit two consecutive minutes, so the 3-minute static-pixel rule holds by construction -- this still cannot see any minute or data value but the sampled ones (`wfb preview --heatmap` approximates that) -- docs/limitations.md\n      note: share is each element's own lit-pixel count against the full frame's 1,739 lit pixels at 20:08 -- overlapping elements' shares can sum past 100%\n      confidence: estimate -- rasterised from a chosen worst-case sample frame, not the simulator's own Screen Heat Map (root CLAUDE.md §3, unreachable here), which is authoritative; the luminance formula is this compiler's own choice, since Garmin's is unpublished\n\nnote[shared-view]: the AMOLED always-on frame ('aod:') is compiled into every target, and never runs on the MIP ones: fenix8solar47mm, fenix8solar51mm, fr955\n      note: the generated view is one file shared by every target; only Layout.mc is per device\n      note: each MIP target's measured memory includes it; build the MIP targets on their own (-d) to leave it out\n      confidence: exact -- device displayType",
   "projects": {
    "targets": {
     "manifest.xml": "b77f7b7c9c21362da85207f965aabfa8",
@@ -472,9 +472,9 @@
     "resources/strings/strings.xml": "8fb522a5a1b6d71b79cca3b842181ad8",
     "source/FeatureAODApp.mc": "fa547c5297ff0a08a0ac12cb6280736c",
     "source/Palette.mc": "6adcec68abf1ba2c348f3b2f51ed0cf6",
-    "source-fenix847mm/Layout.mc": "a80a3d18cedb417151f30dcb7a77d79d",
-    "source-fenix8solar47mm/Layout.mc": "99c9e0dc984a7a79d23316087d6af3e3",
-    "source-fenix8solar51mm/Layout.mc": "f65257463f4e6c422fbec5d04475aac7",
+    "source-fenix847mm/Layout.mc": "270f57bfd554f1bb5d7249b84c48d1f1",
+    "source-fenix8solar47mm/Layout.mc": "080f87dcc75bac00e936f30768dc7b47",
+    "source-fenix8solar51mm/Layout.mc": "9d3fab69573b63df5cf819796213b3a4",
     "source-fr955/Layout.mc": "2c441a069d5b7f2714fbfd8826e77de7",
     "source/FeatureAODView.mc": "20f7ecd1bb85bc83bd180343daacaa38",
     "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
@@ -495,8 +495,8 @@
     "resources/strings/strings.xml": "8fb522a5a1b6d71b79cca3b842181ad8",
     "source/FeatureAODApp.mc": "fa547c5297ff0a08a0ac12cb6280736c",
     "source/Palette.mc": "6adcec68abf1ba2c348f3b2f51ed0cf6",
-    "source-fenix847mm/Layout.mc": "a80a3d18cedb417151f30dcb7a77d79d",
-    "source-fenix8solar47mm/Layout.mc": "99c9e0dc984a7a79d23316087d6af3e3",
+    "source-fenix847mm/Layout.mc": "270f57bfd554f1bb5d7249b84c48d1f1",
+    "source-fenix8solar47mm/Layout.mc": "080f87dcc75bac00e936f30768dc7b47",
     "source-fr245/Layout.mc": "3f9c66f6fd56962e0721f9aadbd46c08",
     "source-fenix6/Layout.mc": "f6529762776d678fe84a3cd610cc0331",
     "source/FeatureAODView.mc": "20f7ecd1bb85bc83bd180343daacaa38",
@@ -518,7 +518,7 @@
     "resources/strings/strings.xml": "8fb522a5a1b6d71b79cca3b842181ad8",
     "source/FeatureAODApp.mc": "fa547c5297ff0a08a0ac12cb6280736c",
     "source/Palette.mc": "6adcec68abf1ba2c348f3b2f51ed0cf6",
-    "source-fenix947mm/Layout.mc": "ba11db17d96c922deb7dd83581b33cbf",
+    "source-fenix947mm/Layout.mc": "8601eb6a1382ff94ad7cf49a60a97bda",
     "source-fr955/Layout.mc": "2c441a069d5b7f2714fbfd8826e77de7",
     "source/FeatureAODView.mc": "20f7ecd1bb85bc83bd180343daacaa38",
     "runtime-lib/WfbAodMask.mc": "ffc393d1239af52eda176265c4b17ced",
@@ -532,21 +532,21 @@
   },
   "previews": {
    "default": {
-    "fenix847mm": "3ceb115f6424490ce45a0a0f9084ee19",
-    "fenix8solar47mm": "387296eaa95ca1faff9786208d918f30",
-    "fenix8solar51mm": "1aa5de809559629593c81d3508c8619d",
+    "fenix847mm": "69667df941a646a313edeae694d9eb42",
+    "fenix8solar47mm": "2f964a034cbb23e58c4cdbc89de877b3",
+    "fenix8solar51mm": "bcf2f17246d390daa00357c635986aa3",
     "fr955": "a98c93aa9a58b7bd0246b08851ed3e4e"
    },
    "asleep": {
-    "fenix847mm": "3ceb115f6424490ce45a0a0f9084ee19",
-    "fenix8solar47mm": "387296eaa95ca1faff9786208d918f30",
-    "fenix8solar51mm": "1aa5de809559629593c81d3508c8619d",
+    "fenix847mm": "69667df941a646a313edeae694d9eb42",
+    "fenix8solar47mm": "2f964a034cbb23e58c4cdbc89de877b3",
+    "fenix8solar51mm": "bcf2f17246d390daa00357c635986aa3",
     "fr955": "a98c93aa9a58b7bd0246b08851ed3e4e"
    },
    "time": {
-    "fenix847mm": "faf87d9cfc6af979c02f01a40d515135",
-    "fenix8solar47mm": "4e687b6d05ac3ca07309335ae9cff68a",
-    "fenix8solar51mm": "8fae8853064f600284bec22b167c3da5",
+    "fenix847mm": "993a5529c634b9aca767a270793712ee",
+    "fenix8solar47mm": "7234577719e0446adf6c480e724c537d",
+    "fenix8solar51mm": "b73749ecb4681d64e33a627f06d559ed",
     "fr955": "1c2de43baa06f5c1311126075d15605c"
    },
    "all-styles": {
@@ -556,10 +556,10 @@
     "fr955": "refused: 'Feature AOD' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out"
    },
    "aod": {
-    "fenix847mm": "14b06b5e04ae6ca8e6444b1b083f46dd"
+    "fenix847mm": "19c40aba61a883b849de89808632406b"
    },
    "aod-minute-7": {
-    "fenix847mm": "25e5d9da993b12ec6fa2727781eb60eb"
+    "fenix847mm": "5fa9d54ab25cca84f1373c4d0818a9bc"
    }
   }
  },
@@ -764,8 +764,8 @@
     "resources/strings/strings.xml": "cdedffb7c88ffe2d6c6079b72f88cb78",
     "source/FeatureComplicationsApp.mc": "6335d52b8f8ba59fde6da9a8be8a4d4c",
     "source/Palette.mc": "7b95e389affa52d12c951a5db46d2406",
-    "source-fenix8solar47mm/Layout.mc": "877219e35dc8967ef14ddc55dc138a5c",
-    "source-fenix8solar51mm/Layout.mc": "42cbe1db87ef956ca85aa49e22b3fa90",
+    "source-fenix8solar47mm/Layout.mc": "8e2a5a8554fa215e4108fdb9d7be3c20",
+    "source-fenix8solar51mm/Layout.mc": "2978ebf08a9262e2fcac5a3140d26353",
     "source-fr955/Layout.mc": "4369db382ed4b2b13c3822228dad1e8d",
     "source/IconGlyphs.mc": "eea3b53378a93eb48a1ff7dae217e2c1",
     "source/FeatureComplicationsView.mc": "991b5a8bf111ff895b60e61980c476c1",
@@ -811,8 +811,8 @@
     "resources/strings/strings.xml": "cdedffb7c88ffe2d6c6079b72f88cb78",
     "source/FeatureComplicationsApp.mc": "6335d52b8f8ba59fde6da9a8be8a4d4c",
     "source/Palette.mc": "7b95e389affa52d12c951a5db46d2406",
-    "source-fenix847mm/Layout.mc": "23902de293c969d717bd5e79bb93493d",
-    "source-fenix8solar47mm/Layout.mc": "877219e35dc8967ef14ddc55dc138a5c",
+    "source-fenix847mm/Layout.mc": "e9902e94d7c54dffb7c0eb3718188853",
+    "source-fenix8solar47mm/Layout.mc": "8e2a5a8554fa215e4108fdb9d7be3c20",
     "source-fr245/Layout.mc": "49fe4f4f34a95e7648791474c21d3d3c",
     "source-fenix6/Layout.mc": "cdba96e6974dc63dbd06857519f4c4f3",
     "source/IconGlyphs.mc": "eea3b53378a93eb48a1ff7dae217e2c1",
@@ -870,7 +870,7 @@
     "resources/strings/strings.xml": "cdedffb7c88ffe2d6c6079b72f88cb78",
     "source/FeatureComplicationsApp.mc": "6335d52b8f8ba59fde6da9a8be8a4d4c",
     "source/Palette.mc": "7b95e389affa52d12c951a5db46d2406",
-    "source-fenix947mm/Layout.mc": "9da51cb914234795b08d3776d215d1db",
+    "source-fenix947mm/Layout.mc": "c917908a4767bf19935b5bbe82bb23a9",
     "source-fr955/Layout.mc": "4369db382ed4b2b13c3822228dad1e8d",
     "source/IconGlyphs.mc": "eea3b53378a93eb48a1ff7dae217e2c1",
     "source/FeatureComplicationsView.mc": "a52a52abc3b06645be05a518a04d7e61",
@@ -902,18 +902,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "6bbc62af08ee17642347fbf8d0744366",
-    "fenix8solar51mm": "3c22fcf4432c2f248037111736c6f27a",
+    "fenix8solar47mm": "cbe3639f07fffbd86c46d5ab39f1b6a9",
+    "fenix8solar51mm": "6b21a55057a1fa27e4d39c42b9e9178b",
     "fr955": "c25348851c496bc096905dcc88d93ab5"
    },
    "asleep": {
-    "fenix8solar47mm": "6bbc62af08ee17642347fbf8d0744366",
-    "fenix8solar51mm": "3c22fcf4432c2f248037111736c6f27a",
+    "fenix8solar47mm": "cbe3639f07fffbd86c46d5ab39f1b6a9",
+    "fenix8solar51mm": "6b21a55057a1fa27e4d39c42b9e9178b",
     "fr955": "c25348851c496bc096905dcc88d93ab5"
    },
    "time": {
-    "fenix8solar47mm": "54473e806855d7a5f47ef5685a7ab039",
-    "fenix8solar51mm": "c0c1c599ef59e8e6ccb416dce158bf0a",
+    "fenix8solar47mm": "ac8a73cc1e15ab933223a6d0fd80d998",
+    "fenix8solar51mm": "65c1eaa1d2233a482871b14c954584f7",
     "fr955": "520456603742cb7dd6a63a77c76326ce"
    },
    "all-styles": {
@@ -938,8 +938,8 @@
     "resources/strings/strings.xml": "e7367cd351aa360996c534c68cd64cd4",
     "source/FeatureConfigApp.mc": "5bee9468558c5378cce8f8a2e1225936",
     "source/Palette.mc": "57f3f021204963f45941aba772e3c4b3",
-    "source-fenix8solar47mm/Layout.mc": "56aabc7534e114c17c8f95281bee7f36",
-    "source-fenix8solar51mm/Layout.mc": "46369b8c02fae4a72460cbe37cbcbadf",
+    "source-fenix8solar47mm/Layout.mc": "75684633cbf92e58570c6b41112a3a28",
+    "source-fenix8solar51mm/Layout.mc": "a8d66bce2ebd6718f80001a9ff928d83",
     "source-fr955/Layout.mc": "9e27df598c572c7b3e4deac0d4f1224b",
     "source/FeatureConfigView.mc": "c02b8991b2eb55451ac72803e8f0bb12",
     "source/FeatureConfigDelegate.mc": "96d6853880183c2a4ab9d00e30251279",
@@ -963,10 +963,10 @@
     "resources/strings/strings.xml": "e7367cd351aa360996c534c68cd64cd4",
     "source/FeatureConfigApp.mc": "5bee9468558c5378cce8f8a2e1225936",
     "source/Palette.mc": "57f3f021204963f45941aba772e3c4b3",
-    "source-fenix847mm/Layout.mc": "cd310f779335ea2801312929321dca00",
-    "source-fenix8solar47mm/Layout.mc": "56aabc7534e114c17c8f95281bee7f36",
+    "source-fenix847mm/Layout.mc": "8d4199b5739ee53df5cbb960ca105c4d",
+    "source-fenix8solar47mm/Layout.mc": "75684633cbf92e58570c6b41112a3a28",
     "source-fr245/Layout.mc": "c7ab3d2f7309e25c3e7b8ec51b7a8143",
-    "source-fenix6/Layout.mc": "1681054c5f1d0ce8f3e35fd7b9b1fe80",
+    "source-fenix6/Layout.mc": "97a67c884878114e8d3619d08063a89d",
     "source/FeatureConfigView.mc": "4945e553b2ecb66a499056a6749a8526",
     "source/FeatureConfigDelegate.mc": "cabd5fedbf09d89a65404172cabe8770",
     "source/FeatureConfigConfigMenuDelegate.mc": "35e5f661ec8fb67bcb0cc5a50db4f4f3",
@@ -993,7 +993,7 @@
     "resources/strings/strings.xml": "e7367cd351aa360996c534c68cd64cd4",
     "source/FeatureConfigApp.mc": "5bee9468558c5378cce8f8a2e1225936",
     "source/Palette.mc": "57f3f021204963f45941aba772e3c4b3",
-    "source-fenix947mm/Layout.mc": "f085662d15fae11ec516d57e17edc093",
+    "source-fenix947mm/Layout.mc": "c57f75458b48f6d3656f67617d13eed1",
     "source-fr955/Layout.mc": "9e27df598c572c7b3e4deac0d4f1224b",
     "source/FeatureConfigView.mc": "c0712565105cf46d71cc74d09adec8a1",
     "source/FeatureConfigDelegate.mc": "96d6853880183c2a4ab9d00e30251279",
@@ -1011,23 +1011,23 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "39f88bb2315ae8aa116602c107d9e972",
-    "fenix8solar51mm": "01562a1885e98488533687e76fda641c",
+    "fenix8solar47mm": "5dd513716b3a78a56a0ff1fb84b8f3a5",
+    "fenix8solar51mm": "9cfd02cadf9c6b03f7f1baf589e1f950",
     "fr955": "1ba5c43a1933076bdc629ef3975c7502"
    },
    "asleep": {
-    "fenix8solar47mm": "39f88bb2315ae8aa116602c107d9e972",
-    "fenix8solar51mm": "01562a1885e98488533687e76fda641c",
+    "fenix8solar47mm": "5dd513716b3a78a56a0ff1fb84b8f3a5",
+    "fenix8solar51mm": "9cfd02cadf9c6b03f7f1baf589e1f950",
     "fr955": "1ba5c43a1933076bdc629ef3975c7502"
    },
    "time": {
-    "fenix8solar47mm": "5bc80af69853641875924a153ccdfe4d",
-    "fenix8solar51mm": "2829a7425fa374f4d91e4531319356ee",
+    "fenix8solar47mm": "1e8f813a8c11f69026ac8ecb318c029e",
+    "fenix8solar51mm": "b7cbbb9fdd93166724c8f67408628f87",
     "fr955": "1fd8b50b0a594837c8e06c5835aea6a0"
    },
    "all-styles": {
-    "fenix8solar47mm": "724dd5d5216a896c42d76821a15cd082",
-    "fenix8solar51mm": "d6f928aac2e476aa985cec58679d54ab",
+    "fenix8solar47mm": "3393916a8cbf3bfa4174877b1d649cc7",
+    "fenix8solar51mm": "8f844cb1c5e6dbb0e30a7851552e0c28",
     "fr955": "abb048935df0b12e27a4a693bc0f0bd1"
    },
    "aod": {
@@ -1047,8 +1047,8 @@
     "resources/strings/strings.xml": "b961c81f08cda056eb89e70a056d9780",
     "source/FeatureCurvedSlotApp.mc": "02cf308cf2006649dd26b7b7da4106ac",
     "source/Palette.mc": "c7e9dbeb5ccb0e2046e60e7e91542f1e",
-    "source-fenix8solar47mm/Layout.mc": "1d6886affbbbec802d7b7275a4431d93",
-    "source-fenix8solar51mm/Layout.mc": "932bbb1bcfb4f75d3fab7a2899da3c40",
+    "source-fenix8solar47mm/Layout.mc": "57ce59f8a932a20c28cf39669f7d671c",
+    "source-fenix8solar51mm/Layout.mc": "185aecffd8141ec5f7fb8852d6c8af42",
     "source-fr955/Layout.mc": "49369ad4b2c5d46ca988449633b26b4a",
     "source/IconGlyphs.mc": "2d30af0deb835f318e76dcf821e9d88e",
     "source/FeatureCurvedSlotView.mc": "a932350863abb400af86abaf79f3e3d8",
@@ -1100,7 +1100,7 @@
     "resources/strings/strings.xml": "b961c81f08cda056eb89e70a056d9780",
     "source/FeatureCurvedSlotApp.mc": "02cf308cf2006649dd26b7b7da4106ac",
     "source/Palette.mc": "c7e9dbeb5ccb0e2046e60e7e91542f1e",
-    "source-fenix947mm/Layout.mc": "05fca70986cfb3859fc03f54ac9d548a",
+    "source-fenix947mm/Layout.mc": "964d2b0d329917c7d0c8b074f7099324",
     "source-fr955/Layout.mc": "49369ad4b2c5d46ca988449633b26b4a",
     "source/IconGlyphs.mc": "2d30af0deb835f318e76dcf821e9d88e",
     "source/FeatureCurvedSlotView.mc": "59bc2f7ae1ec67b1c62026ff76ad1e24",
@@ -1135,18 +1135,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "8a2a87e29453fadae4bee0a9ac01b647",
-    "fenix8solar51mm": "3f8c7ce446595aa1ff8b0da2be9a0454",
+    "fenix8solar47mm": "028d44634968ed051b5e8aa08684e597",
+    "fenix8solar51mm": "8254627ac9a34edafa797fa927a68687",
     "fr955": "fdefe780a73e1c7fd6c30167db566ece"
    },
    "asleep": {
-    "fenix8solar47mm": "8a2a87e29453fadae4bee0a9ac01b647",
-    "fenix8solar51mm": "3f8c7ce446595aa1ff8b0da2be9a0454",
+    "fenix8solar47mm": "028d44634968ed051b5e8aa08684e597",
+    "fenix8solar51mm": "8254627ac9a34edafa797fa927a68687",
     "fr955": "fdefe780a73e1c7fd6c30167db566ece"
    },
    "time": {
-    "fenix8solar47mm": "b084831fbb5a3f4cf0793f0f4c1b6699",
-    "fenix8solar51mm": "548ca4223f868a6fa8017bb0389c9da4",
+    "fenix8solar47mm": "7f262790518be1f3e9260846c06633a5",
+    "fenix8solar51mm": "0384bed35a31a0e7911eb89bd1ae3bfb",
     "fr955": "f0b457b89386e75a00dfd8b28a8fc72b"
    },
    "all-styles": {
@@ -1171,7 +1171,7 @@
     "resources/strings/strings.xml": "d97d855b9019053aae6ee5ea2e0afcf0",
     "source/FeatureFontFallbackApp.mc": "16e57bdb34c51ca037392721b2bc4185",
     "source/Palette.mc": "ff595998526f2144ee94641cb1852bae",
-    "source-fenix8solar47mm/Layout.mc": "15b1e0f9063e293d5067a16ec8d7e6d4",
+    "source-fenix8solar47mm/Layout.mc": "4e1132eda5649af1a6e3306339a399e0",
     "source-fr955/Layout.mc": "4dbc98035da564d6c11a266348135538",
     "source-fr255/Layout.mc": "e47627500c65125de180950a643db667",
     "source/FeatureFontFallbackView.mc": "e6ae911268dc0ee24f3d8103202caea4",
@@ -1196,8 +1196,8 @@
     "resources/strings/strings.xml": "d97d855b9019053aae6ee5ea2e0afcf0",
     "source/FeatureFontFallbackApp.mc": "16e57bdb34c51ca037392721b2bc4185",
     "source/Palette.mc": "ff595998526f2144ee94641cb1852bae",
-    "source-fenix847mm/Layout.mc": "82c464ee22006b74b09137a99ccdc84d",
-    "source-fenix8solar47mm/Layout.mc": "15b1e0f9063e293d5067a16ec8d7e6d4",
+    "source-fenix847mm/Layout.mc": "327e6c26363659223b4935532325b4b8",
+    "source-fenix8solar47mm/Layout.mc": "4e1132eda5649af1a6e3306339a399e0",
     "source-fr245/Layout.mc": "03c63ac84229683e3406e47f7221d75b",
     "source-fenix6/Layout.mc": "153ff5c04347941dc53f007b1d68be43",
     "source/FeatureFontFallbackView.mc": "15ecaa627001a5bb190573ed563a7759",
@@ -1229,7 +1229,7 @@
     "resources/strings/strings.xml": "d97d855b9019053aae6ee5ea2e0afcf0",
     "source/FeatureFontFallbackApp.mc": "16e57bdb34c51ca037392721b2bc4185",
     "source/Palette.mc": "ff595998526f2144ee94641cb1852bae",
-    "source-fenix947mm/Layout.mc": "eaa587734402c30e9eca4f824208b360",
+    "source-fenix947mm/Layout.mc": "6ed3712ffaba3b9156fcf5eba42b2eff",
     "source-fr955/Layout.mc": "a2916ab39bac30c09808d1bd63592951",
     "source/FeatureFontFallbackView.mc": "eaf061be97f6fde2c90dda8206fc66e1",
     "resources-fenix947mm/fonts/fonts.xml": "4f0d122a18caa2002373b10d8fe04dbb",
@@ -1246,17 +1246,17 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "c477856699d80caf30e31b6736bdd40b",
+    "fenix8solar47mm": "3ad923f982aed515284cd4b5f746ed8a",
     "fr955": "9ea5b8e67f1feda1ec0ed004fbde80af",
     "fr255": "b058e08bf9acc1bed6d706b9e440956a"
    },
    "asleep": {
-    "fenix8solar47mm": "c477856699d80caf30e31b6736bdd40b",
+    "fenix8solar47mm": "3ad923f982aed515284cd4b5f746ed8a",
     "fr955": "9ea5b8e67f1feda1ec0ed004fbde80af",
     "fr255": "b058e08bf9acc1bed6d706b9e440956a"
    },
    "time": {
-    "fenix8solar47mm": "731ed062d40f7a46c0bcbc80d54a9032",
+    "fenix8solar47mm": "2d575b47f2951c025e67cfcad8943c7a",
     "fr955": "d2529168842283e71e721e0fbe3ddd53",
     "fr255": "1cec3a7b8a0ed663264b9793116d8a1c"
    },
@@ -1372,8 +1372,8 @@
     "resources/strings/strings.xml": "2891c0ee7750395f91f7912c9b410cde",
     "source/FeatureGraphApp.mc": "060694d36e47411885f365c487f0c6c3",
     "source/Palette.mc": "c30ce226dddb0dc4e4f7b03f4482979e",
-    "source-fenix8solar47mm/Layout.mc": "74691a41de8dd9923de61a6491a3ef35",
-    "source-fenix8solar51mm/Layout.mc": "0113c9d738fbadaf241d0d560f83a9d8",
+    "source-fenix8solar47mm/Layout.mc": "683133377e2b6e106337b5d609a1da75",
+    "source-fenix8solar51mm/Layout.mc": "b313e7b1ced7a1f3449fac331b6abf50",
     "source-fr955/Layout.mc": "8b0a0d9288926344a10db46354714391",
     "source/FeatureGraphView.mc": "9d6d7216e340ee343e8c3b4b20ce2054",
     "runtime-lib/WfbSeries.mc": "77c61458f4e829ae0fc88e3ac628aa44",
@@ -1390,8 +1390,8 @@
     "resources/strings/strings.xml": "2891c0ee7750395f91f7912c9b410cde",
     "source/FeatureGraphApp.mc": "060694d36e47411885f365c487f0c6c3",
     "source/Palette.mc": "c30ce226dddb0dc4e4f7b03f4482979e",
-    "source-fenix847mm/Layout.mc": "6a395d72d5e2a0b82af8e4ebe80c5496",
-    "source-fenix8solar47mm/Layout.mc": "74691a41de8dd9923de61a6491a3ef35",
+    "source-fenix847mm/Layout.mc": "0b5d17f1e463447f9b5694f00342bebe",
+    "source-fenix8solar47mm/Layout.mc": "683133377e2b6e106337b5d609a1da75",
     "source-fr245/Layout.mc": "6bfb2e9e480a36b6544150ac4edc5ca0",
     "source-fenix6/Layout.mc": "00c9ef151b1d8807ddf2fe131fe59360",
     "source/FeatureGraphView.mc": "9cf547137773929f5fa8b9bcf7f848ff",
@@ -1411,7 +1411,7 @@
     "resources/strings/strings.xml": "2891c0ee7750395f91f7912c9b410cde",
     "source/FeatureGraphApp.mc": "060694d36e47411885f365c487f0c6c3",
     "source/Palette.mc": "c30ce226dddb0dc4e4f7b03f4482979e",
-    "source-fenix947mm/Layout.mc": "414d40499d8ab3eb7377e2a0cec9a12e",
+    "source-fenix947mm/Layout.mc": "87e829b5a5fd1bd79837f18c048c33b2",
     "source-fr955/Layout.mc": "8b0a0d9288926344a10db46354714391",
     "source/FeatureGraphView.mc": "9cf547137773929f5fa8b9bcf7f848ff",
     "runtime-lib/WfbSeries.mc": "77c61458f4e829ae0fc88e3ac628aa44",
@@ -1423,18 +1423,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "25e8c0014e8f783aae33e20769495af3",
-    "fenix8solar51mm": "63e5ca5ac20d6c2d73aff1047e676bcc",
+    "fenix8solar47mm": "ce31771fb0da0a6bb3eb64ed5d51a527",
+    "fenix8solar51mm": "1077167054df3a0023663ffd1b6d6c35",
     "fr955": "78e7bbc91cdd5ee01ba452950c100870"
    },
    "asleep": {
-    "fenix8solar47mm": "25e8c0014e8f783aae33e20769495af3",
-    "fenix8solar51mm": "63e5ca5ac20d6c2d73aff1047e676bcc",
+    "fenix8solar47mm": "ce31771fb0da0a6bb3eb64ed5d51a527",
+    "fenix8solar51mm": "1077167054df3a0023663ffd1b6d6c35",
     "fr955": "78e7bbc91cdd5ee01ba452950c100870"
    },
    "time": {
-    "fenix8solar47mm": "e3347991ca284f3a8af31ed4d23f3fea",
-    "fenix8solar51mm": "224b205af2644da962e02cd633e1606e",
+    "fenix8solar47mm": "890e8c833e00d8861a837f0f8bcf8cc5",
+    "fenix8solar51mm": "6abbeb56c2bbc49124dbf32953c0ff78",
     "fr955": "2dd7696ffba856df5cdd040a49911c9e"
    },
    "all-styles": {
@@ -1459,8 +1459,8 @@
     "resources/strings/strings.xml": "bed3cffb5bd553b22aa9baf5e80af07c",
     "source/FeatureGridApp.mc": "66085c1b0dc919898b58015c0510dc46",
     "source/Palette.mc": "d91d8782b75b4f87b9fd398f5e2c988b",
-    "source-fenix8solar47mm/Layout.mc": "9346134db53ad19d73ff6f3fa89dd686",
-    "source-fenix8solar51mm/Layout.mc": "3f845dcd65a9552eec84029567d99eed",
+    "source-fenix8solar47mm/Layout.mc": "0b248bd49a1e5d6d4941b3533d155530",
+    "source-fenix8solar51mm/Layout.mc": "9665df49d187f0ef086e4e03ee3fc900",
     "source-fr955/Layout.mc": "127465e1d38bd4c2c2b161a6a8a072cc",
     "source/FeatureGridView.mc": "374b2b93d1276b915e25b375f382fa10",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
@@ -1478,8 +1478,8 @@
     "resources/strings/strings.xml": "bed3cffb5bd553b22aa9baf5e80af07c",
     "source/FeatureGridApp.mc": "66085c1b0dc919898b58015c0510dc46",
     "source/Palette.mc": "d91d8782b75b4f87b9fd398f5e2c988b",
-    "source-fenix847mm/Layout.mc": "7c80f5225c5eb2d2cef3acd3eb36d4d6",
-    "source-fenix8solar47mm/Layout.mc": "9346134db53ad19d73ff6f3fa89dd686",
+    "source-fenix847mm/Layout.mc": "e51a5a6693e4b466517d093ff15cec9a",
+    "source-fenix8solar47mm/Layout.mc": "0b248bd49a1e5d6d4941b3533d155530",
     "source-fr245/Layout.mc": "c2b9ceb0f4f7ea857663ae8195ee98ab",
     "source-fenix6/Layout.mc": "18fdd70e97767c467c944843550e504b",
     "source/FeatureGridView.mc": "c628441fe434bc2a5ff648241fa80b6e",
@@ -1500,7 +1500,7 @@
     "resources/strings/strings.xml": "bed3cffb5bd553b22aa9baf5e80af07c",
     "source/FeatureGridApp.mc": "66085c1b0dc919898b58015c0510dc46",
     "source/Palette.mc": "d91d8782b75b4f87b9fd398f5e2c988b",
-    "source-fenix947mm/Layout.mc": "1ad857dae230e5ffc0806e9270a0c8cd",
+    "source-fenix947mm/Layout.mc": "622b8d96a0c4b3bd93e1324db99fe1e8",
     "source-fr955/Layout.mc": "127465e1d38bd4c2c2b161a6a8a072cc",
     "source/FeatureGridView.mc": "35fbf6c30f8e5fd74ca25a826f46c832",
     "runtime-lib/WfbGeom.mc": "715ee498cc9a5a42af2d315324b2e6e5",
@@ -1513,18 +1513,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "ecf33a9210f0a0f68665917971ddc5b9",
-    "fenix8solar51mm": "df6edef2e61e833e9fbd520f63f26b29",
+    "fenix8solar47mm": "6c78c7267e94782298950925aa6506fd",
+    "fenix8solar51mm": "64b593add1ad127eb0ffeb1e0cc84332",
     "fr955": "9772d58c1dca8708fbe72c834ec3cd2b"
    },
    "asleep": {
-    "fenix8solar47mm": "ecf33a9210f0a0f68665917971ddc5b9",
-    "fenix8solar51mm": "df6edef2e61e833e9fbd520f63f26b29",
+    "fenix8solar47mm": "6c78c7267e94782298950925aa6506fd",
+    "fenix8solar51mm": "64b593add1ad127eb0ffeb1e0cc84332",
     "fr955": "9772d58c1dca8708fbe72c834ec3cd2b"
    },
    "time": {
-    "fenix8solar47mm": "8d063d1bf48bc2143cf45e691b5bf603",
-    "fenix8solar51mm": "60f0aa84aa1c262f29b0ede709357c6a",
+    "fenix8solar47mm": "3734581faf63c56ae0358a2b13955956",
+    "fenix8solar51mm": "3045074b799ac60986335dbd00d37314",
     "fr955": "4d0b93d4386fb801c03e69797348c4c6"
    },
    "all-styles": {
@@ -1770,8 +1770,8 @@
     "resources/strings/strings.xml": "a6c3603e36a46e81ebf717ff6628613d",
     "source/FeaturePatternsApp.mc": "ddcbb4dbef8d88dbda6daf4e9fbb45a3",
     "source/Palette.mc": "5c5b2dfc6b4de3934c5f6676a07d44ce",
-    "source-fenix8solar47mm/Layout.mc": "889c4737d661935cacf3ba116ba33596",
-    "source-fenix8solar51mm/Layout.mc": "7ff57f5d64f570f2ad116ef2cf962b2c",
+    "source-fenix8solar47mm/Layout.mc": "61a15b7c698f90c207e0119886038de1",
+    "source-fenix8solar51mm/Layout.mc": "f075f66fcba7ad63aa22b947f943e4c3",
     "source-fr955/Layout.mc": "4fc42f9f49faf65d14f73ec87c67bd1a",
     "source/FeaturePatternsView.mc": "21a10509d1ca9e596565757f79417394",
     "runtime-lib/WfbArc.mc": "fbd814429bcbeb0bb6f2ad0fde6dd984",
@@ -1798,8 +1798,8 @@
     "resources/strings/strings.xml": "a6c3603e36a46e81ebf717ff6628613d",
     "source/FeaturePatternsApp.mc": "ddcbb4dbef8d88dbda6daf4e9fbb45a3",
     "source/Palette.mc": "5c5b2dfc6b4de3934c5f6676a07d44ce",
-    "source-fenix847mm/Layout.mc": "75e16babbf3259c657cef6fa3bb98768",
-    "source-fenix8solar47mm/Layout.mc": "889c4737d661935cacf3ba116ba33596",
+    "source-fenix847mm/Layout.mc": "d6c3a9ffca4bace169c03177d9d319d8",
+    "source-fenix8solar47mm/Layout.mc": "61a15b7c698f90c207e0119886038de1",
     "source-fr245/Layout.mc": "da03c95f1a99ce2949022fc31df5db37",
     "source-fenix6/Layout.mc": "2461a6f645fb3f15baf73547ef93c219",
     "source/FeaturePatternsView.mc": "96fb99bd41cbec711ba046884fc3691e",
@@ -1832,7 +1832,7 @@
     "resources/strings/strings.xml": "a6c3603e36a46e81ebf717ff6628613d",
     "source/FeaturePatternsApp.mc": "ddcbb4dbef8d88dbda6daf4e9fbb45a3",
     "source/Palette.mc": "5c5b2dfc6b4de3934c5f6676a07d44ce",
-    "source-fenix947mm/Layout.mc": "f36fbf4db644fff1ad4deece59eca3aa",
+    "source-fenix947mm/Layout.mc": "01a043aa54c861910f53e9447a570c03",
     "source-fr955/Layout.mc": "4fc42f9f49faf65d14f73ec87c67bd1a",
     "source/FeaturePatternsView.mc": "4483226b100700a68b191ccee51a6e5b",
     "runtime-lib/WfbArc.mc": "fbd814429bcbeb0bb6f2ad0fde6dd984",
@@ -1851,18 +1851,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "be047799553ba57e0f834748aeb1a77c",
-    "fenix8solar51mm": "bb39ceee3571eba634b410acb7311df6",
+    "fenix8solar47mm": "b2fa85c9ecf58356ef9ee2a79f4434fa",
+    "fenix8solar51mm": "a154332a84cd6b4b7d9dc9387a4cee97",
     "fr955": "ad25a392c4be4888940c33c4ddb2d86b"
    },
    "asleep": {
-    "fenix8solar47mm": "be047799553ba57e0f834748aeb1a77c",
-    "fenix8solar51mm": "bb39ceee3571eba634b410acb7311df6",
+    "fenix8solar47mm": "b2fa85c9ecf58356ef9ee2a79f4434fa",
+    "fenix8solar51mm": "a154332a84cd6b4b7d9dc9387a4cee97",
     "fr955": "ad25a392c4be4888940c33c4ddb2d86b"
    },
    "time": {
-    "fenix8solar47mm": "a918fa8c95c6b71df7343464beed5774",
-    "fenix8solar51mm": "9f2a7c665b085ff2e829a430e98ae4b2",
+    "fenix8solar47mm": "f4299c0a27aedb927957df86e18df629",
+    "fenix8solar51mm": "add2e1ffd95ef006b7ae26f13a00223b",
     "fr955": "c7d9ff5f905491b0d95d3c7b4f5739a8"
    },
    "all-styles": {
@@ -2539,8 +2539,8 @@
     "resources/strings/strings.xml": "1eaea4928042a5b5d6773e1e8391d085",
     "source/FeatureSlotGaugeApp.mc": "37705c12d726679873d81f0150c93a10",
     "source/Palette.mc": "dc83a0f5971d2a274ddad2b902b38bb0",
-    "source-fenix8solar47mm/Layout.mc": "b3c6f37a96764b1027cc0a8c2771c696",
-    "source-fenix8solar51mm/Layout.mc": "0b81bc9658d1c479f2f86d6bcfeee843",
+    "source-fenix8solar47mm/Layout.mc": "c04ffebffcd02aebf818eb78f1bb9324",
+    "source-fenix8solar51mm/Layout.mc": "4a6c5da3ad5f923b1a97aa1d28ff7c9a",
     "source-fr955/Layout.mc": "51694ad9ba50ff9d0b5d1fc54185844e",
     "source/IconGlyphs.mc": "2fc9c4ba2a72534191948d50bde6afd7",
     "source/FeatureSlotGaugeView.mc": "c0b8cb051211fc2d4cfdc3906462f451",
@@ -2587,8 +2587,8 @@
     "resources/strings/strings.xml": "4d1cea6d4350019f0da743aaea92d796",
     "source/FeatureSlotGaugeApp.mc": "37705c12d726679873d81f0150c93a10",
     "source/Palette.mc": "dc83a0f5971d2a274ddad2b902b38bb0",
-    "source-fenix847mm/Layout.mc": "652990e212b85190cfbdaa029f49de4d",
-    "source-fenix8solar47mm/Layout.mc": "b3c6f37a96764b1027cc0a8c2771c696",
+    "source-fenix847mm/Layout.mc": "1ff0fcb0215855da42697146bfb3aba0",
+    "source-fenix8solar47mm/Layout.mc": "c04ffebffcd02aebf818eb78f1bb9324",
     "source-fr245/Layout.mc": "9600329a47d789927faa7d2fdfd24ffb",
     "source-fenix6/Layout.mc": "75854624e81eb9a0902429642305c862",
     "source/IconGlyphs.mc": "2fc9c4ba2a72534191948d50bde6afd7",
@@ -2643,7 +2643,7 @@
     "resources/strings/strings.xml": "1eaea4928042a5b5d6773e1e8391d085",
     "source/FeatureSlotGaugeApp.mc": "37705c12d726679873d81f0150c93a10",
     "source/Palette.mc": "dc83a0f5971d2a274ddad2b902b38bb0",
-    "source-fenix947mm/Layout.mc": "f2e02b60c91c21b1d4c6602564cbc0bb",
+    "source-fenix947mm/Layout.mc": "16a833e5120057c209362bafd87292fb",
     "source-fr955/Layout.mc": "51694ad9ba50ff9d0b5d1fc54185844e",
     "source/IconGlyphs.mc": "2fc9c4ba2a72534191948d50bde6afd7",
     "source/FeatureSlotGaugeView.mc": "784805dbb0677a9690fcac66f625036a",
@@ -2679,18 +2679,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "96750e46ff5968334f4b04374092dd5c",
-    "fenix8solar51mm": "8b464ebd696207b9c31c2df43d27695f",
+    "fenix8solar47mm": "88dead505e89b120dc12513a24a264b7",
+    "fenix8solar51mm": "f09c6403502729818ac8b6d1e8f7ce92",
     "fr955": "d5da42311c714ae3827794800b91ad5c"
    },
    "asleep": {
-    "fenix8solar47mm": "96750e46ff5968334f4b04374092dd5c",
-    "fenix8solar51mm": "8b464ebd696207b9c31c2df43d27695f",
+    "fenix8solar47mm": "88dead505e89b120dc12513a24a264b7",
+    "fenix8solar51mm": "f09c6403502729818ac8b6d1e8f7ce92",
     "fr955": "d5da42311c714ae3827794800b91ad5c"
    },
    "time": {
-    "fenix8solar47mm": "d5fb878cc8a4543d90b0d5b0f63c567b",
-    "fenix8solar51mm": "c059e5316191c96a86463cace522306b",
+    "fenix8solar47mm": "030313fbf920c433e07c8623fe934263",
+    "fenix8solar51mm": "964278d1f52e1239bb1e7a631a25c03e",
     "fr955": "7ed2845fd7749e08a4d527c725111c98"
    },
    "all-styles": {
@@ -2715,8 +2715,8 @@
     "resources/strings/strings.xml": "1d5b3e54665e61dd70a6ead306c28bfc",
     "source/FeatureSlotGraphApp.mc": "1c053d097a4c3a711f3357904d81182f",
     "source/Palette.mc": "457f04bb568ead04a62872f8ef5d4b81",
-    "source-fenix8solar47mm/Layout.mc": "cd99b7cbbc8834eea8ed2b606174b95f",
-    "source-fenix8solar51mm/Layout.mc": "705be4ceec2148a4806807582b1fda52",
+    "source-fenix8solar47mm/Layout.mc": "663f27d2bf4ee9856f3ea999cdb90a9d",
+    "source-fenix8solar51mm/Layout.mc": "39eefbe2ebe36f5e3615f7c4a8d44778",
     "source-fr955/Layout.mc": "c4bb8fee8ff066742a21432fbd00fc12",
     "source/IconGlyphs.mc": "49fda802269c94515e735ca750f8f988",
     "source/FeatureSlotGraphView.mc": "1fca7523ac93f67923aab975abf3e43c",
@@ -2760,8 +2760,8 @@
     "resources/strings/strings.xml": "439577d12859091cf96cbb3b9e38caa2",
     "source/FeatureSlotGraphApp.mc": "1c053d097a4c3a711f3357904d81182f",
     "source/Palette.mc": "457f04bb568ead04a62872f8ef5d4b81",
-    "source-fenix847mm/Layout.mc": "20bda4bb1ac7e7bf0d2329f40d73f0ad",
-    "source-fenix8solar47mm/Layout.mc": "cd99b7cbbc8834eea8ed2b606174b95f",
+    "source-fenix847mm/Layout.mc": "806d6068a7df41875ce151a40f2996bf",
+    "source-fenix8solar47mm/Layout.mc": "663f27d2bf4ee9856f3ea999cdb90a9d",
     "source-fr245/Layout.mc": "4495bba0c78d6458238095b36704c54c",
     "source-fenix6/Layout.mc": "9a3b16ae5c53859fa55dd58b010afb38",
     "source/IconGlyphs.mc": "49fda802269c94515e735ca750f8f988",
@@ -2813,7 +2813,7 @@
     "resources/strings/strings.xml": "1d5b3e54665e61dd70a6ead306c28bfc",
     "source/FeatureSlotGraphApp.mc": "1c053d097a4c3a711f3357904d81182f",
     "source/Palette.mc": "457f04bb568ead04a62872f8ef5d4b81",
-    "source-fenix947mm/Layout.mc": "393e5d8364e06feb771c3fd3978b9889",
+    "source-fenix947mm/Layout.mc": "bdb054b621d875c415d815f7854b7e20",
     "source-fr955/Layout.mc": "c4bb8fee8ff066742a21432fbd00fc12",
     "source/IconGlyphs.mc": "49fda802269c94515e735ca750f8f988",
     "source/FeatureSlotGraphView.mc": "555d5ab2217c742f84e2fec659964942",
@@ -2846,18 +2846,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "abe6fc9bc99de267702319928cd65478",
-    "fenix8solar51mm": "929d0f61517bb3b44b15ef747247990a",
+    "fenix8solar47mm": "e6346de5229dacbe695761148781fe50",
+    "fenix8solar51mm": "f94658c188cff69a0e3374405c08e463",
     "fr955": "aeef1e0b454cfc4df799c46bacd24368"
    },
    "asleep": {
-    "fenix8solar47mm": "abe6fc9bc99de267702319928cd65478",
-    "fenix8solar51mm": "929d0f61517bb3b44b15ef747247990a",
+    "fenix8solar47mm": "e6346de5229dacbe695761148781fe50",
+    "fenix8solar51mm": "f94658c188cff69a0e3374405c08e463",
     "fr955": "aeef1e0b454cfc4df799c46bacd24368"
    },
    "time": {
-    "fenix8solar47mm": "6f91fb71972539f142a3b8b8e9e2120f",
-    "fenix8solar51mm": "6ce1ae96cd49db83162d997c6a34ee0d",
+    "fenix8solar47mm": "8c75a50a501872d1753b13fa2919cdbc",
+    "fenix8solar51mm": "37ed6e2b8e94f2b54588997b037fc5b5",
     "fr955": "0b576ec239947948f0e8e92b0a1f5d3b"
    },
    "all-styles": {
@@ -2882,8 +2882,8 @@
     "resources/strings/strings.xml": "e1457afaac06ecc9f59000c3d6a931a8",
     "source/FeatureSlotsApp.mc": "ea79f90d25cd0e56f90f94b44ee6dff1",
     "source/Palette.mc": "d3d5117237933044fc840e6d65786d6e",
-    "source-fenix8solar47mm/Layout.mc": "789507de83f37f163acd901b1588b624",
-    "source-fenix8solar51mm/Layout.mc": "da77e877e80541a586c5d181882876d0",
+    "source-fenix8solar47mm/Layout.mc": "4dad34f393300396d760c23b9f5fe224",
+    "source-fenix8solar51mm/Layout.mc": "c30c1cb62f287745a4b3c8cbd6cf6fa1",
     "source-fr955/Layout.mc": "0eee6d0a6cea639e2131c8afc800944e",
     "source/IconGlyphs.mc": "7d3ebc1f3dcd834132d2fa24e61a9849",
     "source/FeatureSlotsView.mc": "996b2b6f44603592e15a9094eb7522cf",
@@ -2926,10 +2926,10 @@
     "resources/strings/strings.xml": "4788b3b9a791c4cafe8c17c740ab1a1e",
     "source/FeatureSlotsApp.mc": "ea79f90d25cd0e56f90f94b44ee6dff1",
     "source/Palette.mc": "d3d5117237933044fc840e6d65786d6e",
-    "source-fenix847mm/Layout.mc": "64cb47b046753ca03648e2df5c32371c",
-    "source-fenix8solar47mm/Layout.mc": "789507de83f37f163acd901b1588b624",
+    "source-fenix847mm/Layout.mc": "83b577d06587a40f7d5ca3128d586829",
+    "source-fenix8solar47mm/Layout.mc": "4dad34f393300396d760c23b9f5fe224",
     "source-fr245/Layout.mc": "81dfa3c6aa7432ed950d08ea35147e94",
-    "source-fenix6/Layout.mc": "0dbbafbbe0f188bd717761274353ffd9",
+    "source-fenix6/Layout.mc": "f3bd1161fe8bed45cce3f32035d0c42d",
     "source/IconGlyphs.mc": "7d3ebc1f3dcd834132d2fa24e61a9849",
     "source/FeatureSlotsView.mc": "b09b2af8f69da27f7cda43dd8e19f4b6",
     "source/FeatureSlotsSlotDrawable.mc": "fd5a0d5af2fff82922ec6dbbbf612881",
@@ -2978,7 +2978,7 @@
     "resources/strings/strings.xml": "e1457afaac06ecc9f59000c3d6a931a8",
     "source/FeatureSlotsApp.mc": "ea79f90d25cd0e56f90f94b44ee6dff1",
     "source/Palette.mc": "d3d5117237933044fc840e6d65786d6e",
-    "source-fenix947mm/Layout.mc": "4d8219e335a4e9ee77cfe221b8ce5734",
+    "source-fenix947mm/Layout.mc": "a813a1e4e98f12bb6d9578ec271877b4",
     "source-fr955/Layout.mc": "0eee6d0a6cea639e2131c8afc800944e",
     "source/IconGlyphs.mc": "7d3ebc1f3dcd834132d2fa24e61a9849",
     "source/FeatureSlotsView.mc": "7717247411044b0cef248f82245e6007",
@@ -3010,18 +3010,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "8289529cda3d01dc6e8a99a96a16ab43",
-    "fenix8solar51mm": "b450c93464f0e24f0ea85302a95b799d",
+    "fenix8solar47mm": "55151a16b92088e0712b22559b4eaf56",
+    "fenix8solar51mm": "d1b6eab34e3c9782b875c221410ad1b6",
     "fr955": "2d0fcea94467e331ac687c568f0f2ac7"
    },
    "asleep": {
-    "fenix8solar47mm": "8289529cda3d01dc6e8a99a96a16ab43",
-    "fenix8solar51mm": "b450c93464f0e24f0ea85302a95b799d",
+    "fenix8solar47mm": "55151a16b92088e0712b22559b4eaf56",
+    "fenix8solar51mm": "d1b6eab34e3c9782b875c221410ad1b6",
     "fr955": "2d0fcea94467e331ac687c568f0f2ac7"
    },
    "time": {
-    "fenix8solar47mm": "289eb4c083076175bfc79f7f367f8dea",
-    "fenix8solar51mm": "63a4a68d4ef6d1f946d8e53b4f5ba9cc",
+    "fenix8solar47mm": "e06abf1d07b18b610b5d32726269e799",
+    "fenix8solar51mm": "4f56154dc14af6240e0546e31b97fe61",
     "fr955": "0753dfa633c5ed8420ed49b345980c40"
    },
    "all-styles": {
@@ -3046,8 +3046,8 @@
     "resources/strings/strings.xml": "b4591316501affd8de1c5b5f67b4b210",
     "source/FeatureStatusApp.mc": "4e4eab66fea8cd60856365764991fd42",
     "source/Palette.mc": "eaf099d0293fc959952d40ffeb26fbca",
-    "source-fenix8solar47mm/Layout.mc": "ef6ab58d878683f714519bd9a98287cf",
-    "source-fenix8solar51mm/Layout.mc": "280a6503d1910e9c90da9cbc5a1ae9e2",
+    "source-fenix8solar47mm/Layout.mc": "8fd12dec95503272e73ba13bbc4aaa25",
+    "source-fenix8solar51mm/Layout.mc": "590b2a2113d7c12a4d492267d9c2df3e",
     "source-fr955/Layout.mc": "2cbcdf42cba6e6460ba566f523388ecc",
     "source/IconGlyphs.mc": "18eb4aabb0062bf572deddb808db625a",
     "source/FeatureStatusView.mc": "1040d1f2de55d437733727963b63aa7e",
@@ -3110,8 +3110,8 @@
     "resources/strings/strings.xml": "b4591316501affd8de1c5b5f67b4b210",
     "source/FeatureStatusApp.mc": "4e4eab66fea8cd60856365764991fd42",
     "source/Palette.mc": "eaf099d0293fc959952d40ffeb26fbca",
-    "source-fenix847mm/Layout.mc": "bdb391c2a5b91e7f39ce078ea5a07cd0",
-    "source-fenix8solar47mm/Layout.mc": "ef6ab58d878683f714519bd9a98287cf",
+    "source-fenix847mm/Layout.mc": "965d1fa29fb17fac0a57b622095baacc",
+    "source-fenix8solar47mm/Layout.mc": "8fd12dec95503272e73ba13bbc4aaa25",
     "source-fr245/Layout.mc": "bc9fd8233c8cdc031aa88f0f8bf39cc6",
     "source-fenix6/Layout.mc": "f5351506557001e05e73c8d6a59a8977",
     "source/IconGlyphs.mc": "18eb4aabb0062bf572deddb808db625a",
@@ -3192,7 +3192,7 @@
     "resources/strings/strings.xml": "b4591316501affd8de1c5b5f67b4b210",
     "source/FeatureStatusApp.mc": "4e4eab66fea8cd60856365764991fd42",
     "source/Palette.mc": "eaf099d0293fc959952d40ffeb26fbca",
-    "source-fenix947mm/Layout.mc": "fb155d22f1d204cb8c70fe02f4ce20c1",
+    "source-fenix947mm/Layout.mc": "454c49ca8f6aceb15d3f5a284dcd21a8",
     "source-fr955/Layout.mc": "2cbcdf42cba6e6460ba566f523388ecc",
     "source/IconGlyphs.mc": "18eb4aabb0062bf572deddb808db625a",
     "source/FeatureStatusView.mc": "509d373ca7d616a9d6be37f51b535050",
@@ -3235,18 +3235,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "7489562a5cd9b246a63c2408dfb9ee41",
-    "fenix8solar51mm": "de1b3eca5ff410e95e189fccd2a72d00",
+    "fenix8solar47mm": "9119a3f0c5b81e46900a789aaf417b4f",
+    "fenix8solar51mm": "ca1d16b95408025146310a687c11d9b0",
     "fr955": "62cc7a9d0cae255344cc89313b7dc7c1"
    },
    "asleep": {
-    "fenix8solar47mm": "7489562a5cd9b246a63c2408dfb9ee41",
-    "fenix8solar51mm": "de1b3eca5ff410e95e189fccd2a72d00",
+    "fenix8solar47mm": "9119a3f0c5b81e46900a789aaf417b4f",
+    "fenix8solar51mm": "ca1d16b95408025146310a687c11d9b0",
     "fr955": "62cc7a9d0cae255344cc89313b7dc7c1"
    },
    "time": {
-    "fenix8solar47mm": "db1099175318072e869f77e204ef92a3",
-    "fenix8solar51mm": "fe9396970cd85e65231a6ebbf972f1cc",
+    "fenix8solar47mm": "a1693aa76b2ebdb4cfa6594f9925fe63",
+    "fenix8solar51mm": "9012e07d50b1a44dc1e10251f6ad84e2",
     "fr955": "1e0e33dc52e7dc75659edfe8c42e0cf3"
    },
    "all-styles": {
@@ -3271,8 +3271,8 @@
     "resources/strings/strings.xml": "ba2092d764211a1e44a43738ae7b57a3",
     "source/FeatureStylesApp.mc": "db86fe50b319b4295e06a37113978d79",
     "source/Palette.mc": "8fd1c7de89089409b91481ae097e37af",
-    "source-fenix8solar47mm/Layout.mc": "635170155fd2c8c50535f36590481414",
-    "source-fenix8solar51mm/Layout.mc": "e1271ceab608cc72e0dddee26b862141",
+    "source-fenix8solar47mm/Layout.mc": "e52b0aecc4475526ad76ff419c7dd072",
+    "source-fenix8solar51mm/Layout.mc": "bfd90bb8beb6c199ddc93e1d077de73b",
     "source-fr955/Layout.mc": "0c2909ee811bcea6a7aac48302175155",
     "source/FeatureStylesView.mc": "1a7f319750920668a004a8f69cb4a705",
     "source/FeatureStylesSlotDrawable.mc": "b65f1f2ceb8f51c7d36abb73968a5217",
@@ -3307,23 +3307,23 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "c23d7470cde7b77e9b97e47e2eaf0a48",
-    "fenix8solar51mm": "2574da63fc5a3403e5326dcf8f4b2458",
+    "fenix8solar47mm": "03203ea9661a8ebb3950c9c9ba09c482",
+    "fenix8solar51mm": "bffa9ba9763e19dc378a8fe618370aa3",
     "fr955": "a756420be3037d73119f8d38a673ef95"
    },
    "asleep": {
-    "fenix8solar47mm": "c23d7470cde7b77e9b97e47e2eaf0a48",
-    "fenix8solar51mm": "2574da63fc5a3403e5326dcf8f4b2458",
+    "fenix8solar47mm": "03203ea9661a8ebb3950c9c9ba09c482",
+    "fenix8solar51mm": "bffa9ba9763e19dc378a8fe618370aa3",
     "fr955": "a756420be3037d73119f8d38a673ef95"
    },
    "time": {
-    "fenix8solar47mm": "77cf9feda0115adce31a19c841d4a981",
-    "fenix8solar51mm": "0cf639c1fd523ef5bc22c0afeae26350",
+    "fenix8solar47mm": "88828d6812cc6f9303849c9a6281f4ac",
+    "fenix8solar51mm": "3d33c9bf57c147a9d5f0d33cce0e2c70",
     "fr955": "b3b97af0df6e6df7c7b381393900a4d0"
    },
    "all-styles": {
-    "fenix8solar47mm": "ff17a280fee7dca093df5e465937ac75",
-    "fenix8solar51mm": "09432fba6d968080c713240388cf6a32",
+    "fenix8solar47mm": "90113dd04a65bc5f19b2ef3cc7322fac",
+    "fenix8solar51mm": "d76792bdb4a00f5f6b5023afb334c38b",
     "fr955": "38eaa850b72ae4630c4d32769cd6a391"
    },
    "aod": {
@@ -3526,8 +3526,8 @@
     "resources/strings/strings.xml": "e4e731689e4b40c2842814e9a8aa8e74",
     "source/FeatureUnitsApp.mc": "3df56ac670f277e601914920abfcf38f",
     "source/Palette.mc": "9f423ea10b5e8b939956a08dfd766eb3",
-    "source-fenix8solar47mm/Layout.mc": "0910a0a909505af33cec0a96c24d092c",
-    "source-fenix8solar51mm/Layout.mc": "dceaf64fac62c8e239ef22bf10857c40",
+    "source-fenix8solar47mm/Layout.mc": "7fecec59a8033984d422cfbdf90604c1",
+    "source-fenix8solar51mm/Layout.mc": "1005702bf61f0109be1fca3421896283",
     "source-fr955/Layout.mc": "87534ceae71b4908007d2e025578bbc1",
     "source/FeatureUnitsView.mc": "e2f53e122e9f52c804063721abac7de3",
     "runtime-lib/WfbTime.mc": "da9743c5c4723c79755ca11d553d506b",
@@ -3544,8 +3544,8 @@
     "resources/strings/strings.xml": "e4e731689e4b40c2842814e9a8aa8e74",
     "source/FeatureUnitsApp.mc": "3df56ac670f277e601914920abfcf38f",
     "source/Palette.mc": "9f423ea10b5e8b939956a08dfd766eb3",
-    "source-fenix847mm/Layout.mc": "ec3e1ce9087f9667c1202f05233b0934",
-    "source-fenix8solar47mm/Layout.mc": "0910a0a909505af33cec0a96c24d092c",
+    "source-fenix847mm/Layout.mc": "644080199caf2bfc446ebbf35aeb7f91",
+    "source-fenix8solar47mm/Layout.mc": "7fecec59a8033984d422cfbdf90604c1",
     "source-fr245/Layout.mc": "2ee80f442ea7792702324ae876ee89d2",
     "source-fenix6/Layout.mc": "54fa5396e07bffca8c95ac11219cf6f4",
     "source/FeatureUnitsView.mc": "8d3272244ab9bfe7907904fd4e6a27c9",
@@ -3565,7 +3565,7 @@
     "resources/strings/strings.xml": "e4e731689e4b40c2842814e9a8aa8e74",
     "source/FeatureUnitsApp.mc": "3df56ac670f277e601914920abfcf38f",
     "source/Palette.mc": "9f423ea10b5e8b939956a08dfd766eb3",
-    "source-fenix947mm/Layout.mc": "c9850da9518df6736166122c9e9356aa",
+    "source-fenix947mm/Layout.mc": "14f163f3a16a04e01011062f27753b15",
     "source-fr955/Layout.mc": "87534ceae71b4908007d2e025578bbc1",
     "source/FeatureUnitsView.mc": "d976340bc82c47fe56b67b5ea38357b7",
     "runtime-lib/WfbTime.mc": "da9743c5c4723c79755ca11d553d506b",
@@ -3577,18 +3577,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "cc29dcfa6efee26cec44c720311c17e6",
-    "fenix8solar51mm": "5cbc40fe1ff57fe26c4e34ba5cfcd4f8",
+    "fenix8solar47mm": "522cb757cd0765e0e701096c1f2bcc48",
+    "fenix8solar51mm": "fc8c91ed1c8e282a1f92e8a29e27febe",
     "fr955": "1163fd073e53522adac5ed3336271f60"
    },
    "asleep": {
-    "fenix8solar47mm": "cc29dcfa6efee26cec44c720311c17e6",
-    "fenix8solar51mm": "5cbc40fe1ff57fe26c4e34ba5cfcd4f8",
+    "fenix8solar47mm": "522cb757cd0765e0e701096c1f2bcc48",
+    "fenix8solar51mm": "fc8c91ed1c8e282a1f92e8a29e27febe",
     "fr955": "1163fd073e53522adac5ed3336271f60"
    },
    "time": {
-    "fenix8solar47mm": "6d2fd94dfafae02b9ea6984a6bbcd117",
-    "fenix8solar51mm": "ac75b7e32a1737f66b068407df67ddb1",
+    "fenix8solar47mm": "1b74bda7e264dabaa679b4229ee1013d",
+    "fenix8solar51mm": "389c4dbc1d91fd879ffea23ff7cfe7cc",
     "fr955": "30952c3fbc6aaf570e8bf5d8e63b00e7"
    },
    "all-styles": {
@@ -3667,18 +3667,18 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "b5bbc7f42975e099f54e14114e78caf3",
-    "fenix8solar51mm": "913efbac80aeb43ed4708ac0c92293cc",
+    "fenix8solar47mm": "b5e92396528436c4b12cc5344a1e2be0",
+    "fenix8solar51mm": "5ce35981c86d1da0eb5ab703094706e9",
     "fr955": "6adb13cfdee26ee5601c7c4eb7bcb916"
    },
    "asleep": {
-    "fenix8solar47mm": "b5bbc7f42975e099f54e14114e78caf3",
-    "fenix8solar51mm": "913efbac80aeb43ed4708ac0c92293cc",
+    "fenix8solar47mm": "b5e92396528436c4b12cc5344a1e2be0",
+    "fenix8solar51mm": "5ce35981c86d1da0eb5ab703094706e9",
     "fr955": "6adb13cfdee26ee5601c7c4eb7bcb916"
    },
    "time": {
-    "fenix8solar47mm": "1752f9a11d885e8fb6527ba85e9bb0b9",
-    "fenix8solar51mm": "37b2a8cdc4e357fa3681bc799b0f6437",
+    "fenix8solar47mm": "7e8cd6f5e64dccf2f7e445e11eefdf0a",
+    "fenix8solar51mm": "fcae3949cd44d4a2a2d10bb53943ac27",
     "fr955": "596a0a834973616e6094ee221a6e8cb7"
    },
    "all-styles": {
@@ -4034,8 +4034,8 @@
     "resources/strings/strings.xml": "8f9e38ccfcc0e348aa2a789506681cab",
     "source/SystemFontsNumbersApp.mc": "7984b952cc75e44bf40a15701fa8951f",
     "source/Palette.mc": "b677bed4082c271c6065065ee77d2bb0",
-    "source-fenix8solar47mm/Layout.mc": "7bb1ca296e717933d68e471e5499d600",
-    "source-fenix8solar51mm/Layout.mc": "7e8f4b5f6088e764f97aa7a7d1d95491",
+    "source-fenix8solar47mm/Layout.mc": "690af429195c450326bf0e4978ed4d45",
+    "source-fenix8solar51mm/Layout.mc": "a1ee5cf86be82addc0ccdf9c8791b6ae",
     "source-fr955/Layout.mc": "60dafd9192e6eeb1697ef9cf96e035d4",
     "source-fr245/Layout.mc": "0944de99c4ec8d527491fb64d6b5a73e",
     "source-fenix6/Layout.mc": "9bf636f59b90c06dcd2e8ba2e431570f",
@@ -4057,8 +4057,8 @@
     "resources/strings/strings.xml": "8f9e38ccfcc0e348aa2a789506681cab",
     "source/SystemFontsNumbersApp.mc": "7984b952cc75e44bf40a15701fa8951f",
     "source/Palette.mc": "b677bed4082c271c6065065ee77d2bb0",
-    "source-fenix847mm/Layout.mc": "5cf883e32760edef1115b6a460686279",
-    "source-fenix8solar47mm/Layout.mc": "7bb1ca296e717933d68e471e5499d600",
+    "source-fenix847mm/Layout.mc": "e72a468a38eef626169c605bfdbe9334",
+    "source-fenix8solar47mm/Layout.mc": "690af429195c450326bf0e4978ed4d45",
     "source-fr245/Layout.mc": "0944de99c4ec8d527491fb64d6b5a73e",
     "source-fenix6/Layout.mc": "9bf636f59b90c06dcd2e8ba2e431570f",
     "source/SystemFontsNumbersView.mc": "b2b619f908884ea12784f69ba5cbfd0e",
@@ -4077,7 +4077,7 @@
     "resources/strings/strings.xml": "8f9e38ccfcc0e348aa2a789506681cab",
     "source/SystemFontsNumbersApp.mc": "7984b952cc75e44bf40a15701fa8951f",
     "source/Palette.mc": "b677bed4082c271c6065065ee77d2bb0",
-    "source-fenix947mm/Layout.mc": "7b6a8307e484ee36b3c0d12d24c32193",
+    "source-fenix947mm/Layout.mc": "2322cff1edb67cf0f582ba0736fd9d9c",
     "source-fr955/Layout.mc": "60dafd9192e6eeb1697ef9cf96e035d4",
     "source/SystemFontsNumbersView.mc": "b2b619f908884ea12784f69ba5cbfd0e",
     "resources-fenix947mm/drawables/drawables.xml": "7e21448ff35a5496f76ef0ed5dff38a1",
@@ -4088,22 +4088,22 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "609abecdda3c4e482e38d3f6c604f9be",
-    "fenix8solar51mm": "26ef79098e649c554dfb4bd6d64a991b",
+    "fenix8solar47mm": "3890b738e378bdb60696a85352f0a065",
+    "fenix8solar51mm": "08b8502acffd71c6497e76f1edc5a296",
     "fr955": "8bcd5629d80f02c5b5f75528d399d4f9",
     "fr245": "2b79bf519fb41b0dca14f474d759b6ca",
     "fenix6": "049b034250d1204e5516acdbf346f3dc"
    },
    "asleep": {
-    "fenix8solar47mm": "609abecdda3c4e482e38d3f6c604f9be",
-    "fenix8solar51mm": "26ef79098e649c554dfb4bd6d64a991b",
+    "fenix8solar47mm": "3890b738e378bdb60696a85352f0a065",
+    "fenix8solar51mm": "08b8502acffd71c6497e76f1edc5a296",
     "fr955": "8bcd5629d80f02c5b5f75528d399d4f9",
     "fr245": "2b79bf519fb41b0dca14f474d759b6ca",
     "fenix6": "049b034250d1204e5516acdbf346f3dc"
    },
    "time": {
-    "fenix8solar47mm": "609abecdda3c4e482e38d3f6c604f9be",
-    "fenix8solar51mm": "26ef79098e649c554dfb4bd6d64a991b",
+    "fenix8solar47mm": "3890b738e378bdb60696a85352f0a065",
+    "fenix8solar51mm": "08b8502acffd71c6497e76f1edc5a296",
     "fr955": "8bcd5629d80f02c5b5f75528d399d4f9",
     "fr245": "2b79bf519fb41b0dca14f474d759b6ca",
     "fenix6": "049b034250d1204e5516acdbf346f3dc"
@@ -4132,11 +4132,11 @@
     "resources/strings/strings.xml": "73626b4f14f99d6a145dd0f99ad17191",
     "source/SystemFontsNumbersLargeApp.mc": "b4f65afbb33e095403fc649eedfd8dc6",
     "source/Palette.mc": "bd8aee6893ec426c9e27020316fc0a6f",
-    "source-fenix8solar47mm/Layout.mc": "feb3e2a1d941245a5ff67444bb80498b",
-    "source-fenix8solar51mm/Layout.mc": "16227028f0dd87c599d55e05ba46184a",
+    "source-fenix8solar47mm/Layout.mc": "7b99ec93becd7fd74a05c4e45b4c441b",
+    "source-fenix8solar51mm/Layout.mc": "f0a6934ecc6363f9ec1d60a6a721690d",
     "source-fr955/Layout.mc": "80c95233f7ad3dfe691c918bb7a8495d",
     "source-fr245/Layout.mc": "96955c429ea0d84cc5fe643c066c9db6",
-    "source-fenix6/Layout.mc": "c322c9d2dda9968c4432527e72277b20",
+    "source-fenix6/Layout.mc": "3052a475f525428f8bed5a4871e2ed5d",
     "source/SystemFontsNumbersLargeView.mc": "ed8048caad0eeda7202a7e07a2d004e9",
     "resources-fenix8solar47mm/drawables/drawables.xml": "9ef2b40fb8dd6db3f3d600f8519b02a3",
     "resources-fenix8solar47mm/drawables/launcher_icon.png": "187fb7987e536c86f742bb9f8feaa1dc",
@@ -4155,10 +4155,10 @@
     "resources/strings/strings.xml": "73626b4f14f99d6a145dd0f99ad17191",
     "source/SystemFontsNumbersLargeApp.mc": "b4f65afbb33e095403fc649eedfd8dc6",
     "source/Palette.mc": "bd8aee6893ec426c9e27020316fc0a6f",
-    "source-fenix847mm/Layout.mc": "34b4e35a99ae1e2937129c901610d3e2",
-    "source-fenix8solar47mm/Layout.mc": "feb3e2a1d941245a5ff67444bb80498b",
+    "source-fenix847mm/Layout.mc": "d734e1811dd5f576cc7a7a64940f4bae",
+    "source-fenix8solar47mm/Layout.mc": "7b99ec93becd7fd74a05c4e45b4c441b",
     "source-fr245/Layout.mc": "96955c429ea0d84cc5fe643c066c9db6",
-    "source-fenix6/Layout.mc": "c322c9d2dda9968c4432527e72277b20",
+    "source-fenix6/Layout.mc": "3052a475f525428f8bed5a4871e2ed5d",
     "source/SystemFontsNumbersLargeView.mc": "d6e7cc4ffbb514cbc7f169b4b84db4a8",
     "resources-fenix847mm/drawables/drawables.xml": "44512f137dba34fd16c7806a5f384d99",
     "resources-fenix847mm/drawables/launcher_icon.png": "65e53c0b3f9238fbcde0c852b24300f7",
@@ -4175,7 +4175,7 @@
     "resources/strings/strings.xml": "73626b4f14f99d6a145dd0f99ad17191",
     "source/SystemFontsNumbersLargeApp.mc": "b4f65afbb33e095403fc649eedfd8dc6",
     "source/Palette.mc": "bd8aee6893ec426c9e27020316fc0a6f",
-    "source-fenix947mm/Layout.mc": "33913ab64d3cf74a24a2da9787a08bff",
+    "source-fenix947mm/Layout.mc": "5e744612e836aab4049babb143fea347",
     "source-fr955/Layout.mc": "80c95233f7ad3dfe691c918bb7a8495d",
     "source/SystemFontsNumbersLargeView.mc": "d6e7cc4ffbb514cbc7f169b4b84db4a8",
     "resources-fenix947mm/drawables/drawables.xml": "7e21448ff35a5496f76ef0ed5dff38a1",
@@ -4186,25 +4186,25 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "38cd1f600f470e57605a402df8bcd32e",
-    "fenix8solar51mm": "731188d727dd5b8f4535190d7e46e29d",
+    "fenix8solar47mm": "296bcbf2570de50136d82fd2d0d4b79a",
+    "fenix8solar51mm": "d6ef46003dbe615970224e8576892ab8",
     "fr955": "62b0b6a8e268691704198f3e6a763480",
     "fr245": "75f71b6b5c34ff0a7e807a47a2f72f9a",
-    "fenix6": "9e7afcb743a0919bbd8381a583ccd33c"
+    "fenix6": "3b71a2a23bab37cf8012e3975bba5e37"
    },
    "asleep": {
-    "fenix8solar47mm": "38cd1f600f470e57605a402df8bcd32e",
-    "fenix8solar51mm": "731188d727dd5b8f4535190d7e46e29d",
+    "fenix8solar47mm": "296bcbf2570de50136d82fd2d0d4b79a",
+    "fenix8solar51mm": "d6ef46003dbe615970224e8576892ab8",
     "fr955": "62b0b6a8e268691704198f3e6a763480",
     "fr245": "75f71b6b5c34ff0a7e807a47a2f72f9a",
-    "fenix6": "9e7afcb743a0919bbd8381a583ccd33c"
+    "fenix6": "3b71a2a23bab37cf8012e3975bba5e37"
    },
    "time": {
-    "fenix8solar47mm": "38cd1f600f470e57605a402df8bcd32e",
-    "fenix8solar51mm": "731188d727dd5b8f4535190d7e46e29d",
+    "fenix8solar47mm": "296bcbf2570de50136d82fd2d0d4b79a",
+    "fenix8solar51mm": "d6ef46003dbe615970224e8576892ab8",
     "fr955": "62b0b6a8e268691704198f3e6a763480",
     "fr245": "75f71b6b5c34ff0a7e807a47a2f72f9a",
-    "fenix6": "9e7afcb743a0919bbd8381a583ccd33c"
+    "fenix6": "3b71a2a23bab37cf8012e3975bba5e37"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'System Fonts Numbers Large' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
@@ -5087,26 +5087,26 @@
   },
   "previews": {
    "default": {
-    "fenix8solar47mm": "06fd621decc64ffa162f3dcf22924efe",
-    "fenix847mm": "777f604fc9faaac3fc9c4d56d816a166"
+    "fenix8solar47mm": "e00754dfe48a20264ee1595e593f5df0",
+    "fenix847mm": "1c15c565f8ae0744049cac2d5bde9283"
    },
    "asleep": {
-    "fenix8solar47mm": "06fd621decc64ffa162f3dcf22924efe",
-    "fenix847mm": "777f604fc9faaac3fc9c4d56d816a166"
+    "fenix8solar47mm": "e00754dfe48a20264ee1595e593f5df0",
+    "fenix847mm": "1c15c565f8ae0744049cac2d5bde9283"
    },
    "time": {
-    "fenix8solar47mm": "06fd621decc64ffa162f3dcf22924efe",
-    "fenix847mm": "777f604fc9faaac3fc9c4d56d816a166"
+    "fenix8solar47mm": "e00754dfe48a20264ee1595e593f5df0",
+    "fenix847mm": "1c15c565f8ae0744049cac2d5bde9283"
    },
    "all-styles": {
     "fenix8solar47mm": "refused: 'Text Fallback' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out",
     "fenix847mm": "refused: 'Text Fallback' declares no 'config: style:' at all, so there is nothing for --all-styles to lay out"
    },
    "aod": {
-    "fenix847mm": "2b80b470c48890905d9a69e0132f1a5a"
+    "fenix847mm": "779c54b693b13a84f65ca3ffa40f9d59"
    },
    "aod-minute-7": {
-    "fenix847mm": "76c73dd01e6e8e743fafbe8b4940db18"
+    "fenix847mm": "4420a8a93cabd18d34f3a204b3fb9e15"
    }
   }
  },
