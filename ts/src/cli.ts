@@ -4,7 +4,7 @@
 //     wfb preview  design.yaml     # render to a PNG, with no simulator
 //     wfb build    design.yaml     # generate Monkey C and compile it
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { resolveAll, selectDevices } from "./build.ts";
 import * as catalog from "./catalog.ts";
@@ -83,8 +83,6 @@ function verdict(bag: Bag, stream: NodeJS.WriteStream, word: string, styles: str
 function grouped(n: number): string {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
-
-const basename = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
 
 /** `build`'s `built` lines, one per compiled device, the byte figures aligned. */
 export function formatBuilt(products: ReadonlyMap<string, string>, memory: ReadonlyMap<string, MemoryStats>, color: boolean): string[] {

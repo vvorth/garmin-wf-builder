@@ -35,11 +35,18 @@ $CIQ_SDK/bin/monkeydo out.prg fenix8solar47mm   # push to a RUNNING simulator
 
 **Driving the simulator (`ts/src/simulate.ts`).** On macOS the simulator is
 `bin/ConnectIQ.app`, and `bin/connectiq` is just `open -a` on it; on Linux it
-is the bare `bin/simulator` binary. Either way it listens on the first free
+is the bare `bin/simulator` binary; on Windows `bin/simulator.exe`. Either
+way it listens on the first free
 TCP port of 127.0.0.1:1234–1238, and that range is exactly what `monkeydo`
 probes (`ShellUtils.findSimulatorPort` in `bin/monkeybrains.jar`, read with
-`javap -c`), so a port that answers is the readiness check on both OSes; a
-process-name check is not. **`monkeydo` does not return once the app loads:**
+`javap -c`), so a port that answers is the readiness check on every OS; a
+process-name check is not. On Windows `wfb simulate` runs `monkeydo` as the
+JVM it launches (`java -classpath bin/monkeybrains.jar
+com.garmin.monkeybrains.monkeydodeux.MonkeyDoDeux -f <prg> -d <device> -s
+bin/shell.exe`, the last line of `bin/monkeydo.bat`): the Windows SDK's
+`bin/monkeydo` is a bash script with CRLF line ends, and `monkeydo.bat`
+through `cmd /c` failed with "The system cannot find the path specified" on
+a quoted path. It captures the window with `PrintWindow` from PowerShell. **`monkeydo` does not return once the app loads:**
 it stays attached, printing the app's `System.println` output, until the app
 terminates, the simulator closes, or an error (bad signature, launch failure,
 app crash) makes it exit non-zero (`MonkeyDoDeux.execute`). It prints nothing

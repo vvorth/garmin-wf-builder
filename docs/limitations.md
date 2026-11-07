@@ -1264,9 +1264,11 @@ element's geometry for it (`docs/guide/placement.md`).
 
 `wfb simulate` works where the Connect IQ simulator does. On macOS it does:
 `wfb simulate` opens the SDK's `ConnectIQ.app` itself, with no display
-setup, and runs the face there. In the Linux container this project is
+setup, and runs the face there. On Windows it does too: `wfb simulate`
+starts the SDK's `simulator.exe` and runs the face there (seen on Windows 11
+with SDK 9.3.0). In the Linux container this project is
 developed in, the simulator's app-load path is broken in this SDK build.
-Other systems, a Linux desktop or Windows, are untested. The simulator is a
+A Linux desktop is untested. The simulator is a
 GUI application, and on
 Linux it links against `libwebkit2gtk-4.0`, `libsoup-2.4` and
 `libjavascriptcoregtk-4.0`, which current distributions no longer ship.

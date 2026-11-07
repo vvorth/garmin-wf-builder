@@ -2,9 +2,15 @@
 //
 // The simulator is a GUI application. On macOS it is the SDK's
 // `ConnectIQ.app` bundle, started with `open`; on Linux it is the bare
-// `simulator` binary, which needs a display. This module starts it when it
-// is not already up, pushes a built `.prg` with `monkeydo`, and, where the
-// simulator cannot run, says so precisely, pointing at `wfb preview`.
+// `simulator` binary, which needs a display; on Windows it is
+// `simulator.exe`. This module starts it when it is not already up, pushes a
+// built `.prg` with `monkeydo`, and, where the simulator cannot run, says so
+// precisely, pointing at `wfb preview`.
+//
+// On Windows `monkeydo` is run as the JVM it launches (`monkeydoCommand`):
+// the SDK's `bin/monkeydo` there is a bash script with CRLF line ends, and
+// Node will not spawn its `monkeydo.bat` without a shell, whose quoting the
+// batch file's own `%1` handling then breaks.
 //
 // The simulator is found by its TCP port, not by process name: `monkeydo`
 // reaches it on the first of 127.0.0.1:1234-1238 that answers
@@ -21,11 +27,13 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, rmS
 import { createConnection } from "node:net";
 import { dirname, join } from "node:path";
 import type { Toolchain } from "./node_build.ts";
+import { javaBinary } from "./sdk.ts";
 
 /** The ports `monkeydo` tries, in order. */
 export const SIMULATOR_PORTS = [1234, 1235, 1236, 1237, 1238];
 
 const IS_MAC = process.platform === "darwin";
+const IS_WINDOWS = process.platform === "win32";
 
 export class SimulatorError extends Error {
   readonly hints: string[];
@@ -76,6 +84,7 @@ function macBundle(toolchain: Toolchain): string {
 export async function launch(toolchain: Toolchain, wait = 45.0): Promise<void> {
   if (await isRunning()) return;
   if (IS_MAC) launchMac(toolchain);
+  else if (IS_WINDOWS) launchWindows(toolchain);
   else launchLinux(toolchain);
   const deadline = performance.now() + wait * 1000;
   while (performance.now() < deadline) {
@@ -89,7 +98,38 @@ export async function launch(toolchain: Toolchain, wait = 45.0): Promise<void> {
       `  open -a "${macBundle(toolchain)}"`,
     ]);
   }
+  if (IS_WINDOWS) {
+    throw new SimulatorError(`the simulator did not start within ${Math.round(wait)} s`, [
+      "start it once by hand to see why:",
+      `  "${windowsSimulator(toolchain)}"`,
+    ]);
+  }
   throw new SimulatorError("the simulator did not start", missingLibraryHints(toolchain));
+}
+
+function windowsSimulator(toolchain: Toolchain): string {
+  return join(toolchain.install, "bin", "simulator.exe");
+}
+
+function launchWindows(toolchain: Toolchain): void {
+  const binary = windowsSimulator(toolchain);
+  if (!existsSync(binary)) {
+    throw new SimulatorError(`${binary} not found`, [
+      "the simulator comes with a full SDK from Garmin's SDK Manager,",
+      "not with a pruned one",
+    ]);
+  }
+  spawn(binary, [], { stdio: "ignore", detached: true }).unref();
+}
+
+/** `monkeydo`'s command line: the SDK's launcher, or on Windows the JVM it runs. */
+function monkeydoCommand(toolchain: Toolchain, prg: string, deviceId: string): string[] {
+  const bin = join(toolchain.install, "bin");
+  if (!IS_WINDOWS) return [join(bin, "monkeydo"), prg, deviceId];
+  return [
+    javaBinary(), "-classpath", join(bin, "monkeybrains.jar"), "com.garmin.monkeybrains.monkeydodeux.MonkeyDoDeux",
+    "-f", prg, "-d", deviceId, "-s", join(bin, "shell.exe"),
+  ];
 }
 
 function launchMac(toolchain: Toolchain): void {
@@ -150,6 +190,11 @@ export class Session {
   /** Disconnect `monkeydo` and the `shell` it drives. */
   stop(): void {
     if (this.exitCode === null && this.process.pid !== undefined) {
+      if (IS_WINDOWS) {
+        // No process groups: taskkill's /T ends the JVM and the shell.exe it started.
+        spawnSync("taskkill", ["/PID", String(this.process.pid), "/T", "/F"], { stdio: "ignore" });
+        return;
+      }
       try {
         process.kill(-this.process.pid, "SIGTERM");
       } catch {
@@ -167,7 +212,10 @@ export async function push(toolchain: Toolchain, prg: string, deviceId: string, 
   await launch(toolchain);
   const log = join(dirname(prg), "simulator.log");
   const sink = openSync(log, "w");
-  const child = spawn(join(toolchain.install, "bin", "monkeydo"), [prg, deviceId], { stdio: ["ignore", sink, sink], detached: true });
+  const [command, ...args] = monkeydoCommand(toolchain, prg, deviceId);
+  // Detached on POSIX so `stop` can signal its process group; on Windows
+  // that would give the JVM a console window of its own.
+  const child = spawn(command!, args, { stdio: ["ignore", sink, sink], detached: !IS_WINDOWS, windowsHide: true });
   closeSync(sink);
   const session = new Session(child, log);
   const deadline = performance.now() + settle * 1000;
@@ -201,6 +249,7 @@ function monkeydoHints(output: string): string[] {
 
 function crashHints(toolchain: Toolchain): string[] {
   if (IS_MAC) return ["the simulator's own crash report is in Console.app, under Crash Reports"];
+  if (IS_WINDOWS) return ["Windows' own record of the crash is in Event Viewer, under Windows Logs > Application"];
   return [
     "this is an environment problem, not a problem with the built face:",
     "it reproduces with an unmodified SDK sample .prg on Linux",
@@ -213,7 +262,46 @@ function crashHints(toolchain: Toolchain): string[] {
 export async function screenshot(path: string): Promise<[string, string | null]> {
   mkdirSync(dirname(path), { recursive: true });
   if (IS_MAC) return screenshotMac(path);
+  if (IS_WINDOWS) return [screenshotWindows(path), null];
   return [screenshotX11(path), null];
+}
+
+// Draws the simulator's main window into a bitmap with PrintWindow
+// (PW_RENDERFULLCONTENT, 2), so the capture is the window even when another
+// one covers it. DPI-aware, or GetWindowRect reports scaled bounds and the
+// capture is cropped. The path arrives in WFB_SHOT, never in the script text.
+const WINDOW_PS = `
+Add-Type -AssemblyName System.Drawing
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class WfbWin {
+  public struct RECT { public int Left, Top, Right, Bottom; }
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
+}
+'@
+[WfbWin]::SetProcessDPIAware() | Out-Null
+$p = Get-Process simulator -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+if ($null -eq $p) { exit 3 }
+$r = New-Object WfbWin+RECT
+[WfbWin]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null
+$bmp = New-Object System.Drawing.Bitmap ($r.Right - $r.Left), ($r.Bottom - $r.Top)
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$hdc = $g.GetHdc()
+[WfbWin]::PrintWindow($p.MainWindowHandle, $hdc, 2) | Out-Null
+$g.ReleaseHdc($hdc)
+$bmp.Save($env:WFB_SHOT, [System.Drawing.Imaging.ImageFormat]::Png)
+`;
+
+function screenshotWindows(path: string): string {
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", WINDOW_PS], {
+    env: { ...process.env, WFB_SHOT: path }, stdio: "ignore", windowsHide: true,
+  });
+  if (result.status === 3) throw new SimulatorError("the simulator window was not found");
+  if (result.status !== 0) throw new SimulatorError(`powershell failed (exit ${result.status})`);
+  return path;
 }
 
 function run(command: string, args: string[]): void {

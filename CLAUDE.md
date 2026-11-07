@@ -41,7 +41,7 @@ were measured on. **They are not the supported set.** A claim of the form
 "warning-free on all three targets" is evidence from those three, not a
 statement that nothing else is supported; when a feature's behaviour varies
 across the fleet, model it per device and say so. Personal sideload only.
-Hosts: macOS and Linux (containerised). Language: TypeScript on Node (ADR
+Hosts: macOS, Linux (containerised) and Windows. Language: TypeScript on Node (ADR
 0001, amended).
 
 **Research-then-build:** the user asked for readable reasoning, so
@@ -133,7 +133,8 @@ $CIQ_SDK/bin/monkeyc … --build-stats 0                     # memory: the figur
   runs it) **and crashes in this Linux container**: it segfaults the
   moment `monkeydo` pushes an app, inside the simulator's own binary, not
   from a missing library or display server. Do not spend a session
-  re-litigating the container. Other systems are untested. Use `wfb
+  re-litigating the container. It works on Windows too (`wfb simulate`,
+  `wfb.cmd`); a Linux desktop is untested. Use `wfb
   preview`, or ask the user to run the simulator on their host.
 - `Invalid device id specified` means the device files are missing **or**
   Java's `user.home` is wrong (it comes from passwd, not `$HOME`).
