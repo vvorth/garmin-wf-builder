@@ -122,7 +122,9 @@ or AOD-related has been observed on a watch or in the simulator.
   devices; a `face:` font's baked `fallback:` for upright text on the rest,
   from the author's file or, with `fallback: auto`, from the free-font
   registry's stand-in for the face (note `font-fallback`, naming the
-  stand-in, its match and licence; `examples/features/font-fallback/`); a radial run's spacing along its baseline circle (lints and
+  stand-in, its match and licence; `examples/features/font-fallback/`), its
+  digits baked tabular where the face's are (Bionic); `tabular_digits:` on any
+  baked font (the ten digits at one advance, the colon its own); a radial run's spacing along its baseline circle (lints and
   preview); a curved `data` reading's `icon:` in the text's own frame (any
   angled pair; a radial one at the run's fixed end, baked at one exact turn
   per device, or at the free end or beside a centred run, placed on the

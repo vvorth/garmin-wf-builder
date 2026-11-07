@@ -301,7 +301,8 @@ export function checkVectorFontAvailability(face: Face, resolved: ReadonlyMap<st
     const auto = spec.fallback.registry !== null ? standIn(spec.face ?? []) : null;
     const message = auto === null
       ? `font ${quoted(name)}: drawn from its baked 'fallback:' on ${baking.join(", ")} -- no usable face there`
-      : `font ${quoted(name)}: drawn from its 'fallback: auto' on ${baking.join(", ")} -- ${auto.key} (${auto.match}, ${auto.license}), no usable face there`;
+      : `font ${quoted(name)}: drawn from its 'fallback: auto' on ${baking.join(", ")} -- ${auto.key} (${auto.match}, ${auto.license}), no usable face there`
+        + (auto.tabular_digits && spec.fallback.tabular_digits ? ", digits tabular as the face's are" : "");
     bag.note("font-fallback", message,
       spec.fallback.span ?? spec.span, {
         notes: [

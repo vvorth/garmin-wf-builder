@@ -1,11 +1,11 @@
 // The font bake: deterministic output, FreeType's metrics, and the PNG round trip.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { REPO_ROOT } from "../src/devices/node.ts";
-import { bake, dilate, toFnt } from "../src/fonts/bake.ts";
+import { bake, dilate, glyphAdvance, tabularDigitCell, toFnt } from "../src/fonts/bake.ts";
 import { decodePng, encodePng } from "../src/png.ts";
 
 const OPEN_SANS = "ts/test/fixtures/slice/assets/OpenSans-Regular.ttf";
@@ -34,6 +34,45 @@ test("line metrics and advances are FreeType's: Open Sans at 33 px", () => {
 test("a monospaced bake gives every glyph one advance", () => {
   const font = bake(file(OPEN_SANS), { name: "a", size: 33, glyphs: "Fri 11:11Wed 00:00", monospace: true });
   assert.equal(font.measure("Fri 11:11")[0], font.measure("Wed 00:00")[0]);
+});
+
+// Rajdhani SemiBold's figures are proportional (`1` 327 units, `0` 528), so it can show what tabular
+// digits change; Open Sans's figures are already tabular and could not. A registry stand-in, so a
+// checkout without the registry's fonts installed skips these.
+const RAJDHANI = "ts/assets/system-fonts/rajdhani-semibold.ttf";
+const noRajdhani = existsSync(join(REPO_ROOT, RAJDHANI)) ? false : `${RAJDHANI} is not installed (node ts/tools/fetch-system-fonts.ts --registry)`;
+const TIMES = "Fri 11:11Wed 00:00";
+/** The clock part of `day hh:mm`: the whole run less the day word and its space. */
+const clock = (font: ReturnType<typeof bake>, day: string, time: string): number => font.measure(`${day} ${time}`)[0] - font.measure(`${day} `)[0];
+
+test("tabular digits give the ten digits the widest digit's advance, and nothing else changes", { skip: noRajdhani }, () => {
+  const plain = bake(file(RAJDHANI), { name: "a", size: 40, glyphs: TIMES });
+  const tabular = bake(file(RAJDHANI), { name: "a", size: 40, glyphs: TIMES, tabular_digits: true });
+  // Proportional without the option: `11:11` is narrower than `00:00`.
+  assert.notEqual(clock(plain, "Fri", "11:11"), clock(plain, "Wed", "00:00"));
+  assert.equal(clock(tabular, "Fri", "11:11"), clock(tabular, "Wed", "00:00"));
+  const cell = tabularDigitCell(file(RAJDHANI), 40);
+  assert.equal(cell, Math.max(...[..."0123456789"].map((d) => glyphAdvance(file(RAJDHANI), d, 40))));
+  for (const d of "10") assert.equal(tabular.glyphs.get(d)!.xadvance, cell);
+  // The colon, the letters and the space keep their own advances: this is not monospace.
+  for (const ch of "Fri :Wed") assert.equal(tabular.glyphs.get(ch)!.xadvance, plain.glyphs.get(ch)!.xadvance, ch);
+  assert.ok(tabular.glyphs.get(":")!.xadvance < cell);
+  assert.equal(tabular.monospace, false);
+});
+
+test("a tabular digit's ink is centred in the widened cell", { skip: noRajdhani }, () => {
+  const plain = bake(file(RAJDHANI), { name: "a", size: 40, glyphs: TIMES });
+  const tabular = bake(file(RAJDHANI), { name: "a", size: 40, glyphs: TIMES, tabular_digits: true });
+  const p = plain.glyphs.get("1")!, t = tabular.glyphs.get("1")!;
+  const widening = t.xadvance - p.xadvance;
+  // At 40 px the `1` widens from 13 to 21: an even widening, so the half is exact.
+  assert.deepEqual([p.xadvance, t.xadvance], [13, 21]);
+  // The tile is the same; only where it sits moves, by half the widening.
+  assert.deepEqual(tile(tabular, "1"), tile(plain, "1"));
+  assert.equal(t.xoffset, p.xoffset + widening / 2);
+  // The widest digit is not moved at all.
+  const zero = tabular.glyphs.get("0")!;
+  assert.deepEqual([zero.xoffset, zero.xadvance], [plain.glyphs.get("0")!.xoffset, plain.glyphs.get("0")!.xadvance]);
 });
 
 test("a ring font grows each glyph by its width and keeps the advances", () => {

@@ -346,11 +346,11 @@ on top of each other. Icons inherit this too: an icon element is a glyph from a
 baked bitmap font (`ts/src/icons.ts`), so a two-tone icon is not possible without
 splitting it into two overlaid glyphs, the same as two-colour text.
 
-### `monospace:` only reaches a font the compiler bakes
+### `monospace:` and `tabular_digits:` only reach a font the compiler bakes
 
 `fonts.<name>.monospace` (`docs/guide/fonts.md`) gives every glyph in a
-**custom** font one shared advance, which is what stops a digital clock
-shifting as its digits change. A **system** font — `FONT_MEDIUM`,
+**custom** font one shared advance, and `tabular_digits` the ten digits alone,
+which is what stops a digital clock shifting as its digits change. A **system** font — `FONT_MEDIUM`,
 `FONT_NUMBER_HOT` and the rest — is already rasterised on the device, so there
 is nothing to rebake and no way to offer the same guarantee. A clock in a
 system font jitters exactly as much as that font's own figures do. `wfb`

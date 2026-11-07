@@ -441,7 +441,7 @@ test("note[font-fallback] for auto names the stand-in, its match and its licence
   assert.deepEqual(notes.map((d) => d.message), ["font 'dial': drawn from its 'fallback: auto' on fr255 -- roboto-condensed-bold (exact, Apache-2.0), no usable face there"]);
   assert.match(notes[0]!.notes.join("\n"), /baked from the free-font registry's roboto-condensed-bold, its stand-in for 'RobotoCondensedBold', for that device only/);
   const bionic = checked(design(AUTO.replace("face: RobotoCondensedBold", "face: [BionicSemiBold, RobotoCondensedBold]"))).filter((d) => d.code === "font-fallback");
-  assert.deepEqual(bionic.map((d) => d.message), ["font 'dial': drawn from its 'fallback: auto' on fr255 -- rajdhani-semibold (family, OFL-1.1), no usable face there"]);
+  assert.deepEqual(bionic.map((d) => d.message), ["font 'dial': drawn from its 'fallback: auto' on fr255 -- rajdhani-semibold (family, OFL-1.1), no usable face there, digits tabular as the face's are"]);
   assert.doesNotMatch(bionic[0]!.notes.join("\n"), /not the face itself/);
   // a proprietary face's substitute says so
   const swiss = checked(design(AUTO.replace("face: RobotoCondensedBold", "face: [Swiss721Regular, RobotoCondensedBold]"))).filter((d) => d.code === "font-fallback");
@@ -482,4 +482,105 @@ test("a fallback sheet is as tall as the face: size: is the line height on both 
   const ratio = (brand255.box.height / fr255.device.minorRadius) / (brand8.box.height / fenix.device.minorRadius);
   assert.ok(ratio > 0.9 && ratio < 1.1, `height ratio sheet/face ${ratio.toFixed(3)}`);
   assert.equal(brand255.font.px, px, "the layout font's px is the line height, as the face's is");
+});
+
+// -- tabular_digits: the digits at one advance, everything else its own --------------
+// Rajdhani SemiBold, the registry's stand-in for Bionic, has proportional figures (`1` 327 units, `0` 528)
+// where Bionic's are tabular. Open Sans's and Roboto's figures are already tabular, so neither could show this.
+
+const RAJDHANI = "ts/assets/system-fonts/rajdhani-semibold.ttf";
+const CLOCKS = "Fri 11:11 Wed 00:00";
+/** `design()` with the upright text reading both clocks, so every glyph they need is on the sheet. */
+const clocks = (font: string): string => design(font, { curved: null }).replace('text: "BRAND"', `text: "${CLOCKS}"`);
+/** The clock part of `day hh:mm` in `sheet`: the run less the day word and its space. */
+const clock = (sheet: { measure(text: string): [number, number] }, day: string, time: string): number =>
+  sheet.measure(`${day} ${time}`)[0] - sheet.measure(`${day} `)[0];
+/** The 1-based line of the first line of `text` containing `needle`. */
+const lineOf = (text: string, needle: string): number => text.split("\n").findIndex((l) => l.includes(needle)) + 1;
+
+test("tabular_digits on a source: font: 11:11 and 00:00 measure alike, the colon and the words keep their advances", () => {
+  const plain = resolved(clocks(`      source: ${RAJDHANI}\n      size: 20%r\n`)).fonts.get("dial")!;
+  const tabular = resolved(clocks(`      source: ${RAJDHANI}\n      size: 20%r\n      tabular_digits: true\n`)).fonts.get("dial")!;
+  assert.notEqual(clock(plain, "Fri", "11:11"), clock(plain, "Wed", "00:00"));
+  assert.equal(clock(tabular, "Fri", "11:11"), clock(tabular, "Wed", "00:00"));
+  for (const ch of ":FriWed ") assert.equal(tabular.glyphs.get(ch)!.xadvance, plain.glyphs.get(ch)!.xadvance, ch);
+  assert.ok(tabular.glyphs.get(":")!.xadvance < tabular.glyphs.get("1")!.xadvance);
+  // The generated sheet is what changed: the `1`'s advance and offset in the .fnt.
+  assert.equal(tabular.glyphs.get("1")!.xadvance, tabular.glyphs.get("0")!.xadvance);
+  // an inline font takes it as a named entry does
+  const inline = clocks(`      source: ${RAJDHANI}\n      size: 20%r\n`)
+    .replace("    font: font.dial\n", `    font: { source: ${RAJDHANI}, size: 20%r, tabular_digits: true }\n`);
+  assert.equal(face(inline).fonts.get("brand_font")!.tabular_digits, true);
+  const sheet = resolved(inline).fonts.get("brand_font")!;
+  assert.equal(clock(sheet, "Fri", "11:11"), clock(sheet, "Wed", "00:00"));
+});
+
+test("fallback: auto on a Bionic face bakes tabular digits; tabular_digits: false keeps the stand-in's own", () => {
+  const auto = `      face: BionicSemiBold\n      size: 20%r\n      fallback: auto\n`;
+  const spec = face(clocks(auto)).fonts.get("dial")!.fallback!;
+  assert.deepEqual([spec.registry, spec.tabular_digits], ["rajdhani-semibold", true]);
+  const sheet = resolved(clocks(auto), "fr255").fonts.get("dial")!;
+  assert.equal(clock(sheet, "Fri", "11:11"), clock(sheet, "Wed", "00:00"));
+  const off = auto.replace("fallback: auto", "fallback: { source: auto, tabular_digits: false }");
+  assert.equal(face(clocks(off)).fonts.get("dial")!.fallback!.tabular_digits, false);
+  const proportional = resolved(clocks(off), "fr255").fonts.get("dial")!;
+  assert.notEqual(clock(proportional, "Fri", "11:11"), clock(proportional, "Wed", "00:00"));
+  assert.equal(sheet.glyphs.get(":")!.xadvance, proportional.glyphs.get(":")!.xadvance);
+  // `monospace: true` beside a defaulted `auto` is monospace alone, not an error.
+  const mono = face(clocks(auto.replace("fallback: auto", "fallback: { source: auto, monospace: true }"))).fonts.get("dial")!.fallback!;
+  assert.deepEqual([mono.monospace, mono.tabular_digits], [true, false]);
+});
+
+test("only auto takes a face's tabular digits: not a face without the flag, not a path to the same file", () => {
+  const roboto = face(clocks(`      face: RobotoCondensedBold\n      size: 20%r\n      fallback: auto\n`)).fonts.get("dial")!.fallback!;
+  assert.deepEqual([roboto.registry, roboto.tabular_digits], ["roboto-condensed-bold", false]);
+  const byPath = `      face: BionicSemiBold\n      size: 20%r\n      fallback: { source: ${RAJDHANI} }\n`;
+  assert.equal(face(clocks(byPath)).fonts.get("dial")!.fallback!.tabular_digits, false);
+  const sheet = resolved(clocks(byPath), "fr255").fonts.get("dial")!;
+  assert.notEqual(clock(sheet, "Fri", "11:11"), clock(sheet, "Wed", "00:00"));
+  // the author can still ask for them on a path
+  const asked = resolved(clocks(byPath.replace(" }", ", tabular_digits: true }")), "fr255").fonts.get("dial")!;
+  assert.equal(clock(asked, "Fri", "11:11"), clock(asked, "Wed", "00:00"));
+});
+
+test("tabular_digits beside monospace: true is an error at its own key, on a source: font and in a fallback", () => {
+  const baked = clocks(`      source: ${RAJDHANI}\n      size: 20%r\n      monospace: true\n      tabular_digits: true\n`);
+  const found = errors(baked);
+  assert.equal(found.length, 1, found.map((d) => d.message).join("\n"));
+  assert.equal(found[0]!.code, "font");
+  assert.equal(found[0]!.message, "font 'dial': 'tabular_digits' beside 'monospace: true' -- every glyph already shares one cell");
+  assert.equal(found[0]!.span!.line, lineOf(baked, "tabular_digits"));
+  assert.match(found[0]!.notes.join("\n"), /drop one/);
+  const fallback = clocks(`      face: BionicSemiBold\n      size: 20%r\n      fallback:\n        source: auto\n        monospace: true\n        tabular_digits: true\n`);
+  const inFallback = errors(fallback);
+  assert.deepEqual(inFallback.map((d) => d.message), ["font 'dial' 'fallback:': 'tabular_digits' beside 'monospace: true' -- every glyph already shares one cell"]);
+  assert.equal(inFallback[0]!.span!.line, lineOf(fallback, "tabular_digits"));
+  // false beside monospace says nothing
+  assert.equal(errors(baked.replace("tabular_digits: true", "tabular_digits: false")).length, 0);
+});
+
+test("tabular_digits on a face: entry is refused like the other baking keys", () => {
+  const text = clocks(`      face: BionicSemiBold\n      size: 20%r\n      tabular_digits: true\n      fallback: auto\n`);
+  const found = errors(text);
+  assert.deepEqual(found.map((d) => d.message), ["font 'dial': 'tabular_digits' is not accepted on a 'face:' font"]);
+  assert.equal(found[0]!.span!.line, lineOf(text, "tabular_digits"));
+});
+
+test("note[font-fallback] says an auto sheet's digits are tabular as the face's are, and only then", () => {
+  const notes = (font: string) => checked(clocks(font)).filter((d) => d.code === "font-fallback").map((d) => d.message);
+  assert.deepEqual(notes(`      face: BionicSemiBold\n      size: 20%r\n      fallback: auto\n`),
+    ["font 'dial': drawn from its 'fallback: auto' on fr255, fr955 -- rajdhani-semibold (family, OFL-1.1), no usable face there, digits tabular as the face's are"]);
+  assert.deepEqual(notes(`      face: BionicSemiBold\n      size: 20%r\n      fallback: { source: auto, tabular_digits: false }\n`),
+    ["font 'dial': drawn from its 'fallback: auto' on fr255, fr955 -- rajdhani-semibold (family, OFL-1.1), no usable face there"]);
+  assert.deepEqual(notes(`      face: RobotoCondensedBold\n      size: 20%r\n      fallback: { source: auto, tabular_digits: true }\n`),
+    ["font 'dial': drawn from its 'fallback: auto' on fr255 -- roboto-condensed-bold (exact, Apache-2.0), no usable face there"]);
+});
+
+test("a sheet baked with and without tabular digits is memoised apart", () => {
+  const memo = new WeakMap();
+  const text = `      source: ${RAJDHANI}\n      size: 20%r\n`;
+  const device = db.get("fenix8solar47mm");
+  const plain = bakeFonts(face(clocks(text)), device, read, memo).get("dial")!;
+  const tabular = bakeFonts(face(clocks(text + "      tabular_digits: true\n")), device, read, memo).get("dial")!;
+  assert.notEqual(plain.glyphs.get("1")!.xadvance, tabular.glyphs.get("1")!.xadvance);
 });

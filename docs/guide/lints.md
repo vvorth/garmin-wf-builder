@@ -197,7 +197,9 @@ a time: `font-unavailable` (above), the `font-fallback` note and the
 [`fallback:`](fonts.md#fallback--a-baked-stand-in-for-a-missing-face), the
 devices that draw it from the baked sheet instead of the face, and, for a
 `fallback: auto`, the free stand-in it bakes, how closely it matches the
-face (`exact`, `family` or `substitute`) and its licence:
+face (`exact`, `family` or `substitute`) and its licence, ending ", digits
+tabular as the face's are" where it bakes the face's tabular digits
+([`tabular_digits:`](fonts.md#tabular_digits-lines-the-digits-up-and-leaves-the-colon-narrow)):
 
 ```
 note[font-fallback]: font 'dial': drawn from its 'fallback: auto' on fr255 -- roboto-condensed-bold (exact, Apache-2.0), no usable face there

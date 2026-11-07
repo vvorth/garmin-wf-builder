@@ -139,6 +139,8 @@ export class FontSpec {
   antialias = false;
   monospace = false;
   align = "center";
+  /** The ten digits baked at one advance, the widest digit's, each centred in it; every other glyph keeps its own. */
+  tabular_digits = false;
   /** Degrees clockwise every glyph is baked turned: an icon font's `rotate:`. */
   rotate = 0;
   /** An icon font's size per glyph, px, overriding `size` (a slot's or the live weather's glyphs). */

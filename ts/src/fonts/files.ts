@@ -27,7 +27,7 @@ export interface FontFiles {
 
 interface Registry {
   sources: Record<string, { sha256: string; license?: string }>;
-  fonts: Record<string, { source: string; match: string }>;
+  fonts: Record<string, { source: string; match: string; tabular_digits?: boolean }>;
   names: Record<string, string>;
   patterns: { regex: string; key: string }[];
   faces: Record<string, string>;
@@ -53,6 +53,8 @@ export interface StandIn {
   match: string;
   /** The SPDX-style licence of the key's source, or `null` when the registry records none. */
   license: string | null;
+  /** The face's digits share one advance and the key's file's do not: an `auto` sheet bakes them tabular to match. */
+  tabular_digits: boolean;
 }
 
 /** The stand-in for the first of `faces`, in order, that the registry maps; `null` when it maps none. */
@@ -61,7 +63,7 @@ export function standIn(faces: readonly string[]): StandIn | null {
     const key = resolveRegistryKey(face);
     const font = key === null ? undefined : REGISTRY.fonts[key];
     if (key === null || font === undefined) continue;
-    return { face, key, match: font.match, license: REGISTRY.sources[font.source]?.license || null };
+    return { face, key, match: font.match, license: REGISTRY.sources[font.source]?.license || null, tabular_digits: font.tabular_digits === true };
   }
   return null;
 }

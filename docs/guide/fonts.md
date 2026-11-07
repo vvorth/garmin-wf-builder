@@ -23,9 +23,10 @@ device-resident scalable faces reachable with `face:` (below).
 | `fonts.<name>.antialias:` | `resources:` | `true`/`false` | `false`, or `defaults: {antialias:}` | [Everything else](#everything-else) |
 | `fonts.<name>.monospace:` | `resources:` | `true`/`false` | `false` | [`monospace:`](#monospace-stops-a-clock-from-jittering) |
 | `fonts.<name>.align:` | `resources:` | `left`/`center`/`right` | `center` | [`monospace:`](#monospace-stops-a-clock-from-jittering) (needs `monospace: true`) |
+| `fonts.<name>.tabular_digits:` | `resources:` | `true`/`false` | `false` (`auto`: the face's own) | [`tabular_digits:`](#tabular_digits-lines-the-digits-up-and-leaves-the-colon-narrow) (not beside `monospace: true`) |
 | `fonts.<name>.face:` | `resources:` | a face name, or a list tried in order | — | [Vector (`face:`) fonts](#vector-face-fonts-device-resident-scalable-and-turnable) |
 | `fonts.<name>.unsupported:` | `resources:`, or a `text` element | `error`/`hide` | `error` | [`unsupported:`](#unsupported--and-what-error-actually-promises) |
-| `fonts.<name>.fallback:` | a `face:` entry | `auto`, or `{source:, size:, glyphs:, antialias:, monospace:, align:}` (`source:` a path or `auto`) | none | [`fallback:`](#fallback--a-baked-stand-in-for-a-missing-face) (`size:` defaults to the entry's) |
+| `fonts.<name>.fallback:` | a `face:` entry | `auto`, or `{source:, size:, glyphs:, antialias:, monospace:, align:, tabular_digits:}` (`source:` a path or `auto`) | none | [`fallback:`](#fallback--a-baked-stand-in-for-a-missing-face) (`size:` defaults to the entry's) |
 
 ## Example
 
@@ -81,6 +82,7 @@ resources:
       antialias: false
       monospace: false                      # one cell width for every glyph
       align: center                         # where the ink sits in that cell
+      tabular_digits: false                 # or one cell width for the digits alone
 ```
 
 The compiler rasterises the TrueType source into a BMFont sheet at build time,
@@ -192,6 +194,39 @@ column it sat in a second ago.
 Vertical placement is deliberately not part of this: baseline and line height
 are the font's own metrics, and a `text` element already has `align:`.
 
+### `tabular_digits:` lines the digits up and leaves the colon narrow
+
+```yaml
+resources:
+  fonts:
+    clock:
+      source: assets/Rajdhani-SemiBold.ttf
+      size: 22%r
+      tabular_digits: true
+```
+
+`tabular_digits: true` bakes **the ten digits `0`–`9` at one advance**, the
+widest digit's, each digit's ink centred in it; every other glyph, the colon,
+the space and the letters among them, keeps its own advance. It is what a
+font with tabular figures has built in, and what a clock wants: in a face
+whose figures are proportional, such as Rajdhani (its `1` is little more than
+half as wide as its `0`), `11:11` is a quarter narrower than `00:00`, so a
+centred clock moves as the minutes change. `monospace: true` stops that too,
+but pads the colon out to a digit's width as well; tabular digits keep the
+clock's own shape.
+
+* The cell is measured from the font's own advances for `0`–`9` at the size
+  being baked, whichever digits the sheet holds, so a sheet with only some of
+  them still gives them the width the others would have.
+* **Beside `monospace: true` it is a build error**: every glyph already shares
+  one cell, the digits among them.
+* A face whose figures are already tabular (Open Sans, Roboto) gains nothing.
+* **`fallback: auto` turns it on for a face that has tabular digits** and a
+  stand-in that does not: Garmin's Bionic faces are Rajdhani with the digits
+  redrawn to one width, so their stand-in's sheet is baked with
+  `tabular_digits: true` and draws a clock as the face does (see
+  [`fallback:`](#fallback--a-baked-stand-in-for-a-missing-face)).
+
 ### Everything else
 
 * **Omit `glyphs` and the compiler derives the set** from every format spec and
@@ -253,9 +288,9 @@ than reading as an unknown key.
   device. Unlike a baked font, nothing is rasterised at this size at build
   time: `Graphics.getVectorFont` takes it directly, in pixels, so one face
   serves any number of sizes with no extra sheets.
-* **`glyphs:`, `monospace:`, `align:` and `antialias:` are all build errors
-  on a `face:` entry**, each naming why: every one of the four is a property
-  of baking a bitmap sheet, and a vector font has no sheet.
+* **`glyphs:`, `monospace:`, `align:`, `tabular_digits:` and `antialias:` are
+  all build errors on a `face:` entry**, each naming why: every one of the
+  five is a property of baking a bitmap sheet, and a vector font has no sheet.
 * **Reach is narrow and cannot be extended.** Only Garmin's own fixed
   catalogue of on-device faces is reachable this way — about 14 Latin ones —
   and only **44 of the 136** watch-face-capable devices in the reference
@@ -300,8 +335,8 @@ resources:
 *`examples/features/font-fallback/face.yaml`: `fenix8solar47mm` draws the
 face, the curved rim text included; `fr255` has no `Graphics.getVectorFont`,
 so it draws the upright text from the baked sheet and leaves the curve out,
-and draws `STAND-IN`, in a second font with `fallback: auto`, from the
-registry's Roboto Condensed Bold, the face the other two draw.*
+and draws the clock, in a second Bionic font with `fallback: auto`, from the
+registry's Rajdhani SemiBold, its digits baked tabular as Bionic's are.*
 
 * **Each device takes one of three paths, decided at build time.** A device
   with `Graphics.getVectorFont` that publishes a listed face draws the face,
@@ -330,7 +365,14 @@ registry's Roboto Condensed Bold, the face the other two draw.*
   registry does not know (`KosugiRegular`, today) is a build error at the
   `fallback:` key: write `fallback: {source: <your own file>}` instead.
   `fallback: auto` is short for `fallback: {source: auto}`, and the mapping
-  takes the keys below beside it. In `wfb studio`, the server sends the
+  takes the keys below beside it.
+* **`auto` keeps the face's digits tabular.** Where the face's digits share
+  one advance and the stand-in's do not (Bionic, stood in for by Rajdhani),
+  the sheet is baked with `tabular_digits: true`, so `11:11` is as wide as
+  `00:00` there as on the face, and the note adds "digits tabular as the
+  face's are". `fallback: {source: auto, tabular_digits: false}` keeps the
+  stand-in's own proportional digits, and `monospace: true` replaces them
+  with its one cell. A path fallback takes only what you write. In `wfb studio`, the server sends the
   stand-in's file, and a downloaded bundle holds no file for it.
 * **Its keys are a baked font's**: `source:` (required: a path, or `auto`), `size:` (a
   `Length`, `px` or `%r`; omit it to bake at the entry's own `size:`; it is a
@@ -338,8 +380,8 @@ registry's Roboto Condensed Bold, the face the other two draw.*
   draws the face at -- so the sheet is baked at the em that gives that line
   height from the file's own ascent and descent, and the stand-in's text
   stands as tall as the face would, where a `source:` font's `size:` is its em),
-  `glyphs:`, `antialias:`, `monospace:` and `align:` (which needs
-  `monospace: true`), each meaning what it means on a `source:` entry, and a
+  `glyphs:`, `antialias:`, `monospace:`, `align:` (which needs
+  `monospace: true`) and `tabular_digits:`, each meaning what it means on a `source:` entry, and a
   missing file is the same error, at the fallback's own line. `face:`,
   `unsupported:` and `fallback:` are not accepted inside it, and `fallback:`
   on a `source:` entry is a build error: a baked font is never missing, so it

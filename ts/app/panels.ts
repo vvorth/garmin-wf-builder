@@ -524,9 +524,9 @@ const FONT_ROW_KEYS = new Set(["source", "size"]);
 
 // Every other key of one `resources: fonts:` entry, as the generic form over
 // the worker's field tree for it: a baked font's `glyphs`, `antialias`,
-// `monospace` and `align`, a vector font's `face` (one name, or a list of
-// them tried in order, the faces the face's watches publish suggested) and
-// `unsupported`. Asked again whenever the face changes.
+// `monospace`, `align` and `tabular_digits`, a vector font's `face` (one
+// name, or a list of them tried in order, the faces the face's watches
+// publish suggested) and `unsupported`. Asked again whenever the face changes.
 function FontOptions({ name, doc, ctx, onInspect, onEdit, onBatch }: FontOptionsProps): VNode {
   const [ins, setIns] = useState<Inspect | null>(null);
   const path: Path = ["resources", "fonts", name];
@@ -706,7 +706,7 @@ export function FacePanel({ doc, vocab, onEdit, onUpload, onSelect, onReveal, on
           onCommit=${(v: string | number) => onEdit({ op: "set", path: ["resources", "fonts", f.name, "size"], value: v })} />` : null}
         ${f.source ? html`<button title="replace the font file" onClick=${() => { replaceFor.current = f.source; replaceFile.current?.click(); }}>Replace…</button>` : null}
         <button class="reset" title="delete (refused while something uses it)" aria-label="delete (refused while something uses it)" onClick=${() => onEdit({ op: "remove", path: ["resources", "fonts", f.name] })}>×</button>
-        ${onInspect ? html`<button class="font-toggle" aria-expanded=${fontsOpen.includes(f.name)} title=${f.source ? "glyphs, antialias, monospace, align" : "face names, unsupported"}
+        ${onInspect ? html`<button class="font-toggle" aria-expanded=${fontsOpen.includes(f.name)} title=${f.source ? "glyphs, antialias, monospace, align, tabular digits" : "face names, unsupported"}
             onClick=${() => setFontsOpen(fontsOpen.includes(f.name) ? fontsOpen.filter((n) => n !== f.name) : [...fontsOpen, f.name])}>${fontsOpen.includes(f.name) ? "options ▾" : "options ▸"}</button>` : null}
         ${onInspect && fontsOpen.includes(f.name) ? html`<${FontOptions} key=${f.name} name=${f.name} doc=${doc} ctx=${ctx} onInspect=${onInspect} onEdit=${onEdit} onBatch=${onBatch} />` : null}
       </li>`)}</ul>

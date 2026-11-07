@@ -2,7 +2,7 @@
 // at build time) or a vector `face:` (a device-resident scalable font).
 //
 import type { Span } from "../../diagnostics.ts";
-import { standIn } from "../../fonts/files.ts";
+import { type StandIn, standIn } from "../../fonts/files.ts";
 import { isNumber, quoted, str, truthy } from "../../py.ts";
 import * as units from "../../units.ts";
 import { Length, UnitError } from "../../units.ts";
@@ -35,7 +35,7 @@ export function dirname(path: string): string {
 }
 
 /** `fonts:` keys that only mean something while baking a sheet, refused on a `face:` entry. */
-const VECTOR_FONT_BAKING_KEYS = ["glyphs", "monospace", "align", "antialias"];
+const VECTOR_FONT_BAKING_KEYS = ["glyphs", "monospace", "align", "tabular_digits", "antialias"];
 
 /** Builds `fonts:` into its `NamedRegistry`. */
 export class FontBlock extends VisibilityHelpers {
@@ -58,16 +58,19 @@ export class FontBlock extends VisibilityHelpers {
    * A baked font: a `source:` entry, or with `fallbackOf` the `fallback:`
    * mapping of the `face:` entry `name`, whose `size:` it takes when it
    * writes none of its own. A fallback's `source: auto` takes the registry's
-   * stand-in for the first of `faces` it maps.
+   * stand-in for the first of `faces` it maps, and that face's tabular digits
+   * unless the mapping writes `tabular_digits:` itself.
    */
   private buildBakedFont(name: string, spec: Node, base: string, span: Span | null, fallbackOf: Length | null = null,
     faces: readonly string[] = []): FontSpec | null {
     const what = fallbackOf === null ? quoted(name) : `${quoted(name)} 'fallback:'`;
     let source: string | null = null;
     let registry: string | null = null;
+    let auto: StandIn | null = null;
     if (fallbackOf !== null && spec.get("source") === "auto") {
-      registry = this.standInKey(name, faces, span);
-      if (registry === null) return null;
+      auto = this.autoStandIn(name, faces, span);
+      if (auto === null) return null;
+      registry = auto.key;
     } else {
       const written = joinPath(base, str(spec.get("source")));
       source = normalizePath(written);
@@ -89,6 +92,18 @@ export class FontBlock extends VisibilityHelpers {
           "add 'monospace: true', or drop 'align'",
         ],
       });
+      return null;
+    }
+    if (monospace && truthy(spec.get("tabular_digits") ?? false)) {
+      this.bag.error("font", `font ${what}: 'tabular_digits' beside 'monospace: true' -- every glyph already shares one cell`,
+        this.doc.span(spec, "tabular_digits"), {
+          notes: [
+            "tabular_digits gives the ten digits one shared advance and leaves every other glyph its own; "
+            + "monospace already gives every glyph, the digits among them, the one advance of the widest",
+            "drop one: 'monospace: true' for one cell for everything, or 'tabular_digits: true' for digits "
+            + "that line up beside a narrow colon",
+          ],
+        });
       return null;
     }
     if (spec.has("unsupported")) {
@@ -128,6 +143,8 @@ export class FontBlock extends VisibilityHelpers {
       span,
       monospace,
       align: str(spec.get("align") ?? "center"),
+      // What the author writes; else an `auto` stand-in takes its face's tabular digits, where monospace does not already cover them.
+      tabular_digits: spec.has("tabular_digits") ? truthy(spec.get("tabular_digits")) : auto?.tabular_digits === true && !monospace,
     });
   }
 
@@ -163,11 +180,11 @@ export class FontBlock extends VisibilityHelpers {
   }
 
   /**
-   * `fallback: auto`'s registry key: the free stand-in for the first listed
-   * face the registry maps, refused when it maps none or the key's source
+   * `fallback: auto`'s stand-in: the registry's free font for the first listed
+   * face it maps, refused when it maps none or the key's source
    * records no licence (the sheet ships inside the built app).
    */
-  private standInKey(name: string, faces: readonly string[], span: Span | null): string | null {
+  private autoStandIn(name: string, faces: readonly string[], span: Span | null): StandIn | null {
     const found = standIn(faces);
     if (found === null) {
       this.bag.error("font", `font ${quoted(name)}: 'fallback: auto' has no free stand-in for ${faces.map((f) => quoted(f)).join(", ")}`, span, {
@@ -188,7 +205,7 @@ export class FontBlock extends VisibilityHelpers {
       });
       return null;
     }
-    return found.key;
+    return found;
   }
 
   /** `fonts.<name>.size` as a `Length`; a bare number is refused with the exact conversion named. */

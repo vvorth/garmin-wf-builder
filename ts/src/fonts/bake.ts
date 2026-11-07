@@ -110,6 +110,27 @@ function advanceAt(p: Parsed, ch: string, size: number): number {
   return Math.floor((mulFix(glyph.advanceWidth ?? 0, scale(p, size)) + 32) / 64);
 }
 
+const DIGITS = "0123456789";
+
+/** The widest advance at `size` over the digits `p` has: the tabular cell; 0 when it has none. */
+function digitCell(p: Parsed, size: number): number {
+  let cell = 0;
+  for (const d of DIGITS) if (p.font.charToGlyph(d).index !== 0) cell = Math.max(cell, advanceAt(p, d, size));
+  return cell;
+}
+
+/**
+ * The one advance `tabular_digits` gives the ten digits of `source` at `em`
+ * px: the largest of the digits' own `hmtx` advances at that em, each scaled
+ * and rounded to a pixel exactly as a baked glyph's advance is (FreeType's
+ * 26.6 scale, rounded half up). A digit the font lacks takes no part; 0 when
+ * it has none. Each digit's outline sits centred in that cell, offset by
+ * half the difference from its own advance, rounded half to even.
+ */
+export function tabularDigitCell(source: FontFile, em: number): number {
+  return digitCell(load(source), em);
+}
+
 /**
  * The em, in pixels, at which `source`'s line (ascent minus descent) is
  * `lineHeightPx` tall: what a sheet standing in for a device-resident face
@@ -350,6 +371,11 @@ export interface BakeOptions {
   antialias?: boolean;
   monospace?: boolean;
   align?: string;
+  /**
+   * Give the ten digits one advance, the widest digit's (`tabularDigitCell`), each
+   * outline centred in it; every other glyph keeps its own. Ignored beside `monospace`.
+   */
+  tabular_digits?: boolean;
   /** Degrees clockwise to turn every glyph; 0 is upright. */
   rotate?: number;
   /** A size per glyph, overriding `size`: each is centred in the line `size` sets, about its own advance. */
@@ -357,7 +383,7 @@ export interface BakeOptions {
 }
 
 /** Rasterise `glyphs` from `source` at `size` pixels. */
-export function bake(source: FontFile, { name, size, glyphs, antialias = false, monospace = false, align = "center", rotate = 0, sizes }: BakeOptions): BakedFont {
+export function bake(source: FontFile, { name, size, glyphs, antialias = false, monospace = false, align = "center", tabular_digits = false, rotate = 0, sizes }: BakeOptions): BakedFont {
   if (!(ALIGNMENTS as readonly string[]).includes(align)) throw new Error(`font '${name}': unknown align '${align}'`);
   const chars = orderedUnique(glyphs);
   if (chars.length === 0) throw new Error(`font '${name}': no glyphs to bake`);
@@ -372,6 +398,14 @@ export function bake(source: FontFile, { name, size, glyphs, antialias = false, 
     const [a, d] = metrics(p, own);
     return [ch, found[0], found[1], found[2] + roundHalfEven((ascent + descent - a - d) / 2), advance];
   });
+  if (tabular_digits && !monospace) {
+    const cell = digitCell(p, size);
+    rendered.forEach((r, i) => {
+      const [ch, tile, left, top, advance] = r;
+      if (!DIGITS.includes(ch) || p.font.charToGlyph(ch).index === 0 || advance >= cell) return;
+      rendered[i] = [ch, tile, left + roundHalfEven((cell - advance) / 2), top, cell];
+    });
+  }
   const unturned = new Map(rendered.map((r) => [r[0], r[4]]));
   const grown = rotate !== 0 ? fitCells(rendered, ascent + descent) : 0;
   const font = BakedFont.create({

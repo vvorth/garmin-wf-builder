@@ -364,7 +364,7 @@ test("a font's options open under its row as the generic form over its entry: a 
     `, { props: `onInspect=\${async (path) => (${JSON.stringify(inspects)})[path[2]]}`, devices });
   assert.deepEqual(printed[0], ["options ▸", "options ▸", "options ▸"]);
   // its file and size stay on the row; the rest below it
-  assert.deepEqual(printed[1], ["monospace", "antialias", "glyphs", "align"]);
+  assert.deepEqual(printed[1], ["monospace", "antialias", "glyphs", "align", "tabular_digits"]);
   // the list of faces is a list under its key: an item per name; the fallback a choice of its own
   assert.deepEqual(printed[2], ["face", "face", "0", "1", "unsupported", "fallback"]);
   assert.deepEqual(printed[3], ["BionicSemiBold", "RobotoBlack", "BionicSemiBold", "RobotoBlack"], "each name box suggests the faces, sorted");

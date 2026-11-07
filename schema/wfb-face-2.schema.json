@@ -305,6 +305,11 @@
           ],
           "default": "center"
         },
+        "tabular_digits": {
+          "description": "Give the ten digits 0-9 one shared advance, the widest digit's, each digit's ink centred in it; every other glyph, the colon and the space included, keeps its own advance. A clock then stops shifting as its digits change ('1' is narrower than '0' in most proportional faces) while its colon stays narrow, which 'monospace: true' (one cell for every glyph) does not give. A build error beside 'monospace: true': every glyph already shares one cell.",
+          "type": "boolean",
+          "default": false
+        },
         "unsupported": {
           "description": "Vector-font key. A build error here: a baked font is rasterised from your own 'source:' at build time, so it is never unsupported on any device.",
           "enum": [
@@ -326,7 +331,7 @@
       }
     },
     "vectorFont": {
-      "description": "A device-resident scalable face, drawn through Graphics.getVectorFont instead of a baked sheet. Only Garmin's own fixed catalogue of on-device faces is reachable this way -- about 14 Latin ones, published on 44 of the 136 watch-face-capable devices in the reference -- and nothing can add a face to that list, so an author's own typeface can never be one -- though 'fallback:' bakes one into a sheet for the devices that cannot draw the face, for upright text. 'glyphs:', 'monospace:', 'align:' and 'antialias:' are all properties of baking a sheet, and this schema still parses them here (rather than rejecting them as unknown keys) purely so the compiler can name the actual mistake -- 'a vector font has no sheet' -- instead of jsonschema's generic 'unknown key' message; every one of the four is a build error on a 'face:' entry.",
+      "description": "A device-resident scalable face, drawn through Graphics.getVectorFont instead of a baked sheet. Only Garmin's own fixed catalogue of on-device faces is reachable this way -- about 14 Latin ones, published on 44 of the 136 watch-face-capable devices in the reference -- and nothing can add a face to that list, so an author's own typeface can never be one -- though 'fallback:' bakes one into a sheet for the devices that cannot draw the face, for upright text. 'glyphs:', 'monospace:', 'align:', 'tabular_digits:' and 'antialias:' are all properties of baking a sheet, and this schema still parses them here (rather than rejecting them as unknown keys) purely so the compiler can name the actual mistake -- 'a vector font has no sheet' -- instead of jsonschema's generic 'unknown key' message; every one of the five is a build error on a 'face:' entry.",
       "type": "object",
       "required": [
         "face",
@@ -353,6 +358,10 @@
             "center",
             "right"
           ]
+        },
+        "tabular_digits": {
+          "description": "Baked-font key. A build error here: there is no baked sheet whose digit advances could be set; the device's own face draws its digits as it has them.",
+          "type": "boolean"
         },
         "face": {
           "description": "The device-resident face name(s) to ask Graphics.getVectorFont for, tried in the order given -- a string for one, or an array for several acceptable alternatives. Resolved per target device at build time to the single face that device actually publishes; ':face' is then emitted as that one resolved string, never the array. Garmin's own runtime array fallback is deliberately not used here: it would pick a face at draw time, so the build could not say which one renders, or measure the layout box against it. A device that publishes none of the listed faces draws from 'fallback:' when the entry has one (upright text only), and otherwise fails this font's availability gates -- governed by 'unsupported:'.",
@@ -394,7 +403,7 @@
       "oneOf": [
         {
           "const": "auto",
-          "description": "The free-font registry's stand-in for the first listed 'face:' name it knows, in author order: the very face where its file is free (Roboto, Roboto Condensed), or a free face of similar look for a proprietary one (Bionic). The 'font-fallback' note names the stand-in, whether it is exact, the same family or a substitute, and its licence. It is baked from the registry's own redistributable file, never from Garmin's font files, because the sheet ships inside the built app; a face the registry does not know is a build error, and 'fallback: {source: ...}' then bakes a file of your own. Short for {source: auto}."
+          "description": "The free-font registry's stand-in for the first listed 'face:' name it knows, in author order: the very face where its file is free (Roboto, Roboto Condensed), or a free face of similar look for a proprietary one (Bionic). The 'font-fallback' note names the stand-in, whether it is exact, the same family or a substitute, and its licence. It is baked from the registry's own redistributable file, never from Garmin's font files, because the sheet ships inside the built app; a face the registry does not know is a build error, and 'fallback: {source: ...}' then bakes a file of your own. Where the face has tabular digits and the stand-in does not (Bionic), the sheet's digits are baked tabular to match ('tabular_digits:'); the mapping form {source: auto, tabular_digits: false} keeps the stand-in's own. Short for {source: auto}."
         },
         {
           "type": "object",
@@ -433,6 +442,11 @@
                 "right"
               ],
               "default": "center"
+            },
+            "tabular_digits": {
+              "description": "Give the ten digits 0-9 one shared advance, the widest digit's, each digit's ink centred in it; every other glyph, the colon and the space included, keeps its own advance. A clock then stops shifting as its digits change ('1' is narrower than '0' in most proportional faces) while its colon stays narrow, which 'monospace: true' (one cell for every glyph) does not give. A build error beside 'monospace: true': every glyph already shares one cell. Under 'source: auto' it defaults to the face's own: on when the face being stood in for has tabular digits (Garmin's Bionic faces do, and their free stand-in does not), so write 'tabular_digits: false' to keep the stand-in's own proportional digits.",
+              "type": "boolean",
+              "default": false
             }
           },
           "description": "The mapping form: 'source:' a file of your own, or 'auto', with the baking keys a 'source:' font takes beside it."

@@ -141,7 +141,7 @@ function memoBake(memo: BakeMemo | null, source: FontFile, options: Parameters<t
   let sheets = memo.get(source.bytes);
   if (sheets === undefined) memo.set(source.bytes, sheets = new Map());
   const key = JSON.stringify([source.path, options.name, options.size, options.glyphs, options.antialias ?? false, options.monospace ?? false,
-    options.align ?? "center", options.rotate ?? 0, options.sizes ? [...options.sizes] : null]);
+    options.align ?? "center", options.tabular_digits ?? false, options.rotate ?? 0, options.sizes ? [...options.sizes] : null]);
   let baked = sheets.get(key);
   if (baked === undefined) sheets.set(key, baked = bake(source, options));
   return baked;
@@ -176,7 +176,7 @@ export function bakeFonts(face: Face, device: Device, read: FontReader, memo: Ba
     const px = spec.pixelSize(device.minorRadius);
     baked.set(name, memoBake(memo, file, {
       name, size: entry.isVector ? emForLineHeight(file, px) : px, glyphs: sets.get(name) || "0123456789",
-      antialias: spec.antialias, monospace: spec.monospace, align: spec.align,
+      antialias: spec.antialias, monospace: spec.monospace, align: spec.align, tabular_digits: spec.tabular_digits,
     }));
   }
   const specs = [...kinds.faceTextRuns(face)].some(([, run]) => run.icon !== null) ? iconFontSpecs(face, device, read(ICON_FONT)) : new Map();

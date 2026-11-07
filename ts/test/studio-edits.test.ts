@@ -1036,9 +1036,9 @@ test("a fonts: entry inspects as its own branch and its options are edited throu
   assert.equal(baked.type, "font");
   assert.equal(baked.error, null);
   // a baked font's own keys, written first; a vector font's keys, a build error here, are not offered
-  assert.deepEqual(baked.fields.map((f: any) => f.key), ["source", "size", "monospace", "antialias", "glyphs", "align"]);
+  assert.deepEqual(baked.fields.map((f: any) => f.key), ["source", "size", "monospace", "antialias", "glyphs", "align", "tabular_digits"]);
   assert.deepEqual(Object.fromEntries(baked.fields.map((f: any) => [f.key, f.widget])),
-    { source: "text", size: "length", monospace: "bool", antialias: "bool", glyphs: "text", align: "enum" });
+    { source: "text", size: "length", monospace: "bool", antialias: "bool", glyphs: "text", align: "enum", tabular_digits: "bool" });
   const vector = await ask("dial");
   assert.deepEqual(vector.fields.map((f: any) => f.key), ["face", "size", "unsupported", "fallback"]);
   const face = vector.fields[0];
@@ -1082,7 +1082,7 @@ test("a face: font's fallback: round-trips: inspected, kept through an unrelated
   assert.equal(choice.kind, "choice");
   const fallback = choice.branches[choice.chosen];
   assert.equal(fallback.kind, "object");
-  assert.deepEqual(fallback.children.map((c: any) => c.key), ["source", "size", "glyphs", "antialias", "monospace", "align"]);
+  assert.deepEqual(fallback.children.map((c: any) => c.key), ["source", "size", "glyphs", "antialias", "monospace", "align", "tabular_digits"]);
   assert.equal(fallback.children[0].value, "assets/ChivoMono-Bold.ttf");
   assert.equal(fallback.children[3].value, true);
   // an edit elsewhere leaves it as written

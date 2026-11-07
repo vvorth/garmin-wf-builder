@@ -25,16 +25,19 @@
 #   `VectorFont`), so on fr955 and fr255 the element is unavailable and its
 #   `unsupported: hide` leaves it out there. Without that key the build
 #   fails on those two, naming the curve.
-# * **`free`, an upright text in a second font, `stand_in`,** asks for
-#   `RobotoCondensedBold` with `fallback: auto`: no file beside the design,
-#   the compiler bakes the free-font registry's stand-in for the face, here
-#   Google's Roboto Condensed Bold, the very file Garmin ships. fenix8solar47mm
-#   and fr955 publish that face and draw it; only fr255 bakes the sheet, so
-#   the text keeps the face's letterforms on all three.
+# * **`clock`, the time in a second font, `stand_in`,** asks for the same
+#   `BionicSemiBold` with `fallback: auto`: no file beside the design, the
+#   compiler bakes the free-font registry's stand-in for the face, here
+#   Rajdhani SemiBold, the free family Bionic was drawn from. fenix8solar47mm
+#   draws the face; fr955 and fr255 bake the sheet. Bionic's digits share
+#   one advance and Rajdhani's do not (`1` is far narrower than `0`), so the
+#   sheet is baked with tabular digits, as the face has them: `11:11` is as
+#   wide as `00:00`, the colon stays narrow, and the clock does not shift as
+#   the minutes change.
 # * **The build note `font-fallback`** lists, per font, the devices its
-#   sheet is baked for (fr255 and fr955 for `dial`, fr255 for `stand_in`,
-#   naming the stand-in, its match and its licence); the fenix's resources
-#   hold no sheet at all.
+#   sheet is baked for (fr255 and fr955 for both), and for `stand_in` names
+#   the stand-in, its match and its licence, and that its digits are
+#   tabular as the face's are; the fenix's resources hold no sheet at all.
 #
 # Build it with:    ./wfb build examples/features/font-fallback/face.yaml
 # Preview it with:  ./wfb preview examples/features/font-fallback/face.yaml
@@ -66,9 +69,10 @@ resources:
         source: assets/ChivoMono-Bold.ttf
         antialias: true
     stand_in:
-      face: RobotoCondensedBold
-      size: 9%r
-      # the registry's free Roboto Condensed Bold, baked only for fr255
+      face: BionicSemiBold
+      size: 24%r
+      # the registry's free Rajdhani SemiBold, with Bionic's tabular digits,
+      # baked only for fr955 and fr255
       fallback: auto
 
   palette:
@@ -84,10 +88,11 @@ elements:
     size: { width: 100%, height: 100% }
     color: color.black
 
+  # Upright, in the `auto` font: the face on the fenix, the tabular stand-in elsewhere.
   clock:
     type: text
     text: "{time.clock:%H:%M}"
-    font: FONT_NUMBER_MEDIUM
+    font: font.stand_in
     at: { anchor: center }
     color: color.white
 
@@ -98,14 +103,6 @@ elements:
     font: font.dial
     at: { anchor: center, dy: -40%r }
     color: color.amber
-
-  # Upright, in the `auto` font: the face where published, the stand-in on fr255.
-  free:
-    type: text
-    text: "STAND-IN"
-    font: font.stand_in
-    at: { anchor: center, dy: 30%r }
-    color: color.white
 
   # Curved: the face only. Hidden where the font draws from its sheet.
   rim:
