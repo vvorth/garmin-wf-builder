@@ -62,6 +62,11 @@ Loaded automatically when working under `ts/test/`.
   it, and are listed there commented out (`docs/development.md`,
   "Continuous integration"). A new test file that needs no real device goes
   in the active list; one that does goes in the commented list.
+  Before a merge to `main`, run that step the way CI runs it, since the
+  full suite here never exercises it: `WFB_DEVICES=$PWD/test/fixtures/devices
+  WFB_DEVICE_REFERENCE=$PWD/test/fixtures/devices/reference node --test
+  <the active list>` from `ts/`, with `CIQ_SDK` unset. A test in the active
+  list that reads the device reference must skip, not fail, on the fixture's.
 - **Drive every new diagnostic red** against violating input before trusting
   it, and cut the whole path so a second branch cannot quietly answer.
 - **A test must be able to fail against a knowingly broken implementation.**
