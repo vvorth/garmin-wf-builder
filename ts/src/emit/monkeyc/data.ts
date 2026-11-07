@@ -11,6 +11,7 @@ import { Writer } from "../writer.ts";
 import { thresholdBands } from "./app.ts";
 import { dataElements, type EditorSlot, header, type SourceFile } from "./common.ts";
 import type { ReadPlan } from "./readplan.ts";
+import { emitTypeSwitch, type TypeCase } from "./type_guards.ts";
 
 export const LOAD_RESOURCES_METHOD = "loadResources";
 export const RESOURCES_LOADED_FIELD = "_resourcesLoaded";
@@ -249,7 +250,6 @@ export function emitSlotText(face: Face, guards: Guards = NO_GUARDS): SourceFile
   const moduleCheck = guards.complications ? "if (Toybox has :Complications)" : null;
   const names = slotReadingTypes(face);
   const kinds = new Map(names.map((name) => [name, complications.READING.get(name)!]));
-  const constant = new Map(names.map((name) => [name, `Complications.${complications.TYPES.get(name)!.constant}`]));
   const training = wordedVariants(face, "training_status");
   const conditions = wordedVariants(face, "condition");
   const w = new Writer();
@@ -270,9 +270,7 @@ export function emitSlotText(face: Face, guards: Guards = NO_GUARDS): SourceFile
             if (shortened !== undefined && variants.has(true)) stringCases.set(name, variantExpression(variants, shortened, "value"));
           }
           if (stringCases.size > 0) {
-            w.block("switch (t)", () => {
-              for (const [name, expression] of stringCases) w.line(`case ${constant.get(name)}: return ${expression};`);
-            });
+            emitTypeSwitch(w, guards, [...stringCases].map(([name, expression]) => ({ members: [name], body: `return ${expression};` })));
           }
           w.line("return value;");
         });
@@ -295,12 +293,7 @@ export function emitSlotText(face: Face, guards: Guards = NO_GUARDS): SourceFile
             if (!groups.has(expression)) groups.set(expression, []);
             groups.get(expression)!.push(name);
           }
-          w.block("switch (t)", () => {
-            for (const [expression, members] of groups) {
-              for (const name of members.slice(0, -1)) w.line(`case ${constant.get(name)}:`);
-              w.line(`case ${constant.get(members[members.length - 1]!)}: return ${expression};`);
-            }
-          });
+          emitTypeSwitch(w, guards, [...groups].map(([expression, members]) => ({ members, body: `return ${expression};` })));
         }
         w.comment("no rule of its own: an app's complication, under choices: any");
         w.line("return WfbReading.suffixed(WfbReading.formatValue(value),");
@@ -320,12 +313,7 @@ export function emitSlotText(face: Face, guards: Guards = NO_GUARDS): SourceFile
           groups.get(tag)!.push(name);
         }
         if (groups.size > 0) {
-          w.blockIf(moduleCheck, () => w.block("switch (t)", () => {
-            for (const [tag, members] of groups) {
-              for (const name of members.slice(0, -1)) w.line(`case ${constant.get(name)}:`);
-              w.line(`case ${constant.get(members[members.length - 1]!)}: return "${tag}";`);
-            }
-          }));
+          w.blockIf(moduleCheck, () => emitTypeSwitch(w, guards, [...groups].map(([tag, members]) => ({ members, body: `return "${tag}";` }))));
         }
         w.line("return null;");
       });
@@ -377,31 +365,29 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
     // a target without the module, or older than a type below, needs the switch inside a check of its own
     w.blockIf(guards.complications ? "if (Toybox has :Complications)" : null, () => {
       if ([...rules.keys()].some((name) => followed(name) === undefined)) w.line("var value = (pulled != null) ? pulled.value : null;");
-      w.block("switch (t)", () => {
-        for (const name of names) {
-          const icon = mapped.get(name);
-          if (icon === undefined) continue;
-          const ctype = complications.TYPES.get(name)!;
-          const rule = rules.get(name);
-          const follows = followed(name);
-          if (rule === undefined) {
-            w.line(`case Complications.${ctype.constant}: return "${icon.key}";`);
-          } else if (follows !== undefined) {
-            // The type carries none of the rule's reading: read the one it follows beside it.
-            const reader = CONDITION_READER.get(follows.source);
-            if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${follows.source}`);
-            w.line(`case Complications.${ctype.constant}: return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");`);
-          } else if (icons.choosesInline(rule)) {
-            const last = rule.steps[rule.steps.length - 1]!;
-            const chain = thresholdBands(rule).map(({ test, name: step }) => `(value instanceof Lang.Number && ${test}) ? "${step}" : `).join("");
-            const rest = last === icon.key ? `"${icon.key}"` : `(value instanceof Lang.Number) ? "${last}" : "${icon.key}"`;
-            w.line(`case Complications.${ctype.constant}: return ${chain}${rest};`);
-          } else {
-            w.line(`case Complications.${ctype.constant}: return (value instanceof Lang.Number) ? IconGlyphs.${icons.ruleFunction(rule)}(value) : "${icon.key}";`);
-          }
+      const cases: TypeCase[] = [];
+      for (const name of names) {
+        const icon = mapped.get(name);
+        if (icon === undefined) continue;
+        const rule = rules.get(name);
+        const follows = followed(name);
+        if (rule === undefined) {
+          cases.push({ members: [name], body: `return "${icon.key}";` });
+        } else if (follows !== undefined) {
+          // The type carries none of the rule's reading: read the one it follows beside it.
+          const reader = CONDITION_READER.get(follows.source);
+          if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${follows.source}`);
+          cases.push({ members: [name], body: `return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");` });
+        } else if (icons.choosesInline(rule)) {
+          const last = rule.steps[rule.steps.length - 1]!;
+          const chain = thresholdBands(rule).map(({ test, name: step }) => `(value instanceof Lang.Number && ${test}) ? "${step}" : `).join("");
+          const rest = last === icon.key ? `"${icon.key}"` : `(value instanceof Lang.Number) ? "${last}" : "${icon.key}"`;
+          cases.push({ members: [name], body: `return ${chain}${rest};` });
+        } else {
+          cases.push({ members: [name], body: `return (value instanceof Lang.Number) ? IconGlyphs.${icons.ruleFunction(rule)}(value) : "${icon.key}";` });
         }
-        w.line("default: return null;");
-      });
+      }
+      emitTypeSwitch(w, guards, cases, { fallback: "return null;" });
     });
     if (guards.complications) w.line("return null;");
   });

@@ -210,6 +210,15 @@ function prepare(path: string, { output, bag, devicesOnly, db, clean, profile = 
     });
   }
   if (project.divergences.length > 0) return null;
+  for (const u of project.unguarded_types) {
+    bag.error("shared-source", `internal error: ${u.path}:${u.line} names ${u.constant}, which ${u.device} lacks, outside a has check naming it; this is a compiler bug -- please report it`, null, {
+      notes: [
+        `${u.device} has Toybox.Complications but not ${u.constant}: the watch would throw Symbol Not Found when it reached the reference`,
+        "leaving that complication type out of the design (its slots' choices:, on_hold:, bindings) works around it",
+      ],
+    });
+  }
+  if (project.unguarded_types.length > 0) return null;
   for (const collision of project.string_collisions) {
     const shown = [...collision.strings].map(([s, paths]) => `${strhash.describe(s)} (${paths.join(", ")})`).join(" and ");
     bag.error("string-label", `monkeyc cannot compile this design: ${shown} share the string label str___${collision.hash}`, null, {

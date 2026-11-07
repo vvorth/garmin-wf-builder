@@ -9,6 +9,7 @@ import { holdSlot } from "../../ir/model.ts";
 import { dataHoldMethod } from "../../ir/naming.ts";
 import type { ResolvedFace } from "../../layout.ts";
 import { Writer } from "../writer.ts";
+import { typeCheck } from "./type_guards.ts";
 import {
   CONFIG_LAYOUT_METHOD, constPrefix, type EditorSlot, editorSlots, gatedHolds, header, HOLDS_SHOWN, holdTargets, maskLiteral, type SourceFile,
 } from "./common.ts";
@@ -145,8 +146,10 @@ export function emitDelegate(resolved: ResolvedFace, guards: Guards = NO_GUARDS)
           continue;
         }
         const launch = complications.TYPES.get(element.on_hold!)!;
+        const checks = [guards.complications ? "Toybox has :Complications" : null, typeCheck(guards, launch.name)].filter((c) => c !== null);
         w.comment(`\`${element.id}\` -> ${element.on_hold}`);
-        w.block(condition, () => emitExitTo(w, `new Complications.Id(Complications.${launch.constant})`, guards.complications ? "Toybox has :Complications" : null));
+        w.block(condition, () => emitExitTo(w, `new Complications.Id(Complications.${launch.constant})`,
+          checks.length === 0 ? null : checks.length === 1 ? checks[0]! : checks.map((c) => c.startsWith("(") ? c : `(${c})`).join(" && ")));
       }
       w.blank();
       w.line("return false;");

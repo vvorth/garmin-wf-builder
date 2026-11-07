@@ -179,7 +179,8 @@ function printOp(w: Writer, op: Op, aod: AodStyle): void {
       w.line(`var scale = (chosenType != null && pulled != null) ? ${op.module}.scale(chosenType, pulled) : null;`);
       break;
     case "LetAutoScale":
-      w.line(`var scale = (${op.guarded ? "(Toybox has :Complications) && " : ""}${op.reader} != null) ? ${op.module}.scale(Complications.${op.constant}, ${op.reader}) : null;`);
+      w.line(`var scale = (${op.guarded ? "(Toybox has :Complications) && " : ""}${op.type_checked ? `(Complications has :${op.constant}) && ` : ""}`
+        + `${op.reader} != null) ? ${op.module}.scale(Complications.${op.constant}, ${op.reader}) : null;`);
       break;
     case "VisibleGuard": {
       const e = op.expr;

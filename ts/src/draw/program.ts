@@ -350,9 +350,12 @@ export const LetSlotPick = (field: string, module: string, guarded: boolean, sam
   ({ t: "LetSlotPick", field, module, guarded, sample, scale });
 
 /** `max: auto`'s scale. */
-export interface LetAutoScale { t: "LetAutoScale"; reader: string; module: string; constant: string; type_name: string; value: Expression; guarded: boolean }
-export const LetAutoScale = (reader: string, module: string, constant: string, typeName: string, value: Expression, guarded = false): LetAutoScale =>
-  ({ t: "LetAutoScale", reader, module, constant, type_name: typeName, value, guarded });
+/** `guarded`: the module check; `type_checked`: the type's own `has` check, for a type some target's table lacks. */
+export interface LetAutoScale {
+  t: "LetAutoScale"; reader: string; module: string; constant: string; type_name: string; value: Expression; guarded: boolean; type_checked: boolean;
+}
+export const LetAutoScale = (reader: string, module: string, constant: string, typeName: string, value: Expression, guarded = false,
+  typeChecked = false): LetAutoScale => ({ t: "LetAutoScale", reader, module, constant, type_name: typeName, value, guarded, type_checked: typeChecked });
 
 export interface Return { t: "Return" }
 export const Return = (): Return => ({ t: "Return" });
@@ -431,20 +434,23 @@ export class DrawContext {
   readonly ring: RingPass | null;
   /** `Toybox.Complications` may be absent on some target. */
   readonly complications_guarded: boolean;
+  /** Complication types some target's table lacks (`Guards.gated_types`): each reference needs its own `has` check. */
+  readonly gated_types: ReadonlySet<string>;
   /** On the host only, the type each slot is drawn showing, as `[slot, type]` pairs. */
   readonly picks: readonly (readonly [string, string])[];
   /** On the host only, readings by complication type overriding `DATA_SAMPLE`. */
   readonly data_sample: ReadonlyMap<string, unknown>;
 
   constructor(resolved: ResolvedFace, aod: AodStyle, valueGuards: readonly string[] = [], ring: RingPass | null = null,
-    { complicationsGuarded = false, picks = [], dataSample = new Map() }: {
-      complicationsGuarded?: boolean; picks?: readonly (readonly [string, string])[]; dataSample?: ReadonlyMap<string, unknown>;
+    { complicationsGuarded = false, gatedTypes = new Set<string>(), picks = [], dataSample = new Map() }: {
+      complicationsGuarded?: boolean; gatedTypes?: ReadonlySet<string>; picks?: readonly (readonly [string, string])[]; dataSample?: ReadonlyMap<string, unknown>;
     } = {}) {
     this.resolved = resolved;
     this.aod = aod;
     this.value_guards = valueGuards;
     this.ring = ring;
     this.complications_guarded = complicationsGuarded;
+    this.gated_types = gatedTypes;
     this.picks = picks;
     this.data_sample = dataSample;
   }

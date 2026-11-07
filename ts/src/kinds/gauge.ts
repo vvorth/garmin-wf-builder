@@ -311,7 +311,8 @@ class Lowering {
       const constant = complications.TYPES.get(element.auto_scale)!.constant;
       return [
         Comment(`max: auto -- ${ast.path}'s own scale`),
-        LetAutoScale(reader, SLOT_SCALE_MODULE, constant, element.auto_scale, element.value!, this.ctx.complications_guarded),
+        LetAutoScale(reader, SLOT_SCALE_MODULE, constant, element.auto_scale, element.value!, this.ctx.complications_guarded,
+          this.ctx.gated_types.has(element.auto_scale)),
         Comment("no scale (an unset goal, no profile, ...) hides the whole gauge"),
         If(LocalsSet(["scale"]), this.bound(Call("WfbScale.share", [Read(element.value!), NumLocal("scale")]), probes)),
       ];

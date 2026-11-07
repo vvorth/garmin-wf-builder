@@ -30,6 +30,7 @@ import {
 import { emitGraphFields, emitGraphRebuild } from "./graph.ts";
 import * as profileMod from "./profile.ts";
 import { ReadPlan } from "./readplan.ts";
+import { constantCheck } from "./type_guards.ts";
 
 /** Base Toybox imports every generated face needs. */
 export const BASE_IMPORTS = ["Toybox.Graphics", "Toybox.Lang", "Toybox.WatchUi"];
@@ -661,7 +662,11 @@ function emitSubscriptions(w: Writer, plan: ReadPlan, event: string[]): void {
   if (guarded) w.comment("Toybox.Complications is absent on at least one target device");
   w.blockIf(guarded ? "if (Toybox has :Complications)" : null, () => {
     w.line("Complications.registerComplicationChangeCallback(method(:onComplicationChanged));");
-    for (const name of event) w.line(`WfbComplications.subscribe(new Complications.Id(Complications.${READERS.get(name)!.complication_type}));`);
+    for (const name of event) {
+      const constant = READERS.get(name)!.complication_type!;
+      w.blockIf(constantCheck(plan.device_guards, constant) !== null ? `if ${constantCheck(plan.device_guards, constant)}` : null,
+        () => w.line(`WfbComplications.subscribe(new Complications.Id(Complications.${constant}));`));
+    }
   });
 }
 

@@ -205,10 +205,20 @@ export function offersComplicationType(device: Device, type: complications.Compl
   return hasComplicationType(device, type) ?? compareVersions(type.since, device.apiLevel) <= 0;
 }
 
+/**
+ * Whether `device` has `Toybox.Complications` but its own symbol table lacks
+ * complication type `type`: shared code naming the type's constant must then
+ * check `Complications has :<constant>` inline before the reference, or the
+ * VM throws Symbol Not Found on `device` when it reaches it.
+ */
+export function lacksComplicationType(device: Device, type: complications.ComplicationType): boolean {
+  return device.hasModule("Complications") && hasComplicationType(device, type) === false;
+}
+
 /** Some device in `devices` has `Toybox.Complications` but its table lacks a complication type the code names. */
 function lacksNamedType(face: Face, devices: readonly Device[]): boolean {
   const named = [...complicationTypesNamed(face)].map((name) => complications.TYPES.get(name)!);
-  return devices.some((d) => d.hasModule("Complications") && named.some((t) => hasComplicationType(d, t) === false));
+  return devices.some((d) => named.some((t) => lacksComplicationType(d, t)));
 }
 
 /** Some device in `devices` has an API level below `since`. */
@@ -247,6 +257,16 @@ export interface Guards {
    * `monkeyc` accepts for any member of the module.
    */
   complications: boolean;
+  /**
+   * Complication type names the code can name (`complicationTypesNamed`)
+   * that some target with `Toybox.Complications` lacks in its own symbol
+   * table (`lacksComplicationType`). The module check does not cover such a
+   * constant at run time: the VM resolves it when execution reaches it and
+   * throws Symbol Not Found, so every reference to one sits inside an inline
+   * `(Complications has :COMPLICATION_TYPE_X)` check of its own
+   * (docs/lore/platform-constraints.md, 6d).
+   */
+  gated_types: ReadonlySet<string>;
   /** Bare field names the design reads that some target lacks. */
   fields: ReadonlySet<string>;
   /** Used `face:` fonts some target fails to resolve. */
@@ -281,7 +301,7 @@ export interface Guards {
 
 /** The "nothing is missing" `Guards`. */
 export const NO_GUARDS: Guards = {
-  complications: false, fields: new Set(), vector_fonts: new Set(), amoled_target: false, burn_in_field_guarded: false,
+  complications: false, gated_types: new Set(), fields: new Set(), vector_fonts: new Set(), amoled_target: false, burn_in_field_guarded: false,
   display_mode_guarded: false, modules: new Set(), partial_update_unsupported: false, config_menu: false, config_native: false,
   editor_level: false, resource_reference_level: false, drawable_visible_level: false, curved_text_level: false, subscreen_hidden: new Set(), override_hidden: new Set(),
 };
@@ -347,7 +367,8 @@ export function usesSettingsMenu(device: Device): boolean {
 export function computeGuards(face: Face, devices: readonly Device[]): Guards {
   const missingModules = new Set([...modulesUsed(face)].filter((m) => devices.some((d) => !d.hasModule(m))));
   // The shared code names every type any target offers; `Toybox has :Complications` around each use is the check
-  // monkeyc accepts for a type newer than a target's level or absent from its table (platform-constraints.md, 6d).
+  // monkeyc accepts for a type newer than a target's level (platform-constraints.md, 6d). A type absent from a
+  // target's own table also needs its own inline check (`gated_types`): the module check does not protect it at run time.
   if (usesComplications(face) && (predates(devices, complicationsSince(face)) || lacksNamedType(face, devices))) {
     missingModules.add("Complications");
   }
@@ -357,6 +378,8 @@ export function computeGuards(face: Face, devices: readonly Device[]): Guards {
   const amoledTarget = devices.some((d) => d.isAmoled);
   return {
     complications: missingModules.has("Complications"),
+    gated_types: new Set([...complicationTypesNamed(face)].sort()
+      .filter((name) => devices.some((d) => lacksComplicationType(d, complications.TYPES.get(name)!)))),
     fields: missingFields,
     vector_fonts: unavailableVectorFonts,
     amoled_target: amoledTarget,

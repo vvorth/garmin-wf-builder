@@ -9,6 +9,7 @@ import { localName } from "../../ir/naming.ts";
 import type { Placed, ResolvedFace } from "../../layout.ts";
 import { type Guards, NO_GUARDS } from "../../availability.ts";
 import type { Writer } from "../writer.ts";
+import { constantCheck } from "./type_guards.ts";
 
 /**
  * Decides which reader locals each element needs, and hoists the reads.
@@ -142,8 +143,12 @@ export class ReadPlan {
   emitPulls(w: Writer, readers: readonly string[]): void {
     for (const name of readers) {
       const reader = READERS.get(name)!;
+      const typeChecked = reader.complication_type ? constantCheck(this.device_guards, reader.complication_type) : null;
       if (reader.requires_module !== null && this.device_guards.modules.has(reader.requires_module)) {
-        w.line(`var ${reader.name} = (Toybox has :${reader.requires_module}) ? ${reader.call} : null;`);
+        const checks = typeChecked !== null ? `((Toybox has :${reader.requires_module}) && ${typeChecked})` : `(Toybox has :${reader.requires_module})`;
+        w.line(`var ${reader.name} = ${checks} ? ${reader.call} : null;`);
+      } else if (typeChecked !== null) {
+        w.line(`var ${reader.name} = ${typeChecked} ? ${reader.call} : null;`);
       } else {
         w.line(`var ${reader.name} = ${reader.call};`);
       }

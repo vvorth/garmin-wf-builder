@@ -1,6 +1,7 @@
 // Assemble a complete, compilable Connect IQ project from a resolved design.
 // Writing it to disk is the Node host's job.
-import { computeGuards } from "../availability.ts";
+import { computeGuards, lacksComplicationType } from "../availability.ts";
+import * as complications from "../complications.ts";
 import type { Device } from "../devices/device.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";
 import type { Face } from "../ir/model.ts";
@@ -31,6 +32,14 @@ export interface Divergence {
   other_line: string;
 }
 
+/** A complication type constant named where a target lacking it could reach it: a build error each. */
+export interface UnguardedType {
+  path: string;
+  line: number;
+  constant: string;
+  device: string;
+}
+
 export class GeneratedProject {
   readonly face: Face;
   readonly devices: Device[];
@@ -45,6 +54,8 @@ export class GeneratedProject {
   string_collisions: strhash.Collision[] = [];
   /** Shared sources that differ between targets: a build error each. */
   divergences: Divergence[] = [];
+  /** Complication type constants named outside a `has` check naming them, where some target lacks them. */
+  unguarded_types: UnguardedType[] = [];
 
   constructor(face: Face, devices: Device[]) {
     this.face = face;
@@ -82,6 +93,7 @@ export function generate(face: Face, devices: Device[], read: FontReader,
     trace?: boolean;
   } = {}): GeneratedProject {
   const project = new GeneratedProject(face, devices);
+  const perDevice = new Map<string, Device>();
   const guards = computeGuards(face, devices);
   project.sources.push(emitApp(face, guards));
   if (face.palette.size > 0) project.sources.push(emitPalette(face));
@@ -95,7 +107,9 @@ export function generate(face: Face, devices: Device[], read: FontReader,
       deviceResolved = resolve(face, device, fonts);
     }
     project.resolved.set(device.id, deviceResolved);
-    project.sources.push(emitLayout(deviceResolved, guards, profile));
+    const layout = emitLayout(deviceResolved, guards, profile);
+    perDevice.set(layout.path, device);
+    project.sources.push(layout);
     project.bundles.push(buildBundle(face, device, deviceResolved.fonts, read));
   }
   const needsIconGlyphs = [...project.resolved.values()].some((r) => kinds.placedTextRuns(r.items, face).some(([, run]) => run.glyph_table !== null));
@@ -112,7 +126,84 @@ export function generate(face: Face, devices: Device[], read: FontReader,
   if (trace) project.sources = project.sources.map(traced);
   project.barrel = [...usage.barrelModules(project.sources.map((s) => s.text))].sort();
   avoidStringLabelCollisions(project);
+  for (const [path, text] of programTexts(project)) {
+    const device = perDevice.get(path);
+    project.unguarded_types.push(...unguardedTypes(path, text, device !== undefined ? [device] : devices));
+  }
   return project;
+}
+
+const TYPE_CONSTANT = /Complications\.(COMPLICATION_TYPE_[A-Z0-9_]+)/g;
+
+/**
+ * Every reference in `text` to a complication type constant some device in
+ * `devices` has the module but not the constant for, that is not covered by a
+ * `has :<constant>` earlier in its own statement or in an enclosing `if`'s
+ * condition. The VM resolves the constant when it reaches it and throws
+ * Symbol Not Found on that device (docs/lore/platform-constraints.md, 6d);
+ * the module check monkeyc accepts does not stop it. Textual, over the
+ * printed source: comments and strings are skipped, each `{` remembers the
+ * header before it, and only an `if` header's condition counts.
+ */
+export function unguardedTypes(path: string, text: string, devices: readonly Device[]): UnguardedType[] {
+  const byConstant = new Map([...complications.TYPES.values()].map((t) => [t.constant, t]));
+  const lacking = (constant: string): Device | undefined => {
+    const type = byConstant.get(constant);
+    return type === undefined ? undefined : devices.find((d) => lacksComplicationType(d, type));
+  };
+  if (![...text.matchAll(TYPE_CONSTANT)].some((m) => lacking(m[1]!) !== undefined)) return [];
+  const out: UnguardedType[] = [];
+  const headers: string[] = [];
+  let statement = "";
+  let line = 1;
+  let i = 0;
+  const covered = (constant: string): boolean => {
+    const check = new RegExp(`\\bhas\\s*:${constant}\\b`);
+    return check.test(statement) || headers.some((h) => /^(else\s+)?if\b/.test(h.trim()) && check.test(h));
+  };
+  while (i < text.length) {
+    const ch = text[i]!;
+    if (ch === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      const stop = end < 0 ? text.length : end + 2;
+      for (; i < stop; i++) if (text[i] === "\n") line++;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      i++;
+      while (i < text.length && text[i] !== ch && text[i] !== "\n") i += text[i] === "\\" ? 2 : 1;
+      i++;
+      continue;
+    }
+    if (ch === "\n") line++;
+    if (ch === "{") {
+      headers.push(statement);
+      statement = "";
+    } else if (ch === "}") {
+      headers.pop();
+      statement = "";
+    } else if (ch === ";") {
+      statement = "";
+    } else {
+      const match = ch === "C" && text.startsWith("Complications.COMPLICATION_TYPE_", i) && !/[A-Za-z0-9_]/.test(text[i - 1] ?? "")
+        ? /^Complications\.(COMPLICATION_TYPE_[A-Z0-9_]+)/.exec(text.slice(i, i + 80)) : null;
+      if (match !== null) {
+        const constant = match[1]!;
+        const device = lacking(constant);
+        if (device !== undefined && !covered(constant)) out.push({ path, line, constant, device: device.id });
+        statement += match[0];
+        i += match[0].length;
+        continue;
+      }
+      statement += ch;
+    }
+    i++;
+  }
+  return out;
 }
 
 /** Emit one shared source from every target, recording a `Divergence` for each that differs from the first. */

@@ -8,6 +8,7 @@ import type { PlacedGraph } from "../../layout.ts";
 import { quoted } from "../../py.ts";
 import { ACQUISITION, type SeriesDef } from "../../series.ts";
 import type { Writer } from "../writer.ts";
+import { typeTest } from "./type_guards.ts";
 
 /** One cached series (and its auto bounds, where asked for) per `graph`, rebuilt once a minute. */
 export function emitGraphFields(w: Writer, graphs: readonly PlacedGraph[]): void {
@@ -68,7 +69,7 @@ function emitSlotGraphRebuild(w: Writer, element: Graph, guards: Guards): void {
   w.doc(`Recompute \`${element.id}\`'s series for type \`t\`, picked in slot ${quoted(element.slot)}.`);
   w.block(`private function ${graphRebuildMethod(element.id)}(t as Complications.Type or Null) as Void`, () => {
     for (const pick of element.slot_picks) {
-      const picked = `t == Complications.${complications.TYPES.get(pick.pick.type)!.constant}`;
+      const picked = typeTest(guards, pick.pick.type);
       w.block(guards.complications ? `if ((Toybox has :Complications) && ${picked})` : `if (${picked})`, () => {
         w.comment(`${complications.label(pick.pick.type)}: ${pick.pick.span}`);
         emitSlotPick(w, element, pick, guards);

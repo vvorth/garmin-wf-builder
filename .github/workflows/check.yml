@@ -153,6 +153,7 @@ jobs:
             # test/studio-edits.test.ts
             # test/studio-panels.test.ts
             # test/tabular-digits.test.ts
+            # test/type-guards.test.ts
             # test/whole-degree.test.ts
           )
           node --test "${tests[@]}"

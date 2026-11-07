@@ -117,7 +117,9 @@ export function drawnText(resolved: ResolvedFace, placed: Placed, values: Values
 export function emitBody(w: Writer, resolved: ResolvedFace, placed: Placed, plan: ReadPlan, aod: AodStyle,
   ring: RingPass | null = null, antialiasDefault: boolean | null = null): void {
   const guards = kinds.forPlaced(placed).name === "data" ? [] : plan.valueGuards(placed);
-  const ctx = new DrawContext(resolved, aod, guards, ring, { complicationsGuarded: plan.device_guards.complications });
+  const ctx = new DrawContext(resolved, aod, guards, ring, {
+    complicationsGuarded: plan.device_guards.complications, gatedTypes: plan.device_guards.gated_types,
+  });
   const ops = program(ctx, placed, plan, antialiasDefault);
   printOps(w, plan.device_guards.curved_text_level ? guardCurvedText(ops) : ops, aod);
 }
