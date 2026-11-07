@@ -134,7 +134,8 @@ $CIQ_SDK/bin/monkeyc … --build-stats 0                     # memory: the figur
   moment `monkeydo` pushes an app, inside the simulator's own binary, not
   from a missing library or display server. Do not spend a session
   re-litigating the container. It works on Windows too (`wfb simulate`,
-  `wfb.cmd`); a Linux desktop is untested. Use `wfb
+  `wfb.cmd`), where `tools/simctl/` sets its data and state (skill
+  `simulator-control`); a Linux desktop is untested. Use `wfb
   preview`, or ask the user to run the simulator on their host.
 - `Invalid device id specified` means the device files are missing **or**
   Java's `user.home` is wrong (it comes from passwd, not `$HOME`).

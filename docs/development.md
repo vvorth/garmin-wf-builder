@@ -249,8 +249,10 @@ examples/other/       a git submodule (vvorth/wfb-watchfaces): the author's own
                       faces; no test, golden or docs check walks it
 examples/features/    one face per format feature, written as each landed
 examples/system-fonts/  the three system-font calibration faces
-tools/                setup-env.sh, the front-end vendoring, and research/ (stdlib
-                      Python research scripts)
+tools/                setup-env.sh, the front-end vendoring, research/ (stdlib
+                      Python research scripts), and simctl/ (drives the Windows
+                      simulator's dialogs to set a face's data and state)
+skills/               instructions for agents that use wfb (skills/AGENTS.md)
 docker/               the image's entrypoint
 .cache/device-reference/  derived, not committed: the SDK's device reference pages as
                       JSON, extracted by wfb itself (or tools/setup-env.sh) from

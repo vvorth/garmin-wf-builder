@@ -1,14 +1,19 @@
 # skills/: agent skills that use wfb
 
 This directory holds instructions for AI agents that *use* this repository's
-`wfb` tool, as opposed to working on it. There is one skill today,
-**watchface-from-image**.
+`wfb` tool, as opposed to working on it. There are two skills,
+**watchface-from-image** and **simulator-control**.
 
 | File | What it is |
 |---|---|
-| `watchface-builder.md` | the procedure, model-agnostic: any agent with a shell and file access can follow it |
+| `watchface-builder.md` | watchface-from-image's procedure, model-agnostic: any agent with a shell and file access can follow it |
 | `face-compare.py` | target picture vs `wfb preview`, as one sheet (target, preview, overlay, difference) with a score per region; needs `python3` with Pillow |
 | `../.claude/skills/watchface-from-image/SKILL.md` | the Claude Code adapter: registers the skill and adds what is specific to Claude Code |
+| `simulator-control.md` | simulator-control's procedure: put a face into a chosen state in the Windows simulator (`tools/simctl/`) and compare it with `wfb preview` at that state |
+| `../.claude/skills/simulator-control/SKILL.md` | its Claude Code adapter |
+
+The branch rule below is watchface-from-image's. simulator-control ships
+with the tool it drives, `tools/simctl/`, so it changes together with it.
 
 ## The branch rule
 

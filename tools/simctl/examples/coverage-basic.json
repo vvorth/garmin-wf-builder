@@ -1,0 +1,11 @@
+[
+  { "close-popups": true },
+  { "menu": "Settings/Units Display/Statute" },
+  { "menu": "Settings/Time Display/12 Hour" },
+  { "battery": { "Percent": 7, "Charging": false } },
+  { "notifications": { "Count": 7 } },
+  { "weather": { "Available": true, "Condition": "Rain", "Temperature": 25, "High": 30, "Low": 18 } },
+  { "activity": { "Today": { "Steps": 12345, "StepGoal": 10000, "ModerateMinutes": 30, "VigorousMinutes": 20 } } },
+  { "time": "2026-09-03T10:09:42" },
+  { "screenshot": "coverage-basic.png" }
+]
