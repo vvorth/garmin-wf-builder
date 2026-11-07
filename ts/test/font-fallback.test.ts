@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { vectorFontMode } from "../src/availability.ts";
 import { bakeFonts, glyphSet } from "../src/emit/resources.ts";
+import { emForLineHeight } from "../src/fonts/bake.ts";
 import { discPerimeterOffsets } from "../src/ir/model.ts";
 import { HIDDEN_BY_FONT, PlacedText } from "../src/layout.ts";
 import { previewOptions, render } from "../src/preview.ts";
@@ -317,9 +318,12 @@ const crop = (im: Image, box: { x: number; y: number; width: number; height: num
 
 test("the preview draws a fallback device's text from the baked sheet, and the curve only where the face is", () => {
   const text = design(FALLBACK);
-  const asBaked = design(`      source: ${TTF}\n      size: 12%r\n`, { curved: null });
   for (const id of ["fr955", "fr255"]) {
     const r = resolved(text, id);
+    // A fallback's `size:` is the face's line height; a `source:` font's is the em, so the same sheet is a `source:`
+    // font at the em that gives that line height.
+    const em = emForLineHeight(readFontFile(join(REPO_ROOT, TTF)), face(text).fonts.get("dial")!.fallback!.pixelSize(r.device.minorRadius));
+    const asBaked = design(`      source: ${TTF}\n      size: ${em}px\n`, { curved: null });
     const box = r.items.find((p) => p.id === "brand")!.box;
     const pixels = crop(frame(text, id), box);
     assert.ok(pixels.some((v) => v > 0), `${id}: brand drawn`);
@@ -459,4 +463,23 @@ test("an auto sheet is the stand-in's file baked as a path fallback bakes it: sa
   assert.ok(pixels.some((v) => v > 0));
   assert.deepEqual(pixels, crop(frame(byPath, "fr255"), box));
   assert.equal(drawn(auto, "brand", {}, "fr255"), "BRAND");
+});
+
+test("a fallback sheet is as tall as the face: size: is the line height on both paths", () => {
+  // `Graphics.getVectorFont`'s `:size` is a line height (ascent minus descent), which the vector path measures
+  // against, so the sheet standing in for it bakes at the em that gives that same line height, not at `size` as em.
+  const text = design(AUTO).replace("size: 12%r", "size: 30%r");
+  const fenix = resolved(text, "fenix8solar47mm");
+  const fr255 = resolved(text, "fr255");
+  const px = face(text).fonts.get("dial")!.pixelSize(fr255.device.minorRadius);
+  const sheet = fr255.fonts.get("dial")!;
+  assert.ok(Math.abs(sheet.line_height - px) <= 2, `sheet line height ${sheet.line_height} px, size ${px} px on fr255`);
+  // Roboto Condensed's ascent minus descent is 1.172 em, so an em-sized bake would be that much taller.
+  assert.ok(sheet.size < px, `em ${sheet.size} px should be below the line height ${px} px`);
+  const brand255 = fr255.items.find((p) => p.id === "brand") as PlacedText;
+  const brand8 = fenix.items.find((p) => p.id === "brand") as PlacedText;
+  // The same text is about as tall on the device drawing the face and the one drawing the sheet, in %r terms.
+  const ratio = (brand255.box.height / fr255.device.minorRadius) / (brand8.box.height / fenix.device.minorRadius);
+  assert.ok(ratio > 0.9 && ratio < 1.1, `height ratio sheet/face ${ratio.toFixed(3)}`);
+  assert.equal(brand255.font.px, px, "the layout font's px is the line height, as the face's is");
 });

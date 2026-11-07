@@ -3,7 +3,7 @@
 // launcher icon and the native editor's config..
 import { usesSettingsMenu, vectorFontMode } from "../availability.ts";
 import type { Device } from "../devices/device.ts";
-import { bake, dilate, FontFileError, inkSize, toFnt } from "../fonts/bake.ts";
+import { bake, dilate, emForLineHeight, FontFileError, inkSize, toFnt } from "../fonts/bake.ts";
 import { CONFIG_SYMBOL } from "../ir/model.ts";
 import { configDataIds, configLabelId, configStyleLabelId } from "../ir/naming.ts";
 import { Color } from "../palette.ts";
@@ -170,8 +170,12 @@ export function bakeFonts(face: Face, device: Device, read: FontReader, memo: Ba
     // A `face:` font is drawn from the device's own resident face; its `fallback:` is baked only where it draws.
     const spec = entry.isVector ? entry.fallback : entry;
     if (spec === null || (entry.isVector && (!sets.has(name) || vectorFontMode(entry, device) !== "fallback"))) continue;
-    baked.set(name, memoBake(memo, spec.registry !== null ? standInFile(device, spec) : read(spec.source!), {
-      name, size: spec.pixelSize(device.minorRadius), glyphs: sets.get(name) || "0123456789",
+    const file = spec.registry !== null ? standInFile(device, spec) : read(spec.source!);
+    // A `face:` font's `size:` is the line height `Graphics.getVectorFont` draws at, so its fallback's sheet is baked
+    // at the em that gives that line height; a `source:` font's `size:` is the em, as it always was.
+    const px = spec.pixelSize(device.minorRadius);
+    baked.set(name, memoBake(memo, file, {
+      name, size: entry.isVector ? emForLineHeight(file, px) : px, glyphs: sets.get(name) || "0123456789",
       antialias: spec.antialias, monospace: spec.monospace, align: spec.align,
     }));
   }

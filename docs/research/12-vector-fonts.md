@@ -541,6 +541,25 @@ unaffected, since the framebuffer really is rectangular.
 
 ---
 
+## 5.4 `:size` is a line height, not an em (2026-11-07)
+
+`Graphics.getVectorFont({:size => N})` draws the face with its line (hhea
+ascent minus descent) `N` pixels tall, the same meaning the scraped
+`size_px` has for a system font (research 10 §3), not with an `N`-pixel em.
+Evidence: the same design built two ways on the simulator, a `face:` font
+at `size: 90%r` drawn by `getVectorFont` on `fenix8solar47mm` (175 px) and
+its `fallback:` sheet baked from Rajdhani SemiBold at a 117 px *em* on
+`fr255`, drew digits about 1.2 times larger on the `fr255`, against
+Rajdhani's and Bionic's `(ascent - descent) / upm` of 1.276; the
+`fenix8solar47mm` capture matched `wfb preview`'s line-height model of the
+face to the pixel, while the sheet matched the em-sized bake. VERIFIED by
+those captures (the user's, on the host simulator). Consequence: a `face:`
+font's fallback sheet is baked at `size * upm / (ascent - descent)` of the
+baked file (`emForLineHeight` in `ts/src/fonts/bake.ts`), so a stand-in's
+text stands as tall as the face it replaces; before this, every fallback
+sheet (plans 39 and 40) was 17 to 28 percent too large. A `source:` font's
+`size:` stays its em: nothing on the watch draws it any other way.
+
 ## 6. Sources
 
 | Claim | Source |

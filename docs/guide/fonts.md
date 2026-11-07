@@ -333,7 +333,11 @@ registry's Roboto Condensed Bold, the face the other two draw.*
   takes the keys below beside it. In `wfb studio`, the server sends the
   stand-in's file, and a downloaded bundle holds no file for it.
 * **Its keys are a baked font's**: `source:` (required: a path, or `auto`), `size:` (a
-  `Length`, `px` or `%r`; omit it to bake at the entry's own `size:`),
+  `Length`, `px` or `%r`; omit it to bake at the entry's own `size:`; it is a
+  **line height**, as the entry's is -- the height `Graphics.getVectorFont`
+  draws the face at -- so the sheet is baked at the em that gives that line
+  height from the file's own ascent and descent, and the stand-in's text
+  stands as tall as the face would, where a `source:` font's `size:` is its em),
   `glyphs:`, `antialias:`, `monospace:` and `align:` (which needs
   `monospace: true`), each meaning what it means on a `source:` entry, and a
   missing file is the same error, at the fallback's own line. `face:`,

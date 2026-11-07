@@ -408,7 +408,12 @@ These cost real time to discover; do not rediscover them.
   When the font is guarded, the construction's `else` branch calls
   `Layout.font<Name>Fallback()`: each device's own `Layout.mc` defines it,
   returning `WatchUi.loadResource(Rez.Fonts.<Id>)` on a device that draws
-  the sheet and `null` on one that builds the face. The `Rez.Fonts` symbol
+  the sheet and `null` on one that builds the face. The sheet is baked at the
+  em whose line (ascent minus descent) is `_SIZE` pixels tall
+  (`emForLineHeight` in `ts/src/fonts/bake.ts`): `getVectorFont`'s `:size` is
+  a line height, not an em, and a sheet baked at `_SIZE` as its em drew 1.17
+  to 1.28 times too large (Roboto Condensed, Rajdhani), seen on the
+  simulator. The `Rez.Fonts` symbol
   can live only there, because the sheet is baked (`bakeFonts` in
   `ts/src/emit/resources.ts`, `vectorFontMode` in `ts/src/availability.ts`)
   into the resources of the devices that draw it alone, and the shared view

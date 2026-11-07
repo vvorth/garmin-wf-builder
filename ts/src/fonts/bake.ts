@@ -110,6 +110,17 @@ function advanceAt(p: Parsed, ch: string, size: number): number {
   return Math.floor((mulFix(glyph.advanceWidth ?? 0, scale(p, size)) + 32) / 64);
 }
 
+/**
+ * The em, in pixels, at which `source`'s line (ascent minus descent) is
+ * `lineHeightPx` tall: what a sheet standing in for a device-resident face
+ * bakes at, since `Graphics.getVectorFont`'s `:size` is that line height.
+ */
+export function emForLineHeight(source: FontFile, lineHeightPx: number): number {
+  const p = load(source);
+  const line = p.ascent - p.descent;
+  return Math.max(1, Math.round(line > 0 ? lineHeightPx * p.upm / line : lineHeightPx));
+}
+
 /** `ch`'s advance in `source` baked at `size`: what the baked sheet's `xadvance` will be, turned or not. */
 export function glyphAdvance(source: FontFile, ch: string, size: number): number {
   return advanceAt(load(source), ch, size);

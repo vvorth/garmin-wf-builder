@@ -962,7 +962,8 @@ export class Resolver {
     const spec = this.face.fonts.get(font)!;
     if (!spec.isVector) return resolved;
     if (vectorFontMode(spec, this.device) === "fallback") {
-      const px = resolved.baked !== null ? resolved.baked.size : spec.fallback!.pixelSize(this.minorRadius);
+      // The sheet is baked to the line height `size:` names (as the face would draw), so px is that height here too.
+      const px = spec.fallback!.pixelSize(this.minorRadius);
       return new LayoutFont(this.device, px, resolved.reference, true, resolved.baked, null, "", true, curve === null, true);
     }
     const [face, available] = this.resolveVectorFace(spec, curve);
