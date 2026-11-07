@@ -10,6 +10,7 @@ back here.
 
 | Plan | Status |
 |---|---|
+| [41 tabular digits](41-tabular-digits.md): `tabular_digits:` on a baked font, applied by `fallback: auto` and by the stand-in measuring for a face that has them (Bionic) | in progress; two slices in parallel, D1–D8 decided |
 | [34 a curved slot](34-curved-slot.md): `rotate:` and `slot:` on `type: icon`, `curve:` on `type: data`, a group's `on_hold:` following its slot | in progress; slices 1–5 done, slice 6 built and not yet verified on a watch, D1–D8 decided |
 
 ## Built and deleted

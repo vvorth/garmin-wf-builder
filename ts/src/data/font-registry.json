@@ -353,7 +353,7 @@
     },
     "rajdhani-medium": {
       "source": "rajdhani-medium",
-      "match": "family",
+      "match": "family", "tabular_digits": true,
       "note": "Garmin's Bionic Medium (BionicMedium; file Bionic_Medium, whose face column the reference gives as 'Rajdhani') is Rajdhani Medium with tabular digits (0.500 em), every other shared glyph Rajdhani's outline (docs/research/40-vector-face-stand-ins.md)."
     },
     "yantramanav-bold": {
@@ -428,12 +428,12 @@
     },
     "rajdhani-bold": {
       "source": "rajdhani-bold",
-      "match": "family",
+      "match": "family", "tabular_digits": true,
       "note": "Garmin's Bionic Bold (BionicBold; files Bionic_Bold, Bionic_Bold_Number_Only, 43 devices) is Rajdhani Bold renamed, with its digits and '+' redrawn to one tabular width (0.516 em; Rajdhani's are proportional, '1' 0.334 em): every other shared glyph has Rajdhani's outline, the version string, vendor ITFO and OFL notice are Rajdhani's (docs/research/40-vector-face-stand-ins.md)."
     },
     "rajdhani-semibold": {
       "source": "rajdhani-semibold",
-      "match": "family",
+      "match": "family", "tabular_digits": true,
       "note": "Garmin's Bionic SemiBold (BionicSemiBold/BionicSemibold; file Bionic_semibold, the fenix 8 FONT_NUMBER_* face) is Rajdhani SemiBold with tabular digits (0.516 em), every other shared glyph Rajdhani's outline (docs/research/40-vector-face-stand-ins.md)."
     },
     "noto-sans-sc-medium": {
