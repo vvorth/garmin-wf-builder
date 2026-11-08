@@ -205,13 +205,15 @@ $script:InputClasses = @('Edit', 'ComboBox', 'SysDateTimePick32', 'Button', 'msc
 #   "Label (*"              a label that starts with this text
 #   "button:Text"           a checkbox that carries its own text
 #   "...|time" / "|date"    how to type into a date/time picker
+#   "?Label"                optional: some devices' dialogs lack it (skipped there)
 function Resolve-SimFieldSpec([string] $Spec) {
-  $kind = ''
+  $kind = ''; $optional = $Spec.StartsWith('?')
+  if ($optional) { $Spec = $Spec.Substring(1) }
   if ($Spec -match '^(.*)\|(\w+)$') { $Spec = $Matches[1]; $kind = $Matches[2] }
   $nth = 1; $labelIndex = 1
   if ($Spec -match '^(.*)#(\d+)$') { $Spec = $Matches[1]; $nth = [int]$Matches[2] }
   if ($Spec -match '^(.*)@(\d+)$') { $Spec = $Matches[1]; $labelIndex = [int]$Matches[2] }
-  @{ Label = $Spec; Nth = $nth; LabelIndex = $labelIndex; Kind = $kind }
+  @{ Label = $Spec; Nth = $nth; LabelIndex = $labelIndex; Kind = $kind; Optional = $optional }
 }
 
 # Finds the input a label names, by geometry: Z-order is no guide (some
@@ -724,6 +726,15 @@ function Set-SimDialog([string] $Menu, $Fields, [hashtable] $Values, [scriptbloc
   try {
     if ($Before) { & $Before $dlg }
     $ctl = @(Get-SimControls $dlg)
+    # An optional field this device's dialog lacks is dropped, with a note.
+    $present = @()
+    foreach ($name in $order) {
+      if ((Resolve-SimFieldSpec $Fields[$name]).Optional) {
+        try { Find-SimInput $dlg $Fields[$name] $ctl | Out-Null } catch { "$name skipped: not in this device's dialog"; continue }
+      }
+      $present += $name
+    }
+    $order = $present
     foreach ($name in $order) {
       $s = Resolve-SimFieldSpec $Fields[$name]
       Set-SimInput (Find-SimInput $dlg $Fields[$name] $ctl) $Values[$name] $name $s.Kind
@@ -943,7 +954,7 @@ function Set-SimWeather {
 
 $script:ActivityFields = [ordered]@{
   WeeklyActiveMinutesGoal = 'Weekly Active Minutes Goal'; RecoveryTime = 'Recovery Time (hours)'
-  BreathsPerMinute = 'Breaths per Minute'; StressLevel = 'Current Stress Level'
+  BreathsPerMinute = 'Breaths per Minute'; StressLevel = '?Current Stress Level'
 }
 $script:ActivityTodayColumns = @('StepsPerMinute', 'StepGoal', 'Steps', 'Distance', 'Calories', 'FloorsClimbed', 'FloorsDescended', 'FloorsClimbedGoal', 'ModerateMinutes', 'VigorousMinutes')
 $script:ActivityHistoryColumns = @('Steps', 'StepGoal', 'Distance', 'Calories', 'ModerateMinutes', 'VigorousMinutes', 'FloorsClimbed', 'FloorsDescended', 'FloorsClimbedGoal')
