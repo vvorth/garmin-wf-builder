@@ -211,9 +211,11 @@ platform, not a list of supported devices:
   locking the face out. Complications need Connect IQ 4.2 and the on-device
   face editor needs 5.1 plus Garmin's editor (fēnix 8 and later). A watch
   without the editor gets the same choices in a generated settings menu
-  instead. On an older watch a complication reads as absent, a watch with
-  neither editor nor menu keeps its default configuration, and the build
-  warns (`api-gated`, `config-unsupported`). Touch-and-hold needs a touchscreen
+  instead. Data an older watch cannot provide at all (a complication, a
+  weather reading) fails the build for that watch unless you write
+  `unsupported: hide` to let it read as absent there, and `wfb export
+  --all-devices` simply leaves such a watch out; a watch with neither
+  editor nor menu keeps its default configuration (`config-unsupported`). Touch-and-hold needs a touchscreen
   (`hold-unsupported` otherwise).
 - **Round screens are the home ground.** Rectangular and semi-octagon
   (Instinct) screens get the same layout checks, against the visible area

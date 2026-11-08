@@ -27,7 +27,7 @@ messages; see `ts/src/lint.ts` if unsure.
 | `partial-update-budget` | an element with `sleep_update: true` risks overrunning the partial-update budget, whose overrun is permanent: a wide clip, a known-expensive read, or a stamped `outline:` ring (4, 8 or 16 more draws each second at 1, 2 or 3px; a grown ring or a baked ring font is not reported) |
 | `hold-overlap` | two elements' `on_hold:` regions overlap, so a touch in the shared area only ever reaches the first |
 | `hold-unsupported` | the device has no `WatchFaceDelegate.onPress`, so this `on_hold:` can never fire there |
-| `api-gated` | the element's binding names a source, symbol or complication type this device lacks; it reads as absent there. The device's own symbol table decides, never its API level (a type's `since` is used only for a device with no table); a slot's explicit choice the device lacks is left out of its lists there, and the code every target shares tests for that type before naming it, so the device never meets it |
+| `api-gated` | the element's binding names a source, symbol or complication type this device lacks, and the element says `unsupported: hide` (its own or a group's), so it reads as absent there; without it, a read is the `source-unsupported` error instead ([Configuration, "Lint"](configuration.md#lint)). The device's own symbol table decides, never its API level (a type's `since` is used only for a device with no table); a slot's explicit choice the device lacks is left out of its lists there, and the code every target shares tests for that type before naming it, so the device never meets it |
 | `dead-element` | the element's `visible:` condition reduces to a constant `false` |
 | `graphics-pool` | the face's static buffers are a large share of the shared graphics pool (an estimate) |
 | `antialias-dither` | antialiasing resolves to on for an element on a 64-colour device, dithering the soft edge |
@@ -224,9 +224,13 @@ lint:
 ## When an export drops a device
 
 `wfb export --all-devices` reads one more thing off each error: whether it
-exists only because of particular devices. Five do, and name them:
+exists only because of particular devices. Seven do, and name them:
 `font-unavailable` (the error form, under `unsupported: error`),
-`subscreen` (the error form), `partial-update`, `api-gated-unguardable`
+`subscreen` (the error form), `slot-unsupported` (a `config: slots:` slot
+on a watch without `Toybox.Complications`, under the slot's default
+`unsupported: error`), `source-unsupported` (data an element reads that the
+watch lacks, under the element's default `unsupported: error`),
+`partial-update`, `api-gated-unguardable`
 and `memory` (at or over the limit, measured after the compile). When every
 error of a pass is one of these, the export drops the devices they name and
 checks the rest again, since one generated view serves every device and

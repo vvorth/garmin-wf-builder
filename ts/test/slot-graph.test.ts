@@ -120,7 +120,8 @@ test("a temperature pick guards its forecast where a target lacks Weather", (t) 
     t.skip("fenix5 is not installed");
     return;
   }
-  const text = slotGraph("", CHOICES, "heart_rate", "[fenix8solar47mm, fenix5]");
+  const text = slotGraph("", CHOICES, "heart_rate", "[fenix8solar47mm, fenix5]")
+    .replace("bottom: {default:", "bottom: {unsupported: hide, default:");
   const guards = computeGuards(face(text), [db.get("fenix8solar47mm"), db.get("fenix5")]);
   assert.ok(guards.modules.has("Weather"));
   assert.match(method(view(text, ["fenix8solar47mm", "fenix5"]), "rebuildHistory"),

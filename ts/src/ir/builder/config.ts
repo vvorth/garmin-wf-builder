@@ -154,8 +154,9 @@ export class ConfigAxes extends TopLevelBlocks {
       }
       const rawChoices = spec.get("choices");
       const label = (spec.get("label") ?? null) as string | null;
+      const unsupported = (spec.get("unsupported") ?? "error") as "error" | "hide";
       if (rawChoices === "any") {
-        this.config_data.set(name, ConfigDataSlot.create({ name, default: defaultType, choices: "any", label, span }));
+        this.config_data.set(name, ConfigDataSlot.create({ name, default: defaultType, choices: "any", label, unsupported, span }));
         continue;
       }
       const choices: string[] = [];
@@ -214,7 +215,7 @@ export class ConfigAxes extends TopLevelBlocks {
         continue;
       }
       this.config_data.set(name, ConfigDataSlot.create({
-        name, default: defaultType, choices, icon_overrides: iconOverrides, label, span,
+        name, default: defaultType, choices, icon_overrides: iconOverrides, label, unsupported, span,
       }));
     }
   }

@@ -217,7 +217,11 @@ test("the field check lands on the primary reader's local when extra readers are
 
 test("a build with fenix5 guards the module and the field round a positioned call, and lints api-gated there only", () => {
   if (!installed("fenix5", "fenix8solar47mm")) return;
-  const text = bound("fenix5, fenix8solar47mm", ["alt", "{astro.sun_altitude:.1f}"], ["age", "{astro.moon_age:.1f}"]);
+  const refused = checked(bound("fenix5, fenix8solar47mm", ["alt", "{astro.sun_altitude:.1f}"], ["age", "{astro.moon_age:.1f}"]))
+    .filter((d) => d.severity === "error");
+  assert.deepEqual(refused.map((d) => [d.code, d.devices, d.message.split(":")[0]]), [["source-unsupported", ["fenix5"], "alt"]]);
+  const text = bound("fenix5, fenix8solar47mm", ["alt", "{astro.sun_altitude:.1f}"], ["age", "{astro.moon_age:.1f}"])
+    .replaceAll("    absent:", "    unsupported: hide\n    absent:");
   const guards = availability.computeGuards(face(text), [db.get("fenix5"), db.get("fenix8solar47mm")]);
   assert.deepEqual(guards.modules, new Set(["Weather"]));
   assert.deepEqual(guards.fields, new Set(["observationLocationPosition"]));

@@ -112,8 +112,12 @@ or AOD-related has been observed on a watch or in the simulator.
   ("Phone settings, for a Store install").
 - **Per-device API gating** — manifest floor 3.1.0, a device below it is a
   friendly error (`selectDevices` in `ts/src/build.ts`); complication, weather and
-  field touches are `has`-guarded (`ts/src/availability.ts`); lints
-  `api-gated` and `api-gated-unguardable`. UNVERIFIED on a real pre-4.2.0
+  field touches are `has`-guarded (`ts/src/availability.ts`). Data a device
+  can never provide fails the build there by default (`source-unsupported`,
+  `slot-unsupported`; `--all-devices` drops the device), and
+  `unsupported: hide` on the element, group or slot opts in to the guarded,
+  absent reading (`api-gated`); `api-gated-unguardable` for an unguardable
+  call. UNVERIFIED on a real pre-4.2.0
   device: that a guarded reference to an absent module is harmless at load
   time.
 - **Fonts** — system fonts measured and previewed from the device's own

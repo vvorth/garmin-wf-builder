@@ -66,7 +66,7 @@ export const ALL_CODES: ReadonlySet<string> = new Set([
   "pattern-step", "permission",
   "on-hold", "overrides", "override-unreachable", "raw-color", "reserved", "safe-area", "schema", "sdk",
   "shared-source",
-  "shared-view", "source-renamed",
+  "shared-view", "slot-unsupported", "source-renamed", "source-unsupported",
   "sub-pixel-length", "target",
   "static", "static-overlap", "string-label", "subscreen",
   "text-antialias", "text-curve", "outline", "text-outline-interior",
@@ -1170,6 +1170,7 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
   const [hasComplications, hasOnpress] = probed;
   const exact = `exact -- ${device.id}'s own api.debug.xml`;
   const candidates: [Placed, string, Span | null, string][] = [];
+  const unsupportedSlots = new Set<string>();
   for (const placed of resolved.items) {
     const element = placed.element;
     for (const expression of element.expressions()) {
@@ -1203,16 +1204,9 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
       const bare = module.replace(/^Toybox\./, "");
       const gap = availability.moduleUnavailable(bare, device);
       if (gap !== null) {
-        emit(bag, placed, diag("warning", "api-gated",
-          `${placed.id}: series ${quoted(element.series)} needs module ${module}, which ${device.id} lacks, so the graph draws empty there`,
-          element.span, {
-            notes: [
-              `confirmed against ${device.id}'s own api.debug.xml -- not one of its <dataEntry type="module"> rows`,
-              `the generated view guards the acquisition with 'Toybox has :${bare}' (computeGuards) -- the build `
-              + "still succeeds; only this graph degrades on this device",
-            ],
-            confidence: exact,
-          }));
+        emitUnsupportedSource(bag, placed, device, `series ${quoted(element.series)} needs module ${module}, which ${device.id} lacks`,
+          element.span, [`confirmed against ${device.id}'s own api.debug.xml -- not one of its <dataEntry type="module"> rows`],
+          exact, "the graph draws empty there");
       }
     }
     const slotName = slotOf(element);
@@ -1223,6 +1217,23 @@ export function checkApiGated(resolved: ResolvedFace, bag: Bag): void {
         candidates.push([placed, slot.default, element.span, "default"]);
         // `choices: any` lists only what the device has, so only an explicit choice can name a missing type.
         if (slot.choices !== "any") for (const name of slot.choices) if (name !== slot.default) candidates.push([placed, name, element.span, "slot"]);
+      } else if (slot.unsupported === "error") {
+        // One error per slot, however many elements draw it.
+        if (!unsupportedSlots.has(slotName)) {
+          unsupportedSlots.add(slotName);
+          bag.error("slot-unsupported",
+            `config.slots.${slotName}: ${device.id} lacks Toybox.Complications, so this slot can never show anything there -- not even its default`,
+            slot.span, {
+              notes: [
+                "a slot reads every type, its 'default:' included, through Toybox.Complications (API 4.2.0); without the "
+                + "module each element drawing it shows only its 'absent:' state, forever",
+                `set 'unsupported: hide' on 'config.slots.${slotName}' to build it anyway, or drop the device from 'targets:' `
+                + "('wfb export --all-devices' leaves it out by itself)",
+              ],
+              confidence: exact,
+              devices: [device.id],
+            });
+        }
       } else {
         emit(bag, placed, diag("warning", "api-gated",
           `${placed.id}: slot ${quoted(slotName)} needs Toybox.Complications, which ${device.id} lacks, so it shows its absent state here -- never the declared default`,
@@ -1304,15 +1315,34 @@ function emitSourceGap(bag: Bag, placed: Placed, path: string, span: Span | null
   const need = gap.kind === "module" ? `module Toybox.${gap.symbol}` : `field ${quoted(gap.symbol)}`;
   let confidence = `exact -- ${device.id}'s own api.debug.xml`;
   if (gap.kind === "field") confidence += " (a bare field name's absence from its symbol table is exact)";
-  emit(bag, placed, diag("warning", "api-gated",
-    `${placed.id}: ${quoted(path)} needs ${need}, which ${device.id} lacks, so it reads as absent there ('absent:' applies)`, span, {
-      notes: [
-        `confirmed against ${device.id}'s own api.debug.xml -- `
-        + (gap.kind === "module" ? "not one of its <dataEntry type=\"module\"> rows" : `${quoted(gap.symbol)} is not one of its <symbolTable> field entries`),
-        "the generated view guards this at runtime (computeGuards) -- the build still succeeds; only this binding degrades on this device",
-      ],
+  emitUnsupportedSource(bag, placed, device, `${quoted(path)} needs ${need}, which ${device.id} lacks`, span, [
+    `confirmed against ${device.id}'s own api.debug.xml -- `
+    + (gap.kind === "module" ? "not one of its <dataEntry type=\"module\"> rows" : `${quoted(gap.symbol)} is not one of its <symbolTable> field entries`),
+  ], confidence);
+}
+
+/**
+ * Data this element reads that `device` can never provide: a build error
+ * naming the device by default (so `wfb export --all-devices` leaves it
+ * out), or, under `unsupported: hide` on the element or a group around it,
+ * the `api-gated` warning, the reading absent there forever.
+ */
+function emitUnsupportedSource(bag: Bag, placed: Placed, device: Device, what: string, span: Span | null, notes: string[], confidence: string,
+  absent = "it reads as absent there ('absent:' applies)"): void {
+  if (placed.element.hidesUnsupported) {
+    emit(bag, placed, diag("warning", "api-gated", `${placed.id}: ${what}, so ${absent}`, span, {
+      notes: [...notes, "the generated view guards this at runtime (computeGuards) -- the build still succeeds "
+        + "('unsupported: hide'); only this binding degrades on this device"],
       confidence,
     }));
+    return;
+  }
+  emit(bag, placed, diag("error", "source-unsupported", `${placed.id}: ${what} -- this element would silently change there`, span, {
+    notes: [...notes, `set 'unsupported: hide' on ${quoted(placed.element.id)} (or a group around it) to build it anyway (then ${absent}), `
+      + "or drop the device from 'targets:' ('wfb export --all-devices' leaves it out by itself)"],
+    confidence,
+    devices: [device.id],
+  }));
 }
 
 const READS_AS_ABSENT_NOTE = "Complications.getComplication returns null for a type the device does not support -- the same "
@@ -1360,6 +1390,11 @@ function checkComplicationSince(bag: Bag, resolved: ResolvedFace, candidates: [P
     if (has === false) {
       if (kind === "default" || kind === "slot") {
         emit(bag, placed, typeMissing(device, name, kind, slotOf(placed.element)!, span, placed.id)!);
+        continue;
+      }
+      if (kind === "read") {
+        emitUnsupportedSource(bag, placed, device, `${sinceSubject(placed, name, kind)} is not on ${device.id}: ${device.id} has no ${ctype.constant}`,
+          span, [...SINCE_NOTES[kind]!], `exact -- ${device.id}'s own symbol table (api.debug.xml)`);
         continue;
       }
       emit(bag, placed, diag("warning", "api-gated",

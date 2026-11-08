@@ -1016,7 +1016,11 @@ every target device in a build, so a per-feature bump would lock out any
 device that never touches the feature (`docs/research/probes/api-gating/`). A device missing something a design
 binds gets a runtime `has`-guard in the shared generated view instead
 (`computeGuards` in `ts/src/availability.ts`, `wfb/emit/monkeyc/`), and the binding
-simply reads as absent there.
+reads as absent there -- but only when the element opts in with
+`unsupported: hide`: by default a read the device can never satisfy is a
+`source-unsupported` build error naming the device (and `wfb export
+--all-devices` leaves it out), so a face never silently loses data on a
+watch. The lint is `api-gated` (warning) under `hide`.
 
 **A device whose own ConnectIQ ceiling sits below 3.1.0 is unsupported.**
 Every generated manifest declares `minApiLevel="3.1.0"`, so such a device
@@ -1038,8 +1042,9 @@ run unguarded and crash on that device. No installed device has such a gap
 today. `fenix5`/`fenix5x` (ConnectIQ 3.1.6) lack `Toybox.Weather`
 outright, but that is a whole-module gap: both weather readers set
 `Reader.requires_module = "Weather"`, so every `weather.*` read and every
-forecast `graph`'s acquisition sits behind `Toybox has :Weather`, reads as
-absent there, and gets an `api-gated` warning
+forecast `graph`'s acquisition sits behind `Toybox has :Weather`: a
+`source-unsupported` error there by default, or, under `unsupported: hide`,
+absent there with an `api-gated` warning
 (`ts/test/availability.test.ts`).
 
 **The bare-field-name approximation is a real, if currently unrealised,
@@ -1120,7 +1125,9 @@ them rather than to an arbitrary one:
   block. It is one combined warning per device regardless of what each axis
   actually does there -- keep a compiled-in default (colours, and a slot on
   a device that still has `Toybox.Complications`) or show as absent (a slot
-  on a device that also lacks it, see "Per-device API availability" above) --
+  with `unsupported: hide` on a device that also lacks it, see "Per-device
+  API availability" above; without `hide` that is a `slot-unsupported`
+  build error instead) --
   so one `allow:` anywhere among the elements it names suppresses it entirely --
   the allow is honoured on any element that draws (the same fields as
   above) exactly a role a colour axis or scheme binds (`color.accent`,

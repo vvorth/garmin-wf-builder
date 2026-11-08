@@ -48,6 +48,78 @@ const SUBSCREEN = MINIMAL + `
     at: {anchor: subscreen}
 `;
 
+/** A design with one `config: slots:` slot, drawn by a data element; `extra` goes on the slot. */
+const SLOT = (extra = ""): string => MINIMAL.replace("elements:", `config:
+  slots:
+    top: {${extra}default: steps, choices: [steps, calories]}
+elements:`) + `
+  reading:
+    type: data
+    slot: top
+    font: FONT_TINY
+    color: color.fg
+    at: {anchor: center}
+    absent: {text: "--"}
+`;
+
+test("a slot fails a device without Complications by default, attributed to it, and builds there under 'unsupported: hide'", () => {
+  const bag = new Bag();
+  passFor(SLOT())(["fenix8solar47mm", "fenix6"], bag);
+  assert.deepEqual(bag.errors.map((d) => [d.code, d.devices]), [["slot-unsupported", ["fenix6"]]], bag.render());
+  const explicit = new Bag();
+  passFor(SLOT("unsupported: error, "))(["fenix6"], explicit);
+  assert.deepEqual(explicit.errors.map((d) => d.code), ["slot-unsupported"], explicit.render());
+  const hidden = new Bag();
+  passFor(SLOT("unsupported: hide, "))(["fenix8solar47mm", "fenix6"], hidden);
+  assert.ok(hidden.ok(), hidden.render());
+  assert.ok(hidden.items.some((d) => d.severity === "warning" && d.code === "api-gated" && d.message.includes("slot 'top'")), hidden.render());
+  const outcome = dropUnsupported(["fenix8solar47mm", "fenix6"], passFor(SLOT()));
+  assert.deepEqual(outcome.result, ["fenix8solar47mm"], outcome.bag.render());
+  assert.deepEqual([...outcome.dropped.keys()], ["fenix6"]);
+});
+
+/** A text reading floors climbed, a field fr245 lacks; `extra` goes on the text, `group` wraps it in a group carrying those lines. */
+const FLOORS = (extra = "", group = ""): string => MINIMAL + (group === "" ? `
+  floors:
+    type: text
+    text: "{activity.floors_climbed}"
+    font: FONT_TINY
+    color: color.fg
+    at: {anchor: center}
+    absent: {text: "--"}
+${extra}` : `
+  box:
+    type: group
+    at: {anchor: center}
+    size: {width: 40%, height: 20%}
+${group}    children:
+      floors:
+        type: text
+        text: "{activity.floors_climbed}"
+        font: FONT_TINY
+        color: color.fg
+        at: {anchor: center}
+        absent: {text: "--"}
+`);
+
+test("data a device lacks fails it by default, attributed to it; 'unsupported: hide' on the element or a group builds it", () => {
+  if (!db.ids().includes("fr245")) return;
+  const bag = new Bag();
+  passFor(FLOORS())(["fenix8solar47mm", "fr245"], bag);
+  assert.deepEqual(bag.errors.map((d) => [d.code, d.devices]), [["source-unsupported", ["fr245"]]], bag.render());
+  const outcome = dropUnsupported(["fenix8solar47mm", "fr245"], passFor(FLOORS()));
+  assert.deepEqual(outcome.result, ["fenix8solar47mm"], outcome.bag.render());
+  for (const text of [FLOORS("    unsupported: hide\n"), FLOORS("", "    unsupported: hide\n")]) {
+    const hidden = new Bag();
+    passFor(text)(["fenix8solar47mm", "fr245"], hidden);
+    assert.ok(hidden.ok(), hidden.render());
+    assert.ok(hidden.items.some((d) => d.severity === "warning" && d.code === "api-gated" && d.message.includes("floors")), hidden.render());
+  }
+  const nothing = new Bag();
+  passFor(MINIMAL.replace("    color: color.bg\n", "    color: color.bg\n    unsupported: hide\n"))(["fenix8solar47mm"], nothing);
+  assert.ok(nothing.errors.some((d) => d.message.includes("'unsupported:' is not accepted here")), nothing.render());
+});
+
 test("the errors a device's lack causes carry that device; the design's own errors carry none", () => {
   const bag = new Bag();
   passFor(CURVED)(["fenix8solar47mm", "fr255", "fenix6"], bag);

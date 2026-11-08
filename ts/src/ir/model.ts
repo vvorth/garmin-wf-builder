@@ -347,6 +347,8 @@ export class ConfigDataSlot {
   /** Per-choice icon override; `null` for an explicit `icon: none`. */
   icon_overrides: Map<string, icons.SlotIcon | null> = new Map();
   label: string | null = null;
+  /** On a device without Toybox.Complications: fail the build (`error`), or read as absent there (`hide`). */
+  unsupported: "error" | "hide" = "error";
   span: Span | null = null;
 
   static create(init: Partial<ConfigDataSlot>): ConfigDataSlot { return make(ConfigDataSlot, init); }
@@ -459,6 +461,14 @@ export class Element {
 
   get valueRoles(): ReadonlySet<string> {
     return (this.constructor as typeof Element).VALUE_ROLES;
+  }
+
+  /** An enclosing group says `unsupported: hide`. */
+  inherited_unsupported_hide = false;
+
+  /** A source this device lacks reads as absent here (`unsupported: hide`, its own or a group's) rather than failing the build. */
+  get hidesUnsupported(): boolean {
+    return this.unsupported === "hide" || this.inherited_unsupported_hide;
   }
 
   /** Every lint code this element accepts: its own `lint: allow` and every enclosing group's. */
@@ -1037,6 +1047,12 @@ export function slotOf(element: Element): string | null {
   if (element instanceof IconElement) return element.slot;
   if (element instanceof Graph) return element.slot;
   return null;
+}
+
+/** `element`, or any member at any depth, reads a catalogue source or plots a series: something a device can lack. */
+export function readsData(element: Element): boolean {
+  return walkElements([element]).some((e) => e.expressions().some((x) => x.sources.length > 0)
+    || (e instanceof Graph && e.series_def !== null));
 }
 
 /** Every distinct slot drawn by an element of `group`, at any depth, in document order. */

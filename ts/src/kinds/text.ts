@@ -5,7 +5,7 @@ import * as conversion from "../conversion.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";
 import * as formatting from "../formatting.ts";
 import type { Builder } from "../ir/builder/index.ts";
-import { type Element, type Expression, Text, TextSegment } from "../ir/model.ts";
+import { type Element, type Expression, readsData, Text, TextSegment } from "../ir/model.ts";
 import {
   HIDDEN_BY_FONT, justify, longer, type Placed, PlacedText, replaceFields, type Resolver, resolvedCurve, textInk,
 } from "../layout.ts";
@@ -233,7 +233,8 @@ class TextKind extends ElementKind<Text> {
     if (node.has("curve")) {
       element.curve = b.buildCurve(node, element.id, { verticalAlign: element.vertical_align, fontOk, fontIsVector, fontNote });
     }
-    if (fontOk && node.has("unsupported") && !element.inSubscreen) b.checkUnsupported(node, element.id, fontIsVector, fontNote);
+    // On a text reading data, `unsupported:` also governs a source the device lacks.
+    if (fontOk && node.has("unsupported") && !element.inSubscreen && !readsData(element)) b.checkUnsupported(node, element.id, fontIsVector, fontNote);
     if (node.has("outline")) element.outline = b.buildOutline(node, "outline", element.id, element);
     const ownAodFormat = element.aod_own !== null && element.aod_own.has("text");
     const aodFormatSpan = ownAodFormat ? b.doc.span(node.get("aod"), "text") ?? b.doc.span(node, "aod") : null;

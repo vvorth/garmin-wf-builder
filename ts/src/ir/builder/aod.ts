@@ -215,9 +215,10 @@ export class AodPass extends HandParts {
   resolveGroupKeys(elements: Element[]): void {
     this.resolveInheritedFlag(elements, "z", 0);
     this.resolveInheritedFlag(elements, "sleep_update", false);
-    const visit = (items: Element[], allow: Set<string>, sleeper: Element | null): void => {
+    const visit = (items: Element[], allow: Set<string>, sleeper: Element | null, hide = false): void => {
       for (const element of items) {
         element.inherited_lint_allow = allow;
+        element.inherited_unsupported_hide = hide;
         element.modes = element.resolved_sleep_update ? ["active", "low_power"] : ["active"];
         const source = element.sleep_update ? element : element.sleep_update === null ? sleeper : null;
         if (element.sleep_update === null && element.resolved_sleep_update
@@ -227,7 +228,7 @@ export class AodPass extends HandParts {
             notes: [`write 'sleep_update: false' on ${quoted(element.id)} to keep it out of the partial update`],
           });
         }
-        visit(element.children(), new Set([...allow, ...element.lint_allow]), source);
+        visit(element.children(), new Set([...allow, ...element.lint_allow]), source, hide || element.unsupported === "hide");
       }
     };
     visit(elements, new Set(), null);

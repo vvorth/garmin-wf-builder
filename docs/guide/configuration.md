@@ -20,6 +20,7 @@ with neither (`fenix5`/`fenix5x`) shows the compiled-in defaults.
 | `style:` | `config:` | ordered mapping of named entries | — | [the Styles axis](#all-four-axes-are-wired-up) |
 | `slots:` | `config:` | mapping of named slots | — | [the Data axis](#the-data-axis) |
 | `label:` | a `slots:` entry | string | the slot's name, humanised | the slot's title in the [settings menu](#the-settings-menu-on-a-watch-without-the-native-editor); the native editor shows none |
+| `unsupported:` | a `slots:` entry | `error` / `hide` | `error` | on a watch without `Toybox.Complications` (API below 4.2): `error` fails the build naming it, and `wfb export --all-devices` leaves it out; `hide` builds it, the slot reading as absent there forever |
 | `default:` | a `config:` axis/entry | hex or `color.<swatch>`, entry name, or complication type | — | starting value; must be in `choices:` when explicit |
 | `choices:` | a `config:` axis/entry | `any`, or an explicit list | — | the editor's picklist |
 | `label:` | a `style:` entry | string | falls back to the scheme's own `label:` | shown in the editor's Styles list |
@@ -646,8 +647,11 @@ The third row is the only one that warns: the suppressible
 and the entries (roles, slots) affected. A slot's default complication type
 is read through `Toybox.Complications`, so on a device that also lacks that
 module (`fenix5`/`fenix5x`, and fenix6/fr245 for the menu too) the slot
-shows its absent state instead of any default; see `api-gated` below for
-that fact from the slot's own side, reported independently.
+could only ever show its absent state: by default that is a
+`slot-unsupported` build error naming the device (and `wfb export
+--all-devices` leaves the device out), and under the slot's
+`unsupported: hide` it builds, with an `api-gated` warning from the slot's
+own side, reported independently.
 
 **The native editor's preview does not keep time yet.** The editor redraws
 the face only when the wearer moves through it. A face it started asks for a
@@ -816,11 +820,16 @@ Nothing phone-side has been seen on a watch yet; see
 * `on_hold:` on a `data` element naming anything other than `auto` --
   error, naming why (see "The Data axis" above) and pointing at the
   alternative (a plain element bound to the matching `complication.<name>`).
-* `api-gated` (suppressible) -- *any* catalogue binding a target device
-  cannot actually provide, resolved against that device's own
-  `api.debug.xml` rather than an API level (`ts/src/availability.ts`; CLAUDE.md
-  constraint 6/6e). Five shapes, all WARNING, all reading as absent rather
-  than failing the build:
+* `source-unsupported` (error, not suppressible) and `api-gated`
+  (suppressible warning) -- *any* catalogue binding a target device cannot
+  actually provide, resolved against that device's own `api.debug.xml`
+  rather than an API level (`ts/src/availability.ts`; CLAUDE.md constraint
+  6/6e). The first three shapes below are data the element would silently
+  never show there, so by default each is a `source-unsupported` error
+  naming the device (`wfb export --all-devices` leaves that device out);
+  `unsupported: hide` on the element, or on a group around it, opts in to
+  building it anyway, the shape then an `api-gated` warning and the
+  reading absent there forever. The other shapes are always warnings:
   - a `text:`/`value:`/`color:`/etc. source path whose reader needs a `Toybox`
     module (`Complications`, `Weather`) or a field the device's own symbol
     table lacks -- covers every `complication.*` and `weather.*` read this
@@ -829,20 +838,23 @@ Nothing phone-side has been seen on a watch yet; see
   - a forecast `graph` (`forecast_*`/`daily_*` series) on a device with no
     `Toybox.Weather` -- the guarded acquisition yields nothing and the graph
     draws empty there;
-  - a complication *type* the device's own symbol table lacks (each
-    `COMPLICATION_TYPE_*` constant is a bare field entry in
-    `api.debug.xml`), read, held to launch, or listed in a slot's explicit
-    `choices:` -- a listed one is left out of that device's lists. Only a
-    device with no symbol table falls back to `ComplicationType.since` in
-    `ts/src/complications.ts` against its API level, an estimate. Skipped
-    when the device lacks `Toybox.Complications` outright (the module-gap
-    case above already said so, more fundamentally);
+  - a complication *type* read that the device's own symbol table lacks
+    (each `COMPLICATION_TYPE_*` constant is a bare field entry in
+    `api.debug.xml`). Skipped when the device lacks `Toybox.Complications`
+    outright (the module-gap case above already said so, more
+    fundamentally);
+  - a complication type held to launch or listed in a slot's explicit
+    `choices:` that the table lacks -- a listed one is left out of that
+    device's lists (always a warning). Only a device with no symbol table
+    falls back to `ComplicationType.since` in `ts/src/complications.ts`
+    against its API level, an estimate, and that is a warning for a read
+    too;
   - `on_hold:` on a device with no `Toybox.Complications` -- the hold
     compiles in but does nothing there, unless `hold-unsupported` already
     covers that same element (the device also lacks `onPress`) -- "it never
     fires" stays true either way, so this one really is the same fact twice;
-  - a `data` element's slot on a device with no `Toybox.Complications`
-    -- it shows its absent state forever, **never** its declared `default:`
+  - a `data` element's slot with `unsupported: hide` on a device with no
+    `Toybox.Complications` -- it shows its absent state forever, **never** its declared `default:`
     (the default is itself read through `Toybox.Complications`, so a device
     missing the module cannot resolve it either). This does **not** dedupe
     against `config-unsupported`: that warning, when it *also* fires because

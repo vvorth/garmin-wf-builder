@@ -212,9 +212,12 @@ test("a default the table lacks is the api-gated-unguardable error, on the eleme
 test("a read or hold target the table lacks is decided by the table, not the level", () => {
   const text = slotted(["wfbmenu"], "{ default: steps, choices: any }")
     .replace("    type: data\n    slot: top\n", "    type: text\n    text: \"{complication.sleep_score:d}\"\n    on_hold: sleep_score\n    absent: hide\n");
-  const messages = build(stubs, text).diagnostics.filter((d) => d.code === "api-gated").map((d) => d.message).sort();
+  const refused = build(stubs, text).diagnostics.filter((d) => d.code === "source-unsupported").map((d) => [d.message.split(" --")[0], d.devices]);
+  assert.deepEqual(refused, [["reading: 'complication.sleep_score' is not on wfbmenu: wfbmenu has no COMPLICATION_TYPE_SLEEP_SCORE", ["wfbmenu"]]]);
+  const hidden = text.replace("    absent: hide\n", "    absent: hide\n    unsupported: hide\n");
+  const messages = build(stubs, hidden).diagnostics.filter((d) => d.code === "api-gated").map((d) => d.message).sort();
   assert.deepEqual(messages, [
-    "reading: 'complication.sleep_score' is not on wfbmenu: wfbmenu has no COMPLICATION_TYPE_SLEEP_SCORE",
+    "reading: 'complication.sleep_score' is not on wfbmenu: wfbmenu has no COMPLICATION_TYPE_SLEEP_SCORE, so it reads as absent there ('absent:' applies)",
     "reading: holding to launch 'sleep_score' is not on wfbmenu: wfbmenu has no COMPLICATION_TYPE_SLEEP_SCORE",
   ]);
 });

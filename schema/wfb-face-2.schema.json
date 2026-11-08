@@ -1025,7 +1025,7 @@
       "default": false
     },
     "unsupported": {
-      "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, or, on a 'text' element, a usable 'face:' font. 'error' (the default) fails the build naming the device; 'hide' makes this element (and, for a group, its children) not draw there. Accepted only where one of those applies. Distinct from 'absent:', which is about a reading that is null at runtime.",
+      "description": "What to do on a target that lacks something this element needs: its 'anchor: subscreen' window, on a 'text' or 'data' element a usable 'face:' font, or a data source it reads (a module, field or complication type the device does not have, or a forecast series without Weather). 'error' (the default) fails the build naming the device, and 'wfb export --all-devices' leaves that device out; 'hide' builds it anyway: the element (and, for a group, its children) is not drawn where the window or face is missing, and a source the device lacks reads as absent there forever. Accepted only where one of those applies. Distinct from 'absent:', which is about a reading that is null at runtime.",
       "enum": [
         "error",
         "hide"
@@ -1214,6 +1214,14 @@
         "default": {
           "description": "Compiled into the view as the starting type, and the only type a device with neither the native editor nor the settings menu ever shows. Must also appear in 'choices:' when 'choices:' is an explicit list.",
           "$ref": "#/$defs/complicationName"
+        },
+        "unsupported": {
+          "description": "What to do on a target device without Toybox.Complications (API below 4.2), where this slot can never show anything -- not even its 'default:' -- only its elements' 'absent:' state. 'error' (the default) fails the build naming the device, and 'wfb export --all-devices' leaves such a device out; 'hide' builds it anyway, the slot reading as absent there forever (an 'api-gated' warning).",
+          "enum": [
+            "error",
+            "hide"
+          ],
+          "default": "error"
         },
         "choices": {
           "description": "'any' hands the wearer the editor's own unrestricted complication picker (every native complication type has a catalogue icon). An explicit list becomes the editor's picklist; 'default:' must be one of the listed types.",

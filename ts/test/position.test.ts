@@ -61,7 +61,10 @@ test("the view reads the call behind the reader's null guard and takes the reade
 
 test("a build with fenix5 guards the Weather module and the field around the call, and lints api-gated there", () => {
   if (!installed("fenix5", "fenix8solar47mm")) return;
-  const text = bound("fenix5, fenix8solar47mm", "position.latitude");
+  // By default fenix5 is refused; under 'unsupported: hide' it builds, guarded.
+  const refused = checked(bound("fenix5, fenix8solar47mm", "position.latitude")).filter((d) => d.severity === "error");
+  assert.deepEqual(refused.map((d) => [d.code, d.devices]), [["source-unsupported", ["fenix5"]]]);
+  const text = bound("fenix5, fenix8solar47mm", "position.latitude").replace("    absent:", "    unsupported: hide\n    absent:");
   const guards = availability.computeGuards(face(text), [db.get("fenix5"), db.get("fenix8solar47mm")]);
   assert.deepEqual(guards.modules, new Set(["Weather"]));
   assert.deepEqual(guards.fields, new Set(["observationLocationPosition"]));

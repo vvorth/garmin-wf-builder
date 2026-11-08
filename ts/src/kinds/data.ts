@@ -4,7 +4,7 @@ import type { Span } from "../diagnostics.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
-import { type ConfigDataSlot, DataElement, type Element, type Expression, HOLD_AUTO } from "../ir/model.ts";
+import { type ConfigDataSlot, DataElement, type Element, type Expression, HOLD_AUTO, readsData } from "../ir/model.ts";
 import { dataHoldMethod, dataIconMethod, fontResourceId } from "../ir/naming.ts";
 import * as complications from "../complications.ts";
 import * as icons from "../icons.ts";
@@ -594,7 +594,8 @@ class DataKind extends ElementKind<DataElement> {
         notes: ["an upright reading's icon is already upright"],
       });
     }
-    if (fontOk && node.has("unsupported") && !element.inSubscreen) b.checkUnsupported(node, element.id, fontIsVector, fontNote);
+    // On a data element reading a source beside its slot (a colour, say), `unsupported:` also governs that source.
+    if (fontOk && node.has("unsupported") && !element.inSubscreen && !readsData(element)) b.checkUnsupported(node, element.id, fontIsVector, fontNote);
 
     if (element.on_hold !== null && element.on_hold !== HOLD_AUTO) {
       // A fixed target would disagree with the slot the moment the wearer repoints it.

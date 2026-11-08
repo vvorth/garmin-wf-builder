@@ -10,7 +10,7 @@ import type { Common, SchemaPath } from "../../kinds/base.ts";
 import * as kinds from "../../kinds/index.ts";
 import { SHAPE_GEOMETRY_KEYS } from "../../kinds/shape.ts";
 import { quoted, str, truthy } from "../../py.ts";
-import { type Element, Expression, Group, groupSlots, HOLD_AUTO, holdSlot, overrideKey, variantConstant, type Position, ROLE_VALUE, Shape } from "../model.ts";
+import { type Element, Expression, Group, groupSlots, HOLD_AUTO, holdSlot, overrideKey, readsData, variantConstant, type Position, ROLE_VALUE, Shape } from "../model.ts";
 import { elementConstPrefix, elementMethodName } from "../naming.ts";
 import { ringGroups } from "../rings.ts";
 import type { Builder } from "./index.ts";
@@ -99,6 +99,7 @@ export class ElementTree extends StaticPass {
     if (element !== null && truthy(node.get("overrides"))) {
       if (!this.buildOverrides(node, element)) return null;
     }
+    if (element !== null && !this.checkUnsupportedApplies(node, element, span)) return null;
     if (element !== null) {
       this.resolveHoldAuto(element);
       if (node.has("outline") && element.outline === null && element.kind !== "text") {
@@ -318,17 +319,25 @@ export class ElementTree extends StaticPass {
         });
       return false;
     }
-    // A text or data element's `unsupported:` also governs its `face:` font, checked by its kind.
-    if (node.has("unsupported") && !inSubscreen && node.get("type") !== "text" && node.get("type") !== "data") {
-      this.bag.error("subscreen", `${str(node.get("id"))}: 'unsupported:' is not accepted here`,
-        this.doc.span(node, "unsupported") ?? span, {
-          notes: ["on this element it governs 'at: {anchor: subscreen}' on a target "
-            + "without a subscreen window; this element is not anchored there",
-          "drop 'unsupported:', or anchor the element to the subscreen"],
-        });
-      return false;
-    }
     return true;
+  }
+
+  /**
+   * `unsupported:` needs something that can be unavailable: the subscreen
+   * window, a data source (this element's or, on a group, a member's), or a
+   * text or data element's `face:` font, which its kind checks.
+   */
+  private checkUnsupportedApplies(node: Node, element: Element, span: Span | null): boolean {
+    if (!node.has("unsupported") || element.inSubscreen || element.kind === "text" || element.kind === "data") return true;
+    if (readsData(element)) return true;
+    this.bag.error("subscreen", `${element.id}: 'unsupported:' is not accepted here`,
+      this.doc.span(node, "unsupported") ?? span, {
+        notes: ["'unsupported:' governs what a target may lack: the subscreen window ('at: {anchor: subscreen}'), "
+          + "or a data source this element (or a group's member) reads; this element has neither",
+        "drop 'unsupported:', or anchor the element to the subscreen",
+        ...(node.has("slot") ? [`for a device without Complications, 'unsupported:' belongs on the slot: 'config.slots.${str(node.get("slot"))}'`] : [])],
+      });
+    return false;
   }
 
   /**

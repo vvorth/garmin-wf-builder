@@ -130,8 +130,10 @@ three cases, so an `absent:` policy is required as for any nullable
 source: the face lacks the permission (never, since the compiler derives
 it), the watch has no weather report yet, or the report carries no
 location. On a device without `Toybox.Weather` (`fenix5`, `fenix5x`) they
-read as absent and the build warns `api-gated`, like every `weather.*`
-source. The preview uses the Royal Observatory at Greenwich
+can never be read, like every `weather.*` source: by default that is a
+`source-unsupported` build error naming the device, and under
+`unsupported: hide` on the element they read as absent there, with an
+`api-gated` warning. The preview uses the Royal Observatory at Greenwich
 (51.4769, -0.0005) as its sample; `--sample position.latitude=48.8566`
 overrides it. That a sideloaded face holding `Positioning` actually
 receives the observation location is UNVERIFIED on a watch: the SDK
@@ -162,8 +164,9 @@ is read fresh every frame.
 The six that need no position are always there. The four that do are
 nullable and **absent until the watch holds a weather report with a
 location**, exactly as `position.*` is, so each needs an `absent:` policy;
-they read as absent on a device without `Toybox.Weather`, with the
-`api-gated` warning, and binding any of them adds the `Positioning`
+on a device without `Toybox.Weather` they are a `source-unsupported`
+error by default, or read as absent under `unsupported: hide` (an
+`api-gated` warning), and binding any of them adds the `Positioning`
 permission. A date-only source (`sun_declination`, `equation_of_time`,
 `sun_noon_altitude`) is computed for noon UT of the watch's local date, so
 it changes once a day; the others follow the clock, converted to UT with
@@ -258,8 +261,11 @@ seen in the simulator), and that is multiplied back, so
 moves for this (`manifest.xml` is one file shared by every target device, so
 a per-feature bump would lock out any target that never touches the
 feature -- see [What each device does with it](configuration.md#what-each-device-does-with-it)); a target device that
-lacks `Toybox.Complications` instead gets the read guarded at runtime and
-warned about ([`api-gated`](configuration.md#lint)) rather than being excluded from the build.
+lacks `Toybox.Complications` fails the build by default
+([`source-unsupported`](configuration.md#lint), which `wfb export
+--all-devices` turns into leaving that device out); under `unsupported:
+hide` on the element it builds instead, the read guarded at runtime, absent
+there, and warned about (`api-gated`).
 `ts/src/emit/monkeyc/view.ts` also emits one
 `WfbComplications.subscribe(...)` per bound type in `onLayout`, whose whole
 job is `WatchUi.requestUpdate()` on change — this is *not* a cache (see "How
