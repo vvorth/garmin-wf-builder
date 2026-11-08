@@ -54,7 +54,7 @@ authoritative for a command's own flags. One line each, taken from `wfb
 ```sh
 wfb new       "My Face" [-t TEMPLATE] [--list]   # start from a known-good template
 wfb studio    [-p PORT]            # the editor, on http://127.0.0.1:8765/
-wfb build     design.yaml [-d DEVICE] [-o DIR] [-j N] [--no-compile] [--profile [REPS]] [--trace]
+wfb build     design.yaml [-d DEVICE | --all-devices] [-o DIR] [-j N] [--no-compile] [--profile [REPS]] [--trace]
 wfb export    design.yaml [-d DEVICE | --all-devices] [--id UUID] [-o DIR]  # one signed .iq for the Store
 wfb validate  design.yaml [-d DEVICE]  # everything except codegen; no toolchain needed
 wfb preview   design.yaml [-d DEVICE] [--watch] [--skin] [--sample NAME=VALUE] [--time HH:MM[:SS]] [--date YYYY-MM-DD] [-q] [-o -]  # render to PNG; no simulator
@@ -244,6 +244,11 @@ dashboard, where you add the description and screenshots.
 `export-info.json` beside the `.iq` records the SDK, the app id, the
 version, the devices, and under `dropped` each device `--all-devices` left
 out with the codes that dropped it (`{}` when none was).
+
+`wfb build --all-devices` picks and drops watches the same way, then
+compiles one `.prg` per kept watch: every build the export would ship,
+ready to sideload or run in the simulator. Its summary prints the same
+`dropped` line, and `build-info.json` lists the drops under `dropped`.
 
 ## Profiling
 

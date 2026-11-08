@@ -70,7 +70,7 @@ function memoryShare(share: number, color: boolean): string {
 /** Every diagnostic in `bag` on stderr. */
 function printBag(bag: Bag, verbose: boolean): void {
   if (bag.items.length === 0) return;
-  err(bag.render({ color: term.shouldColor(process.stderr), width: term.width(process.stderr), verbose }));
+  err(bag.render({ color: term.shouldColor(process.stderr), width: term.width(process.stderr), verbose, full: (d) => d.code === "device-dropped" }));
 }
 
 /** A command's closing `<before><word> -- <counts><after>` line. */
@@ -189,6 +189,7 @@ function command(name: string, handler: Handler, options: Option[] = [], positio
 const COMMAND_LIST: readonly Command[] = [
   command("build", buildCommand, [
     VERBOSE, deviceOption("build"),
+    { flags: ["--all-devices"], kind: "flag", help: "build every installed device that can run a watch face at the 3.1.0 API floor, instead of the design's targets, dropping each one that cannot draw the design (the devices `wfb export --all-devices` would ship)" },
     { flags: ["-o", "--output"], default: DEFAULT_OUTPUT, help: `build directory (default: ${DEFAULT_OUTPUT})` },
     { flags: ["--no-compile"], kind: "flag", help: "generate the project but do not run monkeyc" },
     {
@@ -464,11 +465,16 @@ async function sdkUpdateNotice(toolchain: Toolchain | null, always = false): Pro
 }
 
 async function buildCommand(args: Namespace): Promise<number> {
+  const devicesOnly = (args["devices"] as string[] | null) ?? null;
+  if (args["all_devices"] && devicesOnly !== null) {
+    error("--all-devices and -d/--device are mutually exclusive");
+    return 1;
+  }
   const toolchain = Toolchain.discover(args["sdk"] as string | null, args["key"] as string | null);
   if (!args["no_compile"]) await sdkUpdateNotice(toolchain);
   const bag = new Bag();
   const result = await runBuild(args["design"] as string, {
-    output: args["output"] as string, bag, devicesOnly: (args["devices"] as string[] | null) ?? null,
+    output: args["output"] as string, bag, devicesOnly, allDevices: Boolean(args["all_devices"]),
     db: discoverDb(args["devices_dir"] as string | null),
     toolchain,
     compilePrg: !args["no_compile"], profile: args["profile"] as number | null, trace: Boolean(args["trace"]), jobs: args["jobs"] as number | null,
@@ -489,6 +495,10 @@ async function buildCommand(args: Namespace): Promise<number> {
   out(`${status("generated", color)}  ${result.output_dir}`);
   for (const line of formatBuilt(result.products, result.memory, color)) out(line);
   if (result.products.size === 0 && args["no_compile"]) out("           (not compiled: --no-compile)");
+  if (result.dropped.size > 0) {
+    const listed = [...result.dropped].map(([id, codes]) => `${id} (${codes.join(", ")})`).join(", ");
+    out(`${term.style("dropped", ["bold", "yellow"], color)}    ${result.dropped.size} device${result.dropped.size === 1 ? "" : "s"}: ${listed}`);
+  }
   if (result.sdk_version !== null) out(`${status("sdk", color)}        Connect IQ ${result.sdk_version}, recorded in ${BUILD_INFO}`);
   if (args["profile"] && result.products.size > 0) printProfileReport(result, args["profile"] as number);
   verdict(bag, process.stdout, "succeeded", ["bold", "green"], "\nbuild ", ` in ${formatFixed(result.duration, 1)}s`);
