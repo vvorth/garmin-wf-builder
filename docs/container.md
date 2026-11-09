@@ -294,6 +294,18 @@ NAME` to answer only that name (and IP addresses and `localhost`), which
 drops `--allow-any-host`. The options are in [the editor's
 guide](guide/studio.md).
 
+**Memory.** Idle, with a browser on the welcome screen, the editor's server
+holds about 210 MB with 34 devices installed: Node and the compiler's
+modules are most of it, and the rest is the devices' digest (kept gzipped,
+built one device at a time) and the page's bundles. The esbuild helper
+that bundles the page at start is stopped once it has, and listing the
+devices reads each skin's size from its PNG header rather than decoding the
+image. A build adds the JVM for as long as `monkeyc` runs, and the editor's
+own work (previews, the history) is the browser's. The image sets
+`MALLOC_ARENA_MAX=2`, which keeps glibc from spreading that memory over an
+arena per thread. A `deploy.resources.limits.memory` of 512 MB in Compose
+leaves builds room.
+
 ---
 
 ## File ownership

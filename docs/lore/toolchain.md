@@ -249,6 +249,32 @@ glitch.
   `onPowerBudgetExceeded`). So `--profile` times `REPS` draws of one element
   per frame and averages across frames (`ts/src/emit/monkeyc/profile.ts`).
 
+- **2026-11-09: the editor's server idled at about 420 MB; three things
+  were most of it, and it idles at about 210 MB now (34 devices, Node
+  24.22.1 on Linux, measured from a separate client process with the
+  welcome page loaded; `docker stats` adds the page cache of what it read).**
+  (1) esbuild's service, a child process it keeps for later builds, held
+  100 to 134 MB after the four bundles at start; `esbuild.stop()` ends it
+  (`ts/src/studio/server.ts`), and a later `build()` starts it again, so
+  tests that start several servers are unaffected. (2) `hasSkin` answered
+  through `skinFor`, which decodes the skin PNG to RGBA and caches it in a
+  module `Map` for the CLI's `--skin` previews; the device listing asks it
+  of every device, so every skin stayed resident (57 MB at 34 devices).
+  It reads the PNG header now (`pngSize` in `ts/src/png.ts`), the same
+  answer without a pixel. (3) `GET /api/devices` digested every device
+  into one object, `JSON.stringify`-ed it (17 MB at 34 devices) and kept
+  that Buffer, gzipping it per request: a peak of +140 MB that glibc never
+  returned to the OS, 17 MB kept for the server's life. The digest is now
+  written through a gzip stream one device at a time (`gzippedDigest`),
+  each device's `api.debug.xml` (1 to 2 MB) garbage before the next is
+  read, and only the gzipped form (about 2 MB) is kept; a client without
+  gzip gets it inflated on the spot. What remains is Node plus the
+  compiler's modules (about 115 MB before a request is served, heap 20 MB
+  of it) and the four bundles (4 MB). `MALLOC_ARENA_MAX=2` in the image
+  is worth another 7 to 13 MB. `process.memoryUsage().external` is where
+  the skins and digests showed; `heapUsed` stayed near 20 MB throughout,
+  so a heap snapshot would have found nothing.
+
 ## 8. Useful SDK paths
 
 Everything below is offline inside `$CIQ_SDK` — **prefer it over the website**,

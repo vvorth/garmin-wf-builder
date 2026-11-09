@@ -5,18 +5,20 @@ import { readdirSync, statSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { join } from "node:path";
 import { test } from "node:test";
+import { gunzipSync } from "node:zlib";
 import { DeviceDatabase } from "../src/devices/device.ts";
 import { MemoryDeviceFiles } from "../src/devices/files.ts";
 import { indexFor, Refused } from "../src/edit/spans.ts";
 import { ICON_FONT } from "../src/emit/resources.ts";
 import { NodeFontFiles } from "../src/fonts/node.ts";
 import { isSubmodule, readFontFile } from "../src/node.ts";
-import { decodePng } from "../src/png.ts";
+import { decodePng, encodePng, pngSize } from "../src/png.ts";
+import { hasSkin, skinFor } from "../src/preview.ts";
 import * as starters from "../src/starters.ts";
 import { bundle, missing } from "../src/studio/bundle.ts";
 import { type Document, StaleVersion, Studio } from "../src/studio/document.ts";
 import { elementSchema, globalsOf, inspect, vocabulary } from "../src/studio/inspect.ts";
-import { allowHostList, digest, start } from "../src/studio/server.ts";
+import { allowHostList, digest, gzippedDigest, start } from "../src/studio/server.ts";
 import type { EditContext, Inspect } from "../src/studio/protocol.ts";
 import { MemoryBackend, Store } from "../src/studio/store.ts";
 import { CHIVO, Client, dataOf, db, DYNALIGHT, newStudio, read, readText, ROOT, STYLES } from "./studio-client.ts";
@@ -981,4 +983,33 @@ test("--allow-host adds names a request may address the server by; --allow-any-h
     await named.close();
     await any.close();
   }
+});
+
+test("the digest the server sends, gzipped one device at a time, is the digest", async () => {
+  const sent = JSON.parse(gunzipSync(await gzippedDigest(db)).toString("utf8")) as unknown;
+  assert.deepEqual(sent, JSON.parse(JSON.stringify(digest(db))));
+});
+
+test("a skin's size is read from the PNG's header, and hasSkin agrees with skinFor without decoding a skin", () => {
+  let skins = 0;
+  for (const id of db.ids()) {
+    const device = db.get(id);
+    const name = device.skinName;
+    if (name !== null) {
+      const bytes = db.files.file(id, name)!;
+      const decoded = decodePng(bytes);
+      assert.deepEqual(pngSize(bytes), decoded === null ? null : [decoded.width, decoded.height], id);
+      skins++;
+    }
+    assert.equal(hasSkin(device), skinFor(device, 1) !== null, id);
+  }
+  assert.ok(skins > 0, "the installed devices ship skins");
+  const png = encodePng(3, 2, new Uint8Array(6));
+  assert.deepEqual(pngSize(png), [3, 2]);
+  const interlaced = Uint8Array.from(png);
+  interlaced[28] = 1;
+  assert.equal(decodePng(interlaced), null, "outside the decoded subset");
+  assert.equal(pngSize(interlaced), null, "declined the same way");
+  assert.equal(pngSize(new TextEncoder().encode("not a png at all, but long enough")), null);
+  assert.equal(pngSize(new Uint8Array(0)), null);
 });

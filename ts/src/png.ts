@@ -19,6 +19,24 @@ function paeth(a: number, b: number, c: number): number {
   return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
 }
 
+/** Whether `IHDR`'s depth, colour type and interlacing are inside the subset decoded here. */
+function decodable(depth: number, colorType: number, interlace: number): boolean {
+  return (depth === 8 || (depth === 16 && colorType !== 3)) && interlace === 0 && CHANNELS[colorType] !== undefined;
+}
+
+/**
+ * `[width, height]` from the header alone, without decoding a pixel, or
+ * `null` exactly when `decodePng` would decline `bytes`: not a PNG, or one
+ * outside the subset. A skin's size is asked of every device at once, and
+ * decoding each (megabytes of RGBA) to answer it kept every skin resident.
+ */
+export function pngSize(bytes: Uint8Array): [number, number] | null {
+  if (bytes.length < 33 || SIGNATURE.some((b, i) => bytes[i] !== b)) return null;
+  const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (data.getUint32(8) !== 13 || String.fromCharCode(...bytes.subarray(12, 16)) !== "IHDR") return null;
+  return decodable(bytes[24]!, bytes[25]!, bytes[28]!) ? [data.getUint32(16), data.getUint32(20)] : null;
+}
+
 /** `bytes` decoded to RGBA, or `null` for a PNG outside the subset, or not a PNG. */
 export function decodePng(bytes: Uint8Array): RgbaImage | null {
   try {
@@ -43,8 +61,8 @@ export function decodePng(bytes: Uint8Array): RgbaImage | null {
       else if (type === "IEND") break;
       at += 12 + length;
     }
-    const channels = CHANNELS[colorType];
-    if ((depth !== 8 && !(depth === 16 && colorType !== 3)) || interlace !== 0 || channels === undefined) return null;
+    if (!decodable(depth, colorType, interlace)) return null;
+    const channels = CHANNELS[colorType]!;
     const bytesPerSample = depth / 8;
     const joined = new Uint8Array(idat.reduce((n, c) => n + c.length, 0));
     let offset = 0;

@@ -29,7 +29,7 @@ import { degrees, radians, roundHalfEven } from "./py.ts";
 import { composite, ellipse, type Image, image as newImage, paste, rectangle, type Tile } from "./raster/pillow.ts";
 import { SAMPLE } from "./sample.ts";
 import type { IntBox } from "./units.ts";
-import { decodePng, encodePng } from "./png.ts";
+import { decodePng, encodePng, pngSize } from "./png.ts";
 import { skin as skinOf, visibleMask } from "./visible_area.ts";
 
 export { SAMPLE, SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX } from "./sample.ts";
@@ -799,9 +799,18 @@ export function skinFor(device: Device, scale: number): [Image, [number, number]
   return image === null ? null : [image, [x * scale, y * scale]];
 }
 
-/** Whether `frameInSkin` can frame this device. */
+/**
+ * Whether `frameInSkin` can frame this device: the same answer `skinFor`
+ * gives, from the PNG's header alone. The editor asks this of every device
+ * when it lists them, and decoding each skin for it kept every one resident.
+ */
 export function hasSkin(device: Device): boolean {
-  return skinFor(device, 1) !== null;
+  const found = skinOf(device);
+  if (found === null) return false;
+  const [name, [x, y, width, height]] = found;
+  const bytes = device.db.files.file(device.id, name);
+  const size = bytes === undefined ? null : pngSize(bytes);
+  return size !== null && x >= 0 && y >= 0 && x + width <= size[0] && y + height <= size[1];
 }
 
 /** `image` set into the device's simulator skin at its panel location, or `null` without one. RGBA. */

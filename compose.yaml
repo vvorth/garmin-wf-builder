@@ -32,9 +32,9 @@ services:
     # deploy:
     #   resources:
     #     limits:
-    #       memory: 2048M
+    #       memory: 512M
     #     reservations:
-    #       memory: 1G
+    #       memory: 256M
 
 volumes:
   wfb-keys:

@@ -42,7 +42,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { isIP } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, normalize, resolve } from "node:path";
-import { gzipSync } from "node:zlib";
+import { createGzip, gunzipSync, gzipSync } from "node:zlib";
 import { unzipSync } from "fflate";
 import { DeviceDatabase } from "../devices/device.ts";
 import { REPO_ROOT } from "../devices/node.ts";
@@ -146,25 +146,64 @@ function digestTag(tag: string): string {
   return symbol === null ? "" : `<entry field="true" symbol="${symbol[1]}"/>`;
 }
 
+/** One device's files as the browser's `MemoryDeviceFiles` takes them: `compiler.json`, `simulator.json` and its `api.debug.xml` cut to the tags `Device` reads. */
+function digestDevice(db: DeviceDatabase, id: string): Record<string, string> {
+  const files: Record<string, string> = {};
+  for (const name of ["compiler.json", "simulator.json"]) {
+    const bytes = db.files.file(id, name);
+    if (bytes !== undefined) files[name] = new TextDecoder().decode(bytes);
+  }
+  const xml = db.files.file(id, `${id}.api.debug.xml`);
+  if (xml !== undefined) files[`${id}.api.debug.xml`] = [...new TextDecoder().decode(xml).matchAll(DIGEST_TAG)].map((m) => digestTag(m[0])).filter(Boolean).join("\n");
+  return files;
+}
+
+/** The digest's tail, shared by every device: the SDK device reference, and the listing. */
+function digestShared(db: DeviceDatabase): { references: Record<string, unknown>; listing: ReturnType<typeof listDevices> } {
+  const references: Record<string, unknown> = {};
+  for (const id of db.files.referenceIds()) references[id] = db.files.reference(id);
+  // Listed here, where every skin and font file is at hand: the browser loads those per device, when needed.
+  return { references, listing: listDevices(db) };
+}
+
 /** Every installed device's files (or the `only` named) and the reference, as the browser's `MemoryDeviceFiles` takes them. */
 export function digest(db: DeviceDatabase, only?: readonly string[]): {
   devices: Record<string, Record<string, string>>; references: Record<string, unknown>; listing: ReturnType<typeof listDevices>;
 } {
   const devices: Record<string, Record<string, string>> = {};
-  for (const id of only ?? db.ids()) {
-    const files: Record<string, string> = {};
-    for (const name of ["compiler.json", "simulator.json"]) {
-      const bytes = db.files.file(id, name);
-      if (bytes !== undefined) files[name] = new TextDecoder().decode(bytes);
-    }
-    const xml = db.files.file(id, `${id}.api.debug.xml`);
-    if (xml !== undefined) files[`${id}.api.debug.xml`] = [...new TextDecoder().decode(xml).matchAll(DIGEST_TAG)].map((m) => digestTag(m[0])).filter(Boolean).join("\n");
-    devices[id] = files;
+  for (const id of only ?? db.ids()) devices[id] = digestDevice(db, id);
+  return { devices, ...digestShared(db) };
+}
+
+/**
+ * `digest(db)` as JSON, gzipped, the form `GET /api/devices` keeps and
+ * sends. It is written through a gzip stream one device at a time, so each
+ * device's `api.debug.xml` (megabytes) is read, cut to its digest and let go
+ * before the next is opened, and what the server keeps is the compressed
+ * form alone: digesting every device at once and holding the JSON left the
+ * server a hundred megabytes larger for the rest of its life.
+ */
+export async function gzippedDigest(db: DeviceDatabase): Promise<Buffer> {
+  const gzip = createGzip();
+  const chunks: Buffer[] = [];
+  gzip.on("data", (chunk: Buffer) => chunks.push(chunk));
+  const ended = new Promise<void>((done, fail) => {
+    gzip.once("end", done);
+    gzip.once("error", fail);
+  });
+  // The callback runs once the chunk is compressed, so one device's text is garbage before the next is read.
+  const write = (text: string): Promise<void> => new Promise((done, fail) => gzip.write(text, (error) => (error ? fail(error) : done())));
+  await write('{"devices":{');
+  let first = true;
+  for (const id of db.ids()) {
+    await write(`${first ? "" : ","}${JSON.stringify(id)}:${JSON.stringify(digestDevice(db, id))}`);
+    first = false;
   }
-  const references: Record<string, unknown> = {};
-  for (const id of db.files.referenceIds()) references[id] = db.files.reference(id);
-  // Listed here, where every skin and font file is at hand: the browser loads those per device, when needed.
-  return { devices, references, listing: listDevices(db) };
+  const { references, listing } = digestShared(db);
+  await write(`},"references":${JSON.stringify(references)},"listing":${JSON.stringify(listing)}}`);
+  gzip.end();
+  await ended;
+  return Buffer.concat(chunks);
 }
 
 /** `files` with every lookup recorded: `[kind, argument, path or null]`, and the bytes once per path. */
@@ -320,7 +359,7 @@ export async function serve(options: Options): Promise<void> {
 export async function start({ host, allowHosts = [], allowAnyHost = false, port, db: initialDb, reopenDb, devicesDir = null, fontsDir }: Options): Promise<{ port: number; close: () => Promise<void> }> {
   let db = initialDb;
   const fonts = new NodeFontFiles(fontsDir);
-  let digested: Buffer | null = null;
+  let digested: Promise<Buffer> | null = null;
   const extrasCache = new Map<string, Buffer>();
   const inContainer = process.env["WFB_CONTAINER"] === "1";
   const hostOs = detectHost(inContainer);
@@ -364,6 +403,10 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
   const app = await bundle("app/main.ts", ["./raster.js"]);
   // a classic script, which every browser runs as a service worker
   const serviceWorker = await bundle("src/studio/sw.ts", [], "iife");
+  // esbuild runs as a child process it keeps for later builds, about 100 MB
+  // resident; nothing here bundles again until the next start, so it is
+  // stopped (a later `bundle` would start it afresh).
+  await (await import("esbuild")).stop();
 
   const send = (response: ServerResponse, status: number, body: string | Uint8Array, type: string, headers: Record<string, string> = {}): void => {
     response.writeHead(status, { "Content-Type": type, "Cache-Control": "no-store", ...headers });
@@ -457,9 +500,14 @@ export async function start({ host, allowHosts = [], allowAnyHost = false, port,
         return send(response, 200, readFileSync(ICON_FONT), "font/ttf", { "Cache-Control": "private, max-age=86400" });
       }
       if (path === "/api/devices") {
-        digested ??= Buffer.from(JSON.stringify(digest(db)));
+        // One promise, so requests arriving together digest once, and the gzipped form is all that stays; a failure is not kept.
+        digested ??= gzippedDigest(db).catch((error: unknown) => {
+          digested = null;
+          throw error;
+        });
+        const compressed = await digested;
         const gzip = /\bgzip\b/.test(String(request.headers["accept-encoding"] ?? ""));
-        return send(response, 200, gzip ? gzipSync(digested) : digested, "application/json", {
+        return send(response, 200, gzip ? compressed : gunzipSync(compressed), "application/json", {
           ...(gzip ? { "Content-Encoding": "gzip" } : {}), "Cache-Control": "private, max-age=3600",
         });
       }

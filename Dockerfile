@@ -117,7 +117,10 @@ COPY --from=eclipse-temurin:21-jre-noble /opt/java/openjdk /opt/java/openjdk
 # Fonts inside: CIQ_SDK is where `wfb` looks for the SDK (that folder, or one
 # SDK root), WFB_DEVICES and WFB_FONTS for the device definitions and Garmin's
 # fonts; XDG_CACHE_HOME is where it keeps the compiler's writable copy and the
-# device reference it extracts from the SDK's pages.
+# device reference it extracts from the SDK's pages.  MALLOC_ARENA_MAX
+# keeps glibc to two malloc arenas: Node's thread pool otherwise gets one each,
+# which holds a long-running editor's resident memory some 10 MB higher than
+# its live data for nothing (docs/container.md, "The editor").
 ENV JAVA_HOME=/opt/java/openjdk \
     PATH=/opt/java/openjdk/bin:$PATH \
     WFB_VENDOR=/vendor \
@@ -126,7 +129,8 @@ ENV JAVA_HOME=/opt/java/openjdk \
     WFB_DEVICES=/vendor/Devices \
     WFB_FONTS=/vendor/Fonts \
     WFB_KEY=/keys/developer_key.der \
-    WFB_CONTAINER=1
+    WFB_CONTAINER=1 \
+    MALLOC_ARENA_MAX=2
 
 RUN set -eux; \
     if [ -n "${EXTRA_CA_CERT_B64}" ]; then \
