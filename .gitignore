@@ -227,6 +227,7 @@ developer_key.*
 # build works offline (they cannot be downloaded -- api.gcs.garmin.com is 401).
 # Deliberately NOT committed: redistributing Garmin's device files is a
 # licensing question we have not cleared. tools/setup-env.sh reads them here.
+vendor/
 vendor/devices
 # Garmin's device fonts (.ttf/.cft from the SDK Manager's ConnectIQ/Fonts),
 # the same licensing reason: the user's own copy, never committed.

@@ -110,12 +110,12 @@ export interface DropOutcome<T> {
  * stay out and are reported with the rest.
  */
 export function dropUnsupported<T>(candidates: readonly string[], pass: (ids: string[], bag: Bag) => T | null,
-  dropped: Map<string, Diagnostic[]> = new Map()): DropOutcome<T> {
+  dropped: Map<string, Diagnostic[]> = new Map(), what: "export" | "build" = "export"): DropOutcome<T> {
   let kept = candidates.filter((id) => !dropped.has(id));
   for (;;) {
     if (kept.length === 0) {
       const bag = new Bag();
-      reportDropped(bag, dropped, true);
+      reportDropped(bag, dropped, what, true);
       return { result: null, bag, kept, dropped };
     }
     const bag = new Bag();
@@ -124,7 +124,7 @@ export function dropUnsupported<T>(candidates: readonly string[], pass: (ids: st
     const attributed = errors.length > 0 && errors.every((d) => d.devices !== null);
     const drop = attributed ? kept.filter((id) => errors.some((d) => d.devices!.includes(id))) : [];
     if (drop.length === 0) {
-      reportDropped(bag, dropped);
+      reportDropped(bag, dropped, what);
       return { result, bag, kept, dropped };
     }
     for (const id of drop) dropped.set(id, errors.filter((d) => d.devices!.includes(id)));
@@ -146,19 +146,19 @@ export function droppedCodes(errors: readonly Diagnostic[]): string[] {
 export const DROP_REASONS_SHOWN = 5;
 
 /** One `device-dropped` note per dropped device, and a `devices` error when nothing is left at all. */
-function reportDropped(bag: Bag, dropped: ReadonlyMap<string, readonly Diagnostic[]>, nothingLeft = false): void {
+function reportDropped(bag: Bag, dropped: ReadonlyMap<string, readonly Diagnostic[]>, what: "export" | "build", nothingLeft = false): void {
   for (const [id, errors] of dropped) {
     const reasons = [...new Set(errors.map((d) => d.message.split("\n", 1)[0]!))];
     const more = reasons.length - DROP_REASONS_SHOWN;
-    bag.note("device-dropped", `${id}: dropped from the export (${droppedCodes(errors).join(", ")})`, null, {
+    bag.note("device-dropped", `${id}: dropped from the ${what} (${droppedCodes(errors).join(", ")})`, null, {
       notes: more > 0
         ? [...reasons.slice(0, DROP_REASONS_SHOWN), `and ${more} more; \`wfb validate -d\` with this device lists every one`]
         : reasons,
     });
   }
   if (nothingLeft) {
-    const message = dropped.size > 0 ? "nothing left to export: every candidate device was dropped"
-      : "nothing to export: no installed device can run a watch face";
+    const message = dropped.size > 0 ? `nothing left to ${what}: every candidate device was dropped`
+      : `nothing to ${what}: no installed device can run a watch face`;
     bag.error("devices", message, null, {
       notes: [...[...dropped].map(([id, errors]) => `${id}: ${droppedCodes(errors).join(", ")}`),
         "name devices with -d to see every diagnostic for them, or change the design so some of them can draw it"],

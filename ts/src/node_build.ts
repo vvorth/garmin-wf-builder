@@ -125,6 +125,8 @@ export interface BuildResult {
   output_dir: string;
   products: Map<string, string>;
   memory: Map<string, MemoryStats>;
+  /** Each device `allDevices` left out, with the codes of the errors that dropped it; empty otherwise. */
+  dropped: Map<string, string[]>;
   duration: number;
   sdk_version: string | null;
 }
@@ -240,32 +242,64 @@ function prepare(path: string, { output, bag, devicesOnly, db, clean, profile = 
   return { face, devices, project, buildDir };
 }
 
-/** Build `path` into `output`. `jobs` is how many `monkeyc`s run at once. */
-export async function build(given: string, { output, bag, devicesOnly = null, db, toolchain = null, compilePrg = true, clean = true, profile = null, trace = false, jobs = null, read = readFontFile }: {
-  output: string; bag: Bag; devicesOnly?: string[] | null; db: DeviceDatabase; toolchain?: Toolchain | null; compilePrg?: boolean;
+/**
+ * Build `path` into `output`. `jobs` is how many `monkeyc`s run at once.
+ * `allDevices` builds every installed device that can run the face instead of
+ * `devicesOnly` or the design's `targets:`, less each one that cannot draw the
+ * design (`dropUnsupported`) or whose measured memory is over its limit, as
+ * `exportApp` does; those are recorded in `dropped`.
+ */
+export async function build(given: string, { output, bag, devicesOnly = null, allDevices = false, db, toolchain = null, compilePrg = true, clean = true, profile = null, trace = false, jobs = null, read = readFontFile }: {
+  output: string; bag: Bag; devicesOnly?: string[] | null; allDevices?: boolean; db: DeviceDatabase; toolchain?: Toolchain | null; compilePrg?: boolean;
   clean?: boolean; profile?: number | null; trace?: boolean; jobs?: number | null; read?: FontReader;
 }): Promise<BuildResult | null> {
   const started = performance.now();
-  const prepared = prepare(pathStr(given), { output, bag, devicesOnly, db, clean, profile, trace, read });
-  if (prepared === null) return null;
-  const { face, devices, project, buildDir } = prepared;
-  const result: BuildResult = {
-    face, project, devices, output_dir: buildDir, products: new Map(), memory: new Map(), duration: 0, sdk_version: null,
-  };
-  if (compilePrg) {
-    const tools = toolchain ?? Toolchain.discover();
-    if (tools === null) {
-      bag.warning("toolchain", "no Connect IQ SDK found, so nothing was compiled", null, {
-        notes: ["`wfb init` says how to install one, or set CIQ_SDK to one you have", `the generated project is complete and is in ${buildDir}`],
-      });
+  const path = pathStr(given);
+  const candidates = allDevices ? faceCapableDevices(db) : null;
+  const dropped = new Map<string, Diagnostic[]>();
+  const prepareFor = (ids: string[] | null, passBag: Bag): Prepared | null =>
+    prepare(path, { output, bag: passBag, devicesOnly: ids, db, clean, profile, trace, read, noteUnlisted: !allDevices });
+  const tools = compilePrg ? toolchain ?? Toolchain.discover() : null;
+  // As the export: a round that measures a device over its limit drops it and runs again.
+  for (;;) {
+    let pass: Bag, prepared: Prepared | null;
+    if (candidates === null) {
+      pass = new Bag();
+      prepared = prepareFor(devicesOnly, pass);
     } else {
-      result.sdk_version = checkSdk(tools, bag);
-      await compileAll(result, tools, bag, jobs);
-      writeBuildInfo(result);
+      const outcome = dropUnsupported(candidates, prepareFor, dropped, "build");
+      [pass, prepared] = [outcome.bag, outcome.result];
     }
+    if (prepared === null) {
+      absorb(bag, pass);
+      return null;
+    }
+    const { face, devices, project, buildDir } = prepared;
+    const result: BuildResult = {
+      face, project, devices, output_dir: buildDir, products: new Map(), memory: new Map(), dropped: new Map(), duration: 0, sdk_version: null,
+    };
+    result.dropped = new Map([...dropped].map(([id, why]) => [id, droppedCodes(why)]));
+    if (compilePrg) {
+      if (tools === null) {
+        pass.warning("toolchain", "no Connect IQ SDK found, so nothing was compiled", null, {
+          notes: ["`wfb init` says how to install one, or set CIQ_SDK to one you have", `the generated project is complete and is in ${buildDir}`],
+        });
+      } else {
+        result.sdk_version = checkSdk(tools, pass);
+        await compileAll(result, tools, pass, jobs);
+        const errors = pass.errors;
+        const over = candidates !== null && errors.every((d) => d.devices !== null) ? overMemoryLimit(result.memory) : [];
+        if (over.length > 0) {
+          for (const id of over) dropped.set(id, errors.filter((d) => d.devices!.includes(id)));
+          continue;
+        }
+        writeBuildInfo(result);
+      }
+    }
+    absorb(bag, pass);
+    result.duration = (performance.now() - started) / 1000;
+    return result;
   }
-  result.duration = (performance.now() - started) / 1000;
-  return result;
 }
 
 /** Written into the export directory beside the `.iq`: what built it, and what the Store's upload form asks for. */
@@ -476,6 +510,7 @@ function writeBuildInfo(result: BuildResult): void {
     sdk: result.sdk_version,
     device_reference_sdk: referenceSdkVersion(),
     devices: result.devices.map((d) => d.id),
+    ...(result.dropped.size > 0 ? { dropped: Object.fromEntries(result.dropped) } : {}),
     products: [...result.products.values()].map((p) => p.slice(p.lastIndexOf("/") + 1)).sort(),
   };
   writeFileSync(join(result.output_dir, BUILD_INFO), JSON.stringify(info, null, 2) + "\n");

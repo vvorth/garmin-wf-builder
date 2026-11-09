@@ -32,7 +32,10 @@ stage's diagnostics are reported against the design file's own lines.
 the generated Monkey C directly. \`-d/--device\` builds one or more
 devices instead of every target the design lists; it may name any
 installed device (\`wfb devices\`), not only a listed target, which
-draws a note and needs no edit to the design.
+draws a note and needs no edit to the design. \`--all-devices\` builds
+every installed device that can run a watch face instead, dropping each
+one that cannot draw the design exactly as \`wfb export --all-devices\`
+does (see its help): a .prg for every watch the export would ship.
 
 The devices compile in parallel, each \`monkeyc\` in its own directory;
 \`-j/--jobs N\` caps how many run at once (\`-j 1\` compiles one at a

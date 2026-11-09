@@ -159,6 +159,15 @@ test("a curved face: text drops each device with no usable face, one note each, 
   }
 });
 
+test("a build drops the same devices, its notes naming the build", () => {
+  const outcome = dropUnsupported(["fenix8solar47mm", "fr255"], passFor(CURVED), new Map(), "build");
+  assert.deepEqual(outcome.result, ["fenix8solar47mm"], outcome.bag.render());
+  assert.deepEqual(outcome.bag.items.filter((d) => d.code === "device-dropped").map((d) => d.message),
+    ["fr255: dropped from the build (font-unavailable)"]);
+  const none = dropUnsupported(["fr255"], passFor(CURVED), new Map(), "build");
+  assert.equal(none.bag.errors[0]!.message, "nothing left to build: every candidate device was dropped");
+});
+
 test("a subscreen element drops the devices with no subscreen window", () => {
   const outcome = dropUnsupported(["instinct3solar45mm", "fenix8solar47mm"], passFor(SUBSCREEN));
   assert.deepEqual(outcome.kept, ["instinct3solar45mm"], outcome.bag.render());
