@@ -99,6 +99,7 @@ jobs:
             test/py.test.ts
             test/reference.test.ts
             test/sdk.test.ts
+            test/string-ternary.test.ts
             test/studio-sw.test.ts
             test/units.test.ts
             test/uuid.test.ts

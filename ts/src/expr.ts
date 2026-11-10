@@ -547,6 +547,32 @@ function requireNumeric(value: Value, op: string, offset: number): void {
   }
 }
 
+/**
+ * The strings a (folded) string-typed expression can yield, as far as the
+ * build can know them: `literals`, every string literal a `?:` chain can
+ * pick, in source order and without repeats, and `open`, true when some
+ * branch is not a literal (a string source such as `date.month`), whose
+ * text only the watch knows.
+ */
+export interface StringValues { literals: string[]; open: boolean }
+
+export function stringValues(node: Node): StringValues {
+  const literals: string[] = [];
+  let open = false;
+  const visit = (n: Node): void => {
+    if (n.kind === "conditional") {
+      visit(n.then);
+      visit(n.otherwise);
+    } else if (n.kind === "literal" && typeof n.value === "string") {
+      if (!literals.includes(n.value)) literals.push(n.value);
+    } else {
+      open = true;
+    }
+  };
+  visit(node);
+  return { literals, open };
+}
+
 // -- constant folding and emission ----------------------------------------------------------
 
 /**

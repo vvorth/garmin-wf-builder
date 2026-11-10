@@ -105,7 +105,10 @@ The placeholder is an **expression** over data sources (the language is in
 [Data binding](data.md)), then optionally `:` and a **format spec**, exactly
 the specs [Format specs: every option](#format-specs-every-option) lists. The expression ends at the first
 `:` outside parentheses, brackets and quotes, so a ternary is written in
-parentheses: `"{(activity.steps > 0 ? activity.steps : 0):d}"`. Literal text
+parentheses: `"{(activity.steps > 0 ? activity.steps : 0):d}"`. A ternary
+over string literals, `"{(date.weekday == 3 ? 'TUE' : 'XYZ')}"`, draws the
+literal it picks, and a baked font holds every branch's characters
+([Rules](data.md#rules)). Literal text
 may sit on either side of the placeholder. `{unit}` is not a placeholder: it
 is the reading's unit label under [`units:`](data.md#units).
 

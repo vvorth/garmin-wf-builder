@@ -773,6 +773,17 @@ still true of the shipped feature:
   warning on an ordinary slot (confirmed directly), which is worse than the
   gap it would have closed. `docs/guide/configuration.md`'s "What this compiler cannot
   tell you" records this the same way this file does.
+* **A `text` reading a string source (`date.month`, `date.day_of_week`, a
+  string complication) is sized by a five-digit estimate.** Its text is
+  localised by the firmware with no published upper bound, so its box is
+  approximate and a baked font holds every letter, digit and the space for
+  it. A `?:` over string literals is exact: the box is its widest literal in
+  the element's font, and the font holds every literal's characters.
+* **Nothing checks a string's letters against a `FONT_NUMBER_*` face.** The
+  SDK documents those four as "number only" fonts
+  (`Toybox/Graphics.html`), but neither the device files nor the reference
+  list a system font's character set, so a letter drawn in one passes every
+  lint and the watch draws whatever its font lacks as it chooses.
 
 ### A live watch face receives exactly one gesture: touch and hold
 

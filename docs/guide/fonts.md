@@ -230,7 +230,9 @@ clock's own shape.
 ### Everything else
 
 * **Omit `glyphs` and the compiler derives the set** from every format spec and
-  literal string the design can render. The example face's clock font carries
+  literal string the design can render, each string literal a `?:` in a
+  placeholder can pick among them; a string only the watch knows
+  (`date.month`) brings every letter, digit and the space. The example face's clock font carries
   eleven glyphs rather than a character set — on a 128 KB budget that is the
   difference between a large font fitting and not.
 * **Glyphs are rasterised at 16x and averaged down**, not drawn straight at the
