@@ -114,10 +114,10 @@ charging), `activity.*` (steps, calories, distance, floors, move bar,
 intensity minutes, stress score, respiration rate, time to recovery),
 `heart_rate.current`, `pulse_ox.current`, `ambient.*` (altitude, barometric
 pressure), `weather.*` (current condition and temperature, feels-like,
-current precipitation chance (`weather.precipitation_chance`), today's
-high/low and forecast precipitation chance
-(`weather.precipitation_chance_today`), humidity, wind speed,
-today's forecast condition, and every day and hour of the forecast
+today's high/low and chance of precipitation as the current conditions
+report them (`weather.high_temperature_today`, `.low_temperature_today`,
+`.precipitation_chance_today`), humidity, wind speed, today's forecast
+condition, and every day and hour of the forecast
 (below) — see [`icon: {for:}`](icons.md#a-dynamic-icon-icon-for) for turning a
 condition into a drawn icon, and the [`name` spec](text.md#format-specs-every-option) for its name), `user.*` (running/cycling VO2 max, resting
 heart rate, from `Toybox.UserProfile`), and `complication.*` (below).
@@ -154,9 +154,13 @@ The index is a whole number written in the path, 0–9 for a day and 0–23
 for an hour; anything else is an error naming the range. Garmin promises
 no length for either forecast, so an entry past the end of what the watch
 holds reads as absent and `absent:` applies, like every weather reading.
-`weather.condition_today`, `weather.precipitation_chance_today`,
-`weather.high_temperature_today` and `weather.low_temperature_today` are
-shorthand for the same fields of `weather.daily_forecast[0]`; tomorrow's
+`weather.condition_today` is shorthand for
+`weather.daily_forecast[0].condition`. `weather.high_temperature_today`,
+`weather.low_temperature_today` and `weather.precipitation_chance_today`
+are not: they are what the current conditions report
+(`CurrentConditions.highTemperature`, `.lowTemperature`,
+`.precipitationChance`), which need not match the forecast's first day;
+for the forecast's, read `weather.daily_forecast[0]`. Tomorrow's
 condition is `weather.daily_forecast[1].condition` (`weather.condition_tomorrow`
 was removed, and an error names the replacement). A field newer than a
 target's API (the API 5.0 ones) fails that target by default, as any

@@ -41,15 +41,16 @@ test("an indexed path is one token, one catalogue entry built on demand, and one
   assert.equal(localName("weather.hourly_forecast[12].wind_speed"), "weatherHourlyForecast12WindSpeed");
 });
 
-test("the shorthands read the daily forecast's first entry, as its own [0] does", () => {
-  for (const [short, field] of [["weather.condition_today", "condition"], ["weather.precipitation_chance_today", "precipitation_chance"],
-    ["weather.high_temperature_today", "high_temperature"], ["weather.low_temperature_today", "low_temperature"]] as const) {
-    const a = catalog.get(short)!, b = catalog.get(`weather.daily_forecast[0].${field}`)!;
-    assert.deepEqual([a.reader, a.field_name, a.array_index, a.type, a.unit, a.quantity, a.enum, a.launch_complication],
-      [b.reader, b.field_name, b.array_index, b.type, b.unit, b.quantity, b.enum, b.launch_complication], short);
+test("condition_today is daily_forecast[0]'s; the other _today readings are the current conditions' own", () => {
+  const a = catalog.get("weather.condition_today")!, b = catalog.get("weather.daily_forecast[0].condition")!;
+  assert.deepEqual([a.reader, a.field_name, a.array_index, a.enum], [b.reader, b.field_name, b.array_index, b.enum]);
+  // the current conditions report these themselves, and they may not match the forecast's first day
+  for (const [short, field] of [["weather.high_temperature_today", "highTemperature"], ["weather.low_temperature_today", "lowTemperature"],
+    ["weather.precipitation_chance_today", "precipitationChance"]] as const) {
+    const s = catalog.get(short)!;
+    assert.deepEqual([s.reader, s.field_name, s.array_index], ["weather_current", field, null], short);
   }
-  // and the current chance is the current conditions' own
-  assert.equal(catalog.get("weather.precipitation_chance")!.reader, "weather_current");
+  assert.equal(catalog.get("weather.precipitation_chance"), undefined, "the unqualified name is gone");
 });
 
 test("the view reads each entry behind the array's null and size checks, a reader per forecast", () => {
