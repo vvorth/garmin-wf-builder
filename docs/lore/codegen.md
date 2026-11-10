@@ -883,8 +883,16 @@ These cost real time to discover; do not rediscover them.
   per-device option lists, and two `monkeyc` findings.** Which editor a
   device uses is decided on the watch by `Application has :WatchFaceConfig`,
   the check `onLayout`'s first native read already made, so one shared view
-  serves a fēnix 8 (native; `getSettingsView` returns null) and an fr955
-  (the menu) with no per-device flag. A data slot's options are per device
+  serves a fēnix 8 (native) and an fr955 (the menu) with no per-device
+  flag. The one exception is `getSettingsView` itself: the fēnix 8's
+  firmware adds a "Customize" item to its native editor menu (beside
+  Accent color, Data, Data color) for any face that *defines* the method,
+  and that item does nothing when it returns null (seen on the user's
+  fēnix 8, 2026-11-10). So the App tags it `(:settings_menu)` and the
+  jungle sets `<device>.excludeAnnotations = settings_menu` for every
+  native-editor target of a build that emits the menu (`jungle.ts`); the
+  method's `has :WatchFaceConfig` return-null stays as the runtime
+  fallback. A data slot's options are per device
   (`choices: any` lists the types the device's own symbol table has, an explicit list only those of its choices the table has), so they live
   in `Layout.mc` (`CONFIG_DATA_<SLOT>_TYPES`/`_LABELS`/`_DEFAULT`) and the
   shared view only indexes them; `properties.xml` is therefore a file of

@@ -8,6 +8,9 @@ import { quoted } from "../../py.ts";
 import { Writer } from "../writer.ts";
 import { header, needsDelegate, type SourceFile } from "./common.ts";
 
+/** Tags the code a native-editor device builds without (`monkey.jungle` excludes it). */
+export const SETTINGS_MENU_ANNOTATION = "settings_menu";
+
 /** `source/<Face>App.mc`: the application entry point. */
 export function emitApp(face: Face, guards: Guards | null = null): SourceFile {
   const needsIt = needsDelegate(face);
@@ -68,9 +71,12 @@ export function emitApp(face: Face, guards: Guards | null = null): SourceFile {
     if (menu) {
       w.blank();
       w.doc("The config: settings menu, opened from the watch's Watch Face menu on a\n"
-        + "device with no native editor (fr955).  With the native editor this\n"
-        + "returns null: that editor edits config: there.  A device without\n"
-        + "getSettingsView (fenix5) never calls this and keeps every default.");
+        + "device with no native editor (fr955).  A native-editor device (fenix 8)\n"
+        + "builds without this method (monkey.jungle excludes :settings_menu): its\n"
+        + "firmware lists a do-nothing \"Customize\" item for any face defining it,\n"
+        + "even one returning null.  A device without getSettingsView (fenix5)\n"
+        + "never calls this and keeps every default.");
+      w.line(`(:${SETTINGS_MENU_ANNOTATION})`);
       w.block("function getSettingsView() as [Views] or [Views, InputDelegates] or Null", () => {
         w.block("if (Application has :WatchFaceConfig)", () => w.line("return null;"));
         w.line("var view = _view;");
