@@ -114,7 +114,9 @@ charging), `activity.*` (steps, calories, distance, floors, move bar,
 intensity minutes, stress score, respiration rate, time to recovery),
 `heart_rate.current`, `pulse_ox.current`, `ambient.*` (altitude, barometric
 pressure), `weather.*` (current condition and temperature, feels-like,
-today's high/low and precipitation chance, humidity, wind speed,
+current precipitation chance (`weather.precipitation_chance`), today's
+high/low and forecast precipitation chance
+(`weather.precipitation_chance_today`), humidity, wind speed,
 today's/tomorrow's forecast condition — see [`icon: {for:}`](icons.md#a-dynamic-icon-icon-for) for turning a
 condition into a drawn icon, and the [`name` spec](text.md#format-specs-every-option) for its name), `user.*` (running/cycling VO2 max, resting
 heart rate, from `Toybox.UserProfile`), and `complication.*` (below).
