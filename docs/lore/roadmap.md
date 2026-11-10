@@ -43,6 +43,9 @@ or AOD-related has been observed on a watch or in the simulator.
   catalogue entry read through a `WfbAstro.mc` call with `ts/src/astro.ts`
   as the preview's twin (`docs/guide/data.md`, "Astronomy";
   `examples/features/astro/`).
+  The weather forecasts by index, `weather.daily_forecast[n].<field>` and
+  `weather.hourly_forecast[n].<field>` (`catalog.INDEXED`, each entry built
+  on demand; `docs/guide/data.md`, "The forecast").
   `text:` templates (`"{expr:spec}"`, several placeholders on a `text`
   element, `segments` in `ts/src/template.ts`, `Text.more`), `absent:`
   (`hide` | `{text:}` | `{value:}`, one `$defs` entry `absence` in the schema);

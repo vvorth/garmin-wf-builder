@@ -927,6 +927,23 @@ These cost real time to discover; do not rediscover them.
   `:name`; `ts/test/condition-names.test.ts` holds it equal to the weather
   icon rule's `sources` and to the complication types whose reading is a
   condition.
+- **Indexed sources are catalogue entries built on demand.**
+  `weather.daily_forecast[n].<field>` and `weather.hourly_forecast[n].<field>`
+  are families in `catalog.json`'s `indexed_sources`: a reader returning an
+  array, a `max_index` (a typo guard, not the API's length) and the fields.
+  `CATALOG.get`/`has` build the entry for a concrete path the first time it
+  is asked for (`array_index` is the index, so `readExpr` and `arrayGuard`
+  write `weatherDaily[2].highTemperature` behind `weatherDaily.size() > 2`,
+  as they already did for `condition_today`), while iterating `CATALOG`
+  yields the fixed entries alone, so a listing names a family once with
+  `[n]`. Everything that iterates rather than asks needs its own answer:
+  the expression scope binds an indexed path through `Scope.fallback` on
+  first lookup, `RULE_OF_SOURCE` maps a concrete path to its `[n]` spelling
+  (`familyPath`), the null guard finds an indexed local's path among the
+  element's own sources (`pathOfLocal` in `ts/src/draw/index.ts`), and the
+  preview's samples and the editor's `source_info` list every index. The
+  tokenizer takes `[digits]` after a path segment, and the local name
+  spells the index as a word (`weatherDailyForecast2HighTemperature`).
 - **A catalogue source read through a barrel call: `call:` and
   `extra_readers` (2026-10-29).** A `Source` in `ts/src/data/catalog.json`
   normally reads one field off one reader local (`weatherCurrent.temperature`).

@@ -6,7 +6,7 @@
 // Whether the icon font has a codepoint is read from its character map,
 // handed in as a set (`setIconFontGlyphs`): Node reads the installed font,
 // the browser receives it from the server.
-import { get as sourceOf } from "./catalog.ts";
+import { familyPath, get as sourceOf } from "./catalog.ts";
 import data from "./data/icons.json" with { type: "json" };
 import type { Device } from "./devices/device.ts";
 import { WholeFloat } from "./edit/yaml.ts";
@@ -277,8 +277,19 @@ export const RULES: ReadonlyMap<string, IconRule> = new Map(Object.entries(data.
   map: new Map(Object.entries(r.map ?? {}).map(([k, v]) => [Number(k), v])), follows: new Map(Object.entries(r.follows ?? {})),
 }]));
 
+/** Rules by source; an indexed path (`weather.daily_forecast[1].condition`) finds its family's, listed with `[n]`. */
+class RulesBySource extends Map<string, IconRule> {
+  override get(source: string): IconRule | undefined {
+    return super.get(source) ?? (source.includes("[") ? super.get(familyPath(source)) : undefined);
+  }
+
+  override has(source: string): boolean {
+    return this.get(source) !== undefined;
+  }
+}
+
 /** The rule each source's reading follows. */
-export const RULE_OF_SOURCE: ReadonlyMap<string, IconRule> = new Map([...RULES.values()].flatMap((rule) => rule.sources.map((s) => [s, rule] as const)));
+export const RULE_OF_SOURCE: ReadonlyMap<string, IconRule> = new RulesBySource([...RULES.values()].flatMap((rule) => rule.sources.map((s) => [s, rule] as const)));
 
 /** A source whose icon follows a rule's reading taken beside it (a temperature the weather condition): the rule and the source read. */
 export const RULE_FOLLOWED: ReadonlyMap<string, { rule: IconRule; source: string }> =

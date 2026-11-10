@@ -6,9 +6,13 @@
 // would. Every symbol an id can produce is derived here, so the builder's
 // collision check sees them all in one place.
 
-/** The generated local holding one source's value: `activity.step_goal` → `activityStepGoal`. */
+/**
+ * The generated local holding one source's value: `activity.step_goal` →
+ * `activityStepGoal`; an index is one more word, `weather.daily_forecast[1].condition`
+ * → `weatherDailyForecast1Condition`.
+ */
 export function localName(sourcePath: string): string {
-  const parts = sourcePath.replaceAll(".", "_").split("_");
+  const parts = sourcePath.replace(/\[(\d+)\]/g, "_$1").replaceAll(".", "_").split("_");
   return parts[0]! + parts.slice(1).map(capitalize).join("");
 }
 

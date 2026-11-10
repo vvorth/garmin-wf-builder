@@ -14,7 +14,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 |---|---|---|---|
 | `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) |
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
-| `icon: {for:}` | a source an icon rule follows, by rule: weather (`weather.condition`/`.condition_today`/`.condition_tomorrow`, `complication.current_weather`/`.forecast_weather_1day`/`_2day`/`_3day`), battery (`system.battery`, `complication.battery`), solar (`complication.solar_input`), notification (`device.notification_count`, `complication.notification_count`), alarm (`device.alarm_count`), do-not-disturb (`device.do_not_disturb`), phone (`device.phone_connected`), moon (`astro.moon_age`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
+| `icon: {for:}` | a source an icon rule follows, by rule: weather (`weather.condition`/`.condition_today`, `weather.daily_forecast[n].condition`, `weather.hourly_forecast[n].condition`, `complication.current_weather`/`.forecast_weather_1day`/`_2day`/`_3day`), battery (`system.battery`, `complication.battery`), solar (`complication.solar_input`), notification (`device.notification_count`, `complication.notification_count`), alarm (`device.alarm_count`), do-not-disturb (`device.do_not_disturb`), phone (`device.phone_connected`), moon (`astro.moon_age`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `slot:` (instead of `icon:`) | a `config: slots:` name | — | [A slot's icon: `slot:`](#a-slots-icon-slot) — the icon of the wearer's pick |
 | `absent:` | `hide`, or `{icon: <name>}` / `{icon: {codepoint: "U+XXXX"}}` (with `icon: {for:}` or `slot:` only) | the plain glyph | [`absent:` on an icon](#absent-on-an-icon) — what draws without a reading |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
@@ -246,7 +246,7 @@ instead chooses the glyph on-device, at runtime, from a bound value:
 ```yaml
 weather_now:
   type: icon
-  icon: {for: weather.condition}  # or weather.condition_today / .condition_tomorrow
+  icon: {for: weather.condition}  # or weather.condition_today, "weather.daily_forecast[1].condition" (quoted: a [ in {...})
   size: 20%r
   color: color.text
 ```
@@ -296,7 +296,7 @@ under each source that has one.
 | `dnd` | `device.do_not_disturb` | `bell` (do-not-disturb off), `dnd` (the bell struck through: on) | off / on | `bell` |
 | `phone` | `device.phone_connected` | `phone_disconnected` (the Bluetooth rune struck through), `phone_connected` (the rune, as Garmin's own status row draws it) | off / on | `phone_connected` |
 | `moon` | `astro.moon_age` | `moon_new`, `moon_waxing_crescent`, `moon_first_quarter`, `moon_waxing_gibbous`, `moon_full`, `moon_waning_gibbous`, `moon_last_quarter`, `moon_waning_crescent` | eight equal bands of the 29.53-day cycle, each centred on its phase: new is 27.68 days round to 1.85, full 12.92–16.61 | `moon_new` |
-| `weather` | `weather.condition`, `.condition_today`, `.condition_tomorrow`; `complication.current_weather`, `.forecast_weather_1day`/`_2day`/`_3day` | the `weather_*` icons | each `Weather.CONDITION_*` value to its icon | `weather_unknown` |
+| `weather` | `weather.condition`, `.condition_today`, `weather.daily_forecast[n].condition`, `weather.hourly_forecast[n].condition`; `complication.current_weather`, `.forecast_weather_1day`/`_2day`/`_3day` | the `weather_*` icons | each `Weather.CONDITION_*` value to its icon | `weather_unknown` |
 
 In the editor, the icon picker's **follows data** tab lists every rule
 with the glyphs it draws and writes `icon: {for:}` for the source you pick

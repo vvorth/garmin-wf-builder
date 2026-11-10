@@ -33,7 +33,11 @@ const text = (template: string, extra = ""): string => BASE + `
     absent: hide${extra}
 `;
 
-const NAMED = [...catalog.CATALOG].filter(([, s]) => s.enum === "weather_condition").map(([path]) => path).sort();
+const NAMED = [
+  ...[...catalog.CATALOG].filter(([, s]) => s.enum === "weather_condition").map(([path]) => path),
+  ...[...catalog.INDEXED].flatMap(([family, def]) => Object.entries(def.fields)
+    .filter(([, f]) => f.enum === "weather_condition").map(([field]) => `${family}[n].${field}`)),
+].sort();
 
 test("the condition sources are named once: the catalogue, the weather icon rule and the slot readings agree", () => {
   assert.deepEqual(NAMED, [...icons.RULES.get("weather")!.sources].sort());
@@ -126,7 +130,7 @@ test("a name spec on anything but a bare condition source is one format error", 
     assert.match(found[0]!.message, /names a weather condition/);
     if (shown !== null) assert.ok(found[0]!.message.includes(`'${shown}' is not one`), found[0]!.message);
   }
-  for (const path of NAMED) assert.deepEqual(errors(text(`{${path}:name}`)), [], path);
+  for (const path of NAMED) assert.deepEqual(errors(text(`{${path.replace("[n]", "[2]")}:name}`)), [], path);
 });
 
 test("an AOD restyle drawn in the element's own baked font gets its glyphs baked too", () => {

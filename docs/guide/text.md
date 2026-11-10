@@ -185,7 +185,8 @@ percent (`%` as a spec), left or centre alignment (`<`, `^`). For a
 percentage, put the sign in the text: `"{system.battery:d}%"`.
 
 **A weather condition** -- `weather.condition`, `weather.condition_today`,
-`weather.condition_tomorrow`, `complication.current_weather` and
+`weather.daily_forecast[n].condition`, `weather.hourly_forecast[n].condition`,
+`complication.current_weather` and
 `complication.forecast_weather_1day`/`_2day`/`_3day` -- is a
 `Weather.CONDITION_*` number, which a name spec turns into words:
 

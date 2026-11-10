@@ -235,6 +235,11 @@ export class TopLevelBlocks extends FontBlock {
     for (const [path, source] of catalog.CATALOG) {
       this.scope.define(path, { value: new expr.Value(source.type, catalog.guardNeeded(source)), code: localName(path) });
     }
+    this.scope.fallback = (path) => {
+      if (catalog.parseIndexed(path) === null) return undefined;
+      const source = catalog.CATALOG.get(path);
+      return source === undefined ? undefined : { value: new expr.Value(source.type, catalog.guardNeeded(source)), code: localName(path) };
+    };
     for (const [name, color] of this.palette) this.definePaletteColor(name, color.value);
     // Declared-then-rejected entries and axes are bound too: one error, not N.
     for (const name of [...this.palette.rejected].sort()) this.definePaletteColor(name, 0);

@@ -2,6 +2,7 @@
 // face mid-life rather than at zero. Apart from the preview, so the kinds
 // can read them without importing it.
 import { WholeFloat } from "./edit/yaml.ts";
+import { INDEXED } from "./catalog.ts";
 import type { ExprValue } from "./expr.ts";
 
 /** The sample readings, by catalogue path. */
@@ -46,11 +47,28 @@ export const SAMPLE: ReadonlyMap<string, ExprValue> = new Map<string, ExprValue>
   // `Weather.CONDITION_RAIN`: a dynamic weather icon draws the glyph its box is measured with.
   ["weather.condition", 3],
   ["weather.condition_today", 3],
-  ["weather.condition_tomorrow", 3],
   // The Royal Observatory, Greenwich: nobody's own, and local sidereal time there is GMST.
   ["position.latitude", 51.4769],
   ["position.longitude", -0.0005],
 ]);
+
+/**
+ * The sample readings of the indexed sources (`weather.daily_forecast[n].*`):
+ * every entry's condition is rain, as `weather.condition`'s is, so a
+ * dynamic weather icon on any of them draws the glyph its box is measured
+ * with. Their other fields have no sample, as the fixed weather readings
+ * have none, and draw absent.
+ */
+export function indexedSamples(): [string, ExprValue][] {
+  const out: [string, ExprValue][] = [];
+  for (const [name, family] of INDEXED) {
+    for (const [field, def] of Object.entries(family.fields)) {
+      if (def.enum !== "weather_condition") continue;
+      for (let i = 0; i <= family.max_index; i++) out.push([`${name}[${i}].${field}`, 3]);
+    }
+  }
+  return out;
+}
 
 /** The wearer a gauge on a `config: slots:` slot is scaled for: illustrative, nobody's own. */
 export const SAMPLE_WEARER_SEX = "male";

@@ -70,7 +70,7 @@ export class ExprError extends Error {
   }
 }
 
-const TOKEN = /(?<ws>\s+)|(?<number>\d+\.\d+|\.\d+|\d+)|(?<string>'[^']*'|"[^"]*")|(?<name>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)|(?<op><=|>=|==|!=|&&|\|\||[-+*/%<>?:(),!])/uy;
+const TOKEN = /(?<ws>\s+)|(?<number>\d+\.\d+|\.\d+|\d+)|(?<string>'[^']*'|"[^"]*")|(?<name>[A-Za-z_][A-Za-z0-9_]*(?:\[\d+\])?(?:\.[A-Za-z_][A-Za-z0-9_]*(?:\[\d+\])?)*)|(?<op><=|>=|==|!=|&&|\|\||[-+*/%<>?:(),!])/uy;
 
 const KEYWORDS = new Set(["and", "or", "not", "true", "false", "null"]);
 
@@ -399,13 +399,19 @@ export interface Binding {
 export class Scope {
   bindings = new Map<string, Binding>();
   used = new Set<string>();
+  /** Binds a name no definition covered, on first use: the catalogue's indexed paths, too many to bind up front. */
+  fallback: ((name: string) => Binding | undefined) | null = null;
 
   define(name: string, binding: Binding): void {
     this.bindings.set(name, binding);
   }
 
   lookup(name: string): Binding | undefined {
-    const binding = this.bindings.get(name);
+    let binding = this.bindings.get(name);
+    if (binding === undefined && this.fallback !== null) {
+      binding = this.fallback(name);
+      if (binding !== undefined) this.bindings.set(name, binding);
+    }
     if (binding !== undefined) this.used.add(name);
     return binding;
   }
@@ -517,6 +523,13 @@ function unknownRef(node: Ref, scope: Scope): ExprError {
         "to hide some copies, put 'visible:' on the parts, or use 'skip:'"]);
   }
   const renamed = catalog.renamedTo(node.path);
+  if (renamed !== undefined && !renamed.startsWith("complication.")) {
+    return new ExprError(`${quoted(node.path)} has been renamed to ${quoted(renamed)}`, node.offset,
+      [`${catalog.familyPath(renamed)} reads any entry of the forecast by its index, [0] being the first`,
+        "run `wfb sources` for the current catalogue"], "source-renamed");
+  }
+  const indexed = catalog.indexedProblem(node.path);
+  if (indexed !== null) return new ExprError(`unknown data source ${quoted(node.path)}: ${indexed.message}`, node.offset, indexed.notes);
   if (renamed !== undefined) {
     return new ExprError(`${quoted(node.path)} has been renamed to ${quoted(renamed)}`, node.offset,
       ["complications now have their own namespace -- 'complication.<type>' is always read through Toybox.Complications, " +
