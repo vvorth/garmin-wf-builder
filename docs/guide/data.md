@@ -481,6 +481,18 @@ themselves expressions (`steps > 0 ? steps / 1000.0 : 0`) is written as a
 rule list just the same, the expression in `value:`; nothing stops the
 string form either way.
 
+A `?:` whose branches are string literals is a string, and a `text:`
+placeholder may show one: `"{(date.weekday == 1 ? 'SUN' : 'MON')}"` draws
+whichever literal the condition picks. Every literal the chain can pick is
+known at build time, so a baked font gets exactly their characters (every
+branch's, not only the one the preview's sample shows) and the text's box
+is as wide as the widest of them in that font. A branch that is a string
+source instead (`date.month`, `date.day_of_week`, a string complication)
+is text only the watch knows: the font then gets every letter, digit and
+the space beside the literals, and the box keeps a five-digit estimate. A
+system font draws whatever string it is handed, so the `FONT_NUMBER_*`
+faces, which hold digits only, are no place for one.
+
 One name is bound in one place: **`copy`**, the index of the copy being
 drawn, in a `type: pattern`'s colours *and* its parts' `visible:`
 (see [`pattern`](patterns.md#pattern)) -- both compile to the same

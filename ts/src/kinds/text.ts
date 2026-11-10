@@ -2,6 +2,7 @@
 // `face:` (vector) font.
 import * as catalog from "../catalog.ts";
 import * as conversion from "../conversion.ts";
+import { type StringValues, stringValues } from "../expr.ts";
 import type { Data, DataKey } from "../edit/yaml.ts";
 import * as formatting from "../formatting.ts";
 import type { Builder } from "../ir/builder/index.ts";
@@ -140,20 +141,31 @@ function widestLabel(element: Text): string {
   return best;
 }
 
+/** The strings a string-typed value can yield (`stringValues`), or `null` for any other type. */
+function strings(value: Expression): StringValues | null {
+  return value.value.type === "string" && value.ast !== null ? stringValues(value.ast) : null;
+}
+
 /** The widest string a `fallback:` could render, through the value's own format spec. */
 function fallbackWidest(fallback: Expression, spec: string, unitWidest = ""): string {
   if (fallback.value.type === "string" && fallback.constant !== null) return str(fallback.constant);
-  return formatting.widest(spec, source(fallback), fallback.value.type, fallback.scale, { unitWidest });
+  return formatting.widest(spec, source(fallback), fallback.value.type, fallback.scale, { unitWidest, strings: strings(fallback) });
 }
 
-/** The widest string this text can draw: its literal, or its readings, placeholder and fallback. */
-function widestText(element: Text): string {
+/**
+ * The widest string this text can draw: its literal, or its readings,
+ * placeholder and fallback. `measure`, the font's width, picks among the
+ * literals a string `?:` can yield; without it the longest wins.
+ */
+function widestText(element: Text, measure: ((text: string) => number) | null = null): string {
   if (element.literal !== null) return element.literal;
   if (element.value === null) return "";
   const spec = element.format || "{}";
   let widest = formatting.widest(spec, source(element.value), element.value.value.type, element.value.scale,
-    { digits: element.unit_digits, unitWidest: widestLabel(element) });
-  for (const [value, moreSpec] of element.segments().slice(1)) widest += formatting.widest(moreSpec, source(value), value.value.type, value.scale);
+    { digits: element.unit_digits, unitWidest: widestLabel(element), strings: strings(element.value), measure });
+  for (const [value, moreSpec] of element.segments().slice(1)) {
+    widest += formatting.widest(moreSpec, source(value), value.value.type, value.scale, { strings: strings(value), measure });
+  }
   if (element.absent === "placeholder" && element.placeholder) widest = longer(widest, element.placeholder);
   if (element.absent === "fallback" && element.fallback !== null) widest = longer(widest, fallbackWidest(element.fallback, spec, widestLabel(element)));
   return widest;
@@ -164,7 +176,7 @@ function textGlyphs(element: Text): [Set<string>, Set<string>] {
   if (element.literal !== null) return [new Set(element.literal), new Set(element.literal)];
   if (element.value === null) return [new Set(), new Set()];
   const spec = element.format || "{}";
-  const options = { digits: element.unit_digits, unitLabels: element.unit_labels };
+  const options = { digits: element.unit_digits, unitLabels: element.unit_labels, strings: strings(element.value) };
   const valueGlyphs = formatting.glyphs(spec, source(element.value), element.value.value.type, element.value.scale, options);
   const glyphs = new Set(valueGlyphs);
   const aod = element.aod;
@@ -172,13 +184,13 @@ function textGlyphs(element: Text): [Set<string>, Set<string>] {
   const aodGlyphs = aodSpec === spec ? new Set(valueGlyphs)
     : formatting.glyphs(aodSpec, source(element.value), element.value.value.type, element.value.scale, options);
   for (const [value, moreSpec] of element.segments().slice(1)) {
-    for (const c of formatting.glyphs(moreSpec, source(value), value.value.type, value.scale)) glyphs.add(c);
+    for (const c of formatting.glyphs(moreSpec, source(value), value.value.type, value.scale, { strings: strings(value) })) glyphs.add(c);
   }
   if (element.placeholder) for (const c of element.placeholder) glyphs.add(c);
   if (element.absent === "fallback" && element.fallback !== null) {
     const fallback = element.fallback;
     const more = fallback.value.type === "string" && fallback.constant !== null ? new Set(str(fallback.constant))
-      : formatting.glyphs(spec, source(fallback), fallback.value.type, fallback.scale);
+      : formatting.glyphs(spec, source(fallback), fallback.value.type, fallback.scale, { strings: strings(fallback) });
     for (const c of more) glyphs.add(c);
   }
   return [glyphs, aodGlyphs];
@@ -269,8 +281,10 @@ class TextKind extends ElementKind<Text> {
     const runs: TextRun[] = [];
     if (element.font_is_custom) {
       const widest = widestText(element);
+      // Every literal a string `?:` can pick must be in the font, not only the widest.
+      const picks = element.segments().flatMap(([value]) => strings(value)?.literals ?? []);
       runs.push(new TextRun(element.id, element.font, {
-        glyphs, samples: [widest], sample_note: `the widest rendering of this element is ${quoted(widest)}`,
+        glyphs, samples: [widest, ...picks], sample_note: `the widest rendering of this element is ${quoted(widest)}`,
         span: element.span, unsupported: element.unsupported, curve: element.curve,
       }));
     }
@@ -285,7 +299,7 @@ class TextKind extends ElementKind<Text> {
 
   override resolve(r: Resolver, element: Text, parent: Box, depth: number): Placed {
     const font = r.textFont(element.font, element.font_is_custom, element.curve);
-    const widest = widestText(element);
+    const widest = widestText(element, (text) => font.width(text));
     const width = font.width(widest);
     const lineHeight = font.lineHeight;
     const [x, y] = r.point(element.at, parent);
