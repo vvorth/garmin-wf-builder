@@ -13,6 +13,7 @@ import * as manifest from "./manifest.ts";
 import { emitApp, emitIconGlyphs, emitPalette, iconGlyphEntries } from "./monkeyc/app.ts";
 import { dataElements, editorSlots, needsDelegate, type SourceFile } from "./monkeyc/common.ts";
 import * as configMenu from "./monkeyc/config_menu.ts";
+import * as conditionText from "./monkeyc/condition_text.ts";
 import { emitSlotDrawable, emitSlotText } from "./monkeyc/data.ts";
 import { emitDelegate } from "./monkeyc/delegate.ts";
 import { emitLayout } from "./monkeyc/layout_constants.ts";
@@ -123,6 +124,8 @@ export function generate(face: Face, devices: Device[], read: FontReader,
   }
   if (needsDelegate(face)) project.sources.push(checkShared(project, (r) => emitDelegate(r, guards)));
   if (guards.config_menu) project.sources.push(configMenu.emitDelegates(face));
+  const conditionTables = conditionText.conditionTables(project.sources.map((s) => s.text));
+  if (conditionTables.size > 0) project.sources.push(conditionText.emitConditionText(face, conditionTables));
   if (trace) project.sources = project.sources.map(traced);
   project.barrel = [...usage.barrelModules(project.sources.map((s) => s.text))].sort();
   avoidStringLabelCollisions(project);

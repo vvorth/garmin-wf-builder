@@ -228,24 +228,6 @@ module WfbReading {
         return found[0] + "/" + found[1];
     }
 
-    //! Entry `index` of `names`, a table of entries padded with "|" to
-    //! `width` characters each; an index outside it reads as the last entry.
-    //! One string in place of a `switch` over every entry, which costs far
-    //! more code.
-    function packed(names as String, width as Number, index as Number) as String {
-        var count = names.length() / width;
-        if (index < 0 || index >= count) {
-            index = count - 1;
-        }
-        var entry = names.substring(index * width, index * width + width);
-        if (entry == null) {
-            return "";
-        }
-        var end = entry.find("|");
-        var name = (end != null) ? entry.substring(0, end) : entry;
-        return (name != null) ? name : entry;
-    }
-
     //! `short` in the case `reported` uses: all capitals when the device
     //! reported all capitals ("MAINTAINING" -> "MAINT"), as written otherwise.
     function inCaseOf(short as String, reported as String) as String {

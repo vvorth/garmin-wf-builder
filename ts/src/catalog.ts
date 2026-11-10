@@ -49,6 +49,13 @@ export interface Source {
   requires: string[];
   unit: string | null;
   quantity: string | null;
+  /**
+   * The table naming each value the number takes, for a `:name`/`:short`
+   * format spec: `weather_condition` for a `Weather.CONDITION_*`
+   * (`data/complications.json`'s `weather_condition_text`). `null` for a
+   * number that is a quantity.
+   */
+  enum: "weather_condition" | null;
   doc: string;
   source_ref: string;
   array_index: number | null;
@@ -63,11 +70,11 @@ export interface Source {
   extra_readers: string[];
 }
 
-/** A catalogue entry as the JSON spells it: `call` and `extra_readers` are optional there. */
-type RawSource = Omit<Source, "call" | "extra_readers"> & Partial<Pick<Source, "call" | "extra_readers">>;
+/** A catalogue entry as the JSON spells it: `call`, `extra_readers` and `enum` are optional there. */
+type RawSource = Omit<Source, "call" | "extra_readers" | "enum"> & Partial<Pick<Source, "call" | "extra_readers" | "enum">>;
 
 function withDefaults(raw: RawSource): Source {
-  return { call: null, extra_readers: [], ...raw };
+  return { call: null, extra_readers: [], enum: null, ...raw };
 }
 
 export const READERS: ReadonlyMap<string, Reader> = new Map(Object.entries(data.readers as Record<string, Reader>));

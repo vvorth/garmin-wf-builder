@@ -264,6 +264,8 @@ class TextKind extends ElementKind<Text> {
     const aodFont = aod !== null && aod.font_is_custom ? aod.font : null;
     if (!element.font_is_custom && aodFont === null) return [];
     const [glyphs, aodGlyphs] = textGlyphs(element);
+    // With no font of its own, the AOD frame draws its `aod: {text:}` in this one, which then needs its glyphs too.
+    if (aod !== null && aodFont === null) for (const c of aodGlyphs) glyphs.add(c);
     const runs: TextRun[] = [];
     if (element.font_is_custom) {
       const widest = widestText(element);

@@ -362,6 +362,8 @@ Instead:
   never cut. The tables are `WEATHER_CONDITION_TEXT` in `ts/src/complications.ts` and
   `TRAINING_STATUS_SHORT`; the long condition names are the SDK's own
   (`doc/Toybox/Weather.html`), in English whatever the watch's language.
+  A `text` element draws the same names with
+  [`{weather.condition:name}` or `:short`](text.md#format-specs-every-option).
 * **`label:`** (`none` default, `short`, `long`) draws `Complication.
   shortLabel`/`.longLabel` before the reading, when the device supplies one.
 * **`prefix:`** (`false` default) writes a short tag for the picked type,

@@ -116,7 +116,7 @@ intensity minutes, stress score, respiration rate, time to recovery),
 pressure), `weather.*` (current condition and temperature, feels-like,
 today's high/low and precipitation chance, humidity, wind speed,
 today's/tomorrow's forecast condition — see [`icon: {for:}`](icons.md#a-dynamic-icon-icon-for) for turning a
-condition into a drawn icon), `user.*` (running/cycling VO2 max, resting
+condition into a drawn icon, and the [`name` spec](text.md#format-specs-every-option) for its name), `user.*` (running/cycling VO2 max, resting
 heart rate, from `Toybox.UserProfile`), and `complication.*` (below).
 
 **The wearer's position: `position.latitude` and `position.longitude`.**
@@ -513,6 +513,7 @@ Every spec and code, each with what it draws, is one table per kind of reading i
 | `"{weather.temperature:06.2f}"` | width and decimals together, zero-padded |
 | `"{date.day_of_week:s}"` | the value's own `toString()`, as no spec |
 | `"{activity.steps:d} steps"` | literal text around the placeholder |
+| `"{weather.condition:name}"`, `"{weather.condition:short}"` | a weather condition's name, `Mostly clear` or `Mo clr` ([text.md](text.md#format-specs-every-option)) |
 
 A numeric spec is `[0][width][.precision]` followed by `d`, `f` or `s`. `d`
 truncates a Float toward zero. A sign (`+d`), a thousands separator (`,d`),

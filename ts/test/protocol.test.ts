@@ -158,9 +158,9 @@ const vocabulary = obj({
   mip: list(obj({ name: str, value: str, label: str, note: nullable(str) })), hand_presets: list(str), categories: list(str),
   complication_types: list(obj({ name: str, label: str, category: str, icon: nullable(str), sample: nullable(str),
     capabilities: list(obj({ kind: literal("graph", "dynamic_icon", "gauge", "long_text"), detail: str })) })), icon_glyphs: record(int), icon_paths: record(str),
-  source_info: record(obj({ type: literal("number", "float", "boolean", "string", "time", "date", "color"), unit: nullable(str), quantity: nullable(str), doc: str, nullable: bool })),
+  source_info: record(obj({ type: literal("number", "float", "boolean", "string", "time", "date", "color"), unit: nullable(str), quantity: nullable(str), enum: nullable(str), doc: str, nullable: bool })),
   icon_rules: list(obj({ rule: str, label: str, kind: literal("steps", "table"), sources: list(str), glyphs: list(str), plain: str, split: str })),
-  format_codes: obj({ time: list(tuple(str, str)), date: list(tuple(str, str)), duration: list(tuple(str, str)), number: list(tuple(str, str)) }),
+  format_codes: obj({ time: list(tuple(str, str)), date: list(tuple(str, str)), duration: list(tuple(str, str)), number: list(tuple(str, str)), name: list(tuple(str, str)) }),
   lint_codes: list(str),
   devices: list(obj({ id: str, name: str, shape: str, size: str, width: int, height: int, ppi: nullable(num), skin: bool, display: str, fonts: list(str), faces: list(str) })),
   unreadable_devices: list(obj({ id: str, reason: str })),
@@ -344,9 +344,10 @@ test("the words describe every source and the specs a placeholder takes, by what
   const client = new Client(studio);
   const words = (await client.call("vocabulary", {})).json;
   const catalog = await import("../src/catalog.ts");
-  // every catalogue path, with its own type, unit, quantity, doc and nullability, and nothing else
+  // every catalogue path, with its own type, unit, quantity, enum, doc and nullability, and nothing else
   assert.deepEqual(Object.keys(words.source_info).sort(), [...catalog.CATALOG.keys()].sort());
-  assert.deepEqual(words.source_info["activity.steps"], { type: "number", unit: null, quantity: null, doc: "steps today", nullable: true });
+  assert.deepEqual(words.source_info["activity.steps"], { type: "number", unit: null, quantity: null, enum: null, doc: "steps today", nullable: true });
+  assert.equal(words.source_info["weather.condition"].enum, "weather_condition");
   assert.deepEqual(words.source_info["weather.temperature"].quantity, "temperature");
   assert.equal(words.source_info["time.clock"].type, "time");
   // the codes as written after the colon, each with what it draws: a clock's, a date's and a duration's differ where they must
@@ -355,6 +356,7 @@ test("the words describe every source and the specs a placeholder takes, by what
   assert.ok(codes("date").includes("%Y") && codes("date").includes("%b") && !codes("date").includes("%H"), codes("date").join(" "));
   assert.ok(codes("duration").includes("%-H") && codes("duration").includes("%S"), codes("duration").join(" "));
   assert.deepEqual(codes("number").slice(0, 3), ["d", "02d", ".1f"]);
+  assert.deepEqual(codes("name"), ["name", "short"]);
   assert.ok(words.format_codes.time.every(([, label]: [string, string]) => label.length > 0));
 });
 

@@ -702,6 +702,8 @@ export interface SourceInfo {
   type: "number" | "float" | "boolean" | "string" | "time" | "date" | "color";
   unit: string | null;
   quantity: string | null;
+  /** The table naming the number's values (`weather_condition`), which `:name`/`:short` read; `null` for a quantity. */
+  enum: string | null;
   doc: string;
   nullable: boolean;
 }
@@ -709,12 +711,13 @@ export interface SourceInfo {
 /** A format spec or code a placeholder takes, and what it draws. */
 export type FormatCode = [spec: string, label: string];
 
-/** The specs a placeholder may take, by what it reads: a clock's and a date's strftime codes, a number of seconds' duration codes, and a number's own specs. */
+/** The specs a placeholder may take, by what it reads: a clock's and a date's strftime codes, a number of seconds' duration codes, a number's own specs, and a named number's names. */
 export interface FormatCodes {
   time: FormatCode[];
   date: FormatCode[];
   duration: FormatCode[];
   number: FormatCode[];
+  name: FormatCode[];
 }
 
 /**

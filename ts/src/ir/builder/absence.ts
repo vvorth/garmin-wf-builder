@@ -123,6 +123,20 @@ export class AbsenceChecks extends Readers {
     this.checkFormatSpec(bound, spec, span);
   }
 
+  /** `{x:name}`/`{x:short}` looks the reading up in its source's table, so `x` must be one such source, bare. */
+  private checkNameSpec(bound: Expression, spec: string, span: Span | null): void {
+    const path = bound.ast !== null && bound.ast.kind === "ref" && bound.sources.length === 1 ? bound.sources[0]! : null;
+    if (path !== null && catalog.get(path)?.enum != null) return;
+    const named = [...catalog.CATALOG].filter(([, s]) => s.enum !== null).map(([p]) => p).sort();
+    const field = formatting.parse(spec).find((p) => p.kind === "field" && formatting.NAME_SPECS.has(p.spec));
+    const code = field !== undefined && field.kind === "field" ? field.spec : "name";
+    this.bag.error("format", `${quoted(asTemplate(spec, bound))}: ':${code}' names a weather condition, `
+      + `and ${quoted(bound.shown)} is not one`, span, {
+      notes: [`':name' and ':short' take a placeholder that is exactly one of: ${named.join(", ")}`,
+        "the name is looked up from the raw Weather.CONDITION_* value, so arithmetic or a conditional is refused"],
+    });
+  }
+
   /** The coded-versus-type checks a `format:` spec needs against the value it formats. */
   checkFormatSpec(bound: Expression, spec: string, span: Span | null): void {
     const report = (fn: () => unknown): void => {
@@ -142,7 +156,9 @@ export class AbsenceChecks extends Readers {
     }
     const type = bound.value.type;
     const coded = formatting.isTimeSpec(spec);
-    if (formatting.isDuration(spec, type)) {
+    if (formatting.isNameSpec(spec)) {
+      this.checkNameSpec(bound, spec, span);
+    } else if (formatting.isDuration(spec, type)) {
       // strftime codes on a Number or Float read it as seconds.
       report(() => {
         for (const part of formatting.parse(spec)) {

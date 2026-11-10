@@ -711,8 +711,9 @@ still true of the shipped feature:
   which about 2.9 KB is the weather icon following the condition (the
   condition-to-icon table and 29 more icon glyphs); showcase grew from
   23,041 B to 27,207 B. The condition names are packed into one string
-  per variant (`WfbReading.packed`), 1,246 B smaller than a 54-way
-  `switch`.
+  per variant (the generated `ConditionText` module, which a
+  `{weather.condition:name}` placeholder shares), 1,246 B smaller than a
+  54-way `switch`.
 * **A complication carries no scale of its own, so a slot gauge's comes
   from a table.** `Complication.ranges` (API 4.2.0) is documented as an
   ordered set of values breaking a reading into ranges, but every native

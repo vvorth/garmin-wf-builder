@@ -903,6 +903,30 @@ These cost real time to discover; do not rediscover them.
   warning-free on a device without the module (fenix6), so no second
   shape is needed there.
 
+- **The weather condition names are one generated module,
+  `source/ConditionText.mc`, not a barrel file.** A `data` element's
+  weather reading (`SlotText.reading`) and a `{weather.condition:name}`
+  placeholder both call `ConditionText.longName`/`shortName`, and
+  `generate` in `ts/src/emit/project.ts` emits the module after every
+  other source, carrying only the tables the emitted text calls
+  (`conditionTables` in `ts/src/emit/monkeyc/condition_text.ts`, the same
+  "read what was emitted" move as `barrelModules`), so a face using both
+  carries each table once. It is generated, not hand-written, because the
+  names come from `data/complications.json`'s `weather_condition_text`;
+  and its packed-string lookup (`entry`) lives in the module rather than in
+  `WfbReading.mc`, because a real build of a text-only face failed under
+  `WfbReading`: that barrel names `Complications.UNIT_*`, and `monkeyc`
+  then demands the `ComplicationSubscriber` permission, which a face
+  reading `weather.condition` directly does not declare ("Permission
+  'ComplicationPublisher' or 'ComplicationSubscriber' required for
+  '$.Toybox.Complications'", on all three verification targets).
+  Measured (`fenix8solar47mm`): the module of its own costs a slot face
+  44 B (`examples/features/slots/`, 19,195 B -> 19,239 B), and a face
+  drawing two condition texts, one of each table, is 3,050 B in all.
+  `Source.enum` (`weather_condition`) marks which catalogue sources take
+  `:name`; `ts/test/condition-names.test.ts` holds it equal to the weather
+  icon rule's `sources` and to the complication types whose reading is a
+  condition.
 - **A catalogue source read through a barrel call: `call:` and
   `extra_readers` (2026-10-29).** A `Source` in `ts/src/data/catalog.json`
   normally reads one field off one reader local (`weatherCurrent.temperature`).

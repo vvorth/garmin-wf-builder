@@ -11,7 +11,12 @@
 // value as seconds: a duration, or a time of day. The largest unit a spec
 // uses carries the whole total, every smaller unit wraps at the next one
 // up, and a `-` flag drops the zero-padding.
+//
+// `name` and `short` name a number from its source's table (`Source.enum`):
+// a `Weather.CONDITION_*` as `Mostly clear` or `Mo clr`, the same table a
+// `data` element's weather reading draws from.
 import { isNumeric, type Source, type Type } from "./catalog.ts";
+import { conditionNames, conditionText, widestCondition } from "./complications.ts";
 import { stringLiteral } from "./mcsource.ts";
 import { floatRepr, formatFixed, isNumber, num, quoted, roundHalfEven } from "./py.ts";
 import { WholeFloat } from "./edit/yaml.ts";
@@ -45,6 +50,33 @@ export interface Code {
   render: (v: Values) => string;
   /** A catalogue path the code reads beyond the value's own reader. */
   extra_path: string | null;
+}
+
+/** A `:name`/`:short` field spec: whether it takes the short name, and what it draws. */
+export interface NameSpec { short: boolean; description: string }
+
+/** The specs naming a number from its source's table, which only a source with an `enum` takes. */
+export const NAME_SPECS: ReadonlyMap<string, NameSpec> = new Map([
+  ["name", { short: false, description: "the condition's name: Mostly clear" }],
+  ["short", { short: true, description: "the condition's short name, at most 7 characters: Mo clr" }],
+]);
+
+/** The generated module holding the weather condition names (`emit/monkeyc/condition_text.ts`). */
+export const CONDITION_TEXT_MODULE = "ConditionText";
+
+/** The Monkey C naming the condition `valueCode`, a Number. */
+export function conditionCall(short: boolean, valueCode: string): string {
+  return `${CONDITION_TEXT_MODULE}.${short ? "shortName" : "longName"}(${valueCode})`;
+}
+
+/** Does this format name its value (`{:name}`, `{:short}`)? */
+export function isNameSpec(spec: string): boolean {
+  try {
+    return parse(spec).some((p) => p.kind === "field" && NAME_SPECS.has(p.spec));
+  } catch (error) {
+    if (error instanceof FormatError) return false;
+    throw error;
+  }
 }
 
 /** Python's `format(n, "<flags>d")`: zero padding goes after the sign. */
@@ -322,6 +354,8 @@ function emitDuration(spec: string, valueCode: string, readers: Readers, unitCod
 
 function emitNumeric(spec: string, valueCode: string, valueType: Type): string {
   if (spec === "") return `${valueCode}.toString()`;
+  const named = NAME_SPECS.get(spec);
+  if (named !== undefined) return conditionCall(named.short, valueCode);
   const [kind, flags, precision] = numericSpec(spec);
   if (kind === "s") return `${valueCode}.toString()`;
   if (kind === "d") return `${valueType === "float" ? `${valueCode}.toNumber()` : valueCode}.format("%${flags}d")`;
@@ -395,6 +429,11 @@ function str(value: unknown): string {
 
 function renderNumericField(spec: string, value: unknown): string {
   if (spec === "") return str(value);
+  const named = NAME_SPECS.get(spec);
+  if (named !== undefined) {
+    if (!isNumber(value)) throw new Error("a name spec renders a number");
+    return conditionText(Math.trunc(num(value)), named.short);
+  }
   const [kind, flags, precision] = numericSpec(spec);
   if (kind === "s") return str(value);
   if (!isNumber(value)) throw new Error("a numeric spec renders a number");
@@ -438,6 +477,8 @@ export function widest(spec: string, source: Source | null, valueType: Type, sca
   for (const p of parse(spec)) {
     if (p.kind === "literal") { out += p.text; continue; }
     if (p.kind === "unit") { out += unitWidest; continue; }
+    const named = NAME_SPECS.get(p.spec);
+    if (named !== undefined) { out += widestCondition(named.short); continue; }
     const m = p.spec ? NUMERIC_SPEC.exec(p.spec) : null;
     if (digits === null) digits = maxDigits(source, scale);
     if (m && m.groups!["kind"] === "f") {
@@ -480,6 +521,14 @@ export function glyphs(spec: string, source: Source | null, valueType: Type, sca
   if (valueType === "date") {
     // The weekday and month are localised strings chosen by the firmware: the full alphabet has to be present.
     add("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ");
+    return out;
+  }
+  if (isNameSpec(spec)) {
+    // Every name the table holds, and nothing a number would draw.
+    for (const p of parse(spec)) {
+      const named = p.kind === "field" ? NAME_SPECS.get(p.spec) : undefined;
+      if (named !== undefined) for (const n of conditionNames(named.short)) add(n);
+    }
     return out;
   }
   add("0123456789");

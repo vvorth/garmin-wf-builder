@@ -49,6 +49,10 @@ or AOD-related has been observed on a watch or in the simulator.
   `units: auto|metric|statute` on a `text` element (`Source.quantity`,
   `ts/src/conversion.ts`) and duration formats on a number of seconds
   (`DURATION_CODES` in `ts/src/formatting.ts`, `WfbTime.durationPart`).
+  `:name`/`:short` on a weather condition source (`Source.enum`,
+  `NAME_SPECS` in `ts/src/formatting.ts`), drawn from the slot's own
+  condition names through the generated `ConditionText.mc`
+  (`docs/guide/text.md`, "Format specs").
   A conditional value written as a rule list (`[{when:, value:}, ...,
   {else:}]`) wherever an expression is taken, rewritten to the `?:` chain
   by `ts/src/lower.ts`. `docs/guide/data.md` ("Rules").
@@ -70,8 +74,8 @@ or AOD-related has been observed on a watch or in the simulator.
   `prefix:` its tag in front (`HR 72`, `PREFIX` in `ts/src/complications.ts`) and
   `short:` keeps to seven characters; a weather slot's icon follows the
   condition, a notification count's empties at zero and a battery's or
-  solar input's fills with the reading (`READING` in `ts/src/complications.ts`, generated `SlotText.mc`,
-  `runtime-lib/WfbReading.mc`). `docs/guide/configuration.md`.
+  solar input's fills with the reading (`READING` in `ts/src/complications.ts`, generated `SlotText.mc`
+  and `ConditionText.mc`, `runtime-lib/WfbReading.mc`). `docs/guide/configuration.md`.
 - **Dynamic icons** — `icon: {for:}` follows a weather condition, fills with
   a 0-100 level (`system.battery`, `complication.battery`,
   `complication.solar_input`), empties at zero (`device.notification_count`,

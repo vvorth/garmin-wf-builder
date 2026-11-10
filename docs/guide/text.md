@@ -95,6 +95,7 @@ clock:
 | `"{activity.steps:d}"` | the reading through a format spec |
 | `"{activity.steps / 1000.0:.1f}k"` | an expression, a spec, and literal text after it |
 | `"{time.clock:%H:%M}"` | a time through `strftime` codes |
+| `"{weather.condition:name}"` | a weather condition by name: `Mostly clear` |
 | `"{heart_rate.current:d} bpm / {activity.steps:d}"` | two readings in one string |
 | `"{{x}}"` | the literal `{x}`: a brace is written twice |
 
@@ -158,8 +159,8 @@ has no page for at all, derived from a located real `.ttf`/`.otf`'s own
 
 Everything that may follow the `:` in a placeholder. Which table applies
 depends on what the reading is: a **clock** (`time.clock`), a **date**
-(`date.today`), or a **number** (everything else numeric, `time.hour`
-included). `wfb sources` shows each source's type. A code a table does not
+(`date.today`), a **weather condition** (below), or a **number**
+(everything else numeric, `time.hour` included). `wfb sources` shows each source's type. A code a table does not
 list is an error that names the ones it does.
 
 **Numbers** -- `[0][width][.precision]` then `d`, `f` or `s`:
@@ -179,6 +180,35 @@ list is an error that names the ones it does.
 Not supported: a sign (`+d`), a thousands separator (`,d`), hex (`x`),
 percent (`%` as a spec), left or centre alignment (`<`, `^`). For a
 percentage, put the sign in the text: `"{system.battery:d}%"`.
+
+**A weather condition** -- `weather.condition`, `weather.condition_today`,
+`weather.condition_tomorrow`, `complication.current_weather` and
+`complication.forecast_weather_1day`/`_2day`/`_3day` -- is a
+`Weather.CONDITION_*` number, which a name spec turns into words:
+
+| Spec | Value | Draws |
+|---|---|---|
+| `name` | `23` | `Mostly clear` |
+| `short` | `23` | `Mo clr`: at most 7 characters |
+| *(none)*, `d` | `23` | `23`, as any number |
+
+The names are the ones a [`data` element](configuration.md#the-data-axis)
+draws for a weather slot, from the same table, in English whatever the
+watch's language. A value the table does not know draws `Unknown`. The
+placeholder must be **exactly one** of those sources: the name is looked up
+from the raw reading, so `{(weather.condition + 1):name}` is an error, as
+is `name` on any other source. The [`text-overflow`](lints.md) lint
+measures `name` at its widest name, `Cloudy chance of rain snow`, which
+crosses most screens in `FONT_SMALL`; `short` fits where it does not. A
+baked font gets every letter the names use.
+
+```yaml
+weather:
+  type: text
+  text: "{weather.temperature:.0f}° {weather.condition:short}"   # "21° Pt cldy"
+  font: FONT_SMALL
+  absent: {text: "--"}
+```
 
 **A clock** (`time.clock`), at `14:05:09`:
 

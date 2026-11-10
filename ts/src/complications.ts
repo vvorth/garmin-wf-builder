@@ -157,10 +157,20 @@ function inCaseOf(short: string, reported: string): string {
   return reported === reported.toUpperCase() ? short.toUpperCase() : short;
 }
 
-/** A `Weather.CONDITION_*` as a slot names it. */
+/** A `Weather.CONDITION_*` as a slot and a `:name`/`:short` format spec name it. */
 export function conditionText(condition: number, short: boolean): string {
   const [longName, shortName] = WEATHER_CONDITION_TEXT.get(condition) ?? WEATHER_CONDITION_TEXT.get(UNKNOWN_CONDITION)!;
   return short ? shortName : longName;
+}
+
+/** Every `Weather.CONDITION_*`'s name, long or short, in value order: the generated table's entries, index for index. */
+export function conditionNames(short: boolean): string[] {
+  return [...WEATHER_CONDITION_TEXT.keys()].sort((a, b) => a - b).map((v) => WEATHER_CONDITION_TEXT.get(v)![short ? 1 : 0]);
+}
+
+/** The widest weather condition name, long or short. */
+export function widestCondition(short: boolean): string {
+  return longest(conditionNames(short));
 }
 
 /**
@@ -229,7 +239,7 @@ function longest(values: Iterable<string>): string {
 /** The widest reading type `name` plausibly draws, under the element's `unit:`/`short:`. */
 export function widestReading(name: string, unit: boolean, short: boolean): string {
   const kind = READING.get(name)!;
-  if (kind === "condition") return longest([...WEATHER_CONDITION_TEXT.values()].map((n) => (short ? n[1] : n[0])));
+  if (kind === "condition") return widestCondition(short);
   if (kind === "training_status" && short) return longest(TRAINING_STATUS_SHORT.values());
   if (kind === "high_low" && short) return "-88/-88";
   return suffixed(WIDEST.get(kind)!, unit ? unitSuffixFor(name, kind) : "", short);
@@ -248,7 +258,7 @@ export function readingGlyphs(name: string, unit: boolean, short: boolean): Set<
     else if (kind === "distance" || kind === "pace") add("/kmi");
     else add(unitSuffixFor(name, kind));
   }
-  if (kind === "condition") for (const n of WEATHER_CONDITION_TEXT.values()) add(short ? n[1] : n[0]);
+  if (kind === "condition") for (const n of conditionNames(short)) add(n);
   if (kind === "training_status" && short) for (const a of TRAINING_STATUS_SHORT.values()) { add(a); add(a.toUpperCase()); }
   if (kind === "high_low" && short) add("/");
   return glyphs;

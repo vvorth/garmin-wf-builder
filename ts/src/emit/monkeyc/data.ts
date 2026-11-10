@@ -2,6 +2,7 @@
 // its hold and icon helpers; its drawing is the data kind's `lower`..
 import { type Guards, NO_GUARDS } from "../../availability.ts";
 import * as complications from "../../complications.ts";
+import { conditionCall } from "../../formatting.ts";
 import * as icons from "../../icons.ts";
 import type { Face } from "../../ir/model.ts";
 import { configField, dataHoldMethod, dataIconMethod, elementMethodName } from "../../ir/naming.ts";
@@ -225,25 +226,6 @@ function variantExpression(variants: Set<boolean>, short: string, full: string):
   return `short ? ${short} : ${full}`;
 }
 
-const PACK_FILL = "|";
-
-/** Every weather condition's name, in value order, padded to one width and joined. */
-function packedNames(short: boolean): [string, number] {
-  const values = [...complications.WEATHER_CONDITION_TEXT.keys()].sort((a, b) => a - b);
-  const names = values.map((v) => complications.WEATHER_CONDITION_TEXT.get(v)![short ? 1 : 0]);
-  const width = Math.max(...names.map((n) => n.length));
-  return [names.map((n) => n.padEnd(width, PACK_FILL)).join(""), width];
-}
-
-function emitConditionTable(w: WriterType, method: string, short: boolean): void {
-  const [packed, width] = packedNames(short);
-  w.block(`function ${method}(condition as Number) as String`, () => {
-    w.line(`return WfbReading.packed("${packed}",`);
-    w.line(`        ${width}, condition);`);
-  });
-  w.blank();
-}
-
 /** `source/SlotText.mc`: a data element's reading as the text it draws, one rule per type. */
 export function emitSlotText(face: Face, guards: Guards = NO_GUARDS): SourceFile {
   // A target without the module, or older than a type named below, needs every use inside a check of its own.
@@ -286,7 +268,7 @@ export function emitSlotText(face: Face, guards: Guards = NO_GUARDS): SourceFile
               expression = !suffix ? "WfbReading.count(value, c.unit, short)"
                 : `WfbReading.suffixed(WfbReading.count(value, c.unit, short), unit ? "${suffix}" : "", short)`;
             } else if (kind === "condition") {
-              expression = variantExpression(conditions, "conditionShort(value.toNumber())", "conditionName(value.toNumber())");
+              expression = variantExpression(conditions, conditionCall(true, "value.toNumber()"), conditionCall(false, "value.toNumber()"));
             } else {
               expression = NUMERIC_READING[kind]!;
             }
@@ -319,8 +301,6 @@ export function emitSlotText(face: Face, guards: Guards = NO_GUARDS): SourceFile
       });
       w.blank();
     }
-    if (conditions.has(true)) emitConditionTable(w, "conditionShort", true);
-    if (conditions.has(false)) emitConditionTable(w, "conditionName", false);
     if (training.has(true)) {
       w.doc("A training status's short form, in the case the device reported it.");
       w.block("function trainingShort(status as String) as String", () => {

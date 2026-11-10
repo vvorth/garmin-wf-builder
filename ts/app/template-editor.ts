@@ -132,7 +132,8 @@ export function inserted(chips: readonly Chip[], chip: Chip, caret: Caret | null
 /**
  * The specs a placeholder over a source of `info`'s type takes, each group
  * with whether a pick replaces the spec (a number's) or adds a code to it
- * (strftime codes: `%H` then `:` then `%M`). An expression, whose type is
+ * (strftime codes: `%H` then `:` then `%M`). A weather condition is offered
+ * its names first. An expression, whose type is
  * not known here, is offered a number's specs and the duration codes.
  */
 export function specGroups(info: SourceInfo | undefined, codes: Partial<FormatCodes>): { label: string; codes: FormatCode[]; append: boolean }[] {
@@ -140,6 +141,7 @@ export function specGroups(info: SourceInfo | undefined, codes: Partial<FormatCo
   if (type === "time") return [{ label: "time", codes: codes.time ?? [], append: true }];
   if (type === "date") return [{ label: "date", codes: codes.date ?? [], append: true }];
   if (type === "string" || type === "boolean" || type === "color") return [];
+  if (info?.enum) return [{ label: "name", codes: codes.name ?? [], append: false }, { label: "number", codes: codes.number ?? [], append: false }];
   return [
     { label: "number", codes: codes.number ?? [], append: false },
     { label: "as seconds", codes: codes.duration ?? [], append: true },

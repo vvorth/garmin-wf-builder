@@ -49,7 +49,7 @@ import { subjectOf } from "./parts.ts";
 import { Color, ColorError, MIP64_NAMED, MIP_LEFT_OUT } from "../palette.ts";
 import { hasSkin } from "../preview.ts";
 import { DATA_SAMPLE } from "../sample.ts";
-import { DATE_CODES, DURATION_CODES, TIME_CODES } from "../formatting.ts";
+import { DATE_CODES, DURATION_CODES, NAME_SPECS, TIME_CODES } from "../formatting.ts";
 import * as series from "../series.ts";
 import { schema } from "../validate.ts";
 import { jsonDumps, plain } from "./json.ts";
@@ -823,11 +823,12 @@ export function vocabulary(): Words {
       icon_paths: paths,
       source_info: Object.fromEntries([...catalog.CATALOG.keys()].sort().map((path) => {
         const source = catalog.get(path)!;
-        return [path, { type: source.type, unit: source.unit, quantity: source.quantity, doc: source.doc, nullable: source.nullable }];
+        return [path, { type: source.type, unit: source.unit, quantity: source.quantity, enum: source.enum, doc: source.doc, nullable: source.nullable }];
       })),
       icon_rules: [...icons.RULES.values()].map(iconRuleWord),
       format_codes: {
         time: codesOf(TIME_CODES), date: codesOf(DATE_CODES), duration: codesOf(DURATION_CODES), number: NUMBER_SPECS.map(([spec, label]) => [spec, label]),
+        name: [...NAME_SPECS].map(([spec, n]) => [spec, n.description]),
       },
       lint_codes: [...SUPPRESSIBLE].sort(),
     };
