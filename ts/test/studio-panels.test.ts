@@ -141,6 +141,12 @@ test("an icon written as {codepoint} keeps the icon widget with the object as it
   const variant = fieldsOf(inspect(text.replace('{ codepoint: "U+E241" }', "{for: system.battery, variant: bars}"), pathOf("glyph"), null))["icon"];
   assert.equal(variant.widget, "icon", "a variant beside the source keeps the icon widget");
   assert.deepEqual(variant.value, { for: "system.battery", variant: "bars" });
+  const own = fieldsOf(inspect(text.replace('{ codepoint: "U+E241" }', "{for: system.battery, icons: {0: battery_outline, 50: battery}}"), pathOf("glyph"), null))["icon"];
+  assert.equal(own.widget, "icon", "the face's own glyphs beside the source keep the icon widget");
+  assert.deepEqual(own.value, { for: "system.battery", icons: { "0": "battery_outline", "50": "battery" } });
+  // a set that is not a mapping is not a spelling the picker edits
+  const odd = fieldsOf(inspect(text.replace('{ codepoint: "U+E241" }', "{for: system.battery, icons: [battery]}"), pathOf("glyph"), null))["icon"];
+  assert.equal(odd.widget, "yaml");
 
   const slots = text + `
 config:

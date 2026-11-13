@@ -411,6 +411,19 @@ input[type="range"].wide { width: 100%; }
 .rule-source.on { border-color: var(--accent); }
 .rule-variants { flex-wrap: wrap; }
 .rule-variants button { display: inline-flex; gap: 4px; align-items: center; font-size: 11px; padding: 1px 6px; }
+.rule-own { font-size: 11px; padding: 1px 6px; }
+.rule-own.on { border-color: var(--accent); }
+.own-set { display: flex; flex-direction: column; gap: 4px; padding: 4px; margin-bottom: 6px; border: 1px solid var(--accent); border-radius: 6px; }
+.icon-set { display: flex; flex-direction: column; gap: 2px; }
+.set-row { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+.set-row.dim .chip-button { opacity: .55; }
+.set-key { min-width: 4.5em; font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.icon-set.overlay .set-key { min-width: 13em; }
+.set-add { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+.set-add input { width: 6.5em; font-size: 12px; }
+.set-add button, .icon-set .set-builtin { font-size: 11px; padding: 1px 6px; }
+.set-problem { font-size: 11px; }
+.slot-type .choice-glyphs { font-size: 11px; }
 .absent-row { flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 6px; font-size: 12px; }
 .absent-row .seg button { padding: 1px 8px; font-size: 12px; }
 .slot-card { padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }

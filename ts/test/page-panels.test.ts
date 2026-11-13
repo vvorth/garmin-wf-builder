@@ -223,6 +223,60 @@ test("a slot card keeps a choice's own glyphs and absent: when another type is t
   ]);
 });
 
+test("a slot card's glyphs… makes a choice's glyphs its own, edits them, and writes its absent: plain, hide or a glyph", async () => {
+  const gauge = repoText("examples/features/slot-gauge/face.yaml");
+  const script = (then: string) => `
+      await openSection("Slots");
+      const card = find((e) => cls(e) === "slot-card")[0];
+      const row = (label) => card.all((e) => ["slot-type", "slot-type off"].includes(cls(e))
+                                       && e.all((s) => cls(s) === "label" && s.textContent === label).length > 0)[0];
+      const glyphsButton = (label) => row(label).all((e) => cls(e).includes("choice-glyphs"))[0];
+      const button = (within, text) => within.all((b) => b.localName === "button" && b.textContent === text)[0];
+      ${then}
+      out(edits);
+    `;
+  const at = ["config", "slots", "top", "choices", 3];
+  // a bare battery choice: glyphs… on it (and on no type without a rule, nor an unticked one); own glyphs… seeds the default set
+  let printed = await render(summary(gauge), script(`
+      out([glyphsButton("Battery") !== undefined, glyphsButton("Steps") === undefined, glyphsButton("Calories") === undefined]);
+      await click(glyphsButton("Battery"));
+      await click(button(row("Battery"), "own glyphs…"));
+      const absent = row("Battery").all((e) => cls(e).includes("absent-row"))[0];
+      await click(button(absent, "hide"));
+      await click(button(absent, "plain"));                  // already plain: nothing sent
+      await click(absent.all((e) => cls(e) === "chip-button")[0]);
+      await click(absent.all((e) => e.localName === "button" && e.attributes["aria-label"] === "heart")[0]);`));
+  assert.deepEqual(printed[0], [true, true, true]);
+  assert.deepEqual(printed[1], [
+    { op: "set", path: at, value: { type: "battery", icons: { "0": "battery_20", "20": "battery_40", "40": "battery_60", "60": "battery_80", "80": "battery" } } },
+    { op: "set", path: at, value: { type: "battery", absent: "hide" } },
+    { op: "set", path: at, value: { type: "battery", absent: { icon: "heart" } } },
+  ]);
+  // variant: classic seeds its own glyphs, and the set replaces the variant
+  printed = await render(summary(gauge.replace("intensity_minutes, battery,", "intensity_minutes, {type: battery, variant: classic},")), script(`
+      await click(glyphsButton("Battery"));
+      await click(button(row("Battery"), "own glyphs…"));`));
+  assert.deepEqual(printed[0], [{ op: "set", path: at, value: { type: "battery",
+    icons: { "0": "battery_level_0", "20": "battery_level_1", "40": "battery_level_2", "60": "battery_level_3", "80": "battery_level_4" } } }]);
+  // a choice with its own glyphs: no variant select; the editor adds a band, keeps absent:, plain drops it, built-in drops the set
+  printed = await render(summary(gauge.replace("intensity_minutes, battery,",
+    "intensity_minutes, {type: battery, icons: {0: battery_outline, 50: battery}, absent: hide},")), script(`
+      out([row("Battery").all((e) => e.localName === "select").length, glyphsButton("Battery").textContent.includes("own")]);
+      await click(glyphsButton("Battery"));
+      const editor = row("Battery").all((e) => cls(e).startsWith("icon-set"))[0];
+      const box = editor.all((e) => e.localName === "input")[0];
+      box.value = "75"; box.dispatch("input"); await settle();
+      await click(button(editor, "+ band"));
+      await click(button(row("Battery").all((e) => cls(e).includes("absent-row"))[0], "plain"));
+      await click(button(editor, "use the built-in glyphs"));`));
+  assert.deepEqual(printed[0], [0, true]);
+  assert.deepEqual(printed[1], [
+    { op: "set", path: at, value: { type: "battery", icons: { "0": "battery_outline", "50": "battery", "75": "battery" }, absent: "hide" } },
+    { op: "set", path: at, value: { type: "battery", icons: { "0": "battery_outline", "50": "battery" } } },
+    { op: "set", path: at, value: { type: "battery", absent: "hide" } },
+  ]);
+});
+
 test("a slot card marks what each type supports, dimly, explained on hover", async () => {
   const text = summary(repoText("examples/features/slot-gauge/face.yaml"));
   const printed = await render(text, "\n      await openSection(\"Slots\");\n      const card = find((e) => cls(e) === \"slot-card\")[0];\n      const row = (label) => card.all((e) => [\"slot-type\", \"slot-type off\"].includes(cls(e))\n                                       && e.all((s) => cls(s) === \"label\" && s.textContent === label).length > 0)[0];\n      const caps = (label) => row(label).all((e) => cls(e).startsWith(\"glyph cap\")).map((e) => [cls(e), e.textContent.codePointAt(0).toString(16), e.attributes.title]);\n      out([\"Steps\", \"Current weather\", \"Training status\", \"Date\"].map(caps));\n    ");
@@ -613,6 +667,166 @@ test("the battery row offers its variants: a click writes variant: on the source
   assert.deepEqual(printed[1], [["fill", "true"], ["bars", "false"], ["classic", "false"]], "the default shows first");
   assert.deepEqual(printed[3], ["false", "true", "false"]);
   assert.deepEqual(printed[4], [{ op: "set", element, path: ["icon"], scope: "all", device: null, value: { for: "complication.battery", variant: "bars" } }]);
+});
+
+test("own glyphs… writes the set shown as the icon's own: on the source followed, or on the source clicked after", async () => {
+  installAssets();
+  const words = vocabulary();
+  const vocab = { icon_glyphs: words.icon_glyphs, icon_paths: words.icon_paths, icon_rules: words.icon_rules, source_info: words.source_info };
+  const element = ["elements", "glyph"];
+  const script = (then: string) => `
+      const icon = field("icon");
+      await click(icon.all((e) => cls(e) === "chip-button")[0]);
+      const row = (label) => icon.all((e) => /^rule-row( |$)/.test(cls(e))).find((r) => r.all((x) => cls(x) === "rule-label")[0].textContent === label);
+      const own = (label) => row(label).all((b) => cls(b).startsWith("rule-own"))[0];
+      ${then}
+      out(edits);
+    `;
+  // following the battery with variant: bars, its own glyphs start from the bars glyphs, keyed by where each band starts
+  let text = followingIcon("system.battery").replace("icon: {for: system.battery}", "icon: {for: system.battery, variant: bars}");
+  let printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, script(`
+      out(icon.all((e) => /^rule-row( |$)/.test(cls(e))).every((r) => r.all((b) => cls(b).startsWith("rule-own")).length === 1));
+      await click(own("Battery"));`)));
+  assert.equal(printed[0], true, "every rule's row offers own glyphs…");
+  assert.deepEqual(printed[1], [{ op: "set", element, path: ["icon"], scope: "all", device: null,
+    value: { for: "system.battery", icons: { "0": "battery_outline", "20": "battery_low", "40": "battery_medium", "60": "battery_high", "80": "battery" } } }]);
+  // following another rule: own glyphs… waits, pressed, for a source of its rule; that source then takes the set
+  text = followingIcon("device.notification_count");
+  printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, script(`
+      await click(own("Battery"));
+      out([edits.length, own("Battery").attributes["aria-pressed"], own("Notifications").attributes["aria-pressed"]]);
+      await click(row("Battery").all((b) => cls(b).startsWith("rule-source") && b.textContent === "complication.battery")[0]);`)));
+  assert.deepEqual(printed[0], [0, "true", "false"]);
+  assert.deepEqual(printed[1], [{ op: "set", element, path: ["icon"], scope: "all", device: null,
+    value: { for: "complication.battery", icons: { "0": "battery_20", "20": "battery_40", "40": "battery_60", "60": "battery_80", "80": "battery" } } }]);
+  // an on/off rule's own glyphs are keyed off and on; an overlay's start with the plain glyph as itself
+  printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, script(`
+      await click(own("Do not disturb"));
+      // the popover stays open on a set written, so its editor shows
+      await click(row("Do not disturb").all((b) => cls(b).startsWith("rule-source"))[0]);
+      await click(own("Weather"));
+      await click(row("Weather").all((b) => cls(b).startsWith("rule-source") && b.textContent === "weather.condition")[0]);`)));
+  assert.deepEqual(printed[0].map((e: { value: unknown }) => e.value), [
+    { for: "device.do_not_disturb", icons: { off: "bell", on: "dnd" } },
+    { for: "weather.condition", icons: { weather_unknown: "weather_unknown" } },
+  ]);
+});
+
+test("the icon's own glyphs: a line per band, + band validated, × never on the bottom key or below two, use the built-in glyphs", async () => {
+  installAssets();
+  const words = vocabulary();
+  const vocab = { icon_glyphs: words.icon_glyphs, icon_paths: words.icon_paths, icon_rules: words.icon_rules, source_info: words.source_info };
+  const element = ["elements", "glyph"];
+  const set = (icons: string) => followingIcon("complication.battery").replace("icon: {for: complication.battery}", `icon: {for: complication.battery, icons: ${icons}}`);
+  const head = `
+      const icon = field("icon");
+      const chip = icon.all((e) => cls(e) === "chip-button")[0];
+      const glyphs = (e) => e.all((x) => cls(x) === "glyph").map((x) => x.attributes.title);
+      await click(chip);
+      const editor = () => icon.all((e) => cls(e).startsWith("icon-set"))[0];
+      const rows = () => editor().all((e) => cls(e).startsWith("set-row"));
+      const removes = () => editor().all((b) => b.localName === "button" && (b.attributes["aria-label"] || "").startsWith("remove "));
+      const box = () => editor().all((e) => e.localName === "input")[0];
+      const problem = () => editor().all((e) => cls(e).includes("set-problem")).map((e) => e.textContent)[0] ?? null;
+      const band = async (text) => { box().value = text; box().dispatch("input"); await settle(); await click(editor().all((b) => b.localName === "button" && b.textContent === "+ band")[0]); };
+      const value = (v) => ({ for: "complication.battery", icons: v });`;
+  // two bands: none removable; bad bands say why and send nothing; a good one splits the band below it
+  let text = set("{0: battery_outline, 50: battery}");
+  let printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, `${head}
+      out([glyphs(chip), chip.textContent.includes("own")]);
+      out(rows().map((r) => [r.all((k) => cls(k).startsWith("set-key"))[0].textContent, glyphs(r)]));
+      out(removes().length);
+      const said = [];
+      for (const t of ["", "abc", "150", "-5", "50", "1e-7"]) { await band(t); said.push(problem()); }
+      out([said, edits.length]);
+      await band("25");
+      out(problem());
+      // a band's glyph picked in the nested picker
+      await click(rows()[1].all((e) => cls(e) === "chip-button")[0]);
+      await click(rows()[1].all((e) => e.localName === "button" && e.attributes["aria-label"] === "heart")[0]);
+      await click(editor().all((b) => b.localName === "button" && b.textContent === "use the built-in glyphs")[0]);
+      out(edits.map((e) => e.value));
+    `));
+  assert.deepEqual(printed[0], [["battery_outline", "battery"], true], "the chip shows the icon's own glyphs");
+  assert.deepEqual(printed[1], [["0+", ["battery_outline"]], ["50+", ["battery"]]]);
+  assert.equal(printed[2], 0, "two bands are the fewest: neither is removable");
+  assert.deepEqual(printed[3], [[
+    "type a number: the reading where the glyph starts", "type a number: the reading where the glyph starts", "above 100, the top of the reading",
+    "below 0, where the reading starts", "a band already starts at 50", "type a plain number",
+  ], 0]);
+  assert.equal(printed[4], null);
+  assert.deepEqual(printed[5], [
+    { for: "complication.battery", icons: { "0": "battery_outline", "25": "battery_outline", "50": "battery" } },
+    { for: "complication.battery", icons: { "0": "battery_outline", "50": "heart" } },
+    { for: "complication.battery" },
+  ]);
+  // three bands: × on every band but the bottom one; a count's band is a whole number
+  text = set("{0: battery_outline, 20: battery_low, 60: battery}");
+  printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, `${head}
+      out(removes().map((b) => b.attributes["aria-label"]));
+      await click(removes()[0]);
+      out(edits.map((e) => e.value));
+    `));
+  assert.deepEqual(printed[0], ["remove 20", "remove 60"]);
+  assert.deepEqual(printed[1], [{ for: "complication.battery", icons: { "0": "battery_outline", "60": "battery" } }]);
+  text = followingIcon("device.notification_count").replace("icon: {for: device.notification_count}", "icon: {for: device.notification_count, icons: {0: bell, 1: dnd}}");
+  printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, `${head}
+      await band("1.5"); out(problem());
+      await band("3"); out(edits.map((e) => e.value));
+    `));
+  assert.equal(printed[0], "a count starts at a whole number");
+  assert.deepEqual(printed[1], [{ for: "device.notification_count", icons: { "0": "bell", "1": "dnd", "3": "dnd" } }]);
+});
+
+test("the icon's own glyphs: on/off has its two lines and nothing to add; an overlay lists every name, dim until replaced, each with a reset", async () => {
+  installAssets();
+  const words = vocabulary();
+  const vocab = { icon_glyphs: words.icon_glyphs, icon_paths: words.icon_paths, icon_rules: words.icon_rules, source_info: words.source_info };
+  const element = ["elements", "glyph"];
+  const head = `
+      const icon = field("icon");
+      await click(icon.all((e) => cls(e) === "chip-button")[0]);
+      const editor = () => icon.all((e) => cls(e).startsWith("icon-set"))[0];
+      const rows = () => editor().all((e) => cls(e).startsWith("set-row"));
+      const key = (r) => r.all((k) => cls(k).startsWith("set-key"))[0].textContent;
+      const row = (k) => rows().find((r) => key(r) === k);`;
+  let text = followingIcon("device.do_not_disturb").replace("icon: {for: device.do_not_disturb}", "icon: {for: device.do_not_disturb, icons: {off: bell, on: dnd}}");
+  let printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, `${head}
+      out([rows().map(key), editor().all((e) => e.localName === "input").length,
+        editor().all((b) => b.localName === "button" && /^(remove|reset) /.test(b.attributes["aria-label"] || "")).length]);
+      await click(row("on").all((e) => cls(e) === "chip-button")[0]);
+      await click(row("on").all((e) => e.localName === "button" && e.attributes["aria-label"] === "heart")[0]);
+      out(edits.map((e) => e.value));
+    `));
+  assert.deepEqual(printed[0], [["off", "on"], 0, 0]);
+  assert.deepEqual(printed[1], [{ for: "device.do_not_disturb", icons: { off: "bell", on: "heart" } }]);
+  text = followingIcon("weather.condition").replace("icon: {for: weather.condition}", "icon: {for: weather.condition, icons: {weather_rainy: heart, weather_fog: bell}}");
+  printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, `${head}
+      out(rows().map(key));
+      out(rows().filter((r) => !cls(r).includes("dim")).map(key));
+      out(rows().map((r) => r.all((b) => (b.attributes["aria-label"] || "").startsWith("reset ")).length).reduce((a, b) => a + b, 0));
+      // a dim row shows the built-in glyph; a pick replaces it
+      out(row("weather_sunny").all((e) => cls(e) === "chip-button")[0].textContent.includes("weather_sunny"));
+      await click(row("weather_sunny").all((e) => cls(e) === "chip-button")[0]);
+      await click(row("weather_sunny").all((e) => e.localName === "button" && e.attributes["aria-label"] === "dnd")[0]);
+      await click(row("weather_rainy").all((b) => b.attributes["aria-label"] === "reset weather_rainy")[0]);
+      out(edits.map((e) => e.value));
+    `));
+  assert.deepEqual(printed[0], words.icon_rules.find((r) => r.rule === "weather")!.names);
+  assert.deepEqual(printed[1], ["weather_rainy", "weather_fog"]);
+  assert.equal(printed[2], 2, "a reset on each name replaced");
+  assert.equal(printed[3], true);
+  assert.deepEqual(printed[4], [
+    { for: "weather.condition", icons: { weather_rainy: "heart", weather_fog: "bell", weather_sunny: "dnd" } },
+    { for: "weather.condition", icons: { weather_fog: "bell" } },
+  ]);
+  // the last name reset is the rule's own glyphs again
+  text = followingIcon("weather.condition").replace("icon: {for: weather.condition}", "icon: {for: weather.condition, icons: {weather_rainy: heart}}");
+  printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, `${head}
+      await click(row("weather_rainy").all((b) => b.attributes["aria-label"] === "reset weather_rainy")[0]);
+      out(edits.map((e) => e.value));
+    `));
+  assert.deepEqual(printed[0], [{ for: "weather.condition" }]);
 });
 
 test("the absent: footer shows for a source that can be absent, writes hide, plain and a picked glyph, and a fixed icon picked takes absent: with it", async () => {

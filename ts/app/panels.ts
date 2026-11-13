@@ -11,9 +11,9 @@ import { afterRemovingSchemes, colorName, mipFamilies, newStyleEntry, parseHex, 
 import { AddName, InlineName, Popover, WorkerImage } from "./ui.ts";
 import { ask } from "./dialogs.ts";
 import { HelpDialog } from "./help.ts";
-import { ColorPop, Commit, Form, Glyph, IconPop, Quantity } from "./form.ts";
+import { AbsentRow, ColorPop, Commit, Form, Glyph, IconPop, IconSetEditor, miniStrip, Quantity, seedSet, setGlyphs } from "./form.ts";
 import type { FaceCtx, FaceSectionKey, OnEdit, OnFaceSection, OnReveal, OnSelect, WidgetCtx } from "./form.ts";
-import type { FixedIconSpelling, IconSpelling,
+import type { FixedIconSpelling, IconRuleWord, IconSet, IconSpelling,
   Axes, EditOp, HandSet, Inspect, PaletteEntry, Path, Schemes as SchemesInfo, Scope,
   Capability, ComplicationType, SlotChoice, SlotEntry, StructureOp, Styles as StylesInfo, Summary, TreeNode, Value, Vocabulary,
 } from "../src/studio/protocol.ts";
@@ -139,6 +139,35 @@ function Capabilities({ type }: { type: ComplicationType }): VNode {
     class=${"glyph cap" + (c.kind === "long_text" ? " warn" : "")} title=${c.detail} aria-label=${c.detail}>${String.fromCodePoint(CAPABILITY_GLYPH[c.kind])}</span>`)}</span>`;
 }
 
+interface ChoiceGlyphsProps {
+  rule: IconRuleWord;
+  choice: SlotChoice;
+  vocab: Partial<Vocabulary>;
+  /** The choice rewritten. */
+  onChange: (choice: SlotChoice) => void;
+}
+
+// A slot choice's icon that follows its reading: the face's own glyph per
+// state (`icons:`, seeded from the built-in set or the variant picked) and
+// what it draws without a reading (`absent:`).
+function ChoiceGlyphs({ rule, choice, vocab, onChange }: ChoiceGlyphsProps): VNode {
+  const set = choice.icons !== null && typeof choice.icons === "object" && !Array.isArray(choice.icons) ? choice.icons as IconSet : null;
+  const shown = set ? setGlyphs(rule, set) : rule.variants.find((v) => v.variant === choice.variant)?.glyphs ?? rule.glyphs;
+  const strip = (glyphs: readonly IconSet[string][]) => html`<span class="glyph-strip">${glyphs.map((g) => html`<${Glyph} name=${g} vocab=${vocab} />`)}</span>`;
+  const label = html`${strip(miniStrip(shown))}<span class=${set ? "" : "dim"}>${set ? "own" : "glyphs…"}</span>`;
+  return html`<${Popover} buttonClass="chip-button choice-glyphs" bodyClass="pop icon-pop" label=${label}
+    title=${set ? "this choice's own glyph for each state (icons:)" : "the glyph for each state, and without a reading"}>${() => html`
+    <div class="rule-head"><span class="rule-label">${rule.label}</span>${set ? null : strip(shown)}</div>
+    ${set ? html`<${IconSetEditor} rule=${rule} set=${set} vocab=${vocab}
+        onCommit=${(s: IconSet | null) => onChange({ ...choice, icons: s })} />`
+      : html`<div class="note">${rule.split}</div>
+        <div class="pop-custom"><button class="rule-own" title="pick your own glyph for each state, starting from these"
+          onClick=${() => onChange({ ...choice, variant: null, icons: seedSet(rule, choice.variant ?? rule.variants[0]?.variant ?? null) })}>own glyphs…</button></div>`}
+    <${AbsentRow} absent=${{ value: choice.absent ?? undefined, onCommit: (v: Value | null) => onChange({ ...choice, absent: v }) }}
+      plain=${rule.plain} vocab=${vocab} />
+  `}</${Popover}>`;
+}
+
 // One `config: slots:` entry, the same card in the Face tab and above a
 // selected element drawing it: what the slot shows until the wearer picks
 // (the star), what the wearer may pick (a checklist by group, or every
@@ -182,6 +211,8 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
     rewrite(name, (c) => ({ ...c, variant: variant === variants[0] ? null : variant }));
   const setChoices = (choices: SlotChoice[]) => onEdit({ op: "set", path: choicesPath, value: choices.map(written) });
   const first = slot.default === null ? undefined : byName[slot.default];
+  // the icon rule a type's icon follows, whose glyphs a choice of it may make its own
+  const rule = (t: ComplicationType): IconRuleWord | undefined => (t.rule === null ? undefined : (vocab.icon_rules || []).find((r) => r.rule === t.rule));
   return html`<div class="slot-card">
     <div class="slot-head">
       <b><${InlineName} value=${slot.name} title="click to rename (every slot: naming it follows)"
@@ -213,6 +244,8 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
               onChange=${(e: SelectEvent) => setVariant(t.name, t.variants, e.currentTarget.value)}>
               ${t.variants.map((v, i) => html`<option value=${v} selected=${(choice.variant ?? t.variants[0]) === v}>${v}${i === 0 ? " (default)" : ""}</option>`)}
             </select>` : null}
+          ${!any && choice && !choice.icon && rule(t) ? html`<${ChoiceGlyphs} rule=${rule(t)} choice=${choice} vocab=${vocab}
+              onChange=${(c: SlotChoice) => rewrite(t.name, () => c)} />` : null}
           <span class="label">${t.label}</span>
           <${Capabilities} type=${t} />
           <span class="dim mono">${t.sample || ""}</span>

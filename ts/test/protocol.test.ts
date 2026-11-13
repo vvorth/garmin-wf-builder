@@ -157,10 +157,11 @@ const vocabulary = obj({
   sources: record(list(str)), icons: list(str), complications: list(str), series: list(str), types: list(str),
   mip: list(obj({ name: str, value: str, label: str, note: nullable(str) })), hand_presets: list(str), categories: list(str),
   complication_types: list(obj({ name: str, label: str, category: str, icon: nullable(str), sample: nullable(str),
-    capabilities: list(obj({ kind: literal("graph", "dynamic_icon", "gauge", "long_text"), detail: str })), variants: list(str) })), icon_glyphs: record(int), icon_paths: record(str),
+    capabilities: list(obj({ kind: literal("graph", "dynamic_icon", "gauge", "long_text"), detail: str })), variants: list(str), rule: nullable(str) })), icon_glyphs: record(int), icon_paths: record(str),
   source_info: record(obj({ type: literal("number", "float", "boolean", "string", "time", "date", "color"), unit: nullable(str), quantity: nullable(str), enum: nullable(str), doc: str, nullable: bool })),
   icon_rules: list(obj({ rule: str, label: str, kind: literal("steps", "table"), sources: list(str), glyphs: list(str), plain: str, split: str,
-    variants: list(obj({ variant: str, glyphs: list(str), plain: str })) })),
+    variants: list(obj({ variant: str, glyphs: list(str), keys: list(oneOf(num, str)), plain: str })),
+    keys: list(oneOf(num, str)), state: literal("level", "count", "onoff", "overlay"), bottom: num, top: nullable(num), names: list(str) })),
   format_codes: obj({ time: list(tuple(str, str)), date: list(tuple(str, str)), duration: list(tuple(str, str)), number: list(tuple(str, str)), name: list(tuple(str, str)) }),
   lint_codes: list(str),
   devices: list(obj({ id: str, name: str, shape: str, size: str, width: int, height: int, ppi: nullable(num), skin: bool, display: str, fonts: list(str), faces: list(str) })),
@@ -399,6 +400,25 @@ test("the words list every icon rule from the table, its glyphs in drawing order
     [["fill", "battery", 5], ["bars", "battery", 5], ["classic", "battery_classic", 5]]);
   assert.deepEqual(byName.battery.variants[1].glyphs, ["battery_outline", "battery_low", "battery_medium", "battery_high", "battery"]);
   assert.ok(words.icon_rules.filter((r: any) => r.rule !== "battery").every((r: any) => r.variants.length === 0));
+  // how a face's own set is keyed: each glyph's key beside it, the kind of key, a level's range and an overlay's every name
+  for (const r of words.icon_rules) {
+    const rule = icons.RULES.get(r.rule)!;
+    assert.equal(r.keys.length, r.glyphs.length, `${r.rule}: a key per glyph`);
+    if (r.state !== "overlay") assert.deepEqual(r.keys, icons.stateKeys(rule), `${r.rule}: the keys stateKeys gives`);
+    else assert.deepEqual(r.names, [...new Set([...icons.stateKeys(rule).map(String), ...icons.ruleNames(rule)])], `${r.rule}: every name it draws`);
+    for (const v of r.variants) assert.deepEqual(v.keys, icons.stateKeys(icons.ruleVariant(rule, v.variant)!));
+  }
+  assert.deepEqual(words.icon_rules.map((r: any) => [r.rule, r.state, r.bottom, r.top]), [
+    ["battery", "level", 0, 100], ["solar", "level", 0, 100], ["notification", "count", 0, null], ["alarm", "count", 0, null],
+    ["dnd", "onoff", 0, null], ["phone", "onoff", 0, null], ["moon", "overlay", 0, null], ["weather", "overlay", 0, null],
+  ]);
+  assert.deepEqual(byName.battery.keys, [0, 20, 40, 60, 80]);
+  assert.deepEqual(byName.solar.keys, [0, 12, 23, 34, 45, 56, 67, 78, 89]);
+  assert.deepEqual(byName.dnd.keys, ["off", "on"]);
+  assert.deepEqual(byName.weather.keys, byName.weather.glyphs);
+  assert.equal(byName.weather.names.length, 24);
+  assert.equal(byName.weather.names.at(-1), "weather_unknown");
+  assert.deepEqual(byName.battery.names, []);
 });
 
 test("a scheme's base, and the roles it inherits from it, are in the globals", async () => {

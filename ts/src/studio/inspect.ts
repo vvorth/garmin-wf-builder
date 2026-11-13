@@ -263,10 +263,10 @@ function field(r: Reading, key: string, path: Path, node: Json, raw: unknown, re
   if (kind === "scalar") {
     if (Array.isArray(resolved["enum"])) out.enum = value(resolved["enum"]) as Value[];
     // a value whose shape is not the schema's is shown as its text; an icon's `{codepoint}` and `{for: <source>}`
-    // (with a `variant:` or not) are two of its spellings, a rule list a conditional value's, and a font written inline a font's
+    // (with a `variant:`, its own glyphs `icons:`, or neither) are two of its spellings, a rule list a conditional value's, and a font written inline a font's
     const spelled = widget === "icon" && isMap(raw) && (raw.size === 1
       ? typeof raw.get("codepoint") === "string" || typeof raw.get("for") === "string"
-      : raw.size === 2 && typeof raw.get("for") === "string" && typeof raw.get("variant") === "string");
+      : raw.size === 2 && typeof raw.get("for") === "string" && (typeof raw.get("variant") === "string" || isMap(raw.get("icons"))));
     const ruled = rules !== undefined && Array.isArray(raw);
     const inline = widget === "font" && isMap(raw);
     if (present && !isScalar(raw) && !spelled && !ruled && !inline) out.widget = "yaml";
@@ -715,6 +715,7 @@ function complicationType(name: string): ComplicationType {
     sample: sample !== undefined && sample !== null ? complications.formatReading(name, sample) : null,
     capabilities: capabilities(name),
     variants: [...(icons.complicationRule(name)?.variants ?? [])],
+    rule: icons.complicationRule(name)?.family ?? null,
   };
 }
 
@@ -804,9 +805,18 @@ export function iconRuleWord(rule: icons.IconRule): IconRuleWord {
     : [...rule.steps];
   const variants = rule.variants.map((variant) => {
     const member = icons.ruleVariant(rule, variant)!;
-    return { variant, glyphs: [...member.steps], plain: member.plain };
+    return { variant, glyphs: [...member.steps], keys: icons.stateKeys(member), plain: member.plain };
   });
-  return { rule: rule.name, label: rule.label, kind: rule.kind, sources: rule.sources.flatMap(offeredPaths), glyphs, plain: rule.plain, split: ruleSplit(rule), variants };
+  const every = icons.stateKeys(rule);
+  const overlay = rule.kind === "table" || rule.cyclic;
+  const state = overlay ? "overlay" : icons.readsBoolean(rule) ? "onoff" : rule.range === null ? "count" : "level";
+  return {
+    rule: rule.name, label: rule.label, kind: rule.kind, sources: rule.sources.flatMap(offeredPaths), glyphs, plain: rule.plain, split: ruleSplit(rule), variants,
+    // a table's strip shows its first glyphs, each keyed by its own name
+    keys: overlay ? glyphs : every.slice(0, glyphs.length), state,
+    bottom: state === "level" || state === "count" ? (rule.range?.[0] ?? 0) : 0, top: state === "level" ? rule.range![1] : null,
+    names: overlay ? [...new Set([...every.map(String), ...icons.ruleNames(rule)])] : [],
+  };
 }
 
 /** A source as a picker offers it: an indexed family's `[n]` as its first two entries, today and tomorrow, the next hour and the one after. */

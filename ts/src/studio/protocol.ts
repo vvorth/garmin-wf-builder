@@ -250,10 +250,17 @@ export interface FontEntry {
  * choice), a codepoint, or, on an element's own `icon:`, `{for: <source>}`:
  * the glyph an icon rule chooses from that source's reading.
  */
-export type IconSpelling = string | { codepoint: string } | { for: string; variant?: string };
+export type IconSpelling = string | { codepoint: string } | { for: string; variant?: string; icons?: IconSet };
+
+/**
+ * A face's own glyph per state of an icon rule (`icons:`): each key (a
+ * reading where a glyph starts, as JSON's string key; `off`/`on`; or a
+ * built-in glyph name it replaces) to a catalogue name or a codepoint.
+ */
+export type IconSet = Record<string, string | { codepoint: string }>;
 
 /** An icon a slot's choice may carry: a name or a codepoint, never `{for:}` (a choice's icon draws the type, not a reading). */
-export type FixedIconSpelling = Exclude<IconSpelling, { for: string }>;
+export type FixedIconSpelling = string | { codepoint: string };
 
 /** One of a slot's `choices:`: a complication type and the icon drawn for it, when one is given. */
 export interface SlotChoice {
@@ -692,6 +699,8 @@ export interface ComplicationType {
   capabilities: Capability[];
   /** Its icon's variants, the default first; empty when the icon has none. */
   variants: string[];
+  /** The icon rule its icon follows (an `icon_rules` entry's `rule`), or `null` when its icon is fixed. */
+  rule: string | null;
 }
 
 /**
@@ -746,12 +755,27 @@ export interface IconRuleWord {
   split: string;
   /** Each variant's own glyph set, the default (this rule's own) first; empty for a rule with none. */
   variants: IconVariantWord[];
+  /** Each of `glyphs`' key in a face's own set (`icons:`): a band's first reading, `off`/`on`, or the glyph's name. */
+  keys: (number | string)[];
+  /**
+   * How a face's own set is keyed: `level` by readings from `bottom` up to
+   * `top`, `count` by whole readings from `bottom`, `onoff` by exactly `off`
+   * and `on`, `overlay` by the built-in glyph names it replaces.
+   */
+  state: "level" | "count" | "onoff" | "overlay";
+  /** The lowest key of a level or a count, where the reading starts; 0 otherwise. */
+  bottom: number;
+  /** A level's highest key, the top of its reading; `null` otherwise. */
+  top: number | null;
+  /** An overlay's every built-in glyph name, each a key it may replace (the table's strip is cut short); empty otherwise. */
+  names: string[];
 }
 
-/** One variant of an icon rule: its name, the glyphs it steps through and its plain one. */
+/** One variant of an icon rule: its name, the glyphs it steps through, each one's key in a face's own set, and its plain one. */
 export interface IconVariantWord {
   variant: string;
   glyphs: string[];
+  keys: (number | string)[];
   plain: string;
 }
 

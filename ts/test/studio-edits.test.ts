@@ -12,7 +12,7 @@ import { runDesign } from "../src/lint.ts";
 import { decodePng } from "../src/png.ts";
 import * as starters from "../src/starters.ts";
 import { bundle, readUpload, references } from "../src/studio/bundle.ts";
-import { type Document, frameKey, LABEL_WIDTH, Studio } from "../src/studio/document.ts";
+import { type Document, frameKey, LABEL_WIDTH, Studio, toData } from "../src/studio/document.ts";
 import { inspect, vocabulary } from "../src/studio/inspect.ts";
 import { Client, dataOf, db, newStudio, openExample, read, SHOWCASE, versionOf } from "./studio-client.ts";
 import { addLayoutLabel, addLayoutSteps } from "../app/values.ts";
@@ -359,8 +359,10 @@ test("the vocabulary offers each type with its icon, sample and capabilities", (
   assert.deepEqual(types["heart_rate"], { name: "heart_rate", label: "Heart rate", category: "health", icon: "heart", sample: "72", capabilities: [
     { kind: "graph", detail: "graph: a graph on this slot plots the last 4 hours, binned" },
     { kind: "gauge", detail: "progress: a gauge on this slot fills across the wearer's heart-rate zones" },
-  ], variants: [] });
+  ], variants: [], rule: null });
   assert.deepEqual(types["battery"].variants, ["fill", "bars", "classic"]);
+  // the rule a type's icon follows, whose glyphs a slot choice may make its own
+  assert.deepEqual(["battery", "current_temperature", "notification_count"].map((n) => types[n].rule), ["battery", "weather", "notification"]);
   assert.deepEqual(types["notification_count"].capabilities.map((c: { kind: string }) => c.kind), ["dynamic_icon"]);
   assert.deepEqual(types["current_weather"].capabilities.map((c: { kind: string }) => c.kind), ["dynamic_icon", "long_text"]);
   assert.deepEqual(types["sunrise"].capabilities, [{ kind: "gauge", detail: "progress: a gauge on this slot fills across one day" }]);
@@ -1185,4 +1187,49 @@ test("the slot card's edits leave a choice's own glyphs as written: its numbered
   assert.match(doc.text, /\{type: battery, icons: \{0: battery_outline, 50: battery\}, absent: hide\}/);
   assert.deepEqual(dataOf(doc).config.slots.top.choices.map((c: unknown) => (typeof c === "string" ? c : (c as { type: string }).type)),
     ["steps", "intensity_minutes", "battery", "body_battery", "stress", "calories"]);
+});
+
+const STATUS = "examples/features/status/face.yaml";
+
+test("an icon's own glyphs, written as the page sends them (JSON's string keys), keep their number keys unquoted", async () => {
+  const client = await Client.open();
+  const doc = make(client.studio, new TextDecoder().decode(read(STATUS)));
+  const icon = ["elements", "battery_icon", "icon"];
+  // the seed "own glyphs…" writes, then a band added: the whole icon each time, keys as JSON strings
+  edit(doc, { op: "set", path: icon, value: { for: "system.battery", icons: { "0": "battery_outline", "20": "battery_low" } } });
+  assert.match(doc.text, /icon: \{ ?for: system\.battery, icons: \{ ?0: battery_outline, 20: battery_low ?\} ?\}/);
+  assert.deepEqual(doc.analysis().bag.errors, []);
+  // a key between two, in the order the reading meets them; a fractional level key stays a number too
+  edit(doc, { op: "set", path: icon, value: { for: "system.battery", icons: { "0": "battery_outline", "20": "battery_low", "12.5": { codepoint: "U+F0079" } } } });
+  assert.match(doc.text, /icons: \{ ?0: battery_outline, 12\.5: \{ ?codepoint: "?U\+F0079"? ?\}, 20: battery_low ?\}/);
+  assert.deepEqual(doc.analysis().bag.errors, []);
+  // the set alone, at its own path
+  edit(doc, { op: "set", path: [...icon, "icons"], value: { "0": "battery_20", "50": "battery" } });
+  assert.match(doc.text, /icons: \{ ?0: battery_20, 50: battery ?\}/);
+  assert.deepEqual(doc.analysis().bag.errors, []);
+  // an on/off set and an overlay keep their names as written
+  edit(doc, { op: "set", path: icon, value: { for: "device.do_not_disturb", icons: { off: "bell", on: "dnd" } } });
+  assert.match(doc.text, /icons: \{ ?off: bell, on: dnd ?\}/);
+  assert.deepEqual(doc.analysis().bag.errors, []);
+  // only the mapping under icons: is renumbered: another number-like key stays the string written
+  assert.deepEqual(toData({ "0": { icons: { "0": "a", "20": "b", x: "c" } } }), new Map([["0", new Map([["icons", new Map<unknown, unknown>([[0, "a"], [20, "b"], ["x", "c"]])]])]]));
+  assert.deepEqual(toData({ "007": "a", "1e3": "b", "-1": "c" }, "icons"), new Map([["007", "a"], ["1e3", "b"], ["-1", "c"]]));
+});
+
+test("a slot choice's own glyphs round-trip unquoted: rewritten alone, and restored with the list after every type", async () => {
+  const client = await Client.open();
+  const doc = make(client.studio, new TextDecoder().decode(read(SLOT_GAUGE)));
+  const choices = ["config", "slots", "top", "choices"];
+  const choice = { type: "battery", icons: { "0": "battery_outline", "20": "battery_low" }, absent: { icon: "battery_classic" } };
+  edit(doc, { op: "set", path: [...choices, 3], value: choice });
+  assert.match(doc.text, /\{ ?type: battery, icons: \{ ?0: battery_outline, 20: battery_low ?\}, absent: \{ ?icon: battery_classic ?\} ?\}/);
+  assert.deepEqual(doc.analysis().bag.errors, []);
+  // "every type", then back: the slot card writes the list it kept, as JSON
+  const kept = globalsOf(doc.text, db).slots.find((s) => s.name === "top")!.choices;
+  edit(doc, { op: "set", path: choices, value: "any" });
+  edit(doc, { op: "set", path: choices, value: (kept as unknown[]).map((c: any) => (c.icons === null && c.absent === null && c.icon === null && c.variant === null
+    ? c.type : { type: c.type, ...(c.icons !== null ? { icons: c.icons } : {}), ...(c.absent !== null ? { absent: c.absent } : {}) })) });
+  assert.match(doc.text, /icons: \{ ?0: battery_outline, 20: battery_low ?\}/);
+  assert.doesNotMatch(doc.text, /'0'|"0"/);
+  assert.deepEqual(doc.analysis().bag.errors, []);
 });

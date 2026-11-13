@@ -29,7 +29,7 @@ import { AddName, Popover } from "./ui.ts";
 import { TemplateEditor } from "./template-editor.ts";
 import { ConditionEditor, type ListStep, resultOf, ruleListSteps } from "./condition-editor.ts";
 import type {
-  EditOp, EditScope, Effective, Field, Globals, IconRuleWord, IconSpelling, Inspect, MipColor, Path, Scope, Summary, Value, Vocabulary,
+  EditOp, EditScope, Effective, Field, Globals, IconRuleWord, IconSet, IconSpelling, Inspect, MipColor, Path, Scope, Summary, Value, Vocabulary,
 } from "../src/studio/protocol.ts";
 
 // -- the callbacks and the context the panels share ---------------------------------------
@@ -276,7 +276,7 @@ export function ColorPop({ value, ctx, roles = true, faceGroup = true, title, la
 }
 
 export interface GlyphProps {
-  /** A catalogue icon's name; anything else draws nothing. */
+  /** A catalogue icon's name, or a codepoint as `{codepoint: "U+XXXX"}`; anything else draws nothing. */
   name?: Value | null | undefined;
   vocab: Partial<Vocabulary>;
 }
@@ -285,6 +285,11 @@ export interface GlyphProps {
 // outline when the compiler draws it itself (the font lacks it), or nothing
 // when the catalogue has no such icon.
 export function Glyph({ name, vocab }: GlyphProps): VNode {
+  // a glyph a face's own set names by codepoint (`{codepoint: "U+XXXX"}`) draws that character
+  const typed = name !== null && typeof name === "object" && !Array.isArray(name) ? (name as Record<string, Value>)["codepoint"] : undefined;
+  if (typeof typed === "string" && /^U\+[0-9A-Fa-f]{4,6}$/.test(typed)) {
+    return html`<span class="glyph" title=${typed}>${String.fromCodePoint(parseInt(typed.slice(2), 16))}</span>`;
+  }
   const cp = typeof name === "string" && name ? (vocab.icon_glyphs || {})[name] : undefined;
   const path = typeof name === "string" && name ? (vocab.icon_paths || {})[name] : undefined;
   if (path) {
@@ -321,6 +326,10 @@ export const followed = (value: IconSpelling | Value | null | undefined): string
   value !== null && typeof value === "object" && !Array.isArray(value) && typeof (value as Record<string, unknown>)["for"] === "string"
     ? String((value as Record<string, unknown>)["for"]) : null;
 
+/** The face's own glyphs an icon following a source is written with, `{for:, icons:}`; `null` for none. */
+const followedIcons = (value: IconSpelling | null | undefined): IconSet | null =>
+  value !== null && typeof value === "object" && "for" in value && value.icons !== null && typeof value.icons === "object" ? value.icons : null;
+
 /** The variant an icon following a source is written with, `{for:, variant:}`; `null` for none. */
 const followedVariant = (value: IconSpelling | null | undefined): string | null =>
   value !== null && typeof value === "object" && "for" in value && typeof value.variant === "string" ? value.variant : null;
@@ -342,8 +351,138 @@ const ruleOf = (vocab: Partial<Vocabulary>, source: string | null): IconRuleWord
   source === null ? undefined : (vocab.icon_rules || []).find((r) => r.sources.includes(source));
 
 /** A strip shortened for a chip: up to five glyphs, else the first, the middle and the last. */
-export const miniStrip = (glyphs: readonly string[]): string[] =>
+export const miniStrip = <T>(glyphs: readonly T[]): T[] =>
   glyphs.length <= 5 ? [...glyphs] : [glyphs[0]!, glyphs[Math.floor((glyphs.length - 1) / 2)]!, glyphs[glyphs.length - 1]!];
+
+/** A set's keys in the order a reading meets them: numbers ascending, else as written. */
+const setKeys = (set: IconSet): string[] => {
+  const keys = Object.keys(set);
+  return keys.every((k) => Number.isFinite(Number(k))) ? keys.sort((a, b) => Number(a) - Number(b)) : keys;
+};
+
+/**
+ * A rule's built-in glyphs (the variant's, for a rule with variants) as a
+ * face's own set, each keyed. An overlay is the rule's own glyphs wherever it
+ * names none, so it starts with the least it can hold: the plain glyph as
+ * itself.
+ */
+export const seedSet = (rule: IconRuleWord, variant: string | null): IconSet => {
+  if (rule.state === "overlay") return { [rule.plain]: rule.plain };
+  const v = rule.variants.find((x) => x.variant === variant);
+  const glyphs = v ? v.glyphs : rule.glyphs, keys = v ? v.keys : rule.keys;
+  return Object.fromEntries(keys.map((k, i) => [String(k), glyphs[i]!]));
+};
+
+/** The glyphs a face's own set draws, as a strip shows them: an overlay the rule's own with each replaced. */
+export const setGlyphs = (rule: IconRuleWord | undefined, set: IconSet): IconSet[string][] =>
+  rule?.state === "overlay" ? rule.glyphs.map((g) => set[g] ?? g) : setKeys(set).map((k) => set[k]!);
+
+/** Why a band may not start at `text` in `set`, or `null` when it may. */
+export function bandProblem(text: string, rule: IconRuleWord, set: IconSet): string | null {
+  const t = text.trim();
+  const n = t === "" ? NaN : Number(t);
+  if (!Number.isFinite(n)) return "type a number: the reading where the glyph starts";
+  if (n < rule.bottom) return `below ${rule.bottom}, where the reading starts`;
+  if (rule.top !== null && n > rule.top) return `above ${rule.top}, the top of the reading`;
+  if (rule.state === "count" && !Number.isInteger(n)) return "a count starts at a whole number";
+  // a key is written as YAML writes the number, which must read back as it
+  if (!/^(0|[1-9]\d*)(\.\d+)?$/.test(String(n))) return "type a plain number";
+  if (Object.keys(set).some((k) => Number(k) === n)) return `a band already starts at ${n}`;
+  return null;
+}
+
+export interface IconSetEditorProps {
+  rule: IconRuleWord;
+  /** The face's own set as written. */
+  set: IconSet;
+  vocab: Partial<Vocabulary>;
+  /** The whole set, rewritten; `null` for the rule's built-in glyphs (no `icons:`). */
+  onCommit: (set: IconSet | null) => void;
+}
+
+// A face's own glyph per state of an icon rule (`icons:`), one line per key:
+// the key, a glyph picker and, for a level or a count, × (never on the
+// bottom key, never below two keys) and "+ band" with a number box; on/off
+// has its two lines and nothing to add or remove; an overlay lists every
+// built-in glyph name, dim until replaced, each with a reset. Every change
+// writes the whole set once.
+export function IconSetEditor({ rule, set, vocab, onCommit }: IconSetEditorProps): VNode {
+  const [band, setBand] = useState<string>("");
+  const [problem, setProblem] = useState<string | null>(null);
+  const numeric = rule.state === "level" || rule.state === "count";
+  const put = (key: string, glyph: IconSet[string]): void => onCommit({ ...set, [key]: glyph });
+  const drop = (key: string): void => {
+    const rest = Object.fromEntries(Object.entries(set).filter(([k]) => k !== key));
+    // an overlay replacing nothing is the rule's own glyphs
+    onCommit(Object.keys(rest).length ? rest : null);
+  };
+  const picker = (key: string, placeholder: string | null) => html`<${IconPop} value=${set[key] ?? null} placeholder=${placeholder} vocab=${vocab}
+    onPick=${(v: IconSpelling | null) => {
+      if (v === null) { if (!numeric && key in set) drop(key); return; }
+      if (typeof v === "string" || "codepoint" in v) put(key, v);
+    }} />`;
+  const addBand = (): void => {
+    const why = bandProblem(band, rule, set);
+    setProblem(why);
+    if (why !== null) return;
+    const n = Number(band.trim());
+    // the new band starts with the glyph of the band it splits
+    const below = setKeys(set).filter((k) => Number(k) < n).pop();
+    put(String(n), below !== undefined ? set[below]! : rule.plain);
+    setBand("");
+  };
+  const keys = numeric ? setKeys(set) : rule.state === "onoff" ? ["off", "on"] : rule.names;
+  const removable = numeric && keys.length > 2;
+  return html`<div class=${"icon-set " + rule.state} role="group" aria-label=${`${rule.label}: your glyphs`}>
+    ${keys.map((key) => {
+      const replaced = rule.state === "overlay" && key in set && set[key] !== key;
+      const bottom = numeric && Number(key) === rule.bottom;
+      return html`<div class=${"set-row" + (rule.state === "overlay" && !replaced ? " dim" : "")}>
+        <span class="set-key mono" title=${numeric ? `the glyph from a reading of ${key} up` : key}>${numeric ? `${key}+` : key}</span>
+        ${picker(key, rule.state === "overlay" ? key : null)}
+        ${removable && !bottom ? html`<button class="reset" title=${`remove the band from ${key}`} aria-label=${`remove ${key}`}
+          onClick=${() => drop(key)}>×</button>` : null}
+        ${rule.state === "overlay" && key in set ? html`<button class="reset" title=${`back to the built-in ${key}`}
+          aria-label=${`reset ${key}`} onClick=${() => drop(key)}>↺</button>` : null}
+      </div>`;
+    })}
+    ${numeric ? html`<div class="set-add">
+      <input type="number" class="mono" aria-label="band starts at" step=${rule.state === "count" ? 1 : "any"}
+        min=${rule.bottom} max=${rule.top ?? undefined} placeholder=${rule.top !== null ? `${rule.bottom}–${rule.top}` : `${rule.bottom + 1}`}
+        value=${band} onInput=${(e: InputEvent) => { setBand(e.currentTarget.value); setProblem(null); }}
+        onKeyDown=${(e: KeyEvent) => { if (e.key === "Enter") addBand(); }} />
+      <button title="a band starting at this reading" onClick=${addBand}>+ band</button>
+      ${problem !== null ? html`<span class="warn set-problem">${problem}</span>` : null}
+    </div>` : null}
+    <div class="pop-custom"><button class="set-builtin" title="draw the rule's own glyphs (no icons:)" onClick=${() => onCommit(null)}>use the built-in glyphs</button></div>
+  </div>`;
+}
+
+export interface AbsentRowProps {
+  absent: AbsentKey;
+  /** The rule's plain glyph, which a frame without a reading draws when `absent:` says nothing. */
+  plain: string | null;
+  vocab: Partial<Vocabulary>;
+}
+
+// What a dynamic icon draws on a frame its source has no reading (`absent:`):
+// the rule's plain glyph (no key), nothing (`hide`) or a glyph picked
+// (`{icon: <glyph>}`).
+export function AbsentRow({ absent, plain, vocab }: AbsentRowProps): VNode {
+  const held = absent.value;
+  const heldIcon = held !== null && typeof held === "object" && !Array.isArray(held) ? (held as Record<string, Value>)["icon"] : undefined;
+  return html`<div class="pop-custom absent-row" title="what the icon draws on a frame its source has no reading (absent:)">
+    <span class="dim">without a reading:</span>
+    <span class="seg">
+      <button class=${held == null ? "on" : ""} aria-pressed=${held == null} title=${`the rule's plain glyph${plain ? `, ${plain}` : ""}`}
+        onClick=${() => { if (held != null) absent.onCommit(null); }}>plain</button>
+      <button class=${held === "hide" ? "on" : ""} aria-pressed=${held === "hide"} title="draw nothing (absent: hide)"
+        onClick=${() => { if (held !== "hide") absent.onCommit("hide"); }}>hide</button>
+    </span>
+    <${IconPop} value=${(heldIcon ?? null) as IconSpelling | null} vocab=${vocab} placeholder="pick…"
+      onPick=${(v: IconSpelling | null) => absent.onCommit(v === null ? null : { icon: v as Value })} />
+  </div>`;
+}
 
 type IconTab = "catalogue" | "code" | "data";
 
@@ -355,7 +494,10 @@ const tabOf = (value: IconSpelling | null | undefined, allowFor: boolean): IconT
 // `none` where the key takes it), a codepoint (`U+XXXX`) typed in, and,
 // where the key takes `{for:}`, the sources an icon rule follows, each
 // rule a row showing the glyphs it draws (a rule with variants, the battery,
-// offers each to pick, written `variant:` unless the default). A catalogue glyph some rule draws
+// offers each to pick, written `variant:` unless the default) and "own
+// glyphs…", which writes the set shown as the face's own (`icons:`); while
+// the icon follows a source with its own glyphs, the tab opens on their
+// editor. A catalogue glyph some rule draws
 // carries a corner mark leading to that rule's row. While the icon follows
 // a source that can be absent, a footer writes the element's `absent:`.
 export function IconPop({ value: spelled, vocab, allowNone = false, allowFor = false, absent, placeholder, onPick }: IconPopProps): VNode {
@@ -364,6 +506,8 @@ export function IconPop({ value: spelled, vocab, allowNone = false, allowFor = f
   const [lit, setLit] = useState<string | null>(null);
   // the variant a source picked next is written with, from the icon's own until another is clicked
   const [chosen, setChosen] = useState<string | null>(() => followedVariant(spelled));
+  // the rule whose built-in glyphs the source picked next takes as its own, after "own glyphs…" with none followed
+  const [own, setOwn] = useState<string | null>(null);
   const litRow = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const row = litRow.current;
@@ -379,18 +523,17 @@ export function IconPop({ value: spelled, vocab, allowNone = false, allowFor = f
     for (const n of [r.plain, ...r.glyphs, ...r.variants.flatMap((v) => [v.plain, ...v.glyphs])]) if (!drawnBy.has(n)) drawnBy.set(n, r);
   }
   const value = iconText(spelled);
-  const strip = (glyphs: readonly string[], more = false) => html`<span class="glyph-strip">${glyphs.map((n) => html`<${Glyph} name=${n} vocab=${vocab} />`)}${more ? html`<span class="dim">…</span>` : null}</span>`;
+  const strip = (glyphs: readonly IconSet[string][], more = false) => html`<span class="glyph-strip">${glyphs.map((n) => html`<${Glyph} name=${n} vocab=${vocab} />`)}${more ? html`<span class="dim">…</span>` : null}</span>`;
   const variant = followedVariant(spelled);
+  const ownSet = source !== null ? followedIcons(spelled) : null;
   const label = source !== null
-    ? html`${strip(miniStrip(rule ? variantGlyphs(rule, variant) : []))}<span>${rule ? rule.label : source}${variant ? html` <span class="dim">${variant}</span>` : null}</span>`
+    ? html`${strip(miniStrip(ownSet ? setGlyphs(rule, ownSet) : rule ? variantGlyphs(rule, variant) : []))}<span>${rule ? rule.label : source}${variant ? html` <span class="dim">${variant}</span>` : ownSet ? html` <span class="dim">own</span>` : null}</span>`
     : html`<${Glyph} name=${value || placeholder} vocab=${vocab} />
       <span class=${value ? "" : "dim"}>${value || placeholder || "icon"}</span>`;
   const title = source !== null ? `follows ${source}` : value || placeholder || "pick an icon";
   const nullable = source !== null && vocab.source_info?.[source]?.nullable === true;
-  const held = absent?.value;
-  const heldIcon = held !== null && typeof held === "object" && !Array.isArray(held) ? (held as Record<string, Value>)["icon"] : undefined;
   return html`<${Popover} buttonClass="chip-button" bodyClass="pop icon-pop" title=${title} label=${label}
-    onOpen=${() => { setCode(""); setLit(null); setChosen(followedVariant(spelled)); setTab(tabOf(spelled, allowFor)); }}>${(close: () => void) => {
+    onOpen=${() => { setCode(""); setLit(null); setOwn(null); setChosen(followedVariant(spelled)); setTab(tabOf(spelled, allowFor)); }}>${(close: () => void) => {
     const pick = (v: IconSpelling | null) => { close(); setCode(""); onPick(v); };
     const tabButton = (t: IconTab, text: string) => html`<button role="tab" class=${t === tab ? "on" : ""} aria-selected=${t === tab}
       aria-pressed=${t === tab} onClick=${() => setTab(t)}>${text}</button>`;
@@ -419,36 +562,50 @@ export function IconPop({ value: spelled, vocab, allowNone = false, allowFor = f
       r.variants.length === 0 ? null : chosen ?? (rule === r ? variant : null) ?? r.variants[0]!.variant;
     const pickVariant = (r: IconRuleWord, v: string): void => {
       setChosen(v);
-      if (source !== null && rule === r) pick(followSpelling(source, r, v));
+      if (source !== null && rule === r && own !== r.rule) pick(followSpelling(source, r, v));
     };
+    // the popover stays open on a set written, so its editor shows
+    const ownGlyphs = (r: IconRuleWord): void => {
+      if (source !== null && rule === r) { if (ownSet === null) onPick({ for: source, icons: seedSet(r, shownVariant(r)) }); }
+      else setOwn(r.rule);
+    };
+    const pickSource = (r: IconRuleWord, s: string): void => {
+      if (own === r.rule) { setOwn(null); onPick({ for: s, icons: seedSet(r, shownVariant(r)) }); }
+      // another source the same rule follows keeps the face's own glyphs
+      else if (ownSet !== null && rule === r) pick({ for: s, icons: ownSet });
+      else pick(followSpelling(s, r, shownVariant(r)));
+    };
+    const editor = source !== null && ownSet !== null && rule ? html`<div class="own-set">
+        <div class="rule-head"><span class="rule-label">your glyphs for <code>${source}</code></span></div>
+        <${IconSetEditor} rule=${rule} set=${ownSet} vocab=${vocab}
+          onCommit=${(set: IconSet | null) => onPick(set === null ? { for: source } : { for: source, icons: set })} />
+      </div>` : null;
     const follows = html`<div class="rule-rows">${rules.map((r) => html`
       <div class=${"rule-row" + (r.rule === lit ? " lit" : "")} ref=${r.rule === lit ? litRow : undefined}>
         <div class="rule-head"><span class="rule-label">${r.label}</span>${strip(variantGlyphs(r, shownVariant(r)), r.kind === "table")}</div>
         ${r.variants.length > 0 ? html`<div class="seg rule-variants" role="group" aria-label=${`${r.label} variant`}>${r.variants.map((v, i) => {
-          const on = v.variant === shownVariant(r);
+          // a set of the face's own is no variant of the rule's
+          const on = !(ownSet !== null && rule === r) && v.variant === shownVariant(r);
           return html`<button class=${on ? "on" : ""} aria-pressed=${on}
             title=${`variant: ${v.variant}${i === 0 ? " (the default)" : ""}`} onClick=${() => pickVariant(r, v.variant)}>
             ${strip(miniStrip(v.glyphs))}<span>${v.variant}</span></button>`;
         })}</div>` : null}
         <div class="note">${r.split}</div>
         ${r.sources.map((s) => html`<button class=${"rule-source mono" + (s === source ? " on" : "")} aria-pressed=${s === source}
-          title=${`the icon follows ${s}'s reading`} onClick=${() => pick(followSpelling(s, r, shownVariant(r)))}>${s}</button>`)}
+          title=${`the icon follows ${s}'s reading`} onClick=${() => pickSource(r, s)}>${s}</button>`)}
+        ${(() => {
+          const on = own === r.rule || (ownSet !== null && rule === r);
+          return html`<button class=${"rule-own" + (on ? " on" : "")} aria-pressed=${on}
+            title=${source !== null && rule === r ? "pick your own glyph for each state, starting from these"
+              : "pick your own glyph for each state: then click the source it follows"}
+            onClick=${() => ownGlyphs(r)}>own glyphs…</button>`;
+        })()}
       </div>`)}</div>
       ${reset ? html`<div class="pop-custom">${reset}</div>` : null}`;
-    const footer = absent && nullable ? html`<div class="pop-custom absent-row" title="what the icon draws on a frame its source has no reading (absent:)">
-        <span class="dim">without a reading:</span>
-        <span class="seg">
-          <button class=${held == null ? "on" : ""} aria-pressed=${held == null} title=${`the rule's plain glyph${rule ? `, ${rule.plain}` : ""}`}
-            onClick=${() => { if (held != null) absent.onCommit(null); }}>plain</button>
-          <button class=${held === "hide" ? "on" : ""} aria-pressed=${held === "hide"} title="draw nothing (absent: hide)"
-            onClick=${() => { if (held !== "hide") absent.onCommit("hide"); }}>hide</button>
-        </span>
-        <${IconPop} value=${(heldIcon ?? null) as IconSpelling | null} vocab=${vocab} placeholder="pick…"
-          onPick=${(v: IconSpelling | null) => absent.onCommit(v === null ? null : { icon: v as Value })} />
-      </div>` : null;
+    const footer = absent && nullable ? html`<${AbsentRow} absent=${absent} plain=${rule?.plain ?? null} vocab=${vocab} />` : null;
     return html`
       <div class="seg pop-tabs" role="tablist">${tabButton("catalogue", "catalogue")}${tabButton("code", "code")}${allowFor ? tabButton("data", "follows data") : null}</div>
-      ${tab === "catalogue" ? catalogue : tab === "code" ? typed : follows}
+      ${tab === "catalogue" ? catalogue : tab === "code" ? typed : html`${editor}${follows}`}
       ${footer}`;
   }}</${Popover}>`;
 }

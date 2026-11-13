@@ -29,7 +29,7 @@ import * as schemes from "../edit/schemes.ts";
 import * as slots from "../edit/slots.ts";
 import { ELEMENT_BLOCKS, type Entry, indexFor, isElement, type Path, Refused, sameData, type SpanIndex } from "../edit/spans.ts";
 import { add, group, moveToBlock, paste, staticForbidden, staticStep, ungroup } from "../edit/structure.ts";
-import type { Data } from "../edit/yaml.ts";
+import type { Data, DataKey } from "../edit/yaml.ts";
 import { type BakeMemo, bakeFonts, ICON_FONT } from "../emit/resources.ts";
 import type { FontFile } from "../fonts/files.ts";
 import { isSfnt } from "../fonts/sfnt.ts";
@@ -198,7 +198,7 @@ const EDITS: Record<string, (doc: Document, index: SpanIndex, op: Json) => Patch
     const base = doc.seededFor(index, op);
     const p = doc.editPath(base, op);
     // `block`: a mapping or list made under a block mapping is written in block style
-    return withWhat(setValue(base, p, toData(op["value"]), { block: op["block"] === true }), `set ${dotted(p)} to ${shownValue(op["value"])}`);
+    return withWhat(setValue(base, p, toData(op["value"], p.at(-1) ?? null), { block: op["block"] === true }), `set ${dotted(p)} to ${shownValue(op["value"])}`);
   },
   remove: (doc, index, op) => {
     const p = doc.editPath(index, op);
@@ -301,10 +301,29 @@ function cut(t: string, width: number): string {
   return t.length <= width ? t : t.slice(0, width - 3) + "...";
 }
 
-/** JSON from the browser as YAML data: objects as `Map`s, as the patch engine reads mappings. */
-export function toData(value: unknown): Data {
-  if (Array.isArray(value)) return value.map(toData);
-  if (value !== null && typeof value === "object") return new Map(Object.entries(value).map(([k, v]) => [k, toData(v)]));
+/** A JSON key that is a number as YAML writes it plain (`0`, `20`, `12.5`), as that number; any other key as it is. */
+function numberKey(key: string): DataKey {
+  return /^(0|[1-9]\d*)(\.\d+)?$/.test(key) && String(Number(key)) === key ? Number(key) : key;
+}
+
+/**
+ * JSON from the browser as YAML data: objects as `Map`s, as the patch engine
+ * reads mappings. JSON keys are always strings, so the mapping under an
+ * `icons:` key (an icon's or a slot choice's own glyph per state, keyed by
+ * the reading where each starts) gets its number keys back as numbers, which
+ * YAML writes plain (the compiler refuses a quoted `'0'`), in ascending
+ * order. Only that key's mapping: elsewhere a key like `'1'` stays the
+ * string it was written as. `key` is the key the value sits under, the edit
+ * path's last step for the value itself.
+ */
+export function toData(value: unknown, key: DataKey | null = null): Data {
+  if (Array.isArray(value)) return value.map((v) => toData(v));
+  if (value !== null && typeof value === "object") {
+    const entries: [DataKey, Data][] = Object.entries(value).map(([k, v]) => [key === "icons" ? numberKey(k) : k, toData(v, k)]);
+    // a set keyed by readings is written in the order the reading meets them (JSON puts `12.5` after `20`)
+    if (key === "icons" && entries.every(([k]) => typeof k === "number")) entries.sort(([a], [b]) => (a as number) - (b as number));
+    return new Map(entries);
+  }
   return (value ?? null) as Data;
 }
 
