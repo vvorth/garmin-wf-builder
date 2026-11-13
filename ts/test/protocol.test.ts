@@ -345,8 +345,14 @@ test("the words describe every source and the specs a placeholder takes, by what
   const client = new Client(studio);
   const words = (await client.call("vocabulary", {})).json;
   const catalog = await import("../src/catalog.ts");
-  // every catalogue path, with its own type, unit, quantity, enum, doc and nullability, and nothing else
-  assert.deepEqual(Object.keys(words.source_info).sort(), [...catalog.CATALOG.keys()].sort());
+  // every catalogue path and every index of every forecast field, with its own type, unit, quantity, enum, doc and nullability, and nothing else
+  const indexed = [...catalog.INDEXED].flatMap(([family, def]) => Object.keys(def.fields)
+    .flatMap((field) => Array.from({ length: def.max_index + 1 }, (_, i) => `${family}[${i}].${field}`)));
+  assert.deepEqual(Object.keys(words.source_info).sort(), [...catalog.CATALOG.keys(), ...indexed].sort());
+  assert.deepEqual(words.source_info["weather.hourly_forecast[23].temperature"],
+    { type: "float", unit: "celsius", quantity: "temperature", enum: null, doc: "forecast temperature, hour 23 of the forecast", nullable: true });
+  // the "+ data" picker offers each forecast field at its first entry
+  assert.ok(words.sources.weather.includes("weather.daily_forecast[0].high_temperature"), words.sources.weather.join(" "));
   assert.deepEqual(words.source_info["activity.steps"], { type: "number", unit: null, quantity: null, enum: null, doc: "steps today", nullable: true });
   assert.equal(words.source_info["weather.condition"].enum, "weather_condition");
   assert.deepEqual(words.source_info["weather.temperature"].quantity, "temperature");
@@ -369,8 +375,10 @@ test("the words list every icon rule from the table, its glyphs in drawing order
   // a family's variants ride its own row
   const rules = [...icons.RULES.values()].filter((r) => r.family === r.name);
   // every rule, in the table's order, with its own label, kind, sources and plain glyph
+  // a forecast family's `[n]` is offered as its first two entries
+  const offered = (s: string): string[] => s.includes("[n]") ? [s.replace("[n]", "[0]"), s.replace("[n]", "[1]")] : [s];
   assert.deepEqual(words.icon_rules.map((r: any) => [r.rule, r.label, r.kind, r.sources, r.plain]),
-    rules.map((r) => [r.name, r.label, r.kind, [...r.sources], r.plain]));
+    rules.map((r) => [r.name, r.label, r.kind, r.sources.flatMap(offered), r.plain]));
   for (const r of words.icon_rules) {
     const rule = icons.RULES.get(r.rule)!;
     assert.ok(r.glyphs.every((n: string) => icons.CATALOG.has(n)), `${r.rule}: every glyph a catalogue name`);

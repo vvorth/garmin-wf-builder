@@ -76,7 +76,7 @@ test("a weather icon without a reading draws weather_unknown, the CONDITION_UNKN
 test("the for: error names every accepted source", () => {
   const [error] = errors(dynamic("activity.steps"));
   assert.ok(error !== undefined);
-  for (const source of ["device.notification_count", "complication.notification_count", "system.battery", "weather.condition_tomorrow"]) {
+  for (const source of ["device.notification_count", "complication.notification_count", "system.battery", "weather.daily_forecast[n].condition"]) {
     assert.ok(error.message.includes(source), `${source} is listed`);
   }
 });

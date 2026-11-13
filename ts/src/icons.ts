@@ -6,7 +6,7 @@
 // Whether the icon font has a codepoint is read from its character map,
 // handed in as a set (`setIconFontGlyphs`): Node reads the installed font,
 // the browser receives it from the server.
-import { get as sourceOf } from "./catalog.ts";
+import { familyPath, get as sourceOf } from "./catalog.ts";
 import data from "./data/icons.json" with { type: "json" };
 import type { Device } from "./devices/device.ts";
 import { WholeFloat } from "./edit/yaml.ts";
@@ -301,8 +301,19 @@ function expandRule(name: string, r: RuleJson): IconRule[] {
 export const RULES: ReadonlyMap<string, IconRule> = new Map(Object.entries(data.rules as unknown as Record<string, RuleJson>)
   .flatMap(([name, r]) => expandRule(name, r)).map((rule) => [rule.name, rule]));
 
+/** Rules by source; an indexed path (`weather.daily_forecast[1].condition`) finds its family's, listed with `[n]`. */
+class RulesBySource extends Map<string, IconRule> {
+  override get(source: string): IconRule | undefined {
+    return super.get(source) ?? (source.includes("[") ? super.get(familyPath(source)) : undefined);
+  }
+
+  override has(source: string): boolean {
+    return this.get(source) !== undefined;
+  }
+}
+
 /** The rule each source's reading follows: its family's default. */
-export const RULE_OF_SOURCE: ReadonlyMap<string, IconRule> = new Map([...RULES.values()]
+export const RULE_OF_SOURCE: ReadonlyMap<string, IconRule> = new RulesBySource([...RULES.values()]
   .filter((rule) => rule.family === rule.name).flatMap((rule) => rule.sources.map((s) => [s, rule] as const)));
 
 /** `rule`'s family member drawing `variant`; the default for `null`, `undefined` for a variant the family lacks. */

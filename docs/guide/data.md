@@ -114,10 +114,68 @@ charging), `activity.*` (steps, calories, distance, floors, move bar,
 intensity minutes, stress score, respiration rate, time to recovery),
 `heart_rate.current`, `pulse_ox.current`, `ambient.*` (altitude, barometric
 pressure), `weather.*` (current condition and temperature, feels-like,
-today's high/low and precipitation chance, humidity, wind speed,
-today's/tomorrow's forecast condition — see [`icon: {for:}`](icons.md#a-dynamic-icon-icon-for) for turning a
+today's high/low and chance of precipitation as the current conditions
+report them (`weather.high_temperature_today`, `.low_temperature_today`,
+`.precipitation_chance_today`), humidity, wind speed, today's forecast
+condition, and every day and hour of the forecast
+(below) — see [`icon: {for:}`](icons.md#a-dynamic-icon-icon-for) for turning a
 condition into a drawn icon, and the [`name` spec](text.md#format-specs-every-option) for its name), `user.*` (running/cycling VO2 max, resting
 heart rate, from `Toybox.UserProfile`), and `complication.*` (below).
+
+**The forecast, day by day and hour by hour: `weather.daily_forecast[n]`
+and `weather.hourly_forecast[n]`.** Entry `n` of the forecast the watch
+last synced, counted from 0: `weather.daily_forecast[0]` is today and
+`[1]` tomorrow, `weather.hourly_forecast[0]` the coming hour. Each entry
+has fields, read like any other source:
+
+| Path | Type | Reads |
+|---|---|---|
+| `weather.daily_forecast[n].condition` | number | the day's forecast condition (`Weather.CONDITION_*`: `:name`, `icon: {for:}`) |
+| `weather.daily_forecast[n].high_temperature` | float | the day's forecast high, °C (`units: auto` converts) |
+| `weather.daily_forecast[n].low_temperature` | float | the day's forecast low, °C |
+| `weather.daily_forecast[n].precipitation_chance` | number | the day's chance of precipitation, 0–100 |
+| `weather.hourly_forecast[n].condition` | number | the hour's forecast condition |
+| `weather.hourly_forecast[n].temperature` | float | the hour's temperature, °C |
+| `weather.hourly_forecast[n].precipitation_chance` | number | the hour's chance of precipitation, 0–100 |
+| `weather.hourly_forecast[n].humidity` | number | relative humidity, 0–100 |
+| `weather.hourly_forecast[n].wind_speed` | float | wind speed, m/s |
+| `weather.hourly_forecast[n].wind_bearing` | number | wind bearing, degrees |
+| `weather.hourly_forecast[n].cloud_cover` | number | cloud cover, 0–100 (API 5.0) |
+| `weather.hourly_forecast[n].dew_point` | float | dew point, °C (API 5.0) |
+| `weather.hourly_forecast[n].uv_index` | float | UV index, 0–10 (API 5.0) |
+
+```yaml
+text: "{weather.daily_forecast[0].high_temperature:d}°/{weather.daily_forecast[0].low_temperature:d}°"
+text: "+3h {weather.hourly_forecast[3].temperature:d}°"
+visible: "weather.daily_forecast[1].precipitation_chance > 50"
+```
+
+The index is a whole number written in the path, 0–9 for a day and 0–23
+for an hour; anything else is an error naming the range. Garmin promises
+no length for either forecast, so an entry past the end of what the watch
+holds reads as absent and `absent:` applies, like every weather reading.
+`weather.condition_today` is shorthand for
+`weather.daily_forecast[0].condition`. `weather.high_temperature_today`,
+`weather.low_temperature_today` and `weather.precipitation_chance_today`
+are not: they are what the current conditions report
+(`CurrentConditions.highTemperature`, `.lowTemperature`,
+`.precipitationChance`), which need not match the forecast's first day;
+for the forecast's, read `weather.daily_forecast[0]`. Tomorrow's
+condition is `weather.daily_forecast[1].condition` (`weather.condition_tomorrow`
+was removed, and an error names the replacement). A field newer than a
+target's API (the API 5.0 ones) fails that target by default, as any
+source it lacks does ([what each device does](configuration.md)).
+`on_hold: auto` on day 1–3's condition opens the matching
+`forecast_weather_<n>day` complication, and on today's high or low the
+high/low one. To plot a whole column instead of one entry, use a
+[graph](progress-and-graphs.md) over `daily_high_temperature`,
+`forecast_temperature` and the rest.
+
+**A path with `[` inside a YAML flow mapping must be quoted**: `icon:
+{for: "weather.daily_forecast[1].condition"}`, since an unquoted `[` opens
+a list there. Inside a `text:` template's quotes, or written in block style
+(`for: weather.daily_forecast[1].condition` on its own line), it needs
+nothing.
 
 **The wearer's position: `position.latitude` and `position.longitude`.**
 A watch face cannot ask the GPS, but the weather report it already reads
@@ -480,6 +538,18 @@ error naming the palette entry to add. A ternary whose branches are
 themselves expressions (`steps > 0 ? steps / 1000.0 : 0`) is written as a
 rule list just the same, the expression in `value:`; nothing stops the
 string form either way.
+
+A `?:` whose branches are string literals is a string, and a `text:`
+placeholder may show one: `"{(date.weekday == 1 ? 'SUN' : 'MON')}"` draws
+whichever literal the condition picks. Every literal the chain can pick is
+known at build time, so a baked font gets exactly their characters (every
+branch's, not only the one the preview's sample shows) and the text's box
+is as wide as the widest of them in that font. A branch that is a string
+source instead (`date.month`, `date.day_of_week`, a string complication)
+is text only the watch knows: the font then gets every letter, digit and
+the space beside the literals, and the box keeps a five-digit estimate. A
+system font draws whatever string it is handed, so the `FONT_NUMBER_*`
+faces, which hold digits only, are no place for one.
 
 One name is bound in one place: **`copy`**, the index of the copy being
 drawn, in a `type: pattern`'s colours *and* its parts' `visible:`

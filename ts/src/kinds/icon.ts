@@ -197,7 +197,7 @@ class IconKind extends ElementKind<IconElement> {
     if (dynamic !== null) {
       let valueFor = b.expression(dynamic, "for");
       if (valueFor !== null && (valueFor.ast === null || valueFor.ast.kind !== "ref" || valueFor.sources.length !== 1
-        || !forSources().includes(valueFor.sources[0]!))) {
+        || !icons.RULE_OF_SOURCE.has(valueFor.sources[0]!))) {
         b.bag.error("icon", `icon: {for:} must be exactly one of: ${forSources().join(", ")} -- not ${quoted(valueFor.shown)}`,
           b.doc.span(dynamic, "for") ?? b.doc.span(node, "icon"), {
             notes: ["the glyph lookup needs the raw reading: a weather condition's Weather.CONDITION_* value, "

@@ -24,7 +24,7 @@ function ruleProblems(rules: Record<string, Record<string, unknown>>): string[] 
     if (sources.length === 0) out.push(`${name}: no sources`);
     const follows = Object.keys((rule["follows"] ?? {}) as Record<string, unknown>);
     for (const source of [...sources, ...follows]) {
-      if (typeof source !== "string" || catalog.get(source) === undefined) out.push(`${name}: ${JSON.stringify(source)} is not a catalogue source`);
+      if (typeof source !== "string" || catalog.get(source.replace("[n]", "[0]")) === undefined) out.push(`${name}: ${JSON.stringify(source)} is not a catalogue source`);
       else if (ruleOf.has(source)) out.push(`${name}: ${source} already follows the ${ruleOf.get(source)} rule`);
       else ruleOf.set(source, name);
     }

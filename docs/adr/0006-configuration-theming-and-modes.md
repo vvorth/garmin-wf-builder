@@ -926,7 +926,10 @@ nothing. See research 07 §2.
 > choices. Decided:
 >
 > - A watch with the native editor edits `config:` there only; its
->   `getSettingsView` returns null. A watch without it but with
+>   `getSettingsView` returns null. *(Amended 2026-11-10: a fēnix 8 shows
+>   a dead "Customize" item in its native editor for any face defining
+>   `getSettingsView`, so native-editor devices now build without the
+>   method, through a jungle `excludeAnnotations`.)* A watch without it but with
 >   `getSettingsView` (fr955, fenix6, fr245, ...) gets one menu item per
 >   axis, each opening the list of its options. A watch with neither
 >   (`fenix5`/`fenix5x`) keeps every default, and `config-unsupported` now

@@ -628,7 +628,8 @@
    "sources": [
     "weather.condition",
     "weather.condition_today",
-    "weather.condition_tomorrow",
+    "weather.daily_forecast[n].condition",
+    "weather.hourly_forecast[n].condition",
     "complication.current_weather",
     "complication.forecast_weather_1day",
     "complication.forecast_weather_2day",

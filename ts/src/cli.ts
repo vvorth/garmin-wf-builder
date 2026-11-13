@@ -1387,6 +1387,18 @@ function sourcesCommand(): number {
         for (const variant of rule.variants.slice(1)) out(`    variant ${variant}: ${icons.ruleSummary(icons.ruleVariant(rule, variant)!)}`);
       }
     }
+    for (const [family, def] of catalog.INDEXED) {
+      if (family.split(".", 1)[0] !== namespace) continue;
+      out(`  ${`${family}[n]`.padEnd(34)} ${"".padEnd(8)} ${def.doc}, n = 0..${def.max_index}  (${def.source_ref})`);
+      for (const [field, f] of Object.entries(def.fields)) {
+        const path = `${family}[n].${field}`;
+        const launches = Object.entries(f.launch_complications ?? {}).map(([i, type]) => `[${i}] -> ${type}`);
+        const suffix = `  [nullable${launches.length > 0 ? `, on_hold: auto ${launches.join(", ")}` : ""}]`;
+        out(`    ${path.padEnd(44)} ${f.type.padEnd(8)} ${f.doc}${suffix}`);
+        const rule = icons.RULE_OF_SOURCE.get(path);
+        if (rule !== undefined) out(`      icon rule: ${icons.ruleSummary(rule)}`);
+      }
+    }
   }
   out(`\n${term.style("config", ["bold"], color)}  (declared per design in 'config:' -- fēnix 8 Solar's native editor only, see docs/guide/configuration.md)`);
   for (const [path, kind, doc] of CONFIG_SOURCES) out(`  ${path.padEnd(34)} ${kind.padEnd(8)} ${doc}`);

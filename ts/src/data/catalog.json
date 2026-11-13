@@ -118,6 +118,18 @@
    "requires_module": "Weather",
    "complication_type": null
   },
+  "weather_hourly": {
+   "name": "weatherHourly",
+   "call": "Weather.getHourlyForecast()",
+   "monkeyc_type": "Lang.Array<Weather.HourlyForecast>?",
+   "module": "Toybox.Weather",
+   "nullable": true,
+   "requires": [
+    "Weather.getHourlyForecast"
+   ],
+   "requires_module": "Weather",
+   "complication_type": null
+  },
   "user_profile": {
    "name": "userProfile",
    "call": "UserProfile.getProfile()",
@@ -1362,7 +1374,7 @@
    "unit": null,
    "quantity": null,
    "enum": "weather_condition",
-   "doc": "today's overall forecast condition (Weather.CONDITION_*)",
+   "doc": "today's overall forecast condition (Weather.CONDITION_*; weather.daily_forecast[0].condition)",
    "source_ref": "Toybox/Weather/DailyForecast.html",
    "array_index": 0,
    "intermediate": null,
@@ -1370,26 +1382,6 @@
    "to_float": false,
    "count": false,
    "launch_complication": null
-  },
-  "weather.condition_tomorrow": {
-   "path": "weather.condition_tomorrow",
-   "type": "number",
-   "reader": "weather_daily",
-   "field_name": "condition",
-   "nullable": true,
-   "permissions": [],
-   "requires": [],
-   "unit": null,
-   "quantity": null,
-   "enum": "weather_condition",
-   "doc": "tomorrow's forecast condition (Weather.CONDITION_*)",
-   "source_ref": "Toybox/Weather/DailyForecast.html",
-   "array_index": 1,
-   "intermediate": null,
-   "cast": null,
-   "to_float": false,
-   "count": false,
-   "launch_complication": "forecast_weather_1day"
   },
   "weather.temperature": {
    "path": "weather.temperature",
@@ -1439,7 +1431,7 @@
    "requires": [],
    "unit": "celsius",
    "quantity": "temperature",
-   "doc": "today's forecast high temperature",
+   "doc": "today's forecast high temperature, as the current conditions report it (CurrentConditions.highTemperature)",
    "source_ref": "Toybox/Weather/CurrentConditions.html",
    "array_index": null,
    "intermediate": null,
@@ -1458,7 +1450,7 @@
    "requires": [],
    "unit": "celsius",
    "quantity": "temperature",
-   "doc": "today's forecast low temperature",
+   "doc": "today's forecast low temperature, as the current conditions report it (CurrentConditions.lowTemperature)",
    "source_ref": "Toybox/Weather/CurrentConditions.html",
    "array_index": null,
    "intermediate": null,
@@ -1477,7 +1469,7 @@
    "requires": [],
    "unit": "percent",
    "quantity": null,
-   "doc": "chance of precipitation today, 0-100",
+   "doc": "chance of precipitation, 0-100, as the current conditions report it (CurrentConditions.precipitationChance)",
    "source_ref": "Toybox/Weather/CurrentConditions.html",
    "array_index": null,
    "intermediate": null,
@@ -2764,7 +2756,8 @@
   "activity.weekly_run_distance": "complication.weekly_run_distance",
   "activity.weekly_bike_distance": "complication.weekly_bike_distance",
   "activity.sleep_score": "complication.sleep_score",
-  "device.next_calendar_event": "complication.calendar_events"
+  "device.next_calendar_event": "complication.calendar_events",
+  "weather.condition_tomorrow": "weather.daily_forecast[1].condition"
  },
  "watchface_permissions": [
   "Background",
@@ -2772,5 +2765,140 @@
   "ComplicationSubscriber",
   "Positioning",
   "UserProfile"
- ]
+ ],
+ "indexed_sources": {
+  "weather.daily_forecast": {
+   "reader": "weather_daily",
+   "unit_label": "day",
+   "max_index": 9,
+   "source_ref": "Toybox/Weather/DailyForecast.html",
+   "doc": "the daily forecast, one entry per day: [0] is today, [1] tomorrow",
+   "fields": {
+    "condition": {
+     "type": "number",
+     "field_name": "condition",
+     "unit": null,
+     "quantity": null,
+     "enum": "weather_condition",
+     "doc": "forecast condition (Weather.CONDITION_*)",
+     "launch_complications": {
+      "1": "forecast_weather_1day",
+      "2": "forecast_weather_2day",
+      "3": "forecast_weather_3day"
+     }
+    },
+    "high_temperature": {
+     "type": "float",
+     "field_name": "highTemperature",
+     "unit": "celsius",
+     "quantity": "temperature",
+     "enum": null,
+     "doc": "forecast high temperature",
+     "launch_complications": {
+      "0": "high_low_temperature"
+     }
+    },
+    "low_temperature": {
+     "type": "float",
+     "field_name": "lowTemperature",
+     "unit": "celsius",
+     "quantity": "temperature",
+     "enum": null,
+     "doc": "forecast low temperature",
+     "launch_complications": {
+      "0": "high_low_temperature"
+     }
+    },
+    "precipitation_chance": {
+     "type": "number",
+     "field_name": "precipitationChance",
+     "unit": "percent",
+     "quantity": null,
+     "enum": null,
+     "doc": "forecast chance of precipitation, 0-100"
+    }
+   }
+  },
+  "weather.hourly_forecast": {
+   "reader": "weather_hourly",
+   "unit_label": "hour",
+   "max_index": 23,
+   "source_ref": "Toybox/Weather/HourlyForecast.html",
+   "doc": "the hourly forecast, one entry per hour: [0] is the coming hour",
+   "fields": {
+    "condition": {
+     "type": "number",
+     "field_name": "condition",
+     "unit": null,
+     "quantity": null,
+     "enum": "weather_condition",
+     "doc": "forecast condition (Weather.CONDITION_*)"
+    },
+    "temperature": {
+     "type": "float",
+     "field_name": "temperature",
+     "unit": "celsius",
+     "quantity": "temperature",
+     "enum": null,
+     "doc": "forecast temperature"
+    },
+    "precipitation_chance": {
+     "type": "number",
+     "field_name": "precipitationChance",
+     "unit": "percent",
+     "quantity": null,
+     "enum": null,
+     "doc": "forecast chance of precipitation, 0-100"
+    },
+    "humidity": {
+     "type": "number",
+     "field_name": "relativeHumidity",
+     "unit": "percent",
+     "quantity": null,
+     "enum": null,
+     "doc": "forecast relative humidity, 0-100"
+    },
+    "wind_speed": {
+     "type": "float",
+     "field_name": "windSpeed",
+     "unit": "m/s",
+     "quantity": "speed",
+     "enum": null,
+     "doc": "forecast wind speed"
+    },
+    "wind_bearing": {
+     "type": "number",
+     "field_name": "windBearing",
+     "unit": "degrees",
+     "quantity": null,
+     "enum": null,
+     "doc": "forecast wind bearing, degrees"
+    },
+    "cloud_cover": {
+     "type": "number",
+     "field_name": "cloudCover",
+     "unit": "percent",
+     "quantity": null,
+     "enum": null,
+     "doc": "forecast cloud cover, 0-100 (API 5.0)"
+    },
+    "dew_point": {
+     "type": "float",
+     "field_name": "dewPoint",
+     "unit": "celsius",
+     "quantity": "temperature",
+     "enum": null,
+     "doc": "forecast dew point (API 5.0)"
+    },
+    "uv_index": {
+     "type": "float",
+     "field_name": "uvIndex",
+     "unit": null,
+     "quantity": null,
+     "enum": null,
+     "doc": "forecast UV index, 0-10 (API 5.0)"
+    }
+   }
+  }
+ }
 }

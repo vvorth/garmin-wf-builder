@@ -99,6 +99,7 @@ jobs:
             test/py.test.ts
             test/reference.test.ts
             test/sdk.test.ts
+            test/string-ternary.test.ts
             test/studio-sw.test.ts
             test/units.test.ts
             test/uuid.test.ts
@@ -124,6 +125,7 @@ jobs:
             # test/dynamic-icons.test.ts
             # test/edit.test.ts
             # test/edit-preview.test.ts
+            # test/forecast-indexed.test.ts
             # test/formatting.test.ts
             # test/garmin-raster.test.ts
             # test/gauge-gap.test.ts

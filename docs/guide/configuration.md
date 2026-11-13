@@ -718,8 +718,9 @@ option applies it at once.
 
 Which editor runs is decided on the watch, with the same `Application has
 :WatchFaceConfig` check the view already makes, so one build serves a fēnix 8
-(native editor, and `getSettingsView` returns null) and an fr955 (the menu)
-alike. A menu choice is stored as an `Application.Properties` index, one
+(native editor) and an fr955 (the menu) alike. A native-editor watch is built
+without the menu's entry point, so its editor shows no empty "Customize"
+item. A menu choice is stored as an `Application.Properties` index, one
 property per axis, in a file of each menu device's own
 (`resources-<device>/settings/properties.xml`), defaulting to the declared
 default's index in that device's list of options (a slot's list can differ

@@ -3,8 +3,10 @@
 // Directories are keyed by device id, not `deviceFamily`: two devices of
 // one family can differ in system-font metrics and API level, so their
 // resolved `Layout` modules genuinely differ.
+import { hasNativeEditor, usesSettingsMenu } from "../availability.ts";
 import type { Device } from "../devices/device.ts";
 import type { Face } from "../ir/model.ts";
+import { SETTINGS_MENU_ANNOTATION } from "./monkeyc/app.ts";
 
 export function render(face: Face, devices: readonly Device[]): string {
   const name = face.source_path.slice(face.source_path.lastIndexOf("/") + 1);
@@ -33,9 +35,16 @@ export function render(face: Face, devices: readonly Device[]): string {
     "# naming them again would add each file twice.",
     "",
   ];
+  // The shared App defines getSettingsView when some target uses the settings
+  // menu. A native-editor target builds without it: its firmware lists a
+  // "Customize" item for any face defining the method, even one returning null.
+  const menu = face.hasConfig && devices.some(usesSettingsMenu);
   for (const device of devices) {
     lines.push(`# ${device.id}: ${device.width}x${device.height} ${device.shape}, family ${device.deviceFamily}`);
     lines.push(`${device.id}.sourcePath = $(${device.id}.sourcePath);source-${device.id}`);
+    if (menu && hasNativeEditor(device)) {
+      lines.push(`${device.id}.excludeAnnotations = ${SETTINGS_MENU_ANNOTATION}`);
+    }
     lines.push("");
   }
   return lines.join("\n").replace(/\n+$/, "") + "\n";

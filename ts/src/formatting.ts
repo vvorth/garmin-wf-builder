@@ -17,6 +17,7 @@
 // `data` element's weather reading draws from.
 import { isNumeric, type Source, type Type } from "./catalog.ts";
 import { conditionNames, conditionText, widestCondition } from "./complications.ts";
+import type { StringValues } from "./expr.ts";
 import { stringLiteral } from "./mcsource.ts";
 import { floatRepr, formatFixed, isNumber, num, quoted, roundHalfEven } from "./py.ts";
 import { WholeFloat } from "./edit/yaml.ts";
@@ -465,9 +466,34 @@ export function digitsAreKnown(source: Source | null): boolean {
   return source !== null && SOURCE_DIGITS.has(source.path);
 }
 
+/** Every letter, digit and the space: what a string only the watch knows (a localised name) may hold. */
+const OPEN_TEXT = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ";
+
+/**
+ * The widest of a string value's candidates: each literal a `?:` chain can
+ * pick, and, when some branch is not a literal, the digit estimate a reading
+ * of unknown text has always had. `measure` (a font's width) picks among
+ * them; without one the most characters wins, the first on a tie.
+ */
+function widestString(strings: StringValues | null, estimate: () => string, measure: ((text: string) => number) | null): string {
+  const candidates = [...(strings?.literals ?? [])];
+  if (strings === null || strings.open) candidates.push(estimate());
+  let best = candidates[0]!;
+  for (const candidate of candidates.slice(1)) {
+    if (measure !== null ? measure(candidate) > measure(best) : Array.from(candidate).length > Array.from(best).length) best = candidate;
+  }
+  return best;
+}
+
+/** What `widest` and `glyphs` know of a string value beyond its type: the strings it can be, and a font to measure them in. */
+export interface StringOptions {
+  strings?: StringValues | null;
+  measure?: ((text: string) => number) | null;
+}
+
 /** The widest string this binding can plausibly render. */
 export function widest(spec: string, source: Source | null, valueType: Type, scale = 1.0,
-  { digits = null, unitWidest = "" }: { digits?: number | null; unitWidest?: string } = {}): string {
+  { digits = null, unitWidest = "", strings = null, measure = null }: { digits?: number | null; unitWidest?: string } & StringOptions = {}): string {
   if (isDuration(spec, valueType)) return widestDuration(spec, unitWidest);
   if (valueType === "date" || isTimeSpec(spec)) {
     const [parts, codes] = strftimeParts(spec, valueType);
@@ -479,6 +505,10 @@ export function widest(spec: string, source: Source | null, valueType: Type, sca
     if (p.kind === "unit") { out += unitWidest; continue; }
     const named = NAME_SPECS.get(p.spec);
     if (named !== undefined) { out += widestCondition(named.short); continue; }
+    if (valueType === "string") {
+      out += widestString(strings, () => "8".repeat(digits ?? maxDigits(source, scale)), measure);
+      continue;
+    }
     const m = p.spec ? NUMERIC_SPEC.exec(p.spec) : null;
     if (digits === null) digits = maxDigits(source, scale);
     if (m && m.groups!["kind"] === "f") {
@@ -514,10 +544,16 @@ function widestDuration(spec: string, unitWidest: string): string {
 
 /** Every character this binding can render: the font's required subset. */
 export function glyphs(spec: string, source: Source | null, valueType: Type, scale = 1.0,
-  { digits = null, unitLabels = [] }: { digits?: number | null; unitLabels?: readonly string[] } = {}): Set<string> {
-  const out = new Set(widest(spec, source, valueType, scale, { digits }));
+  { digits = null, unitLabels = [], strings = null }: { digits?: number | null; unitLabels?: readonly string[]; strings?: StringValues | null } = {}): Set<string> {
+  const out = new Set(widest(spec, source, valueType, scale, { digits, strings }));
   for (const label of unitLabels) for (const c of label) out.add(c);
   const add = (chars: string): void => { for (const c of chars) out.add(c); };
+  if (valueType === "string") {
+    // Every literal a `?:` chain can pick, and any text at all when a branch is a string only the watch knows.
+    for (const literal of strings?.literals ?? []) add(literal);
+    if (strings === null || strings.open) add(OPEN_TEXT);
+    return out;
+  }
   if (valueType === "date") {
     // The weekday and month are localised strings chosen by the firmware: the full alphabet has to be present.
     add("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ");

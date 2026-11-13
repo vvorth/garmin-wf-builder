@@ -263,9 +263,10 @@ h.test("an icon element's picker, its follows data tab and absent: footer, and c
   assert.equal(await pop.locator("[role=tab][aria-selected=true]").textContent(), "follows data");
   assert.equal(await pop.locator(".rule-source.on").textContent(), "weather.condition_today");
   await pop.locator(".rule-row", { hasText: "Battery" }).locator(".glyph-strip .glyph").first().waitFor();
-  await pop.locator(".rule-source", { hasText: /^weather\.condition_tomorrow$/ }).click();
+  await pop.locator(".rule-source", { hasText: /^weather\.daily_forecast\[1\]\.condition$/ }).click();
   after = await written(s, base);
-  assert.match(lines(after, "weather_icon"), /icon: \{ ?for: weather\.condition_tomorrow ?\}/, lines(after, "weather_icon"));
+  // a [ would open a list in a flow mapping: the editor quotes the path
+  assert.match(lines(after, "weather_icon"), /icon: \{ ?for: "weather\.daily_forecast\[1\]\.condition" ?\}/, lines(after, "weather_icon"));
   // the source can be absent: the footer writes absent: beside icon:
   await chip.click();
   await pop.locator(".absent-row button", { hasText: /^hide$/ }).click();

@@ -36,6 +36,11 @@ function pathsByLocal(): Map<string, string> {
   return byLocal;
 }
 
+/** The catalogue path a reading local holds: a fixed entry's, or an indexed one's (`weatherDailyForecast1Condition`). */
+function pathOfLocal(local: string, read: readonly string[]): string {
+  return pathsByLocal().get(local) ?? read.find((path) => localName(path) === local)!;
+}
+
 /**
  * The whole body of `placed`'s `draw<Id>` (or, with `ctx.ring`, its
  * `ring<Id>`) after its reads: `visible:` first, then the absence guard
@@ -53,9 +58,9 @@ export function program(ctx: DrawContext, placed: Placed, plan: ReadPlan, antial
       always ? 0 : shownMask(plan.resolved.face, element)));
   }
   if (kind.name === "data") return [...ops, ...lowered(ctx, placed)];
-  const paths = pathsByLocal();
+  const read = element.expressions().flatMap((x) => [...x.sources]);
   const guard = (names: string[], note: string): void => {
-    if (names.length > 0) ops.push(NullGuard(names, names.map((name) => paths.get(name)!), note));
+    if (names.length > 0) ops.push(NullGuard(names, names.map((name) => pathOfLocal(name, read)), note));
   };
   const absent = (element as unknown as Record<string, unknown>)["absent"];
   const substitutes = element.valueRoles.size > 0 && (absent === "placeholder" || absent === "fallback");

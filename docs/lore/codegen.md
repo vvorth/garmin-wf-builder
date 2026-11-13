@@ -883,8 +883,16 @@ These cost real time to discover; do not rediscover them.
   per-device option lists, and two `monkeyc` findings.** Which editor a
   device uses is decided on the watch by `Application has :WatchFaceConfig`,
   the check `onLayout`'s first native read already made, so one shared view
-  serves a fēnix 8 (native; `getSettingsView` returns null) and an fr955
-  (the menu) with no per-device flag. A data slot's options are per device
+  serves a fēnix 8 (native) and an fr955 (the menu) with no per-device
+  flag. The one exception is `getSettingsView` itself: the fēnix 8's
+  firmware adds a "Customize" item to its native editor menu (beside
+  Accent color, Data, Data color) for any face that *defines* the method,
+  and that item does nothing when it returns null (seen on the user's
+  fēnix 8, 2026-11-10). So the App tags it `(:settings_menu)` and the
+  jungle sets `<device>.excludeAnnotations = settings_menu` for every
+  native-editor target of a build that emits the menu (`jungle.ts`); the
+  method's `has :WatchFaceConfig` return-null stays as the runtime
+  fallback. A data slot's options are per device
   (`choices: any` lists the types the device's own symbol table has, an explicit list only those of its choices the table has), so they live
   in `Layout.mc` (`CONFIG_DATA_<SLOT>_TYPES`/`_LABELS`/`_DEFAULT`) and the
   shared view only indexes them; `properties.xml` is therefore a file of
@@ -927,6 +935,23 @@ These cost real time to discover; do not rediscover them.
   `:name`; `ts/test/condition-names.test.ts` holds it equal to the weather
   icon rule's `sources` and to the complication types whose reading is a
   condition.
+- **Indexed sources are catalogue entries built on demand.**
+  `weather.daily_forecast[n].<field>` and `weather.hourly_forecast[n].<field>`
+  are families in `catalog.json`'s `indexed_sources`: a reader returning an
+  array, a `max_index` (a typo guard, not the API's length) and the fields.
+  `CATALOG.get`/`has` build the entry for a concrete path the first time it
+  is asked for (`array_index` is the index, so `readExpr` and `arrayGuard`
+  write `weatherDaily[2].highTemperature` behind `weatherDaily.size() > 2`,
+  as they already did for `condition_today`), while iterating `CATALOG`
+  yields the fixed entries alone, so a listing names a family once with
+  `[n]`. Everything that iterates rather than asks needs its own answer:
+  the expression scope binds an indexed path through `Scope.fallback` on
+  first lookup, `RULE_OF_SOURCE` maps a concrete path to its `[n]` spelling
+  (`familyPath`), the null guard finds an indexed local's path among the
+  element's own sources (`pathOfLocal` in `ts/src/draw/index.ts`), and the
+  preview's samples and the editor's `source_info` list every index. The
+  tokenizer takes `[digits]` after a path segment, and the local name
+  spells the index as a word (`weatherDailyForecast2HighTemperature`).
 - **A catalogue source read through a barrel call: `call:` and
   `extra_readers` (2026-10-29).** A `Source` in `ts/src/data/catalog.json`
   normally reads one field off one reader local (`weatherCurrent.temperature`).

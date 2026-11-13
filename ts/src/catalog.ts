@@ -79,8 +79,112 @@ function withDefaults(raw: RawSource): Source {
 
 export const READERS: ReadonlyMap<string, Reader> = new Map(Object.entries(data.readers as Record<string, Reader>));
 
-export const CATALOG: Catalogue<Source> = new Catalogue(Object.entries(data.sources as Record<string, RawSource>)
+/** One field of an indexed family: a `Source` less what the index decides. */
+export interface IndexedField {
+  type: Type;
+  field_name: string;
+  unit: string | null;
+  quantity: string | null;
+  enum: Source["enum"];
+  doc: string;
+  /** The complication `on_hold: auto` launches, keyed by the index it applies at. */
+  launch_complications?: Record<string, string>;
+}
+
+/**
+ * An array a reader returns, addressed `<family>[<n>].<field>`: the daily
+ * and hourly weather forecasts. Entry `n` of the array is the `n`th day or
+ * hour; the API promises no length, so an index past the end reads absent.
+ */
+export interface IndexedFamily {
+  reader: string;
+  /** What one entry is, for the docs: `day`, `hour`. */
+  unit_label: string;
+  /** The highest index a design may name: a typo guard, not the API's length. */
+  max_index: number;
+  source_ref: string;
+  doc: string;
+  fields: Record<string, IndexedField>;
+}
+
+export const INDEXED: ReadonlyMap<string, IndexedFamily> = new Map(Object.entries(data.indexed_sources as Record<string, IndexedFamily>));
+
+const INDEXED_PATH = /^([A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]\.([A-Za-z_][A-Za-z0-9_]*)$/;
+
+/** An indexed path's parts, or `null` for any other path. The family and field may still be unknown. */
+export function parseIndexed(path: string): { family: string; index: number; field: string } | null {
+  const m = INDEXED_PATH.exec(path);
+  return m === null ? null : { family: m[1]!, index: Number(m[2]), field: m[3]! };
+}
+
+/** The path with its index written `[n]`, as the docs, the icon rules and the listings name a family's field. */
+export function familyPath(path: string): string {
+  return path.replace(/\[\d+\]/g, "[n]");
+}
+
+/** The catalogue entry an indexed path names, or `undefined` when its family, field or index is not one. */
+function indexedSource(path: string): Source | undefined {
+  const parts = parseIndexed(path);
+  if (parts === null) return undefined;
+  const family = INDEXED.get(parts.family);
+  const field = family?.fields[parts.field];
+  if (family === undefined || field === undefined || parts.index > family.max_index) return undefined;
+  return {
+    path, type: field.type, reader: family.reader, field_name: field.field_name, nullable: true, permissions: [], requires: [],
+    unit: field.unit, quantity: field.quantity, enum: field.enum,
+    doc: `${field.doc}, ${family.unit_label} ${parts.index} of the forecast`,
+    source_ref: family.source_ref, array_index: parts.index, intermediate: null, cast: null, to_float: false, count: false,
+    launch_complication: field.launch_complications?.[String(parts.index)] ?? null, call: null, extra_readers: [],
+  };
+}
+
+/**
+ * The catalogue: the fixed entries, iterated and listed, and every indexed
+ * path, built when first asked for. `get` and `has` answer both; iteration
+ * yields the fixed entries alone, so a listing names a family once
+ * (`INDEXED`) rather than every index of it.
+ */
+class SourceCatalogue extends Catalogue<Source> {
+  private readonly built = new Map<string, Source>();
+
+  override get(path: string): Source | undefined {
+    const fixed = super.get(path);
+    if (fixed !== undefined) return fixed;
+    let made = this.built.get(path);
+    if (made === undefined) {
+      made = indexedSource(path);
+      if (made !== undefined) this.built.set(path, made);
+    }
+    return made;
+  }
+
+  override has(path: string): boolean {
+    return this.get(path) !== undefined;
+  }
+}
+
+export const CATALOG: Catalogue<Source> = new SourceCatalogue(Object.entries(data.sources as Record<string, RawSource>)
   .map(([path, raw]) => [path, withDefaults(raw)]));
+
+/** Why an indexed-looking path names nothing, for the error: its family, field or index; `null` for any other path. */
+export function indexedProblem(path: string): { message: string; notes: string[] } | null {
+  const parts = parseIndexed(path);
+  if (parts === null) return null;
+  const family = INDEXED.get(parts.family);
+  if (family === undefined) {
+    return { message: `${parts.family} is not an indexed source`, notes: [`indexed sources: ${[...INDEXED.keys()].join(", ")}`] };
+  }
+  if (family.fields[parts.field] === undefined) {
+    return { message: `${parts.family} entries have no field ${parts.field}`, notes: [`${parts.family}[n] has: ${Object.keys(family.fields).join(", ")}`] };
+  }
+  if (parts.index > family.max_index) {
+    return {
+      message: `${parts.family}[${parts.index}] is past the last ${family.unit_label} a design may name, [${family.max_index}]`,
+      notes: [`[0] is the first ${family.unit_label}; the watch may send fewer, and an index past the end reads as absent`],
+    };
+  }
+  return null;
+}
 
 /** The paths superseded by `complication.*`, so an old design is told the replacement. */
 export const RENAMED_SOURCES: ReadonlyMap<string, string> = new Map(Object.entries(data.renamed_sources));

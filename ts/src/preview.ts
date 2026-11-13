@@ -27,7 +27,7 @@ import { alignmentShift, type Placed, radialAlignOffset, radialDirectionSign, ra
 import { Color, MIP64_SNAP, MONO_LUMINANCE, MONO_THRESHOLD } from "./palette.ts";
 import { degrees, radians, roundHalfEven } from "./py.ts";
 import { composite, ellipse, type Image, image as newImage, paste, rectangle, type Tile } from "./raster/pillow.ts";
-import { SAMPLE } from "./sample.ts";
+import { indexedSamples, SAMPLE } from "./sample.ts";
 import type { IntBox } from "./units.ts";
 import { decodePng, encodePng, pngSize } from "./png.ts";
 import { skin as skinOf, visibleMask } from "./visible_area.ts";
@@ -121,6 +121,7 @@ export function sampleValues(resolved: ResolvedFace, options: PreviewOptions, en
   };
   // The astronomy follows the date, time, offset and position above, overrides included; its own override still wins.
   for (const [k, v] of astroValues(values)) setDefault(k, v);
+  for (const [k, v] of indexedSamples()) setDefault(k, v);
   for (const [name, color] of resolved.face.palette) setDefault(`color.${name}`, color.value);
   for (const configEntry of resolved.face.config.values()) setDefault(`color.${configEntry.role}`, configEntry.default.value);
   if (entry !== null && entry.colors !== null) {

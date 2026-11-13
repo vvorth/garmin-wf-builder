@@ -803,7 +803,24 @@ export function iconRuleWord(rule: icons.IconRule): IconRuleWord {
     const member = icons.ruleVariant(rule, variant)!;
     return { variant, glyphs: [...member.steps], plain: member.plain };
   });
-  return { rule: rule.name, label: rule.label, kind: rule.kind, sources: [...rule.sources], glyphs, plain: rule.plain, split: ruleSplit(rule), variants };
+  return { rule: rule.name, label: rule.label, kind: rule.kind, sources: rule.sources.flatMap(offeredPaths), glyphs, plain: rule.plain, split: ruleSplit(rule), variants };
+}
+
+/** A source as a picker offers it: an indexed family's `[n]` as its first two entries, today and tomorrow, the next hour and the one after. */
+function offeredPaths(source: string): string[] {
+  return source.includes("[n]") ? [source.replace("[n]", "[0]"), source.replace("[n]", "[1]")] : [source];
+}
+
+/** Each indexed family's fields in namespace `ns`, at their first entry, for the "+ data" picker; the author edits the index. */
+function indexedOffered(ns: string): string[] {
+  return [...catalog.INDEXED].filter(([family]) => family.split(".", 1)[0] === ns)
+    .flatMap(([family, def]) => Object.keys(def.fields).map((field) => `${family}[0].${field}`));
+}
+
+/** Every path every indexed family answers, so a chip naming any index has its type and documentation. */
+function everyIndexedPath(): string[] {
+  return [...catalog.INDEXED].flatMap(([family, def]) => Object.keys(def.fields)
+    .flatMap((field) => Array.from({ length: def.max_index + 1 }, (_, i) => `${family}[${i}].${field}`)));
 }
 
 let words: Words | null = null;
@@ -818,7 +835,7 @@ export function vocabulary(): Words {
       if (path !== null) paths[name] = path;
     }
     words = {
-      sources: Object.fromEntries(catalog.namespaces()),
+      sources: Object.fromEntries([...catalog.namespaces()].map(([ns, paths]) => [ns, [...paths, ...indexedOffered(ns)]])),
       icons: [...icons.CATALOG.keys()].sort(),
       complications: ["auto", ...complications.names()],
       series: series.names(),
@@ -829,7 +846,7 @@ export function vocabulary(): Words {
       complication_types: complications.names().map(complicationType),
       icon_glyphs: glyphs,
       icon_paths: paths,
-      source_info: Object.fromEntries([...catalog.CATALOG.keys()].sort().map((path) => {
+      source_info: Object.fromEntries([...catalog.CATALOG.keys(), ...everyIndexedPath()].sort().map((path) => {
         const source = catalog.get(path)!;
         return [path, { type: source.type, unit: source.unit, quantity: source.quantity, enum: source.enum, doc: source.doc, nullable: source.nullable }];
       })),
