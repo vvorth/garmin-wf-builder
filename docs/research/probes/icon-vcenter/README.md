@@ -43,45 +43,24 @@ draw identically:
 
 ## The face
 
-`face.yaml`, for `fenix8solar47mm`, `fenix8solar51mm` and `fr955`. Five
+`face.yaml`, for any colour watch-face device (`build.sh` takes `DEVICES`;
+the monochrome Instinct screens cannot show the red lines). Five
 rows, one icon size each (`10%r`, `15%r`, `20%r`, `25%r`, `30px`), each
 centred on a **1 px red reference line at a known row `y`**. On each row,
 left to right, every glyph is white:
 
 | element | x from centre | drawn as |
 |---|---|---|
-| `new_<row>` | -50 px | the compiler's placement: the heart icon, `drawText(cx, y - ceil(lineHeight/2), font, glyph, TEXT_JUSTIFY_CENTER)` |
-| `old_<row>` | -10 px | the same glyph in the same font, patched by `build.sh` to the old call: `drawText(cx, y, font, glyph, TEXT_JUSTIFY_CENTER \| TEXT_JUSTIFY_VCENTER)` |
-| `text_<row>` | +40 px | `"H8"` in a baked text font (Open Sans, 14%r, the test fixture's TTF), `drawText(x, y, font, "H8", TEXT_JUSTIFY_CENTER \| TEXT_JUSTIFY_VCENTER)` |
+| `new_<row>` | -46%r | the compiler's placement: the heart icon, `drawText(cx, y - ceil(lineHeight/2), font, glyph, TEXT_JUSTIFY_CENTER)` |
+| `old_<row>` | -9%r | the same glyph in the same font, patched by `build.sh` to the old call: `drawText(cx, y, font, glyph, TEXT_JUSTIFY_CENTER \| TEXT_JUSTIFY_VCENTER)` |
+| `text_<row>` | +33%r | `"H8"` in a baked text font (Open Sans, 14%r, the test fixture's TTF), `drawText(x, y, font, "H8", TEXT_JUSTIFY_CENTER \| TEXT_JUSTIFY_VCENTER)` |
 
-The rows, the fonts' metrics as baked (the `build.sh` printout) and where
-the compiler's placement puts the heart's ink (rows inclusive: cell top
-plus `yoffset`, through `+ height - 1`):
-
-`fenix8solar47mm` and `fr955` (identical bakes):
-
-| size | row `y` | lineHeight | base | heart yoffset, height | `new` cell top | `new` ink rows |
-|---|---|---|---|---|---|---|
-| 10%r | 35 | 18 | 14 | 3, 12 | 26 | 29-40 |
-| 15%r | 68 | 28 | 22 | 4, 19 | 54 | 58-76 |
-| 20%r | 110 | 38 | 30 | 6, 26 | 91 | 97-122 |
-| 25%r | 162 | 46 | 36 | 7, 31 | 139 | 146-176 |
-| 30px | 215 | 43 | 34 | 6, 29 | 193 | 199-227 |
-
-`fenix8solar51mm`:
-
-| size | row `y` | lineHeight | base | heart yoffset, height | `new` cell top | `new` ink rows |
-|---|---|---|---|---|---|---|
-| 10%r | 45 | 20 | 16 | 3, 14 | 35 | 38-51 |
-| 15%r | 78 | 29 | 23 | 4, 20 | 63 | 67-86 |
-| 20%r | 120 | 41 | 32 | 6, 28 | 99 | 105-132 |
-| 25%r | 172 | 49 | 39 | 7, 33 | 147 | 154-186 |
-| 30px | 225 | 43 | 34 | 6, 29 | 203 | 209-237 |
-
-So the rows cover even line heights (18, 20, 28, 38, 46) and odd ones (29,
-41, 43, 49), on both screen sizes. The text font is `lineHeight=26 base=20`
-on the 260 px screens and `28 / 22` on `fenix8solar51mm` (`H` and `8`:
-`yoffset 6`, `height 13` there; `yoffset 7`, `height 14`/`15` here).
+Rows and glyphs are placed in `%r`, so the same face fits every screen from
+218 px to 454 px; each device bakes its own line heights (odd and even ones
+on every screen). `build.sh` prints every font's `common` line and the
+drawn glyphs' metrics per device, and `measure.ts` computes the compiler's
+predicted rows from the generated `Layout.mc` and `.fnt` files itself, so no
+table here needs updating when a device is added.
 
 ## Build and run (on the user's host)
 

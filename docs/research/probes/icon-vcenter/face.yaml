@@ -15,6 +15,7 @@ face:
   version: 1.0.0
 
 build:
+  # build.sh builds any installed device with -d; these are the defaults
   targets: [fenix8solar47mm, fenix8solar51mm, fr955]
 
 resources:
@@ -29,23 +30,23 @@ resources:
 
 elements:
   background: { type: rectangle, at: { anchor: center }, size: { width: 100%, height: 100% }, color: color.bg }
-  line_s10: { type: rectangle, at: { anchor: center, dy: -95px }, size: { width: 150px, height: 1px }, color: color.line }
-  new_s10: { type: icon, icon: heart, size: 10%r, at: { anchor: center, dx: -50px, dy: -95px }, color: color.ink }
-  old_s10: { type: icon, icon: heart, size: 10%r, at: { anchor: center, dx: -10px, dy: -95px }, align: top, color: color.ink, lint: { allow: [safe-area], reason: "build.sh redraws it centred on its row with VCENTER; the box assumes top" } }
-  text_s10: { type: text, text: "H8", font: font.probe, at: { anchor: center, dx: 40px, dy: -95px }, color: color.ink }
-  line_s15: { type: rectangle, at: { anchor: center, dy: -62px }, size: { width: 150px, height: 1px }, color: color.line }
-  new_s15: { type: icon, icon: heart, size: 15%r, at: { anchor: center, dx: -50px, dy: -62px }, color: color.ink }
-  old_s15: { type: icon, icon: heart, size: 15%r, at: { anchor: center, dx: -10px, dy: -62px }, align: top, color: color.ink, lint: { allow: [safe-area], reason: "build.sh redraws it centred on its row with VCENTER; the box assumes top" } }
-  text_s15: { type: text, text: "H8", font: font.probe, at: { anchor: center, dx: 40px, dy: -62px }, color: color.ink }
-  line_s20: { type: rectangle, at: { anchor: center, dy: -20px }, size: { width: 150px, height: 1px }, color: color.line }
-  new_s20: { type: icon, icon: heart, size: 20%r, at: { anchor: center, dx: -50px, dy: -20px }, color: color.ink }
-  old_s20: { type: icon, icon: heart, size: 20%r, at: { anchor: center, dx: -10px, dy: -20px }, align: top, color: color.ink, lint: { allow: [safe-area], reason: "build.sh redraws it centred on its row with VCENTER; the box assumes top" } }
-  text_s20: { type: text, text: "H8", font: font.probe, at: { anchor: center, dx: 40px, dy: -20px }, color: color.ink }
-  line_s25: { type: rectangle, at: { anchor: center, dy: 32px }, size: { width: 150px, height: 1px }, color: color.line }
-  new_s25: { type: icon, icon: heart, size: 25%r, at: { anchor: center, dx: -50px, dy: 32px }, color: color.ink }
-  old_s25: { type: icon, icon: heart, size: 25%r, at: { anchor: center, dx: -10px, dy: 32px }, align: top, color: color.ink, lint: { allow: [safe-area], reason: "build.sh redraws it centred on its row with VCENTER; the box assumes top" } }
-  text_s25: { type: text, text: "H8", font: font.probe, at: { anchor: center, dx: 40px, dy: 32px }, color: color.ink }
-  line_p30: { type: rectangle, at: { anchor: center, dy: 85px }, size: { width: 150px, height: 1px }, color: color.line }
-  new_p30: { type: icon, icon: heart, size: 30px, at: { anchor: center, dx: -50px, dy: 85px }, color: color.ink }
-  old_p30: { type: icon, icon: heart, size: 30px, at: { anchor: center, dx: -10px, dy: 85px }, align: top, color: color.ink, lint: { allow: [safe-area], reason: "build.sh redraws it centred on its row with VCENTER; the box assumes top" } }
-  text_p30: { type: text, text: "H8", font: font.probe, at: { anchor: center, dx: 40px, dy: 85px }, color: color.ink }
+  line_s10: { type: rectangle, at: { anchor: center, dy: -73%r }, size: { width: 125%r, height: 1px }, color: color.line }
+  new_s10: { type: icon, icon: heart, size: 10%r, at: { anchor: center, dx: -46%r, dy: -73%r }, color: color.ink }
+  old_s10: { type: icon, icon: heart, size: 10%r, at: { anchor: center, dx: -9%r, dy: -73%r }, align: top, color: color.ink, lint: { allow: [safe-area], reason: "build.sh redraws it centred on its row with VCENTER; the box assumes top" } }
+  text_s10: { type: text, text: "H8", font: font.probe, at: { anchor: center, dx: 33%r, dy: -73%r }, color: color.ink }
+  line_s15: { type: rectangle, at: { anchor: center, dy: -48%r }, size: { width: 125%r, height: 1px }, color: color.line }
+  new_s15: { type: icon, icon: heart, size: 15%r, at: { anchor: center, dx: -46%r, dy: -48%r }, color: color.ink }
+  old_s15: { type: icon, icon: heart, size: 15%r, at: { anchor: center, dx: -9%r, dy: -48%r }, align: top, color: color.ink, lint: { allow: [safe-area], reason: "build.sh redraws it centred on its row with VCENTER; the box assumes top" } }
+  text_s15: { type: text, text: "H8", font: font.probe, at: { anchor: center, dx: 33%r, dy: -48%r }, color: color.ink }
+  line_s20: { type: rectangle, at: { anchor: center, dy: -15%r }, size: { width: 125%r, height: 1px }, color: color.line }
+  new_s20: { type: icon, icon: heart, size: 20%r, at: { anchor: center, dx: -46%r, dy: -15%r }, color: color.ink }
+  old_s20: { type: icon, icon: heart, size: 20%r, at: { anchor: center, dx: -9%r, dy: -15%r }, align: top, color: color.ink, lint: { allow: [safe-area], reason: "build.sh redraws it centred on its row with VCENTER; the box assumes top" } }
+  text_s20: { type: text, text: "H8", font: font.probe, at: { anchor: center, dx: 33%r, dy: -15%r }, color: color.ink }
+  line_s25: { type: rectangle, at: { anchor: center, dy: 25%r }, size: { width: 125%r, height: 1px }, color: color.line }
+  new_s25: { type: icon, icon: heart, size: 25%r, at: { anchor: center, dx: -46%r, dy: 25%r }, color: color.ink }
+  old_s25: { type: icon, icon: heart, size: 25%r, at: { anchor: center, dx: -9%r, dy: 25%r }, align: top, color: color.ink, lint: { allow: [safe-area], reason: "build.sh redraws it centred on its row with VCENTER; the box assumes top" } }
+  text_s25: { type: text, text: "H8", font: font.probe, at: { anchor: center, dx: 33%r, dy: 25%r }, color: color.ink }
+  line_p30: { type: rectangle, at: { anchor: center, dy: 65%r }, size: { width: 125%r, height: 1px }, color: color.line }
+  new_p30: { type: icon, icon: heart, size: 30px, at: { anchor: center, dx: -46%r, dy: 65%r }, color: color.ink }
+  old_p30: { type: icon, icon: heart, size: 30px, at: { anchor: center, dx: -9%r, dy: 65%r }, align: top, color: color.ink, lint: { allow: [safe-area], reason: "build.sh redraws it centred on its row with VCENTER; the box assumes top" } }
+  text_p30: { type: text, text: "H8", font: font.probe, at: { anchor: center, dx: 33%r, dy: 65%r }, color: color.ink }
