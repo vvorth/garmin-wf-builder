@@ -532,8 +532,11 @@ function slots(index: SpanIndex): SlotEntry[] {
     const raw = g(entry, "choices");
     const choices = Array.isArray(raw)
       ? raw.map((c) => (isMap(c)
-        ? { type: name(c.get("type")), icon: iconSpelling(c.get("icon")), variant: name(c.get("variant")) }
-        : { type: name(c), icon: null, variant: null }))
+        ? {
+          type: name(c.get("type")), icon: iconSpelling(c.get("icon")), variant: name(c.get("variant")),
+          icons: c.has("icons") ? value(c.get("icons")) : null, absent: c.has("absent") ? value(c.get("absent")) : null,
+        }
+        : { type: name(c), icon: null, variant: null, icons: null, absent: null }))
       : name(raw);
     out.push({ name: String(slot), label: name(g(entry, "label")), default: name(g(entry, "default")), choices, drawn_by: slotDrawers(index, String(slot)) });
   }

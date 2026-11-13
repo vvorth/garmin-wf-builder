@@ -267,7 +267,7 @@ export function emitView(resolved: ResolvedFace, guards: Guards = NO_GUARDS, pro
     for (const placed of resolved.items) {
       if (placed instanceof PlacedData && placed.icon_font_key !== null) emitDataIconMethod(w, resolved, placed.id, placed.element.slot, guards);
       if (placed instanceof PlacedIcon && placed.element.slot !== null && resolved.fonts.has(placed.font_key)) {
-        emitDataIconMethod(w, resolved, placed.id, placed.element.slot, guards);
+        emitDataIconMethod(w, resolved, placed.id, placed.element.slot, guards, placed.element.absent !== null);
       }
       const followed = holdSlot(placed.element);
       if (followed !== null) emitDataHoldMethod(w, placed.id, followed, guards);

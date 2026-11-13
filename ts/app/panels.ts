@@ -152,21 +152,35 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
   // the list a switch to "every type" leaves, so switching back restores it
   const [kept, setKept] = useState<SlotChoice[] | null>(null);
   const listed = (name: string) => any || list.some((c) => c.type === name);
-  // a choice is written bare unless it carries an icon or a variant of its own
-  const written = (c: SlotChoice): Value =>
-    c.icon ? { type: c.type, icon: c.icon } : c.variant ? { type: c.type, variant: c.variant } : c.type;
-  const setChoices = (choices: SlotChoice[]) => onEdit({ op: "set", path: [...path, "choices"], value: choices.map(written) });
-  const toggle = (name: string) => setChoices(listed(name) ? list.filter((c) => c.type !== name)
-                                                           : [...list, { type: name, icon: null, variant: null }]);
+  // a choice is written bare unless it carries an icon, a variant, its own glyphs or an absent: of its own;
+  // its own icon replaces the type's, so the others go with it
+  const written = (c: SlotChoice): Value => {
+    const own: Record<string, Value> = c.icon ? { icon: c.icon } : {
+      ...(c.variant ? { variant: c.variant } : {}), ...(c.icons !== null ? { icons: c.icons } : {}), ...(c.absent !== null ? { absent: c.absent } : {}),
+    };
+    return Object.keys(own).length ? { type: c.type, ...own } : c.type;
+  };
+  const choicesPath: Path = [...path, "choices"];
+  // A pick added or dropped, or one choice rewritten, edits that entry alone: the others keep their text as
+  // written, a set's numbered keys among it (a whole list written back would quote them).
+  const fresh = (name: string): SlotChoice => ({ type: name, icon: null, variant: null, icons: null, absent: null });
+  const add = (name: string) => onEdit({ op: "insert_item", path: choicesPath, at: list.length, value: written(fresh(name)) });
+  const toggle = (name: string) => (listed(name)
+    ? onEdit({ op: "remove_item", path: choicesPath, at: list.findIndex((c) => c.type === name) }) : add(name));
   const setDefault = (name: string) => {
-    if (!listed(name)) setChoices([...list, { type: name, icon: null, variant: null }]);
+    if (!listed(name)) add(name);
     onEdit({ op: "set", path: [...path, "default"], value: name });
   };
-  // an icon of the choice's own replaces the type's, so it takes a variant with it
+  const rewrite = (name: string, change: (c: SlotChoice) => SlotChoice) => {
+    const at = list.findIndex((c) => c.type === name);
+    onEdit({ op: "set", path: [...choicesPath, at], value: written(change(list[at]!)) });
+  };
+  // an icon of the choice's own replaces the type's, so it takes a variant, its own glyphs and its absent: with it
   const setIcon = (name: string, icon: FixedIconSpelling | null) =>
-    setChoices(list.map((c) => (c.type === name ? { ...c, icon, variant: icon ? null : c.variant } : c)));
+    rewrite(name, (c) => (icon ? { ...c, icon, variant: null, icons: null, absent: null } : { ...c, icon }));
   const setVariant = (name: string, variants: string[], variant: string) =>
-    setChoices(list.map((c) => (c.type === name ? { ...c, variant: variant === variants[0] ? null : variant } : c)));
+    rewrite(name, (c) => ({ ...c, variant: variant === variants[0] ? null : variant }));
+  const setChoices = (choices: SlotChoice[]) => onEdit({ op: "set", path: choicesPath, value: choices.map(written) });
   const first = slot.default === null ? undefined : byName[slot.default];
   return html`<div class="slot-card">
     <div class="slot-head">
@@ -180,7 +194,7 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
       <span class="dim">until the wearer picks; click a ★ to change it</span></div>
     <label class="slot-line" title="the watch's own picker, with every type it has, including ones Garmin adds later">
       <input type="checkbox" checked=${any} onChange=${() => {
-        if (any) setChoices(kept && kept.length ? kept : [{ type: slot.default, icon: null, variant: null }]);
+        if (any) setChoices(kept && kept.length ? kept : [{ type: slot.default, icon: null, variant: null, icons: null, absent: null }]);
         else { setKept(list); onEdit({ op: "set", path: [...path, "choices"], value: "any" }); }
       }} /> the wearer may pick any type, including types Garmin adds later</label>
     <div class="slot-types">${(vocab.categories || []).map((group) => html`<div class="slot-group">
@@ -194,7 +208,7 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
           <button class=${"star" + (isDefault ? " on" : "")} title="show this first" onClick=${() => setDefault(t.name)}>${isDefault ? "★" : "☆"}</button>
           ${!any && choice ? html`<${IconPop} value=${choice.icon} placeholder=${t.icon} vocab=${vocab} allowNone
               onPick=${(v: IconSpelling | null) => { if (v === null || typeof v === "string" || "codepoint" in v) setIcon(t.name, v); }} />` : html`<${Glyph} name=${t.icon} vocab=${vocab} />`}
-          ${!any && choice && !choice.icon && t.variants.length > 0 ? html`<select class="choice-variant" aria-label=${`${t.label} icon variant`}
+          ${!any && choice && !choice.icon && choice.icons === null && t.variants.length > 0 ? html`<select class="choice-variant" aria-label=${`${t.label} icon variant`}
               title="which glyph set the icon steps through (variant:)"
               onChange=${(e: SelectEvent) => setVariant(t.name, t.variants, e.currentTarget.value)}>
               ${t.variants.map((v, i) => html`<option value=${v} selected=${(choice.variant ?? t.variants[0]) === v}>${v}${i === 0 ? " (default)" : ""}</option>`)}

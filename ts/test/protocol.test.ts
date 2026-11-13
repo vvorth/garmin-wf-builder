@@ -95,7 +95,7 @@ const globals = obj({
   layouts: list(str),
   layout_entries: list(obj({ name: str, label: nullable(str), elements: int, static: int, styles: list(str) })),
   fonts: list(obj({ name: str, source: nullable(str), face: value, size: value })),
-  slots: list(obj({ name: str, label: nullable(str), default: nullable(str), choices: oneOf(list(obj({ type: nullable(str), icon: nullable(str), variant: nullable(str) })), str, nul), drawn_by: list(str) })),
+  slots: list(obj({ name: str, label: nullable(str), default: nullable(str), choices: oneOf(list(obj({ type: nullable(str), icon: nullable(str), variant: nullable(str), icons: nullable(value), absent: nullable(value) })), str, nul), drawn_by: list(str) })),
   roles: list(str),
   axes: obj({
     accent_color: nullable(obj({ default: nullable(str), choices: oneOf(str, list(value)), raw: value, role: str, own_role: bool })),

@@ -151,10 +151,10 @@ config:
 `;
   const top = (globalsOf(slots, db) as any).slots.find((s: any) => s.name === "top");
   assert.deepEqual(top.choices, [
-    { type: "steps", icon: null, variant: null },
-    { type: "heart_rate", icon: { codepoint: "U+F0004" }, variant: null },
-    { type: "calories", icon: "fire", variant: null },
-    { type: "battery", icon: null, variant: "classic" },
+    { type: "steps", icon: null, variant: null, icons: null, absent: null },
+    { type: "heart_rate", icon: { codepoint: "U+F0004" }, variant: null, icons: null, absent: null },
+    { type: "calories", icon: "fire", variant: null, icons: null, absent: null },
+    { type: "battery", icon: null, variant: "classic", icons: null, absent: null },
   ]);
 });
 
@@ -737,11 +737,11 @@ test("a slot is declared, drawn and its choices edited from the panel", async ()
   doc.edit({ op: "set", path: ["config", "slots", "top", "label"], value: "Top" }, doc.version);
   const top = slotsOf(doc)["top"];
   assert.equal(top.label, "Top");
-  assert.deepEqual(top.choices, [{ type: "steps", icon: null, variant: null }, { type: "heart_rate", icon: "none", variant: null }]);
+  assert.deepEqual(top.choices, [{ type: "steps", icon: null, variant: null, icons: null, absent: null }, { type: "heart_rate", icon: "none", variant: null, icons: null, absent: null }]);
   assert.notEqual(doc.analysis().face, null);
   // a choice's variant, as the slot card writes it, is read back and admitted
   doc.edit({ op: "set", path: ["config", "slots", "top", "choices"], value: ["steps", { type: "battery", variant: "bars" }] }, doc.version);
-  assert.deepEqual(slotsOf(doc)["top"].choices[1], { type: "battery", icon: null, variant: "bars" });
+  assert.deepEqual(slotsOf(doc)["top"].choices[1], { type: "battery", icon: null, variant: "bars", icons: null, absent: null });
   assert.notEqual(doc.analysis().face, null);
 });
 

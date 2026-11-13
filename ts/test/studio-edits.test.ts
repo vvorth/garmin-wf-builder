@@ -1170,3 +1170,19 @@ elements:
   const zip = await call("download", { id: doc.id });
   assert.equal(readUpload(zip.filename ?? "x.yaml", zip.body!).files.size, 0);
 });
+
+test("the slot card's edits leave a choice's own glyphs as written: its numbered keys stay unquoted", async () => {
+  const client = await Client.open();
+  const text = new TextDecoder().decode(read(SLOT_GAUGE)).replace("choices: [steps, floors_climbed, intensity_minutes, battery,",
+    "choices: [steps, floors_climbed, intensity_minutes, {type: battery, icons: {0: battery_outline, 50: battery}, absent: hide},");
+  const doc = make(client.studio, text);
+  const choices = ["config", "slots", "top", "choices"];
+  // the slot card reads them, as written, to keep them when it rewrites the choice
+  const battery = (globalsOf(doc.text, db).slots.find((s) => s.name === "top")!.choices as { type: string }[]).find((c) => c.type === "battery");
+  assert.deepEqual(battery, { type: "battery", icon: null, variant: null, icons: { "0": "battery_outline", "50": "battery" }, absent: "hide" });
+  edit(doc, { op: "insert_item", path: choices, at: 6, value: "calories" });
+  edit(doc, { op: "remove_item", path: choices, at: 1 });
+  assert.match(doc.text, /\{type: battery, icons: \{0: battery_outline, 50: battery\}, absent: hide\}/);
+  assert.deepEqual(dataOf(doc).config.slots.top.choices.map((c: unknown) => (typeof c === "string" ? c : (c as { type: string }).type)),
+    ["steps", "intensity_minutes", "battery", "body_battery", "stress", "calories"]);
+});

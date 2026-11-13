@@ -350,6 +350,12 @@ export class ConfigDataSlot {
   icon_variants: Map<string, string> = new Map();
   /** A rule the face derives from a choice's own glyph set (`Face.registerIconRule`), by type: drawn instead of the type's built-in one. */
   custom_rules: Map<string, icons.IconRule> = new Map();
+  /**
+   * A choice's `absent:`, by type: what its icon draws instead of the type's
+   * own while the reading the icon follows is absent, `hide` for nothing.
+   * Only a type whose icon follows a rule has one.
+   */
+  absent_icons: Map<string, icons.SlotIcon | "hide"> = new Map();
   label: string | null = null;
   /** On a device without Toybox.Complications: fail the build (`error`), or read as absent there (`hide`). */
   unsupported: "error" | "hide" = "error";
@@ -374,6 +380,19 @@ export class ConfigDataSlot {
       if (rule !== undefined) out.set(name, rule);
     }
     return out;
+  }
+
+  /**
+   * What `type`'s icon draws while the reading it follows is absent: the
+   * choice's `absent:` glyph, `null` for `hide`, else the type's own icon.
+   * An icon element with an `absent:` of its own (`elementAbsent`) draws
+   * that instead, so the choice's gives way and the type's own icon is
+   * returned for the element to replace.
+   */
+  noReadingIcon(type: string, elementAbsent = false): icons.SlotIcon | null {
+    const absent = elementAbsent ? undefined : this.absent_icons.get(type);
+    if (absent === "hide") return null;
+    return absent ?? this.icons.get(type) ?? null;
   }
 
   /** Complication type to icon, for every choice that ends up with one. */

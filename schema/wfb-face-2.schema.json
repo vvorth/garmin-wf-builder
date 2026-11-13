@@ -1242,7 +1242,7 @@
       }
     },
     "slotChoice": {
-      "description": "One 'choices:' entry in an explicit slot list: a bare complication name, or a mapping naming it plus a per-choice icon ('icon:' -- a catalogue name, {codepoint: 'U+XXXX'} for a glyph in the vendored icon font, or 'none' to draw no icon for this choice) or a 'variant:' of the type's own icon. A type listed twice, in either shape, is an error: the watch reports only which type the wearer picked, so two entries of one type could not be told apart.",
+      "description": "One 'choices:' entry in an explicit slot list: a bare complication name, or a mapping naming it plus a per-choice icon ('icon:' -- a catalogue name, {codepoint: 'U+XXXX'} for a glyph in the vendored icon font, or 'none' to draw no icon for this choice), a 'variant:' of the type's own icon, your own glyphs for its states ('icons:'), or what its icon draws without a reading ('absent:'). A type listed twice, in either shape, is an error: the watch reports only which type the wearer picked, so two entries of one type could not be told apart.",
       "oneOf": [
         {
           "$ref": "#/$defs/complicationName"
@@ -1280,6 +1280,33 @@
             },
             "variant": {
               "$ref": "#/$defs/iconVariant"
+            },
+            "icons": {
+              "description": "Your own glyph for each state of the reading the type's icon follows, as a complete set, keyed as on an icon element's 'icon: {for:}': a level (battery, solar input) or a count (notifications) by the reading where each glyph starts, as unquoted numbers from 0 ({0: battery_outline, 50: battery_medium, 90: battery}); a weather type, the temperatures included (their icon follows the condition), by the built-in glyph names it replaces ({weather_rainy: weather_pouring}). Each value is a catalogue name or {codepoint: 'U+XXXX'}. Only on a type whose icon follows a reading; not with 'icon:', which replaces the type's icon, nor with 'variant:', which picks a built-in set. The glyph drawn without a reading is 'absent:', never a key here.",
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/iconGlyph"
+              }
+            },
+            "absent": {
+              "description": "What this choice's icon draws while the reading it follows is absent; only on a type whose icon follows a reading (a level, a count or a weather condition). Omitted, the type's own icon draws. 'hide' draws no icon; {icon: <name>} or {icon: {codepoint: 'U+XXXX'}} draws that glyph instead. An icon element drawing the slot ('slot:') with an 'absent:' of its own uses its own instead. An icon draws a glyph, so {text:} and {value:} are refused. Not with 'icon:', whose glyph never follows a reading.",
+              "oneOf": [
+                {
+                  "const": "hide"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "icon"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "icon": {
+                      "$ref": "#/$defs/iconGlyph"
+                    }
+                  }
+                }
+              ]
             }
           }
         }

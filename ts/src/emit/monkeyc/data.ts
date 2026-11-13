@@ -328,8 +328,19 @@ export function emitDataHoldMethod(w: WriterType, elementId: string, slot: strin
 /** The `WfbConditions` function reading each source an icon rule `follows` beside a complication's own reading. */
 const CONDITION_READER: ReadonlyMap<string, string> = new Map([["weather.condition", "current"], ["weather.condition_today", "today"]]);
 
-/** `iconFor<Id>(t)`: slot `slotName`'s picked type to its icon's catalogue name, for element `elementId`. */
-export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elementId: string, slotName: string, guards: Guards = NO_GUARDS): void {
+/** A complication type's name as a Monkey C local's prefix: `current_temperature` -> `currentTemperature`. */
+function camelType(name: string): string {
+  return name.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+}
+
+/**
+ * `iconFor<Id>(t)`: slot `slotName`'s picked type to its icon's catalogue
+ * name, for element `elementId`. `elementAbsent`: the element is an icon with
+ * an `absent:` of its own, which it draws itself, so a choice's `absent:`
+ * gives way to it here.
+ */
+export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elementId: string, slotName: string, guards: Guards = NO_GUARDS,
+  elementAbsent = false): void {
   const slot = resolved.face.config_data.get(slotName)!;
   const mapped = slot.icons;
   const names = slot.choices !== "any" ? slot.choices : sortedNames(mapped.keys());
@@ -351,24 +362,35 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
         if (icon === undefined) continue;
         const rule = rules.get(name);
         const follows = followed(name);
+        // Without the reading the icon follows: the type's own icon, or the choice's `absent:`.
+        const without = slot.noReadingIcon(name, elementAbsent);
+        const absentCode = without !== null ? `"${without.key}"` : "null";
         if (rule === undefined) {
           cases.push({ members: [name], body: `return "${icon.key}";` });
         } else if (follows !== undefined) {
           // The type carries none of the rule's reading: read the one it follows beside it.
           const reader = CONDITION_READER.get(follows.source);
           if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${follows.source}`);
-          cases.push({ members: [name], body: `return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");` });
+          if (rule === follows.rule && without !== null) {
+            cases.push({ members: [name], body: `return WfbConditions.iconOr(WfbConditions.${reader}(), ${absentCode});` });
+          } else {
+            // A face's own weather glyphs, or no icon without a condition: the barrel's iconOr knows neither, so
+            // the case reads the condition itself, into a local named for the type, as a switch's cases share one scope.
+            const local = `${camelType(name)}Condition`;
+            cases.push({ members: [name], body: `var ${local} = WfbConditions.${reader}(); `
+              + `return (${local} != null) ? IconGlyphs.${icons.ruleFunction(rule)}(${local}) : ${absentCode};` });
+          }
         } else if (icons.choosesInline(rule) && !icons.readsWholeNumbers(rule)) {
           // A reading that may be a Float: compared as a number of either kind, never tested `instanceof Lang.Number` alone.
           const chain = floatThresholdChain(rule);
-          cases.push({ members: [name], body: `return (value instanceof Lang.Number || value instanceof Lang.Float) ? (${chain}) : "${icon.key}";` });
+          cases.push({ members: [name], body: `return (value instanceof Lang.Number || value instanceof Lang.Float) ? (${chain}) : ${absentCode};` });
         } else if (icons.choosesInline(rule)) {
           const last = rule.steps[rule.steps.length - 1]!;
           const chain = thresholdBands(rule).map(({ test, name: step }) => `(value instanceof Lang.Number && ${test}) ? "${step}" : `).join("");
-          const rest = last === icon.key ? `"${icon.key}"` : `(value instanceof Lang.Number) ? "${last}" : "${icon.key}"`;
+          const rest = last === without?.key ? absentCode : `(value instanceof Lang.Number) ? "${last}" : ${absentCode}`;
           cases.push({ members: [name], body: `return ${chain}${rest};` });
         } else {
-          cases.push({ members: [name], body: `return (value instanceof Lang.Number) ? IconGlyphs.${icons.ruleFunction(rule)}(value) : "${icon.key}";` });
+          cases.push({ members: [name], body: `return (value instanceof Lang.Number) ? IconGlyphs.${icons.ruleFunction(rule)}(value) : ${absentCode};` });
         }
       }
       emitTypeSwitch(w, guards, cases, { fallback: "return null;" });

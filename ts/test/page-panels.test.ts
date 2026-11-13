@@ -168,7 +168,8 @@ test("a slot card ticks stars and opens to every type", async () => {
   const printed = await render(text, "\n      await openSection(\"Slots\");\n      const card = find((e) => cls(e) === \"slot-card\")[0];\n      const row = (label) => card.all((e) => [\"slot-type\", \"slot-type off\"].includes(cls(e))\n                                       && e.textContent.includes(label))[0];\n      const box = (label) => row(label).all((e) => e.localName === \"input\")[0];\n      out([\"Steps\", \"Floors climbed\", \"Heart rate\"].map((l) => \"checked\" in box(l).attributes || box(l).checked === true));\n      box(\"Floors climbed\").dispatch(\"change\"); await settle();\n      await click(row(\"Calories\").all((e) => cls(e).startsWith(\"star\"))[0]);\n      const anyBox = card.all((e) => e.localName === \"input\" && e.parentNode.localName === \"label\")[0];\n      anyBox.dispatch(\"change\"); await settle();\n      out(edits);\n    ");
   assert.deepEqual(printed[0], [true, true, false]);
   const top = ["config", "slots", "top"];
-  assert.deepEqual(printed[1], [{"op": "set", "path": [...top, ...["choices"]], "value": ["steps", "intensity_minutes", "battery", "body_battery", "stress"]}, {"op": "set", "path": [...top, ...["choices"]], "value": ["steps", "floors_climbed", "intensity_minutes", "battery", "body_battery", "stress", "calories"]}, {"op": "set", "path": [...top, ...["default"]], "value": "calories"}, {"op": "set", "path": [...top, ...["choices"]], "value": "any"}]);
+  // a pick dropped or added edits that entry alone
+  assert.deepEqual(printed[1], [{"op": "remove_item", "path": [...top, "choices"], "at": 1}, {"op": "insert_item", "path": [...top, "choices"], "at": 6, "value": "calories"}, {"op": "set", "path": [...top, ...["default"]], "value": "calories"}, {"op": "set", "path": [...top, ...["choices"]], "value": "any"}]);
 });
 
 test("a slot card offers a battery choice's icon variants, written variant: unless the default", async () => {
@@ -190,15 +191,36 @@ test("a slot card offers a battery choice's icon variants, written variant: unle
   let printed = await render(text, script.replace("PICK", "bars"));
   assert.deepEqual(printed[0], [["fill (default)", "bars", "classic"], true]);
   assert.deepEqual(printed[1], ["fill (default)"]);
-  assert.deepEqual(printed[2], [
-    { op: "set", path: choices, value: ["steps", "floors_climbed", "intensity_minutes", { type: "battery", variant: "bars" }, "body_battery", "stress"] },
-  ]);
+  assert.deepEqual(printed[2], [{ op: "set", path: [...choices, 3], value: { type: "battery", variant: "bars" } }]);
   // a choice written with variant: bars shows it, and the default picked writes the bare name again
   const barred = summary(repoText("examples/features/slot-gauge/face.yaml")
     .replace("choices: [steps, floors_climbed, intensity_minutes, battery,", "choices: [steps, floors_climbed, intensity_minutes, {type: battery, variant: bars},"));
   printed = await render(barred, script.replace("PICK", "fill"));
   assert.deepEqual(printed[1], ["bars"]);
-  assert.deepEqual(printed[2], [{ op: "set", path: choices, value: ["steps", "floors_climbed", "intensity_minutes", "battery", "body_battery", "stress"] }]);
+  assert.deepEqual(printed[2], [{ op: "set", path: [...choices, 3], value: "battery" }]);
+});
+
+test("a slot card keeps a choice's own glyphs and absent: when another type is ticked, and its own icon replaces them", async () => {
+  const text = summary(repoText("examples/features/slot-gauge/face.yaml")
+    .replace("choices: [steps, floors_climbed, intensity_minutes, battery,",
+      "choices: [steps, floors_climbed, intensity_minutes, {type: battery, icons: {0: battery_outline, 50: battery}, absent: hide},"));
+  const printed = await render(text, `
+      await openSection("Slots");
+      const card = find((e) => cls(e) === "slot-card")[0];
+      const row = (label) => card.all((e) => ["slot-type", "slot-type off"].includes(cls(e))
+                                       && e.all((s) => cls(s) === "label" && s.textContent === label).length > 0)[0];
+      out(row("Battery").all((e) => e.localName === "select").length);
+      row("Calories").all((e) => e.localName === "input")[0].dispatch("change"); await settle();
+      row("Floors climbed").all((e) => e.localName === "input")[0].dispatch("change"); await settle();
+      out(edits);
+    `);
+  // a variant cannot sit beside a set of its own, so the battery row offers none
+  assert.equal(printed[0], 0);
+  const choices = ["config", "slots", "top", "choices"];
+  assert.deepEqual(printed[1], [
+    { op: "insert_item", path: choices, at: 6, value: "calories" },
+    { op: "remove_item", path: choices, at: 1 },
+  ]);
 });
 
 test("a slot card marks what each type supports, dimly, explained on hover", async () => {

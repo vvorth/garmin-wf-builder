@@ -261,6 +261,10 @@ export interface SlotChoice {
   icon: FixedIconSpelling | null;
   /** The choice's `variant:` of its type's icon, or `null` for the default. */
   variant: string | null;
+  /** The choice's own glyph per state (`icons:`), as written, or `null`; an edit to another choice leaves it in place. */
+  icons: Value | null;
+  /** What the choice's icon draws without a reading (`absent:`), as written, or `null`. */
+  absent: Value | null;
 }
 
 /** One `config: slots:` entry. */

@@ -146,17 +146,28 @@ export function withSubstitute(tag: string, glyphs: string, substitute: string |
  * The sample frame's icon for `shown`: its catalogue glyph, or, for a type
  * whose icon follows a rule, the rule's glyph for the sample reading (a
  * temperature's for the sample condition it reads beside it). As on the
- * watch, a reading that is not a whole number draws the type's own icon.
+ * watch, a reading that is not a whole number draws the type's own icon (a
+ * face's own level set compares any number), and no reading the choice's
+ * `absent:`, unless `elementAbsent` (an icon element's own) takes over.
  */
-export function slotSampleGlyph(slot: ConfigDataSlot, shown: string, sample: unknown): string | null {
+export function slotSampleGlyph(slot: ConfigDataSlot, shown: string, sample: unknown, elementAbsent = false): string | null {
   const icon = slot.icons.get(shown);
   if (icon === undefined) return null;
   const rule = slot.rules.get(shown);
   if (rule === undefined) return icon.codepoint;
   const followed = icons.RULE_FOLLOWED.get(`complication.${shown}`);
   const reading = followed !== undefined ? SAMPLE.get(followed.source) : sample;
-  if (typeof reading !== "number" || !Number.isInteger(reading)) return icon.codepoint;
+  // A face's own level set compares a Float as it is; every other rule draws a whole number only.
+  const anyNumber = icons.choosesInline(rule) && !icons.readsWholeNumbers(rule);
+  if (typeof reading !== "number" || !(anyNumber || Number.isInteger(reading))) {
+    return reading === null || reading === undefined ? slot.noReadingIcon(shown, elementAbsent)?.codepoint ?? null : icon.codepoint;
+  }
   return icons.glyphOf(icons.ruleIconName(rule, reading));
+}
+
+/** The sample reading a slot's icon follows on the host: `null` where the frame's sample says the reading is absent. */
+export function slotIconSample(shown: string, ctx: DrawContext): unknown {
+  return ctx.dataSample(shown) === null ? null : slotSample(shown, ctx);
 }
 
 /** The sample reading a slot showing `shown` draws on the host. */
@@ -233,11 +244,24 @@ export function slotIconRun(label: string, face: Face, slotName: string, size: L
       table.set(name, glyph);
     }
   }
+  // A choice's `absent: {icon:}` draws without the reading, so the font holds it as well.
+  for (const absent of slot.absent_icons.values()) {
+    if (absent === "hide") continue;
+    codepoints.add(absent.codepoint);
+    table.set(absent.key, absent.codepoint);
+  }
   // An icon element's `absent: {icon:}` draws while the pick's reading is absent, so the font holds it too.
   const [tag, glyphs] = withSubstitute(slotName, [...codepoints].sort(comparePoints).join(""), substitute);
+  const chosen = rules.filter((rule) => !icons.choosesInline(rule)).map((rule) => rule.name);
+  // A type whose icon follows a reading beside its own (a temperature's, the condition) brings in the
+  // barrel that reads it, whose fallback calls the built-in chooser by name, even where a face's own set
+  // replaced it on this slot.
+  for (const name of slot.rules.keys()) {
+    const followed = icons.RULE_FOLLOWED.get(`complication.${name}`);
+    if (followed !== undefined && !chosen.includes(followed.rule.name)) chosen.push(followed.rule.name);
+  }
   return new TextRun(label, key ?? slotIconFontKey(tag, size, antialias, turn as number), {
-    span, icon: new IconFont(size, glyphs, reference, antialias, turn), glyph_table: table,
-    rules: rules.filter((rule) => !icons.choosesInline(rule)).map((rule) => rule.name),
+    span, icon: new IconFont(size, glyphs, reference, antialias, turn), glyph_table: table, rules: chosen,
   });
 }
 
@@ -656,7 +680,7 @@ class DataKind extends ElementKind<DataElement> {
     ];
     if (p.icon_font_key !== null) {
       ops.push(SlotIcon(fontField(p.icon_font_key), p.icon_font_key, dataIconMethod(element.id), guarded,
-        slotSampleGlyph(slot, shown, slotSample(shown, ctx))));
+        slotSampleGlyph(slot, shown, slotIconSample(shown, ctx))));
     }
     let font: Font;
     if (p.font.is_vector) {

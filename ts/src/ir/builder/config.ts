@@ -162,6 +162,9 @@ export class ConfigAxes extends TopLevelBlocks {
       const choices: string[] = [];
       const iconOverrides = new Map<string, icons.SlotIcon | null>();
       const iconVariants = new Map<string, string>();
+      const absentIcons = new Map<string, icons.SlotIcon | "hide">();
+      // Each choice's own glyph set, registered on the face once the slot exists.
+      const sets: { type: string; family: icons.IconRule; set: icons.CustomSet }[] = [];
       const seen = new Map<string, number>();
       let ok = true;
       (rawChoices as Data[]).forEach((item, index) => {
@@ -181,7 +184,24 @@ export class ConfigAxes extends TopLevelBlocks {
             return;
           }
           if (override !== NO_ICON_OVERRIDE) iconOverrides.set(resolved, override);
-          if (item.has("variant")) {
+          const where = `config.slots.${name}.choices[${index}]`;
+          if (item.has("icons")) {
+            const set = this.choiceIconSet(item, resolved, where, override !== NO_ICON_OVERRIDE);
+            if (set === null) {
+              ok = false;
+              return;
+            }
+            sets.push({ type: resolved, ...set });
+          }
+          if (item.has("absent")) {
+            const absent = this.choiceAbsent(item, resolved, where, override !== NO_ICON_OVERRIDE);
+            if (absent === null) {
+              ok = false;
+              return;
+            }
+            absentIcons.set(resolved, absent);
+          }
+          if (item.has("variant") && !item.has("icons")) {
             if (override !== NO_ICON_OVERRIDE) {
               this.bag.error("icon", `config.slots.${name}.choices[${index}]: 'variant:' picks the type's own icon, which this choice's 'icon:' replaces`,
                 this.doc.span(item, "variant"), { notes: ["keep one of the two"] });
@@ -229,10 +249,69 @@ export class ConfigAxes extends TopLevelBlocks {
         this.config_data.reject(name);
         continue;
       }
-      this.config_data.set(name, ConfigDataSlot.create({
-        name, default: defaultType, choices, icon_overrides: iconOverrides, icon_variants: iconVariants, label, unsupported, span,
-      }));
+      const slot = ConfigDataSlot.create({
+        name, default: defaultType, choices, icon_overrides: iconOverrides, icon_variants: iconVariants, absent_icons: absentIcons,
+        label, unsupported, span,
+      });
+      this.config_data.set(name, slot);
+      for (const { type, family, set } of sets) this.icon_sets.push({ family, set, assign: (rule) => { slot.custom_rules.set(type, rule); } });
     }
+  }
+
+  /**
+   * A choice's `icons:` over the rule `type`'s icon follows (a temperature's
+   * the weather condition's), checked as an icon element's are; `null` after
+   * one error. `ownIcon`: the choice also has an `icon:` of its own.
+   */
+  private choiceIconSet(item: Node, type: string, where: string, ownIcon: boolean):
+    { family: icons.IconRule; set: icons.CustomSet } | null {
+    const span = this.doc.span(item, "icons");
+    if (ownIcon) {
+      this.bag.error("icon", `${where}: 'icon:' replaces the type's icon; 'icons:' gives its states your own glyphs -- keep one`, span);
+      return null;
+    }
+    const family = icons.complicationRule(type);
+    if (family === undefined) {
+      this.bag.error("icon", `icons: -- ${type}'s icon follows no reading, so it has no states to give glyphs`, span, {
+        notes: [`only a type whose icon follows a reading takes 'icons:': ${complications.names().filter((t) => icons.complicationRule(t) !== undefined).join(", ")}`,
+          "a single glyph of your own for this choice is 'icon: <name>'"],
+      });
+      return null;
+    }
+    const set = this.iconSet(item, family, type);
+    return set !== null ? { family, set } : null;
+  }
+
+  /**
+   * A choice's `absent:`: `hide`, or the glyph drawn while the reading its
+   * icon follows is absent; `null` after one error. Only a type whose icon
+   * follows a rule has a reading to lose. `ownIcon`: the choice also has an
+   * `icon:` of its own, which never follows one.
+   */
+  private choiceAbsent(item: Node, type: string, where: string, ownIcon: boolean): icons.SlotIcon | "hide" | null {
+    const raw = item.get("absent");
+    const span = this.doc.span(item, "absent");
+    if (ownIcon) {
+      this.bag.error("when-absent", `${where}: 'absent:' says what the type's icon draws without a reading, which this choice's 'icon:' replaces`,
+        span, { notes: ["a choice's own 'icon:' is one glyph that never follows a reading -- keep one of the two"] });
+      return null;
+    }
+    if (icons.complicationRule(type) === undefined) {
+      this.bag.error("when-absent", `${where}: 'absent:' needs an icon that follows data -- ${type}'s icon never reads the value, so it is never without a reading`,
+        span, { notes: ["drop 'absent:'; the type's icon draws whatever the reading"] });
+      return null;
+    }
+    if (raw === "hide") return "hide";
+    if (!(raw instanceof Map)) throw new Error("the schema allows 'absent: hide' or {icon:} on a slot choice");
+    const spec = raw.get("icon");
+    const iconSpan = this.doc.span(raw, "icon") ?? span;
+    if (spec instanceof Map) {
+      const character = this.resolveIconGlyph(str(spec.get("codepoint")), this.doc.span(spec, "codepoint") ?? iconSpan);
+      return character !== null ? new icons.SlotIcon(icons.codepointKey(character), character) : null;
+    }
+    const glyphName = str(spec);
+    const codepoint = this.resolveIconName(glyphName, iconSpan, true);
+    return codepoint !== null ? new icons.SlotIcon(glyphName, codepoint) : null;
   }
 
   /** `config:`: the colour axes, the Styles axis and the Data axis. */

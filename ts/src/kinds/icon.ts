@@ -6,7 +6,7 @@ import { ICON_SIZE_NOTE } from "../ir/builder/glyphs.ts";
 import { type Element, type Face, HOLD_AUTO, IconElement } from "../ir/model.ts";
 import { configDataIds, configField, dataIconMethod, localName } from "../ir/naming.ts";
 import {
-  comparePoints, resolveSlotReference, slotIconFontKey, slotIconRun, slotReferenceGlyph, slotSample, slotSampleGlyph, withSubstitute,
+  comparePoints, resolveSlotReference, slotIconFontKey, slotIconRun, slotIconSample, slotReferenceGlyph, slotSampleGlyph, withSubstitute,
 } from "./data.ts";
 import * as icons from "../icons.ts";
 import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
@@ -276,7 +276,7 @@ class IconKind extends ElementKind<IconElement> {
       Comment(`slot: ${element.slot} -- the icon of the wearer's pick`),
       SlotPull(configField(`data_${element.slot}`), ctx.complications_guarded, ctx.dataSample(shown) ?? null),
       SlotIcon(fontField(p.font_key), p.font_key, dataIconMethod(element.id), ctx.complications_guarded,
-        slotSampleGlyph(slot, shown, slotSample(shown, ctx)),
+        slotSampleGlyph(slot, shown, slotIconSample(shown, ctx), element.absent !== null),
         element.absent !== null ? { glyph: substituteGlyph(element), shown: vocab.absent(element) } : null),
     ];
     const prefix = constPrefix(p.id);
