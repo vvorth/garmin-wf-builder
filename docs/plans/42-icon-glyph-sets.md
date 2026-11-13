@@ -1,7 +1,6 @@
 # 42 — Your own glyphs for a dynamic icon: `icons:`
 
-**Status: proposed, not started. D1–D6 decided (2026-11-13); D7–D9 open,
-each with a recommendation.** Delete this file once every slice has
+**Status: in progress. D1–D9 decided (2026-11-13; D7–D9 as recommended).** Delete this file once every slice has
 shipped (`docs/CLAUDE.md`).
 
 Builds on the icon rules (`ts/src/data/icons.json`'s `rules`, read by
@@ -60,20 +59,19 @@ config:
   as an element already has. `icons:` and `variant:` are refused together,
   as are `icons:` and a choice's own `icon:`.
 
-### Open, with a recommendation
+### Decided as recommended (2026-11-13)
 
 - **D7: element `absent:` against a choice's `absent:`.** An icon element
   drawing a slot (`slot:`) and that slot's chosen type can both say what
-  to draw without a reading. *Recommended:* the element's wins, because it
+  to draw without a reading. The element's wins, because it
   is the more specific drawing; the choice's applies where the element
   says nothing; the rule's plain glyph applies where neither does.
 - **D8: `none` as a value.** `{0: none, 20: battery_low, …}` would draw
-  nothing in a band. *Recommended:* not in this plan (`absent: hide`
+  nothing in a band. Not in this plan (`absent: hide`
   covers the no-reading case); add it later if a face needs it.
 - **D9: sharing.** Two elements or choices with the same set (same rule,
-  same keys and glyphs) could share one generated chooser and font.
-  *Recommended:* yes. Name each distinct set by order of first use
-  (`batteryCustom1Icon`), which is deterministic and gives the shared view
+  same keys and glyphs) share one generated chooser and font. Each distinct set by order of first use
+  (`batteryCustom1Icon`) is named by order of first use, which is deterministic and gives the shared view
   the same symbols on every device.
 
 ## 3. Rules and their keys
