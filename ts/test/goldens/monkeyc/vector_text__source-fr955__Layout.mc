@@ -41,6 +41,7 @@ module Layout {
     const CLOCK_X as Number = 130;
     const CLOCK_Y as Number = 120;
     const CLOCK_WIDTH as Number = 98;  // widest rendering "23:59" is 98 px
+    const CLOCK_HALF as Number = 28;  // the line is drawn from this far above Y: half its 54 px line rounded up, plus the 1 px a baked glyph drops
 
     //! `upright_vector` -- fixed text
     const UPRIGHT_VECTOR_X as Number = 130;

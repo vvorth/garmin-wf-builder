@@ -1,11 +1,14 @@
-// A centred baked icon is drawn top-justified from a build-time cell top,
-// its centre less half its font's line height rounded up, and never through
-// the watch's TEXT_JUSTIFY_VCENTER, which the simulator drew about 2 px off
-// y - lineHeight/2 for a baked font (docs/lore/rendering.md).
+// A centred line in a baked font (an icon, a text, a data reading, a pattern
+// text part) is drawn top-justified from a build-time top: its centre less
+// half its font's line height rounded up, less the 1 px the watch draws every
+// baked glyph low. Never through the watch's TEXT_JUSTIFY_VCENTER, which the
+// simulator drew 1 or 2 px low by no single rule. The preview pastes every
+// baked glyph 1 px low too, so the cell lands at centre - ceil(line/2) in both
+// (docs/lore/rendering.md).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { BakedFont } from "../src/fonts/bmfont.ts";
-import type { PlacedData, PlacedIcon } from "../src/layout.ts";
+import type { PlacedData, PlacedIcon, PlacedText } from "../src/layout.ts";
 import { previewOptions, render } from "../src/preview.ts";
 import { generated, method, MINIMAL, resolved, view } from "./designs.ts";
 
@@ -70,7 +73,7 @@ test("a type: icon's draw call is top-justified at its centre less half its line
     const p = placed<PlacedIcon>(text, "glyph", id);
     const line = resolved(text, id).fonts.get(p.font_key)!.line_height;
     assert.equal(p.line_height, line, id);
-    assert.match(files.get(`source-${id}/Layout.mc`)!, new RegExp(`const GLYPH_TOP as Number = ${p.center[1] - Math.ceil(line / 2)};`), id);
+    assert.match(files.get(`source-${id}/Layout.mc`)!, new RegExp(`const GLYPH_TOP as Number = ${p.center[1] - Math.ceil(line / 2) - 1};`), id);
     assert.doesNotMatch(files.get(`source-${id}/Layout.mc`)!, /GLYPH_CY/, id);
     // The lint box is the cell the watch draws.
     assert.equal(p.box.y, p.center[1] - Math.ceil(line / 2), id);
@@ -92,7 +95,7 @@ test("a data element's icon beside the reading is top-justified from its _ICON_H
       const p = placed<PlacedData>(text, "pocket", id);
       const line = resolved(text, id).fonts.get(p.icon_font_key!)!.line_height;
       assert.equal(p.icon_line_height, line, id);
-      assert.match(files.get(`source-${id}/Layout.mc`)!, new RegExp(`const POCKET_ICON_HALF as Number = ${Math.ceil(line / 2)};`), id);
+      assert.match(files.get(`source-${id}/Layout.mc`)!, new RegExp(`const POCKET_ICON_HALF as Number = ${Math.ceil(line / 2) + 1};`), id);
       return line;
     });
     assert.notEqual(lines[0]! % 2, lines[1]! % 2, `lines ${lines}: one odd, one even`);
@@ -159,7 +162,7 @@ test("a turned icon is top-justified from its own turned font's half line, its i
     assert.equal(font.rotate, 45, id);
     const line = font.line_height;
     assert.equal(p.line_height, line, id);
-    assert.match(generated(text).get(`source-${id}/Layout.mc`)!, new RegExp(`const GLYPH_TOP as Number = ${p.center[1] - Math.ceil(line / 2)};`), id);
+    assert.match(generated(text).get(`source-${id}/Layout.mc`)!, new RegExp(`const GLYPH_TOP as Number = ${p.center[1] - Math.ceil(line / 2) - 1};`), id);
     const { rows } = ink(text, id, red);
     const middle = (rows[0] + rows[1] + 1) / 2;
     assertCentredCell(font, p.center[1], rows, `${id}: turned, middle ${middle}`);
@@ -171,4 +174,92 @@ test("an icon aligned to its top or bottom keeps CY and its own justification", 
   assert.match(top, /dc\.drawText\(Layout\.GLYPH_CX, Layout\.GLYPH_CY, font,\s+"[^"]+",\s+Graphics\.TEXT_JUSTIFY_CENTER\);/);
   const bottom = method(view(icon("    align: bottom\n")), "drawGlyph");
   assert.match(bottom, /Layout\.GLYPH_CY - dc\.getFontHeight\(font\)/);
+});
+
+const OPEN_SANS = "ts/test/fixtures/slice/assets/OpenSans-Regular.ttf";
+const withFont = (text: string): string =>
+  text.replace("resources:\n", `resources:\n  fonts:\n    body: {source: ${OPEN_SANS}, size: 14%r}\n`);
+
+/** A centred text; 14%r of Open Sans bakes a 26 px line on fenix8solar47mm and a 28 px one on fenix8solar51mm. */
+const label = (font = "font.body", extra = ""): string => `${withFont(TARGETS)}
+  label:
+    type: text
+    text: "H8"
+    font: ${font}
+    at: {anchor: center, dy: 7.6px}
+    color: color.hot
+${extra}`;
+
+test("the preview pastes every baked glyph 1 px below its .fnt place, as the watch draws it", () => {
+  for (const id of DEVICES) {
+    const text = icon("    align: top\n");
+    const p = placed<PlacedIcon>(text, "glyph", id);
+    const font = resolved(text, id).fonts.get(p.font_key)!;
+    const glyph = [...font.glyphs.values()].find((g) => g.height > 0)!;
+    assert.deepEqual(ink(text, id, red).rows, [p.center[1] + glyph.yoffset + 1, p.center[1] + glyph.yoffset + glyph.height], id);
+  }
+});
+
+test("a centred text in a baked font is top-justified from its _HALF, never VCENTER, its cell centred in the preview", () => {
+  const text = label();
+  const draw = method(view(text), "drawLabel");
+  assert.match(draw, /dc\.drawText\(Layout\.LABEL_X, Layout\.LABEL_Y - Layout\.LABEL_HALF, font,\s+"H8",\s+Graphics\.TEXT_JUSTIFY_CENTER\);/);
+  assert.doesNotMatch(draw, /VCENTER/);
+  const files = generated(text);
+  const lines = DEVICES.map((id) => {
+    const p = placed<PlacedText>(text, "label", id);
+    const font = resolved(text, id).fonts.get("body")!;
+    assert.match(files.get(`source-${id}/Layout.mc`)!, new RegExp(`const LABEL_HALF as Number = ${Math.ceil(font.line_height / 2) + 1};`), id);
+    assertCentredCell(font, p.anchor_point[1], ink(text, id, red).rows, `${id} (line ${font.line_height})`);
+    return font.line_height;
+  });
+  assert.equal(new Set(lines).size, 2, `lines ${lines}`);
+});
+
+test("a centred text keeps VCENTER in a system font, aligned top, or with an aod: font override, and gets no _HALF", () => {
+  for (const [what, text] of [
+    ["system font", label("FONT_SMALL")],
+    ["align: top", label("font.body", "    align: top\n")],
+    ["aod: font", label("font.body", "    aod: {visible: true, font: FONT_SMALL}\n")],
+  ] as const) {
+    assert.doesNotMatch(generated(text).get("source-fenix8solar47mm/Layout.mc")!, /LABEL_HALF/, what);
+    if (what !== "align: top") assert.match(method(view(text), "drawLabel"), /TEXT_JUSTIFY_VCENTER/, what);
+  }
+});
+
+test("a data reading in a baked font beside its icon is top-justified from its _TEXT_HALF; stacked, it needs none", () => {
+  const text = pair().replace("font: FONT_SMALL", "font: font.body").replace("resources:\n", `resources:\n  fonts:\n    body: {source: ${OPEN_SANS}, size: 14%r}\n`);
+  const draw = method(view(text), "drawPocket");
+  assert.match(draw, /Layout\.POCKET_CY - Layout\.POCKET_TEXT_HALF, textFont, text,\s+Graphics\.TEXT_JUSTIFY_LEFT\);/);
+  assert.doesNotMatch(draw, /VCENTER/);
+  for (const id of DEVICES) {
+    const line = resolved(text, id).fonts.get("body")!.line_height;
+    assert.match(generated(text).get(`source-${id}/Layout.mc`)!, new RegExp(`const POCKET_TEXT_HALF as Number = ${Math.ceil(line / 2) + 1};`), id);
+  }
+  const stacked = text.replace("position: left", "position: top");
+  assert.doesNotMatch(generated(stacked).get("source-fenix8solar47mm/Layout.mc")!, /TEXT_HALF/);
+});
+
+test("a pattern's text part in a baked font is top-justified from its _HALF", () => {
+  const text = `${withFont(TARGETS)}
+  numerals:
+    type: pattern
+    pattern: radial
+    at: {anchor: center}
+    count: 4
+    color: color.hot
+    parts:
+      numeral:
+        type: text
+        text: "{copy}"
+        font: font.body
+        at: {dy: -40%r}
+`;
+  const draw = method(view(text), "drawNumerals");
+  assert.match(draw, /WfbGeom\.rotatedY\([^;]*\) - Layout\.NUMERALS_0_HALF,/);
+  assert.doesNotMatch(draw, /VCENTER/);
+  for (const id of DEVICES) {
+    const line = resolved(text, id).fonts.get("body")!.line_height;
+    assert.match(generated(text).get(`source-${id}/Layout.mc`)!, new RegExp(`const NUMERALS_0_HALF as Number = ${Math.ceil(line / 2) + 1};`), id);
+  }
 });

@@ -23,7 +23,7 @@ import { fontForHeight, type SystemFace } from "./fonts/fallback.ts";
 import { bounds, flatten, rasterise } from "./fonts/raster.ts";
 import { type Element, type Expression, type Face, type StyleEntry } from "./ir/model.ts";
 import { type RingGroup, ringGroups } from "./ir/rings.ts";
-import { alignmentShift, type Placed, radialAlignOffset, radialDirectionSign, radialSpacingRadius, type ResolvedFace } from "./layout.ts";
+import { alignmentShift, BAKED_GLYPH_DROP, type Placed, radialAlignOffset, radialDirectionSign, radialSpacingRadius, type ResolvedFace } from "./layout.ts";
 import { Color, MIP64_SNAP, MONO_LUMINANCE, MONO_THRESHOLD } from "./palette.ts";
 import { degrees, radians, roundHalfEven } from "./py.ts";
 import { composite, ellipse, type Image, image as newImage, paste, rectangle, type Tile } from "./raster/pillow.ts";
@@ -405,7 +405,8 @@ export class Renderer {
       alpha.set(sheet.bytes.subarray((glyph.y + row) * sheet.width + glyph.x, (glyph.y + row) * sheet.width + glyph.x + glyph.width), row * glyph.width);
     }
     const tile = enlargeTile(maskTile(glyph.width, glyph.height, alpha), this.scale);
-    this.place(tile, Math.trunc(x + glyph.xoffset * this.scale), Math.trunc(y + glyph.yoffset * this.scale), color);
+    // The watch draws every baked glyph BAKED_GLYPH_DROP px below where its `.fnt` places it.
+    this.place(tile, Math.trunc(x + glyph.xoffset * this.scale), Math.trunc(y + (glyph.yoffset + BAKED_GLYPH_DROP) * this.scale), color);
   }
 
   /** A tile painted, or recorded while `stamps` is a list. */

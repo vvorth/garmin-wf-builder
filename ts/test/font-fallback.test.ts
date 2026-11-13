@@ -327,7 +327,9 @@ test("the preview draws a fallback device's text from the baked sheet, and the c
     const box = r.items.find((p) => p.id === "brand")!.box;
     const pixels = crop(frame(text, id), box);
     assert.ok(pixels.some((v) => v > 0), `${id}: brand drawn`);
-    assert.deepEqual(pixels, crop(frame(asBaked, id), box), `${id}: drawn from the sheet a source: font bakes`);
+    // The fallback keeps the shared vector call's VCENTER (preview line top y - lineHeight/2, truncated after the 1 px
+    // drop); the `source:` font is drawn top-justified at its cell y - ceil(lineHeight/2): one row higher, odd or even.
+    assert.deepEqual(pixels, crop(frame(asBaked, id), { ...box, y: box.y - 1 }), `${id}: drawn from the sheet a source: font bakes`);
     const rim = r.items.find((p) => p.id === "rim")!.box;
     assert.ok(crop(frame(text, id), rim).every((v) => v === 0), `${id}: rim not drawn`);
   }

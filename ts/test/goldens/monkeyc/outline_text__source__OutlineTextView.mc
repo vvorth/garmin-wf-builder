@@ -87,15 +87,15 @@ class OutlineTextView extends WatchUi.WatchFace {
         var ringFont2 = _fontClockRing2Glyphs;
         if (ringFont2 != null) {
             dc.setColor(Palette.RING, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(Layout.CLOCK_X, Layout.CLOCK_Y, ringFont2,
+            dc.drawText(Layout.CLOCK_X, Layout.CLOCK_Y - Layout.CLOCK_HALF, ringFont2,
                         WfbTime.displayHour(clock.hour, settings.is24Hour) + ":" + clock.min.format("%02d"),
-                        Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+                        Graphics.TEXT_JUSTIFY_CENTER);
         }
 
         dc.setColor(Palette.BG, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(Layout.CLOCK_X, Layout.CLOCK_Y, font,
+        dc.drawText(Layout.CLOCK_X, Layout.CLOCK_Y - Layout.CLOCK_HALF, font,
                     WfbTime.displayHour(clock.hour, settings.is24Hour) + ":" + clock.min.format("%02d"),
-                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+                    Graphics.TEXT_JUSTIFY_CENTER);
     }
 
     //! `upright_vector` -- fixed text.

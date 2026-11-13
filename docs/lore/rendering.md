@@ -106,35 +106,47 @@ that ink touches its cell.
 
 ## Baked fonts and `VCENTER`
 
-Seen once, not yet a controlled probe: in the user's simulator (2026-11-13,
-`fenix8solar51mm`, face `fenix-sectors`, its `pocket_top` data element), a
-baked icon font with `lineHeight=41 base=32`, drawn with
-`TEXT_JUSTIFY_LEFT | TEXT_JUSTIFY_VCENTER` at `y = 46`, put every glyph's ink
-about 2 px lower than the preview, which placed the line top at
-`y - lineHeight/2`: the watch's line top was about `y - 18.75`, not
-`y - 20.5`. The reading beside it, in a `face:` vector font under the same
-flags, landed exactly where the preview put it. Which function of
-`lineHeight` and `base` the watch uses, and whether a baked text font
-behaves the same, is what `docs/research/probes/icon-vcenter/` (icons at
-nine line heights, odd and even, each drawn both ways, and one baked text
-font) is built to measure; it has not run yet.
+Measured with `docs/research/probes/icon-vcenter/` in the Connect IQ
+simulator (SDK 9.3.0, Windows host, 2026-11-14) on `vivoactive4s`, `fr245`,
+`fenix8solar47mm`, `fr955`, `fenix8solar51mm`, `venusq2`, `venu`, `epix2`
+and `fenix847mm` (218 to 454 px, MIP and AMOLED, round and rectangular):
+five icon fonts per device (line heights 15 to 82, odd and even) and one
+baked Open Sans text font.
 
-**The rule the compiler follows for icons:** a centred baked icon is drawn
-**top-justified** (no `VCENTER`) at `y - ceil(lineHeight / 2)`, with the
-line height of the font actually drawn on that device (a turned font's own,
-a stepped turn's per step): `<ID>_TOP` in `Layout.mc` for a `type: icon`,
-`<ID>_ICON_HALF` (or `<ID>_ICON_HALVES[iconStep]`) subtracted from the
-runtime `y` for a `type: data` icon. A ring font is drawn from the same top
-as its glyph. The preview pastes the cell at that same top, so preview and
-watch agree by construction whatever `VCENTER` does; for an odd line height
-the cell's middle row is `y - 1`, its middle edge-to-edge at row `y`'s top
-edge, the half pixel up that keeps a glyph from looking low beside a reading
-centred at `y - lineHeight/2` (`fenix-sectors`' pocket: a battery at
-`y - floor` sat 1.5 px below the digits, at `y - ceil` 0.5 px). A `top`/`bottom` aligned icon, and a
-data icon stacked over or under its reading, never used `VCENTER` and are
-unchanged (`bottom`, and the stacking, still read `dc.getFontHeight`, whose
-value for a baked font is assumed to be its `lineHeight`). Baked text fonts
-still use `VCENTER`.
+- **Every baked glyph lands 1 px below its `.fnt` place.** A glyph drawn
+  top-justified at `top` put its ink at rows `top + yoffset + 1` through
+  `top + yoffset + height`, on all 45 rows: no dependence on line height,
+  parity, `base` or resolution.
+- **`TEXT_JUSTIFY_VCENTER` on a baked font follows no single rule.**
+  Beyond that 1 px, the line top fell another 0 or 1 px below
+  `y - ceil(lineHeight / 2)`, for icons and text alike; the same 43 px font
+  gave different results on different devices.
+- A `face:` vector font under `VCENTER` lands where the compiler predicts
+  (`fenix-sectors`' pocket, 2026-11-13).
+
+**The rule the compiler follows:** a centred line in a baked font is drawn
+**top-justified** (no `VCENTER`) from `y - bakedHalfLine(lineHeight)`, that
+is `y - ceil(lineHeight / 2) - 1`, so its cell lands at
+`y - ceil(lineHeight / 2)` on the watch. The line height is the font's on
+that device (a turned font's own, a stepped turn's per step). The constants:
+`<ID>_TOP` for a `type: icon`; `<ID>_ICON_HALF` (or
+`<ID>_ICON_HALVES[iconStep]`) for a `type: data` icon; `<ID>_TEXT_HALF` for
+a data reading beside its icon (or with none); `<ID>_HALF` for a
+`type: text`; `<PART>_HALF` for a pattern's text part. A ring font is drawn
+from the same top as its glyph or text. The preview pastes every baked
+glyph `BAKED_GLYPH_DROP` (1 px) low, as the watch does, so the two agree. For
+an odd line height the cell's middle row is `y - 1`, its middle edge-to-edge
+at row `y`'s top edge, the half pixel up that keeps a glyph from looking low
+beside a reading centred at `y - lineHeight/2`.
+
+Still drawn with `VCENTER`: a `face:` font (with or without a baked
+`fallback:`, since the shared call is the vector one); a system font
+(`FONT_*`, unmeasured); a text whose `aod: {font:}` swaps its font. A
+`top`- or `bottom`-aligned line, and a data icon or reading stacked over or
+under the other, never used `VCENTER`; they land 1 px below their anchor's
+edge, as the preview shows (`bottom` and the stacking read
+`dc.getFontHeight`, whose value for a baked font is assumed to be its
+`lineHeight`). UNVERIFIED: real hardware.
 
 ## AMOLED
 

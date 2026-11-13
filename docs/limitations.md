@@ -346,19 +346,27 @@ on top of each other. Icons inherit this too: an icon element is a glyph from a
 baked bitmap font (`ts/src/icons.ts`), so a two-tone icon is not possible without
 splitting it into two overlaid glyphs, the same as two-colour text.
 
-### The watch centres a baked font vertically by a rule not yet known
+### The watch draws a baked font 1 px low, and centres it by no single rule
 
-`TEXT_JUSTIFY_VCENTER` on a baked (BMFont) font did not put the font's line
-top at `y - lineHeight/2` in the simulator: one 41 px icon font on
-`fenix8solar51mm` landed about 2 px lower, while a vector font beside it
-landed as predicted (the user's simulator, 2026-11-13; the controlled probe
-for every line height is `docs/research/probes/icon-vcenter/`, not yet
-run). So a vertically centred icon is not drawn with `VCENTER`: it is drawn
-top-justified at its anchor less half its font's line height, rounded up,
-a per-device build-time number, and the preview draws that same top. Baked
-**text** fonts still use `VCENTER`, so a centred text in a baked font may sit
-a pixel or two lower on the watch than in the preview until the probe
-settles the rule. The details are in `docs/lore/rendering.md`.
+On every device measured (nine, 218 to 454 px, in the Connect IQ simulator,
+2026-11-14; `docs/research/probes/icon-vcenter/`) the watch draws every
+baked (BMFont) glyph 1 px below where its `.fnt` places it, and
+`TEXT_JUSTIFY_VCENTER` on a baked font puts its line a further 0 or 1 px
+low by no rule that the line height, `base` or screen explains. A vector
+font under `VCENTER` lands where predicted. So a vertically centred line in
+a baked font -- an icon, a text, a data reading beside its icon, a
+pattern's text part -- is not drawn with `VCENTER`: it is drawn
+top-justified from its anchor less half its line height rounded up, less
+that 1 px, a per-device build-time number, so its cell lands at
+`y - ceil(lineHeight / 2)`. The preview pastes every baked glyph 1 px low
+too, so preview and watch agree.
+
+Still drawn with `VCENTER`, and so up to 1 px lower on the watch than in
+the preview: a centred text whose `aod: {font:}` swaps its font (the two
+frames' line heights differ), and text in a system font (`FONT_*`), which
+no probe has measured. A `top`- or `bottom`-aligned baked line lands 1 px
+below its anchor's edge on the watch, which the preview now shows too. Real
+hardware is unmeasured. The details are in `docs/lore/rendering.md`.
 
 ### `monospace:` and `tabular_digits:` only reach a font the compiler bakes
 

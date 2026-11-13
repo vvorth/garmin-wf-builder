@@ -8,14 +8,15 @@ import * as formatting from "../formatting.ts";
 import type { Builder } from "../ir/builder/index.ts";
 import { type Element, type Expression, readsData, Text, TextSegment } from "../ir/model.ts";
 import {
-  HIDDEN_BY_FONT, justify, longer, type Placed, PlacedText, replaceFields, type Resolver, resolvedCurve, textInk,
+  bakedHalfLine, HIDDEN_BY_FONT, justify, longer, type Placed, PlacedText, replaceFields, type Resolver, resolvedCurve, textInk,
+  withoutVcenter,
 } from "../layout.ts";
 import { quoted, str } from "../py.ts";
 import { type Box, roundPx as round } from "../units.ts";
 import type { Reading } from "../template.ts";
 import { type Common, ElementKind, type Refusal, register, ringFont, TextRun } from "./base.ts";
 import {
-  AodDimmed, AodRestyled, AodStr, Blank, Color, Comment, Concat, Const, type DrawContext, Font,
+  AodDimmed, AodRestyled, AodStr, Bin, Blank, Color, Comment, Concat, Const, type DrawContext, Font,
   IfAod, IfAwake, IfNotNull, LetText, LoadFont, Local, type Op, type Paint, Reading as ReadingOp, RingColor, SetColor, Shifted,
   type Str, StrLit, Text as DrawText,
 } from "../draw/program.ts";
@@ -213,6 +214,20 @@ export function bakedRingLocal(width: number): string {
   return width === 1 ? "ringFont" : `ringFont${width}`;
 }
 
+/**
+ * Whether the text is a centred upright line in a baked font, drawn
+ * top-justified from `<ID>_HALF` above its `y` rather than with
+ * `TEXT_JUSTIFY_VCENTER` (`bakedHalfLine`). A system or `face:` font keeps
+ * VCENTER (a `face:` font with a baked `fallback:` too: the shared call is
+ * the vector one), and so does a text whose `aod: {font:}` swaps the font,
+ * whose line height differs between the frames.
+ */
+function centredBaked(p: PlacedText): boolean {
+  const element = p.element;
+  return p.font.is_custom && !p.font.is_vector && element.vertical_align === "center" && p.curve.style === null
+    && (element.aod === null || element.aod.font === null);
+}
+
 class TextKind extends ElementKind<Text> {
   readonly name = "text";
   readonly irClass = Text;
@@ -340,9 +355,13 @@ class TextKind extends ElementKind<Text> {
     const angle = curve.style !== null ? Const(`${prefix}_ANGLE`, flt(curve.angle_garmin)) : null;
     const radius = curve.style === "radial" ? Const(`${prefix}_RADIUS`, curve.radius_px) : null;
     const main = TextKind.font(ctx, p, ops);
+    // A centred baked line: top-justified from `_HALF` above `_Y`, never VCENTER (`bakedHalfLine`). Its ring font shares the line.
+    const half = centredBaked(p) ? Const(`${prefix}_HALF`, bakedHalfLine(p.line_height)) : null;
+    const [lineY, flags, valign] = half !== null ? [Bin("-", y, half), withoutVcenter(p.justify), "top"]
+      : [y, p.justify, element.vertical_align];
     const draw = (font: Font, dx = 0, dy = 0): DrawText => {
       const interior = dx === 0 && dy === 0 && font === main;
-      return DrawText(Shifted(x, dx), Shifted(y, dy), font, text, p.justify, element.vertical_align, {
+      return DrawText(Shifted(x, dx), Shifted(lineY, dy), font, text, flags, valign, {
         align: element.align, style: curve.style, angle, radius, direction: curve.direction, box: interior ? p.innerBox : null,
       });
     };
@@ -455,6 +474,10 @@ class TextKind extends ElementKind<Text> {
       [`${prefix}_Y`, p.anchor_point[1], ""],
       [`${prefix}_WIDTH`, p.measured_width, note],
     ];
+    if (centredBaked(p)) {
+      out.push([`${prefix}_HALF`, bakedHalfLine(p.line_height),
+        `the line is drawn from this far above Y: half its ${p.line_height} px line rounded up, plus the 1 px a baked glyph drops`]);
+    }
     if (p.curve.style !== null) {
       const authorNote = p.curve.style === "radial"
         ? `${formatG(p.curve.angle_degrees)}deg clockwise from 12 o'clock`

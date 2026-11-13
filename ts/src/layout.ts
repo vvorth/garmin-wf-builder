@@ -666,6 +666,7 @@ export class PlacedData extends Placed {
   curve: ResolvedCurve = new ResolvedCurve();
   /** A curved reading's lint shape: its run (with any icon and gap) along, its line height across, from this Garmin angle. */
   measured_width = 0;
+  /** The reading font's line height (curved or upright). */
   line_height = 0;
   ink_angle_garmin = 0.0;
   /** A radial pair: the icon's centre, and the turn its font is baked at on this device. */
@@ -1171,15 +1172,34 @@ export function justify(element: Pick<Text, "align" | "vertical_align">): string
 }
 
 /**
- * How far above a centred icon's anchor its cell's top is drawn: half the
- * icon font's line height, rounded up. A centred baked icon is drawn
- * top-justified at `y - iconHalfLine(lineHeight)`, a build-time number per
- * device, not with `TEXT_JUSTIFY_VCENTER`: the simulator put a baked font's
- * line top about 2 px lower than `y - lineHeight/2` under VCENTER, by a rule
- * not yet known (`docs/research/probes/icon-vcenter/`).
+ * How many pixels below its `.fnt` position the watch draws every baked
+ * (BMFont) glyph: 1 on all nine devices measured (218-454 px screens, line
+ * heights 15-82, odd and even; `docs/research/probes/icon-vcenter/`). The
+ * preview pastes baked glyphs this much lower too.
  */
-export function iconHalfLine(lineHeight: number): number {
-  return Math.ceil(lineHeight / 2);
+export const BAKED_GLYPH_DROP = 1;
+
+/**
+ * How far above its centre `y` a centred line in a baked font is drawn from:
+ * half the font's line height, rounded up, plus `BAKED_GLYPH_DROP`, so the
+ * line's cell lands at `y - ceil(lineHeight/2)` on the watch. A centred baked
+ * icon or text is drawn top-justified from there, a build-time number per
+ * device, never with `TEXT_JUSTIFY_VCENTER`: the simulator put a baked line
+ * 1 or 2 px below `y - ceil(lineHeight/2)` under VCENTER, by no single rule
+ * (`docs/research/probes/icon-vcenter/`).
+ */
+export function bakedHalfLine(lineHeight: number): number {
+  return Math.ceil(lineHeight / 2) + BAKED_GLYPH_DROP;
+}
+
+/** Whether a pattern's text part is a centred upright line in a baked font, drawn top-justified from `<PART>_HALF`. */
+export function centredBakedPart(part: ResolvedTextPart): boolean {
+  return part.font.is_custom && !part.font.is_vector && part.vertical_align === "center" && part.curve.style === null;
+}
+
+/** `justify` without `TEXT_JUSTIFY_VCENTER`, for a centred baked line drawn top-justified from `bakedHalfLine`. */
+export function withoutVcenter(justify: readonly string[]): string[] {
+  return justify.filter((flag) => flag !== "TEXT_JUSTIFY_VCENTER");
 }
 
 /** `candidate` if strictly longer than `current`, else `current`. */

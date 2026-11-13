@@ -9,7 +9,7 @@ import {
   comparePoints, resolveSlotReference, slotIconFontKey, slotIconRun, slotIconSample, slotReferenceGlyph, slotSampleGlyph, withSubstitute,
 } from "./data.ts";
 import * as icons from "../icons.ts";
-import { alignmentShift, iconHalfLine, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
+import { alignmentShift, BAKED_GLYPH_DROP, bakedHalfLine, justify, type Placed, PlacedIcon, type Resolver, withoutVcenter } from "../layout.ts";
 import { quoted, str } from "../py.ts";
 import * as vocab from "../vocab.ts";
 import * as units from "../units.ts";
@@ -29,21 +29,22 @@ type Placement = Pick<IconElement, "size" | "color" | "align" | "vertical_align"
 
 /**
  * The `y` an icon's glyph is drawn at, with the `vertical_align` it is drawn
- * under. A centred icon is drawn top-justified at its centre less half its
- * font's line height (`iconHalfLine`), a per-device `<ID>_TOP` constant: the
- * watch's `TEXT_JUSTIFY_VCENTER` for a baked font is not relied on, since the
- * simulator drew it about 2 px off `y - lineHeight/2`
- * (`docs/research/probes/icon-vcenter/`). `top` and `bottom` keep `<ID>_CY`.
+ * under. A centred icon is drawn top-justified from its centre less
+ * `bakedHalfLine` of its font's line height, a per-device `<ID>_TOP`
+ * constant: the watch's `TEXT_JUSTIFY_VCENTER` for a baked font follows no
+ * single rule (`docs/research/probes/icon-vcenter/`). `top` and `bottom` keep
+ * `<ID>_CY`.
  */
 function glyphY(prefix: string, p: PlacedIcon): { y: Const; valign: string; origin: [number, number] } {
   if (p.element.vertical_align !== "center") return { y: Const(`${prefix}_CY`, p.center[1]), valign: p.element.vertical_align, origin: p.center };
   const top = centredTop(p);
-  return { y: Const(`${prefix}_TOP`, top), valign: "top", origin: [p.center[0], top] };
+  // The box is the cell where the watch draws it, BAKED_GLYPH_DROP below the top the call names.
+  return { y: Const(`${prefix}_TOP`, top), valign: "top", origin: [p.center[0], top + BAKED_GLYPH_DROP] };
 }
 
-/** A centred icon's cell top on this device. */
+/** The top a centred icon's call names on this device; the watch draws its cell `BAKED_GLYPH_DROP` lower. */
 function centredTop(p: PlacedIcon): number {
-  return p.center[1] - iconHalfLine(p.line_height);
+  return p.center[1] - bakedHalfLine(p.line_height);
 }
 
 /** `icon: {codepoint: "U+F0BC"}`: a codepoint the catalogue does not name, spelled so it survives a review. */
@@ -169,13 +170,13 @@ class IconKind extends ElementKind<IconElement> {
     // The lint box only: the runtime `drawText` anchor stays put; alignment is a device-side justify, except a centred
     // icon's, whose cell top is a build-time number (`centredTop`), so its box sits exactly there.
     const [dx, dy] = alignmentShift(width, height, element.align, element.vertical_align);
-    const top = element.vertical_align === "center" ? round(cy) - iconHalfLine(height) : cy + dy - height / 2;
+    const top = element.vertical_align === "center" ? round(cy) - bakedHalfLine(height) + BAKED_GLYPH_DROP : cy + dy - height / 2;
     const box = new Box(cx + dx - width / 2, top, width, height);
     return PlacedIcon.create({
       element, box: box.rounded(), center: [round(cx), round(cy)], depth, size: px, font_key: key, codepoint: measureCodepoint,
       anchor_point: [round(cx), round(cy)], line_height: height,
       // Never `TEXT_JUSTIFY_VCENTER`: a centred icon is drawn top-justified from `centredTop`.
-      justify: justify(element).filter((flag) => flag !== "TEXT_JUSTIFY_VCENTER"),
+      justify: withoutVcenter(justify(element)),
     });
   }
 
@@ -360,7 +361,7 @@ class IconKind extends ElementKind<IconElement> {
     if (p.element.vertical_align === "center") {
       const note = p.element.align === "center" ? "" : "the anchor drawText justifies the glyph from, not its centre";
       return [[`${prefix}_CX`, p.center[0], note],
-        [`${prefix}_TOP`, centredTop(p), `the glyph's cell top: its centre ${p.center[1]} less half its ${p.line_height} px line, rounded up`]];
+        [`${prefix}_TOP`, centredTop(p), `drawn from here: its centre ${p.center[1]} less half its ${p.line_height} px line rounded up, less the 1 px a baked glyph drops`]];
     }
     const note = "the anchor drawText justifies the glyph from, not its centre";
     return [[`${prefix}_CX`, p.center[0], note], [`${prefix}_CY`, p.center[1], note]];

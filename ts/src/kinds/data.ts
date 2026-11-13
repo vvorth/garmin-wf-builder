@@ -10,8 +10,8 @@ import * as complications from "../complications.ts";
 import * as icons from "../icons.ts";
 import type { Face } from "../ir/model.ts";
 import {
-  alignmentShift, DATA_ICON_GAP, dataPairGeometry, garminCurveAngle, HIDDEN_BY_FONT, iconHalfLine, type IconTrack, justify, type LayoutFont, longer, type Placed, PlacedData,
-  radialDirectionSign, radialSpacingRadius, radialTextBand, replaceFields, Resolver, resolvedCurve, textInk,
+  alignmentShift, bakedHalfLine, DATA_ICON_GAP, dataPairGeometry, garminCurveAngle, HIDDEN_BY_FONT, type IconTrack, justify, type LayoutFont, longer, type Placed, PlacedData,
+  radialDirectionSign, radialSpacingRadius, radialTextBand, replaceFields, Resolver, resolvedCurve, textInk, withoutVcenter,
 } from "../layout.ts";
 import type { Device } from "../devices/device.ts";
 import { flt } from "../draw/barrel.ts";
@@ -293,6 +293,15 @@ export const SLOT_TEXT_MODULE = "SlotText";
 /** One `drawText` of the pair; `half` is how far above `y` a centred icon's cell top is, when not the element's `_ICON_HALF`. */
 type DrawFn = (x: Num, y: Num, face: Font, string: Str, justify: readonly string[], half?: Num) => Op;
 
+/**
+ * Whether an upright reading in a baked font sits in a row (beside its icon, or with none), centred on its row's `y`, and is
+ * drawn top-justified from `_TEXT_HALF` instead of with VCENTER. Stacked over or under its icon it is top-justified already;
+ * a `face:` font (even with a baked `fallback:`) keeps VCENTER.
+ */
+function centredBakedReading(p: PlacedData): boolean {
+  return p.font.is_custom && !p.font.is_vector && p.curve.style === null && (p.icon_position === "left" || p.icon_position === "right");
+}
+
 /** Whether the pair draws its icon centred on a point (beside the reading, or curved), top-justified from `_ICON_HALF`. */
 function centresIcon(p: PlacedData): boolean {
   return p.icon_font_key !== null && (p.curve.style !== null || p.icon_position === "left" || p.icon_position === "right");
@@ -407,7 +416,7 @@ function trackedIcon(p: PlacedData, prefix: string, font: Font, iconFont: Font, 
   const x = rounded(Bin("+", Const(`${prefix}_CX`, p.anchor_point[0]), Bin("*", r, Call("Math.cos", [theta]))));
   const y = rounded(Bin("-", Const(`${prefix}_CY`, p.anchor_point[1]), Bin("*", r, Call("Math.sin", [theta]))));
   // Each turned step's cell grows by its own amount, so its cell top is its own.
-  const half = track.steps > 0 ? Indexed(`${prefix}_ICON_HALVES`, track.line_heights.map(iconHalfLine), NumLocal("iconStep")) : undefined;
+  const half = track.steps > 0 ? Indexed(`${prefix}_ICON_HALVES`, track.line_heights.map(bakedHalfLine), NumLocal("iconStep")) : undefined;
   ops.push(If(iconShown, [...(iconPaint !== null ? [SetColor(iconPaint)] : []),
     draw(x, y, iconFont, Local("iconGlyph"), ["TEXT_JUSTIFY_CENTER", "TEXT_JUSTIFY_VCENTER"], half)]));
   return ops;
@@ -547,7 +556,8 @@ class DataKind extends ElementKind<DataElement> {
     return PlacedData.create({
       element, box: rounded, center: [round(cx), round(cy)], depth, anchor_point: [round(cx), round(cy)],
       font: font.resolved(), widest, icon_font_key: iconFontKey, icon_px: iconPx, icon_position: element.icon_position,
-      icon_gap_px: gapPx, icon_line_height: iconLineHeight, highlight: highlightBox(rounded, round(cx), element.align, r.device.width),
+      icon_gap_px: gapPx, icon_line_height: iconLineHeight, line_height: lineHeight,
+      highlight: highlightBox(rounded, round(cx), element.align, r.device.width),
     });
   }
 
@@ -735,12 +745,17 @@ class DataKind extends ElementKind<DataElement> {
     const cx = Const(`${prefix}_CX`, p.anchor_point[0]), cy = Const(`${prefix}_CY`, p.anchor_point[1]);
     const iconShown = iconFont !== null ? LocalsSet(["iconGlyph", "iconFont"]) : null;
     const centred = ["TEXT_JUSTIFY_CENTER", "TEXT_JUSTIFY_VCENTER"];
-    const iconHalf = Const(`${prefix}_ICON_HALF`, iconHalfLine(p.icon_line_height));
+    const iconHalf = Const(`${prefix}_ICON_HALF`, bakedHalfLine(p.icon_line_height));
+    const textHalf = centredBakedReading(p) ? Const(`${prefix}_TEXT_HALF`, bakedHalfLine(p.line_height)) : null;
     let draw: DrawFn = (x, y, face_, string, justify, half = iconHalf) => {
       const vcenter = justify.includes("TEXT_JUSTIFY_VCENTER");
-      // A centred icon: top-justified at its centre less half its line, not through VCENTER (`iconHalfLine`).
+      // A centred icon, or a reading in a baked font: top-justified at its centre less half its line, not through VCENTER
+      // (`bakedHalfLine`).
       if (face_ === iconFont && vcenter) {
-        return DrawText(x, Bin("-", y, half), face_, string, justify.filter((flag) => flag !== "TEXT_JUSTIFY_VCENTER"), "top", { joined: true });
+        return DrawText(x, Bin("-", y, half), face_, string, withoutVcenter(justify), "top", { joined: true });
+      }
+      if (face_ === font && vcenter && textHalf !== null) {
+        return DrawText(x, Bin("-", y, textHalf), face_, string, withoutVcenter(justify), "top", { joined: true });
       }
       return DrawText(x, y, face_, string, justify, vcenter ? "center" : "top", { joined: true });
     };
@@ -807,7 +822,10 @@ class DataKind extends ElementKind<DataElement> {
     ];
     if (p.element.icon_gap !== null && p.icon_point === null && p.icon_track === null) out.push([`${prefix}_ICON_GAP`, p.icon_gap_px, "icon: {gap:} resolved for this device"]);
     if (centresIcon(p) && !(p.icon_track !== null && p.icon_track.steps > 0)) {
-      out.push([`${prefix}_ICON_HALF`, iconHalfLine(p.icon_line_height), `the icon's cell top is this far above its centre: half its ${p.icon_line_height} px line, rounded up`]);
+      out.push([`${prefix}_ICON_HALF`, bakedHalfLine(p.icon_line_height), `the icon is drawn from this far above its centre: half its ${p.icon_line_height} px line rounded up, plus the 1 px a baked glyph drops`]);
+    }
+    if (centredBakedReading(p)) {
+      out.push([`${prefix}_TEXT_HALF`, bakedHalfLine(p.line_height), `the reading is drawn from this far above its row's centre: half its ${p.line_height} px line rounded up, plus the 1 px a baked glyph drops`]);
     }
     if (p.curve.style !== null) {
       const authorNote = p.curve.style === "radial"
@@ -827,8 +845,8 @@ class DataKind extends ElementKind<DataElement> {
           const keys = Array.from({ length: t.steps }, (_, i) => `Rez.Fonts.${fontResourceId(icons.stepKey(p.icon_font_key!, i))}`);
           out.push([`${prefix}_ICON_STEP_PER_PX`, flt(t.steps_per_px), `the nearest of ${t.steps} turns is step round(width * this)`],
             [`${prefix}_ICON_LAST`, t.steps - 1, ""],
-            [`${prefix}_ICON_HALVES`, new McLiteral("Array<Number>", `[${t.line_heights.map(iconHalfLine).join(", ")}]`),
-              "each step's cell top is this far above its centre: half its line height, rounded up"],
+            [`${prefix}_ICON_HALVES`, new McLiteral("Array<Number>", `[${t.line_heights.map(bakedHalfLine).join(", ")}]`),
+              "each step is drawn from this far above its centre: half its line height rounded up, plus the 1 px a baked glyph drops"],
             [`${prefix}_ICON_STEPS`, new McLiteral("Array<ResourceId>", `[${keys.join(", ")}]`),
               `the icon baked turned ${t.turns.map((turn) => formatG(roundHalfEven(turn * 10) / 10)).join(", ")}deg`]);
         }

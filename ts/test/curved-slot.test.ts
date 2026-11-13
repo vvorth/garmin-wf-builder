@@ -381,12 +381,12 @@ test("a pinned radial icon's font is baked at the turn the layout placed it at, 
   assert.notEqual(turns[0], turns[1], "the radius and the glyph's advance differ per device, so the turn does");
   const files = generated(text);
   for (const id of devices) assert.match(files.get(`resources-${id}/fonts/fonts.xml`)!, /id="FontIcon10pctrSlotLeftPinnedValue"/);
-  // Centred top-justified from its cell top, half the turned font's line above the point (iconHalfLine), never VCENTER.
+  // Centred top-justified from half the turned font's line above the point, plus the 1 px drop (bakedHalfLine), never VCENTER.
   assert.match(method(view(text), "drawValue"), /dc\.drawText\(Layout\.VALUE_ICON_X, Layout\.VALUE_ICON_Y - Layout\.VALUE_ICON_HALF, iconFont, iconGlyph,\s+Graphics\.TEXT_JUSTIFY_CENTER\);/);
   for (const id of devices) {
     const r = resolved(text, id);
     const line = r.fonts.get("icon_10pctr_slot_left_pinned_value")!.line_height;
-    assert.match(files.get(`source-${id}/Layout.mc`)!, new RegExp(`const VALUE_ICON_HALF as Number = ${Math.ceil(line / 2)};`), id);
+    assert.match(files.get(`source-${id}/Layout.mc`)!, new RegExp(`const VALUE_ICON_HALF as Number = ${Math.ceil(line / 2) + 1};`), id);
   }
 });
 
@@ -475,8 +475,8 @@ test("the preview puts a free-end icon past the run's end, where the watch's ari
     const theta = t.theta + t.per_px * width;
     const step = Math.min(Math.trunc(width * t.steps_per_px + 0.5), t.steps - 1);
     const centre: [number, number] = [Math.trunc(cx + t.middle * Math.cos(theta) + 0.5), Math.trunc(cy - t.middle * Math.sin(theta) + 0.5)];
-    // The icon is drawn top-justified: its cell top half its step's line above the centre.
-    assert.deepEqual(iconAt, [centre[0], centre[1] - Math.ceil(t.line_heights[step]! / 2)]);
+    // The icon is drawn top-justified from half its step's line above the centre, plus the 1 px a baked glyph drops.
+    assert.deepEqual(iconAt, [centre[0], centre[1] - Math.ceil(t.line_heights[step]! / 2) - 1]);
     assert.equal(iconFont, stepKey(p.icon_font_key!, step));
     // And the pixels: the icon's ink centred there, past the reading's last ink along the run.
     assert.ok(red.length > 20 && white.length > 20, `${red.length} icon and ${white.length} reading pixels`);

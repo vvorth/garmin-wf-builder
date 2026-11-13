@@ -12,7 +12,8 @@ import {
 } from "../ir/model.ts";
 import type { Device } from "../devices/device.ts";
 import {
-  HAND_FRAME_BOX, type Ink, type Placed, PlacedPattern, type ResolvedHandPart, type Resolver, type ResolvedTextPart, roundHalfAway, textInk,
+  bakedHalfLine, centredBakedPart, HAND_FRAME_BOX, type Ink, type Placed, PlacedPattern, type ResolvedHandPart, type Resolver,
+  type ResolvedTextPart, roundHalfAway, textInk, withoutVcenter,
 } from "../layout.ts";
 import { deepEqual, formatG, num, floorMod } from "../py.ts";
 import { Box, IntBox, roundPx as round } from "../units.ts";
@@ -272,8 +273,14 @@ function lowerTextPart(element: PatternElement, part: ResolvedTextPart, partPref
     const oy = Bin("+", NumLocal("oy"), py);
     y = style !== null ? oy : FontDrop(oy, part.vertical_align, fontCode);
   }
+  // A centred baked line: top-justified from `_HALF` above its anchor, never VCENTER (`bakedHalfLine`).
+  let justify = part.justify, valign = part.vertical_align;
+  if (centredBakedPart(part)) {
+    y = Bin("-", y, Const(`${partPrefix}_HALF`, bakedHalfLine(part.line_height)));
+    [justify, valign] = [withoutVcenter(justify), "top"];
+  }
   const angle = style !== null ? textAngle(element, part) : null;
-  const call = (dx = 0, dy = 0): DrawText => DrawText(Shifted(x, dx), Shifted(y, dy), font, text, part.justify, part.vertical_align, {
+  const call = (dx = 0, dy = 0): DrawText => DrawText(Shifted(x, dx), Shifted(y, dy), font, text, justify, valign, {
     align: part.align, style, angle, radius: style === "radial" ? Const(`${partPrefix}_RADIUS`, part.curve.radius_px) : null,
     direction: part.curve.direction, shiftY: false, splitX: radial || style !== null,
   });

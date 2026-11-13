@@ -7,7 +7,7 @@ import { discPerimeterOffsets, type Element, overrideKeyFor, slotOf, variantCons
 import { ringGroups } from "../../ir/rings.ts";
 import * as kinds from "../../kinds/index.ts";
 import {
-  HIDDEN_BY_OVERRIDE, HIDDEN_BY_SUBSCREEN, type Placed, type PlacedGauge, type PlacedGraph, type PlacedHands, type PlacedPattern, type PlacedShape,
+  bakedHalfLine, centredBakedPart, HIDDEN_BY_OVERRIDE, HIDDEN_BY_SUBSCREEN, type Placed, type PlacedGauge, type PlacedGraph, type PlacedHands, type PlacedPattern, type PlacedShape,
   type ResolvedFace, type ResolvedHandPart,
 } from "../../layout.ts";
 import { commentText } from "../../mcsource.ts";
@@ -63,6 +63,10 @@ export function handPartConstants(partPrefix: string, owner: string, index: numb
       [`${partPrefix}_Y`, part.y, ""],
     ];
     if (part.curve.style === "radial") out.push([`${partPrefix}_RADIUS`, part.curve.radius_px, "curve: radial's own circle radius"]);
+    if (centredBakedPart(part)) {
+      out.push([`${partPrefix}_HALF`, bakedHalfLine(part.line_height),
+        `the line is drawn from this far above its anchor: half its ${part.line_height} px line rounded up, plus the 1 px a baked glyph drops`]);
+    }
     return out;
   }
   if (part.shape === "polygon") {

@@ -36,10 +36,11 @@ module Layout {
     const CLOCK_X as Number = 140;
     const CLOCK_Y as Number = 129;
     const CLOCK_WIDTH as Number = 187;  // widest rendering "23:59" is 187 px
+    const CLOCK_HALF as Number = 52;  // the line is drawn from this far above Y: half its 101 px line rounded up, plus the 1 px a baked glyph drops
 
     //! `steps_icon` -- the 'steps' icon
     const STEPS_ICON_CX as Number = 140;
-    const STEPS_ICON_TOP as Number = 166;  // the glyph's cell top: its centre 185 less half its 37 px line, rounded up
+    const STEPS_ICON_TOP as Number = 165;  // drawn from here: its centre 185 less half its 37 px line rounded up, less the 1 px a baked glyph drops
 
     //! `steps_value` -- text
     const STEPS_VALUE_X as Number = 140;

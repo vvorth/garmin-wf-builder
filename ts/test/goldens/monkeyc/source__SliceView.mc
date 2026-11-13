@@ -99,9 +99,9 @@ class SliceView extends WatchUi.WatchFace {
         }
 
         dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(Layout.CLOCK_X, Layout.CLOCK_Y, font,
+        dc.drawText(Layout.CLOCK_X, Layout.CLOCK_Y - Layout.CLOCK_HALF, font,
                     WfbTime.displayHour(clock.hour, settings.is24Hour) + ":" + clock.min.format("%02d"),
-                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+                    Graphics.TEXT_JUSTIFY_CENTER);
     }
 
     //! `steps_icon` -- the 'steps' icon.
