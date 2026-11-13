@@ -10,6 +10,7 @@ back here.
 
 | Plan | Status |
 |---|---|
+| [42 your own glyphs](42-icon-glyph-sets.md): `icons:` on `icon: {for:}` and a slot choice, keyed by reading (`0`/`20`/…, `0`/`1`, `off`/`on`) or by glyph name (weather, moon); `absent:` on a slot choice | proposed; D1–D6 decided, D7–D9 open |
 | [34 a curved slot](34-curved-slot.md): `rotate:` and `slot:` on `type: icon`, `curve:` on `type: data`, a group's `on_hold:` following its slot | in progress; slices 1–5 done, slice 6 built and not yet verified on a watch, D1–D8 decided |
 
 ## Built and deleted
