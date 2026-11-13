@@ -1294,6 +1294,29 @@
         "classic"
       ]
     },
+    "iconGlyph": {
+      "description": "A glyph: a catalogue name, or {codepoint: 'U+XXXX'} for a glyph in the vendored icon font the catalogue does not name.",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "A catalogue name. A codepoint is written {codepoint: 'U+XXXX'}, not as a string."
+        },
+        {
+          "type": "object",
+          "required": [
+            "codepoint"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "codepoint": {
+              "type": "string",
+              "pattern": "^[Uu]\\+[0-9A-Fa-f]{1,6}$",
+              "description": "A codepoint in the vendored icon font, in Unicode's own notation: 1 to 6 hex digits. Checked against the font's character map at build time."
+            }
+          }
+        }
+      ]
+    },
     "defaults": {
       "description": "Face-wide defaults every element inherits unless it (or an enclosing group) says otherwise.",
       "type": "object",
@@ -2756,7 +2779,7 @@
           "description": "A 'config: slots:' name, instead of 'icon:': the glyph is the icon of whatever the wearer picked for that slot, chosen on the watch from the picked type (a weather type's from the pulled condition), with the slot's per-choice 'icon:' overrides. 'on_hold:' then accepts 'auto' only, which opens the pick's glance."
         },
         "icon": {
-          "description": "Which glyph: a name from the built-in icon catalogue (`wfb sources` lists them), {codepoint: 'U+XXXX'} for any glyph in the vendored icon font the catalogue does not name, or {for: <source>} to choose the glyph at runtime from a bound value: a source an icon rule follows (see 'for:' for each rule's sources): a weather condition, a battery or solar level, a notification or alarm count, do-not-disturb, the phone connection, or the moon's age. Without a reading the rule's plain glyph draws, unless 'absent:' says otherwise. A bitmap-font glyph, drawn with drawText.",
+          "description": "Which glyph: a name from the built-in icon catalogue (`wfb sources` lists them), {codepoint: 'U+XXXX'} for any glyph in the vendored icon font the catalogue does not name, or {for: <source>} to choose the glyph at runtime from a bound value: a source an icon rule follows (see 'for:' for each rule's sources): a weather condition, a battery or solar level, a notification or alarm count, do-not-disturb, the phone connection, or the moon's age. 'icons:' replaces the rule's glyphs with your own. Without a reading the rule's plain glyph draws, unless 'absent:' says otherwise. A bitmap-font glyph, drawn with drawText.",
           "oneOf": [
             {
               "type": "string",
@@ -2789,6 +2812,13 @@
                 },
                 "variant": {
                   "$ref": "#/$defs/iconVariant"
+                },
+                "icons": {
+                  "description": "Your own glyph for each state of the reading 'for:' follows, as a complete set; each value is a catalogue name or {codepoint: 'U+XXXX'}. The keys follow the reading. A battery or solar level (0 to 100) and a notification or alarm count are keyed by the reading where each glyph starts, written as unquoted numbers: the lowest key is 0, there are at least two, a level's go no higher than 100 and a count's are whole numbers. {0: battery_outline, 10: battery_low, 50: battery_medium, 90: battery} draws battery_low from 10 up to, not including, 50; {0: bell, 1: notification} draws bell at none and notification at one or more. Do-not-disturb and the phone connection take exactly 'off' and 'on'. The weather condition and the moon's age are keyed by the built-in glyph names their rule draws (`wfb sources` lists them) and replace only those: {weather_rainy: weather_pouring} keeps every other condition's own glyph. Not with 'variant:', which picks a built-in set. The glyph drawn without a reading is 'absent:', never a key here.",
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/$defs/iconGlyph"
+                  }
                 }
               }
             }

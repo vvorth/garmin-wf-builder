@@ -47,7 +47,15 @@ function forSources(): string[] {
  */
 function dynamicTag(rule: icons.IconRule): string {
   if (rule.kind === "table") return rule.name;
-  return `${rule.range !== null ? "level" : "count"}_${rule.name}`;
+  return `${readsLevel(rule) ? "level" : "count"}_${rule.name}`;
+}
+
+/**
+ * A steps rule reads a level over a range: its own, or, for a face's own set
+ * (split at its keys, with no range of its own), its family's.
+ */
+function readsLevel(rule: icons.IconRule): boolean {
+  return rule.range !== null || (icons.RULES.get(rule.family)?.range ?? null) !== null;
 }
 
 /** The glyph a dynamic icon's font is measured and sized by. */
@@ -205,8 +213,12 @@ class IconKind extends ElementKind<IconElement> {
           });
         valueFor = null;
       }
-      const variant = valueFor !== null ? b.iconVariant(dynamic, icons.RULE_OF_SOURCE.get(valueFor.sources[0]!)!, valueFor.shown) : null;
+      const family = valueFor !== null ? icons.RULE_OF_SOURCE.get(valueFor.sources[0]!)! : null;
+      // `icons:` is a complete set of its own, so a `variant:` beside it is its error, not one of its own.
+      const set = family !== null ? b.iconSet(dynamic, family, valueFor!.shown) : null;
+      const variant = family !== null && !dynamic.has("icons") ? b.iconVariant(dynamic, family, valueFor!.shown) : null;
       const element = IconElement.create({ ...common, icon: null, codepoint: icons.FALLBACK_CODEPOINT, value_for: valueFor, variant, ...placement });
+      if (set !== null) b.icon_sets.push({ family: family!, set, assign: (rule) => { element.custom_rule = rule; } });
       buildAbsent(b, node, element);
       return element;
     }
@@ -346,7 +358,7 @@ class IconKind extends ElementKind<IconElement> {
       const rule = element.rule!, source = quoted(element.value_for.text);
       if (rule.kind === "table") return `an icon chosen at runtime from ${source}`;
       if (rule.cyclic) return `an icon stepping round with ${source}`;
-      if (rule.range !== null) return `an icon filling with ${source}`;
+      if (readsLevel(rule)) return `an icon filling with ${source}`;
       return icons.readsBoolean(rule) ? `an icon switching with ${source}` : `an icon emptying when ${source} is 0`;
     }
     return `the ${quoted(element.icon)} icon`;

@@ -5,6 +5,7 @@
 import type { Bag, Span } from "../../diagnostics.ts";
 import type { Data, DataKey } from "../../edit/yaml.ts";
 import * as expr from "../../expr.ts";
+import type { CustomSet, IconRule } from "../../icons.ts";
 import type { Color } from "../../palette.ts";
 import { deepEqual, quoted } from "../../py.ts";
 import type { YamlDocument } from "../../yamlsrc.ts";
@@ -119,6 +120,12 @@ export class BuilderState {
   /** `defaults: {aod: {dim:}}`, `null` when absent. */
   face_aod_dim: number | null = null;
   face_aod_mask = true;
+  /**
+   * Each `icons:` set read, in document order, and where its rule goes: the
+   * face registers them once it exists (`Face.registerIconRule`), so equal
+   * sets share one rule, named by order of first use.
+   */
+  icon_sets: { family: IconRule; set: CustomSet; assign: (rule: IconRule) => void }[] = [];
 
   constructor(doc: YamlDocument, bag: Bag, fileExists: FileExists) {
     this.doc = doc;

@@ -79,7 +79,7 @@ export class Builder extends ElementTree {
     const face = data.get("face") as Node;
     const name = face.get("name") as string;
     const format = data.get("format");
-    return Face.create({
+    const built = Face.create({
       format: isNumber(format) ? Math.trunc(num(format)) : Number(format),
       uuid: face.get("id") as string,
       name,
@@ -106,6 +106,8 @@ export class Builder extends ElementTree {
       aod_lint_reason: this.face_aod_lint_reason,
       aod_mask: this.face_aod_mask,
     });
+    for (const { family, set, assign } of this.icon_sets) assign(built.registerIconRule(family, set));
+    return built;
   }
 }
 

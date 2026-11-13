@@ -1,12 +1,13 @@
 // Fonts, icons and the text decorations shared by `text` elements and
 // pattern text parts: `outline:`, `curve:`, `unsupported:`, icon names and
 // glyphs, and the per-`shape:`/`style:` foreign-key check..
-import type { Span } from "../../diagnostics.ts";
+import { didYouMean, getCloseMatches, type Span } from "../../diagnostics.ts";
 import * as icons from "../../icons.ts";
 import { isNumber, num, quoted, str } from "../../py.ts";
 import { Curve, type Element, MAX_OUTLINE_WIDTH, Outline } from "../model.ts";
 import { AbsenceChecks } from "./absence.ts";
-import type { Node } from "./state.ts";
+import { andPaths, type Node } from "./state.ts";
+import type { DataKey } from "../../edit/yaml.ts";
 
 /** "No `icon:` override declared" and "declared, invalid, already reported"; `null` is an explicit `icon: none`. */
 export const NO_ICON_OVERRIDE = Symbol("no override");
@@ -163,12 +164,13 @@ export class GlyphHelpers extends AbsenceChecks {
     });
   }
 
-  /** A catalogue name to its codepoint, or `null` plus a reported error. */
-  resolveIconName(name: string, span: Span | null): string | null {
+  /** A catalogue name to its codepoint, or `null` plus a reported error; `suggest` adds the nearest names. */
+  resolveIconName(name: string, span: Span | null, suggest = false): string | null {
     const codepoint = icons.resolveCodepoint(name);
     if (codepoint === null) {
       this.bag.error("icon", `unknown icon ${quoted(name)}`, span, {
         notes: [
+          ...(suggest ? didYouMean(getCloseMatches(name, icons.names(), 3, 0.5)) : []),
           "the catalogue has: " + icons.names().join(", "),
           "for a glyph the catalogue does not name, write its codepoint, "
           + "'icon: {codepoint: \"U+XXXX\"}' -- see ts/assets/icons/README.md",
@@ -225,6 +227,141 @@ export class GlyphHelpers extends AbsenceChecks {
       return null;
     }
     return variant;
+  }
+
+  /**
+   * One glyph of an `icons:` set, checked as an element's own `icon:` is: a
+   * catalogue name as written, or a codepoint in its canonical `U+XXXX`
+   * spelling; `null` after its error.
+   */
+  private iconSetGlyph(set: Node, key: DataKey): string | null {
+    const raw = set.get(key);
+    const span = this.doc.span(set, key);
+    if (raw instanceof Map) {
+      const character = this.resolveIconGlyph(str(raw.get("codepoint")), this.doc.span(raw, "codepoint") ?? span);
+      return character !== null ? icons.codepointKey(character) : null;
+    }
+    const name = str(raw);
+    return this.resolveIconName(name, span, true) !== null ? name : null;
+  }
+
+  /**
+   * `icons:` written in `container` (an `icon: {for:}`) over `family`, the
+   * rule `what` (the source as written) follows: the author's own glyph per
+   * state, keyed as the reading is (band starts for a level or a count,
+   * `off`/`on` for an on/off reading, built-in glyph names for an overlay).
+   * `null` when none is written, and after an error: the first wrong key
+   * stops the key checks, each wrong glyph has its own error.
+   */
+  iconSet(container: Node, family: icons.IconRule, what: string): icons.CustomSet | null {
+    if (!container.has("icons")) return null;
+    const set = container.get("icons");
+    const setSpan = this.doc.span(container, "icons");
+    if (!(set instanceof Map)) throw new Error("the schema requires 'icons:' to be a mapping");
+    if (container.has("variant")) {
+      this.bag.error("icon", `'icons:' and 'variant:' both choose ${what}'s glyphs -- 'variant:' picks a built-in set; `
+        + "'icons:' is your own complete set, keep one", setSpan);
+      return null;
+    }
+    const keys = [...set.keys()];
+    const builtIn = icons.stateKeys(family).map((k) => String(k)).join(", ");
+    const keySpan = (key: DataKey): Span | null => this.doc.span(set, key, "key") ?? setSpan;
+    const glyphs = new Map<DataKey, string>();
+    const glyphsOk = (): boolean => {
+      let ok = true;
+      for (const key of keys) {
+        const glyph = this.iconSetGlyph(set, key);
+        if (glyph === null) ok = false;
+        else glyphs.set(key, glyph);
+      }
+      return ok;
+    };
+
+    if (icons.readsBoolean(family)) {
+      for (const key of keys) {
+        if (key === "off" || key === "on") continue;
+        this.bag.error("icon", `icons: key ${quoted(key)} -- ${what} is on or off, so its keys are 'off' and 'on'`, keySpan(key), {
+          notes: [`e.g. icons: {off: ${family.steps[0]}, on: ${family.steps[1]}}`],
+        });
+        return null;
+      }
+      const missing = ["off", "on"].filter((k) => !set.has(k));
+      if (missing.length > 0) {
+        this.bag.error("icon", `icons: needs both 'off' and 'on' for ${what} -- ${andPaths(missing)} ${missing.length === 1 ? "is" : "are"} missing`,
+          setSpan, { notes: [`e.g. icons: {off: ${family.steps[0]}, on: ${family.steps[1]}}`] });
+        return null;
+      }
+      if (!glyphsOk()) return null;
+      return { kind: "onoff", off: glyphs.get("off")!, on: glyphs.get("on")! };
+    }
+
+    if (family.kind === "table" || family.cyclic) {
+      const names = icons.ruleNames(family);
+      for (const key of keys) {
+        if (typeof key === "string" && names.includes(key)) continue;
+        this.bag.error("icon", `icons: key ${quoted(key)} is not a glyph ${what}'s icon draws -- its keys are the names of its built-in glyphs`,
+          keySpan(key), {
+            notes: [...didYouMean(getCloseMatches(String(key), names, 3, 0.5)), `its glyphs: ${builtIn}`,
+              "each key names a built-in glyph to replace; the glyphs not named keep their own"],
+          });
+        return null;
+      }
+      if (keys.length === 0) {
+        this.bag.error("icon", `icons: is empty -- name at least one of ${what}'s built-in glyphs to replace`, setSpan, {
+          notes: [`its glyphs: ${builtIn}`],
+        });
+        return null;
+      }
+      if (!glyphsOk()) return null;
+      return { kind: "overlay", replace: new Map(keys.map((key) => [key as string, glyphs.get(key)!])) };
+    }
+
+    // An ordered number: a level over `range`, or a count from 0.
+    const count = family.range === null;
+    const [bottom, top] = family.range ?? [0, null];
+    const said = count ? `${what} is a count, keyed by whole numbers from ${bottom}` : `${what} is a level, keyed by numbers from ${bottom} to ${top}`;
+    const example = `e.g. its built-in set starts its glyphs at ${builtIn}`;
+    for (const key of keys) {
+      if (typeof key === "number") {
+        let problem: string | null = null;
+        if (key < bottom) problem = `is below ${bottom}, where the reading starts`;
+        else if (top !== null && key > top) problem = `is above ${top}, the top of the reading`;
+        else if (count && !Number.isInteger(key)) problem = "is not a whole number";
+        if (problem === null) continue;
+        this.bag.error("icon", `icons: key ${quoted(key)} ${problem} -- ${said}`, keySpan(key), {
+          notes: ["each key is the reading where its glyph starts", example],
+        });
+        return null;
+      }
+      const asNumber = typeof key === "string" && key.trim() !== "" ? Number(key) : NaN;
+      if (Number.isFinite(asNumber)) {
+        this.bag.error("icon", `icons: key ${quoted(key)} is quoted -- write it unquoted (${key}:), as ${what}'s keys are numbers`, keySpan(key), {
+          notes: ["each key is the reading where its glyph starts", example],
+        });
+        return null;
+      }
+      this.bag.error("icon", `icons: key ${quoted(key)} is not a reading -- ${said}`, keySpan(key), {
+        notes: ["each key is the reading where its glyph starts", example,
+          ...(key === "off" || key === "on" ? ["'off' and 'on' key an on/off reading: device.do_not_disturb, device.phone_connected"] : [])],
+      });
+      return null;
+    }
+    const numbers = keys as number[];
+    if (numbers.length < 2) {
+      this.bag.error("icon", `icons: has ${numbers.length === 0 ? "no keys" : "one key"} -- a set over ${what} needs at least two, `
+        + "one where each glyph starts", setSpan, {
+        notes: [example, "a single glyph that never changes is 'icon: <name>'"],
+      });
+      return null;
+    }
+    const lowest = Math.min(...numbers);
+    if (lowest !== bottom) {
+      this.bag.error("icon", `icons: needs a key at ${bottom}, where ${what}'s reading starts -- the lowest written is ${quoted(lowest)}`,
+        setSpan, { notes: ["each key is the reading where its glyph starts, so the first glyph needs one at the bottom", example] });
+      return null;
+    }
+    if (!glyphsOk()) return null;
+    return { kind: "numeric", entries: numbers.map((key) => [key, glyphs.get(key)!] as const) };
   }
 
   /** A `config: slots:` choice's own `icon:`, if it declares one. */
