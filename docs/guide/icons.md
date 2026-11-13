@@ -92,7 +92,14 @@ font pays.
 `align:` follows the one placement rule every accepting kind
 shares: [Placement: `at:` and `align:`](placement.md#placement-at-and-align) — an icon is
 a glyph kind, so it places the same way `text` does, by a runtime justify on
-the device, not a moved build-time box.
+the device, not a moved build-time box. Horizontally, and for `top` and
+`bottom`, that is the same justify; a vertically **centred** icon is the one
+exception: it is drawn from the top of its glyph cell, at its anchor less
+half the icon font's line height (rounded up), a number the build works
+out for each device, because the watch's own vertical centring was seen to
+put a baked font a couple of pixels low ([Limitations](../limitations.md)).
+The preview draws the same top, and a ring (`outline:`) moves with its icon.
+A `data` element's icon beside or along its reading is placed the same way.
 
 **`size:` accepts only `px` and `%r`, not `%` or `pt`.** The icon's font has to
 be baked once, before layout runs, so its size cannot depend on a parent box

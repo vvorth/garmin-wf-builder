@@ -138,6 +138,7 @@ jobs:
             # test/icon-sets.test.ts
             # test/icon-sets-yaml.test.ts
             # test/icon-sets-slots.test.ts
+            # test/icon-vcenter.test.ts
             # test/icon-variants.test.ts
             # test/layout.test.ts
             # test/level-guards.test.ts

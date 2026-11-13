@@ -10,7 +10,7 @@ import * as complications from "../complications.ts";
 import * as icons from "../icons.ts";
 import type { Face } from "../ir/model.ts";
 import {
-  alignmentShift, DATA_ICON_GAP, dataPairGeometry, garminCurveAngle, HIDDEN_BY_FONT, type IconTrack, justify, type LayoutFont, longer, type Placed, PlacedData,
+  alignmentShift, DATA_ICON_GAP, dataPairGeometry, garminCurveAngle, HIDDEN_BY_FONT, iconHalfLine, type IconTrack, justify, type LayoutFont, longer, type Placed, PlacedData,
   radialDirectionSign, radialSpacingRadius, radialTextBand, replaceFields, Resolver, resolvedCurve, textInk,
 } from "../layout.ts";
 import type { Device } from "../devices/device.ts";
@@ -20,7 +20,7 @@ import * as units from "../units.ts";
 import { Box, IntBox, type Length, roundPx as round } from "../units.ts";
 import { type Common, ElementKind, IconFont, type Refusal, register, TextRun } from "./base.ts";
 import {
-  AodRestyled, Assign, Bin, Blank, Call, Cmp, Comment, type Cond, Const, Conv, type DrawContext, Font, FontHeight, IconStep, If, IfNotNull, IsPulsing, Let,
+  AodRestyled, Assign, Bin, Blank, Call, Cmp, Comment, type Cond, Const, Conv, type DrawContext, Font, FontHeight, IconStep, If, IfNotNull, Indexed, IsPulsing, Let,
   Lit, LoadFont, Local, LocalsSet, type Num, NumLocal, NumPick, type Op, type Paint, Paren, Return, SetColor, SlotIcon, SlotPull, SlotText,
   type Str, Text as DrawText, TextWidth,
 } from "../draw/program.ts";
@@ -290,7 +290,13 @@ export function highlightBox(box: IntBox, anchorX: number, align: string, screen
 /** The generated module a data element's reading is formatted by. */
 export const SLOT_TEXT_MODULE = "SlotText";
 
-type DrawFn = (x: Num, y: Num, face: Font, string: Str, justify: readonly string[]) => Op;
+/** One `drawText` of the pair; `half` is how far above `y` a centred icon's cell top is, when not the element's `_ICON_HALF`. */
+type DrawFn = (x: Num, y: Num, face: Font, string: Str, justify: readonly string[], half?: Num) => Op;
+
+/** Whether the pair draws its icon centred on a point (beside the reading, or curved), top-justified from `_ICON_HALF`. */
+function centresIcon(p: PlacedData): boolean {
+  return p.icon_font_key !== null && (p.curve.style !== null || p.icon_position === "left" || p.icon_position === "right");
+}
 
 /** Any pair but the fast path: its alignment computed on the watch from the measured text and icon. */
 function generalPair(element: DataElement, placed: PlacedData, prefix: string, font: Font, iconFont: Font | null,
@@ -400,8 +406,10 @@ function trackedIcon(p: PlacedData, prefix: string, font: Font, iconFont: Font, 
   const r = k("R", track.middle);
   const x = rounded(Bin("+", Const(`${prefix}_CX`, p.anchor_point[0]), Bin("*", r, Call("Math.cos", [theta]))));
   const y = rounded(Bin("-", Const(`${prefix}_CY`, p.anchor_point[1]), Bin("*", r, Call("Math.sin", [theta]))));
+  // Each turned step's cell grows by its own amount, so its cell top is its own.
+  const half = track.steps > 0 ? Indexed(`${prefix}_ICON_HALVES`, track.line_heights.map(iconHalfLine), NumLocal("iconStep")) : undefined;
   ops.push(If(iconShown, [...(iconPaint !== null ? [SetColor(iconPaint)] : []),
-    draw(x, y, iconFont, Local("iconGlyph"), ["TEXT_JUSTIFY_CENTER", "TEXT_JUSTIFY_VCENTER"])]));
+    draw(x, y, iconFont, Local("iconGlyph"), ["TEXT_JUSTIFY_CENTER", "TEXT_JUSTIFY_VCENTER"], half)]));
   return ops;
 }
 
@@ -471,7 +479,7 @@ class DataKind extends ElementKind<DataElement> {
         // The icon follows the reading's width round the circle, computed on the watch; the turn snaps to a baked step.
         const free = steppedTurn(element, r.face);
         const path = free.path(r.device, pinWidth);
-        let steps = 0, stepsPerPx = 0, turns: number[] = [], widestIcon = iconWidth;
+        let steps = 0, stepsPerPx = 0, turns: number[] = [], lineHeights: number[] = [], widestIcon = iconWidth;
         if (turnOf instanceof icons.SteppedTurn) {
           const baked = free.steps(r.device, pinWidth);
           [steps, stepsPerPx] = [baked.count, baked.perPx];
@@ -481,11 +489,12 @@ class DataKind extends ElementKind<DataElement> {
             const turn = free.turnAt(baked.first + i * baked.size);
             if (step === undefined || step.rotate !== turn) throw new Error(`${element.id}: step ${i} of ${iconKey} was not baked at ${turn}deg on ${r.device.id}`);
             turns.push(turn);
+            lineHeights.push(step.line_height);
             widestIcon = Math.max(widestIcon, step.measure(reference)[0]);
           }
           if (r.fonts.has(icons.stepKey(iconKey!, steps))) throw new Error(`${element.id}: ${iconKey} has more steps baked than ${r.device.id} reaches`);
         }
-        iconTrack = { theta: path.theta, per_px: path.perPx, middle: middle(), steps, steps_per_px: stepsPerPx, turns };
+        iconTrack = { theta: path.theta, per_px: path.perPx, middle: middle(), steps, steps_per_px: stepsPerPx, turns, line_heights: lineHeights };
         // A centred pair's text is centred off the authored angle so the pair, not the text, centres on it.
         curve = replaceFields(curve, { angle_garmin: path.textGarmin });
         // The lint sector: the pair along the run from the authored angle, as the alignment lays it out.
@@ -514,10 +523,10 @@ class DataKind extends ElementKind<DataElement> {
         element, box, center: [round(cx), round(cy)], depth, anchor_point: [round(cx), round(cy)], font: font.resolved(), widest,
         icon_font_key: iconKey, icon_px: iconPx, icon_position: element.icon_position, icon_gap_px: gapPx, highlight: box, curve,
         measured_width: round(width), line_height: height, ink_angle_garmin: inkAngle, icon_point: iconPoint, icon_turn: iconTurn,
-        icon_track: iconTrack,
+        icon_track: iconTrack, icon_line_height: reference !== null ? iconFont?.line_height ?? iconPx : 0,
       });
     }
-    let iconFontKey: string | null = null, iconPx = 0, iconWidth = 0;
+    let iconFontKey: string | null = null, iconPx = 0, iconWidth = 0, iconLineHeight = 0;
     if (element.icon_size !== null) {
       const referenceGlyph = slotReferenceGlyph(r.face.config_data.get(element.slot));
       if (referenceGlyph !== null) {
@@ -526,6 +535,7 @@ class DataKind extends ElementKind<DataElement> {
         const iconFont = r.fonts.get(iconFontKey);
         // The watch measures the pick's own glyph: the box holds the widest the slot can draw.
         iconWidth = iconFont !== undefined ? iconFont.widestAdvance() : iconPx;
+        iconLineHeight = iconFont !== undefined ? iconFont.line_height : iconPx;
       }
     }
     const gapPx = element.icon_gap !== null ? units.pixelSize(element.icon_gap, r.device.minorRadius) : DATA_ICON_GAP;
@@ -537,7 +547,7 @@ class DataKind extends ElementKind<DataElement> {
     return PlacedData.create({
       element, box: rounded, center: [round(cx), round(cy)], depth, anchor_point: [round(cx), round(cy)],
       font: font.resolved(), widest, icon_font_key: iconFontKey, icon_px: iconPx, icon_position: element.icon_position,
-      icon_gap_px: gapPx, highlight: highlightBox(rounded, round(cx), element.align, r.device.width),
+      icon_gap_px: gapPx, icon_line_height: iconLineHeight, highlight: highlightBox(rounded, round(cx), element.align, r.device.width),
     });
   }
 
@@ -725,8 +735,15 @@ class DataKind extends ElementKind<DataElement> {
     const cx = Const(`${prefix}_CX`, p.anchor_point[0]), cy = Const(`${prefix}_CY`, p.anchor_point[1]);
     const iconShown = iconFont !== null ? LocalsSet(["iconGlyph", "iconFont"]) : null;
     const centred = ["TEXT_JUSTIFY_CENTER", "TEXT_JUSTIFY_VCENTER"];
-    let draw: DrawFn = (x, y, face_, string, justify) =>
-      DrawText(x, y, face_, string, justify, justify.includes("TEXT_JUSTIFY_VCENTER") ? "center" : "top", { joined: true });
+    const iconHalf = Const(`${prefix}_ICON_HALF`, iconHalfLine(p.icon_line_height));
+    let draw: DrawFn = (x, y, face_, string, justify, half = iconHalf) => {
+      const vcenter = justify.includes("TEXT_JUSTIFY_VCENTER");
+      // A centred icon: top-justified at its centre less half its line, not through VCENTER (`iconHalfLine`).
+      if (face_ === iconFont && vcenter) {
+        return DrawText(x, Bin("-", y, half), face_, string, justify.filter((flag) => flag !== "TEXT_JUSTIFY_VCENTER"), "top", { joined: true });
+      }
+      return DrawText(x, y, face_, string, justify, vcenter ? "center" : "top", { joined: true });
+    };
     if (p.curve.style !== null) {
       const angle = Const(`${prefix}_ANGLE`, flt(p.curve.angle_garmin));
       if (p.curve.style === "radial" || iconFont === null || iconShown === null) {
@@ -789,6 +806,9 @@ class DataKind extends ElementKind<DataElement> {
       [`${prefix}_CY`, p.anchor_point[1], ""],
     ];
     if (p.element.icon_gap !== null && p.icon_point === null && p.icon_track === null) out.push([`${prefix}_ICON_GAP`, p.icon_gap_px, "icon: {gap:} resolved for this device"]);
+    if (centresIcon(p) && !(p.icon_track !== null && p.icon_track.steps > 0)) {
+      out.push([`${prefix}_ICON_HALF`, iconHalfLine(p.icon_line_height), `the icon's cell top is this far above its centre: half its ${p.icon_line_height} px line, rounded up`]);
+    }
     if (p.curve.style !== null) {
       const authorNote = p.curve.style === "radial"
         ? `${formatG(p.curve.angle_degrees)}deg clockwise from 12 o'clock`
@@ -807,6 +827,8 @@ class DataKind extends ElementKind<DataElement> {
           const keys = Array.from({ length: t.steps }, (_, i) => `Rez.Fonts.${fontResourceId(icons.stepKey(p.icon_font_key!, i))}`);
           out.push([`${prefix}_ICON_STEP_PER_PX`, flt(t.steps_per_px), `the nearest of ${t.steps} turns is step round(width * this)`],
             [`${prefix}_ICON_LAST`, t.steps - 1, ""],
+            [`${prefix}_ICON_HALVES`, new McLiteral("Array<Number>", `[${t.line_heights.map(iconHalfLine).join(", ")}]`),
+              "each step's cell top is this far above its centre: half its line height, rounded up"],
             [`${prefix}_ICON_STEPS`, new McLiteral("Array<ResourceId>", `[${keys.join(", ")}]`),
               `the icon baked turned ${t.turns.map((turn) => formatG(roundHalfEven(turn * 10) / 10)).join(", ")}deg`]);
         }

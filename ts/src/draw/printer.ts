@@ -34,6 +34,7 @@ export function numCode(n: Num, aod: AodStyle = NO_AOD): string {
     case "TextWidth": return `dc.getTextWidthInPixels(${strCode(n.text, aod)}, ${n.font.code})`;
     case "FontHeight": return `dc.getFontHeight(${n.font.code})`;
     case "Grown": return plus(numCode(n.base, aod), String(n.by), n.times);
+    case "Indexed": return `Layout.${n.name}[${numCode(n.index, aod)}]`;
   }
 }
 

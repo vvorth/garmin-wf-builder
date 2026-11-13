@@ -381,7 +381,13 @@ test("a pinned radial icon's font is baked at the turn the layout placed it at, 
   assert.notEqual(turns[0], turns[1], "the radius and the glyph's advance differ per device, so the turn does");
   const files = generated(text);
   for (const id of devices) assert.match(files.get(`resources-${id}/fonts/fonts.xml`)!, /id="FontIcon10pctrSlotLeftPinnedValue"/);
-  assert.match(method(view(text), "drawValue"), /dc\.drawText\(Layout\.VALUE_ICON_X, Layout\.VALUE_ICON_Y, iconFont, iconGlyph,/);
+  // Centred top-justified from its cell top, half the turned font's line above the point (iconHalfLine), never VCENTER.
+  assert.match(method(view(text), "drawValue"), /dc\.drawText\(Layout\.VALUE_ICON_X, Layout\.VALUE_ICON_Y - Layout\.VALUE_ICON_HALF, iconFont, iconGlyph,\s+Graphics\.TEXT_JUSTIFY_CENTER\);/);
+  for (const id of devices) {
+    const r = resolved(text, id);
+    const line = r.fonts.get("icon_10pctr_slot_left_pinned_value")!.line_height;
+    assert.match(files.get(`source-${id}/Layout.mc`)!, new RegExp(`const VALUE_ICON_HALF as Number = ${Math.ceil(line / 2)};`), id);
+  }
 });
 
 /** The red (icon) pixels of one 1x preview frame. */
@@ -422,7 +428,8 @@ test("a free-end or centred icon's angle is computed on the watch from the measu
   assert.match(draw, /var textWidth = dc\.getTextWidthInPixels\(text, textFont\);\s+var iconTheta = Layout\.VALUE_ICON_THETA \+ Layout\.VALUE_ICON_PER_PX \* textWidth;/);
   assert.match(draw, /var iconStep = \(textWidth \* Layout\.VALUE_ICON_STEP_PER_PX \+ 0\.5\)\.toNumber\(\);/);
   assert.match(draw, /_fontIcon10pctrSlotLeftStepsValue = WatchUi\.loadResource\(Layout\.VALUE_ICON_STEPS\[iconStep\]\) as FontResource;/);
-  assert.match(draw, /dc\.drawText\(\(Layout\.VALUE_CX \+ Layout\.VALUE_ICON_R \* Math\.cos\(iconTheta\) \+ 0\.5\)\.toNumber\(\), \(Layout\.VALUE_CY - Layout\.VALUE_ICON_R \* Math\.sin\(iconTheta\) \+ 0\.5\)\.toNumber\(\), iconFont, iconGlyph,/);
+  // Each turned step's cell top is its own: half that step's line above the computed centre.
+  assert.match(draw, /dc\.drawText\(\(Layout\.VALUE_CX \+ Layout\.VALUE_ICON_R \* Math\.cos\(iconTheta\) \+ 0\.5\)\.toNumber\(\), \(Layout\.VALUE_CY - Layout\.VALUE_ICON_R \* Math\.sin\(iconTheta\) \+ 0\.5\)\.toNumber\(\) - Layout\.VALUE_ICON_HALVES\[iconStep\], iconFont, iconGlyph,\s+Graphics\.TEXT_JUSTIFY_CENTER\);/);
   // A clockwise run walks towards smaller Garmin angles: an icon that follows it moves that way per pixel, one that leads it the other.
   const ccw = RADIAL.replace("radius: 80%r}", "radius: 80%r, direction: counter_clockwise}");
   const sign = (align: string, position: string, curve = RADIAL): number => Math.sign(placedValue(radialPair(align, position, "", curve)).icon_track!.per_px);
@@ -466,12 +473,15 @@ test("the preview puts a free-end icon past the run's end, where the watch's ari
     // The watch's own arithmetic: the angle from the measured width, the nearest baked step.
     const width = resolved(radialPair("left", "right", "", curve)).device.db.measure.measure(reading, p.font.metric!)[0];
     const theta = t.theta + t.per_px * width;
-    assert.deepEqual(iconAt, [Math.trunc(cx + t.middle * Math.cos(theta) + 0.5), Math.trunc(cy - t.middle * Math.sin(theta) + 0.5)]);
-    assert.equal(iconFont, stepKey(p.icon_font_key!, Math.min(Math.trunc(width * t.steps_per_px + 0.5), t.steps - 1)));
+    const step = Math.min(Math.trunc(width * t.steps_per_px + 0.5), t.steps - 1);
+    const centre: [number, number] = [Math.trunc(cx + t.middle * Math.cos(theta) + 0.5), Math.trunc(cy - t.middle * Math.sin(theta) + 0.5)];
+    // The icon is drawn top-justified: its cell top half its step's line above the centre.
+    assert.deepEqual(iconAt, [centre[0], centre[1] - Math.ceil(t.line_heights[step]! / 2)]);
+    assert.equal(iconFont, stepKey(p.icon_font_key!, step));
     // And the pixels: the icon's ink centred there, past the reading's last ink along the run.
     assert.ok(red.length > 20 && white.length > 20, `${red.length} icon and ${white.length} reading pixels`);
     const mx = red.reduce((s, [x]) => s + x + 0.5, 0) / red.length, my = red.reduce((s, [, y]) => s + y + 0.5, 0) / red.length;
-    assert.ok(Math.hypot(mx - iconAt[0], my - iconAt[1]) <= 2.5, `icon ink at ${mx},${my}; drawn at ${iconAt}`);
+    assert.ok(Math.hypot(mx - centre[0], my - centre[1]) <= 2.5, `icon ink at ${mx},${my}; centred at ${centre}`);
     const icon = red.map((px) => garminAt(px, cx, cy)), text = white.map((px) => garminAt(px, cx, cy));
     if (ccw) assert.ok(Math.min(...icon) > Math.max(...text), `counter-clockwise: icon from ${Math.min(...icon)}deg, reading up to ${Math.max(...text)}deg`);
     else assert.ok(Math.max(...icon) < Math.min(...text), `clockwise: icon up to ${Math.max(...icon)}deg, reading from ${Math.min(...text)}deg`);

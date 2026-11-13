@@ -113,9 +113,9 @@ class SliceView extends WatchUi.WatchFace {
 
         // 'steps'
         dc.setColor(Palette.ACCENT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(Layout.STEPS_ICON_CX, Layout.STEPS_ICON_CY, font,
+        dc.drawText(Layout.STEPS_ICON_CX, Layout.STEPS_ICON_TOP, font,
                     "󰷺",
-                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+                    Graphics.TEXT_JUSTIFY_CENTER);
     }
 
     //! `steps_value` -- text.

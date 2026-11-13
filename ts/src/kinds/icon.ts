@@ -9,7 +9,7 @@ import {
   comparePoints, resolveSlotReference, slotIconFontKey, slotIconRun, slotIconSample, slotReferenceGlyph, slotSampleGlyph, withSubstitute,
 } from "./data.ts";
 import * as icons from "../icons.ts";
-import { alignmentShift, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
+import { alignmentShift, iconHalfLine, justify, type Placed, PlacedIcon, type Resolver } from "../layout.ts";
 import { quoted, str } from "../py.ts";
 import * as vocab from "../vocab.ts";
 import * as units from "../units.ts";
@@ -26,6 +26,25 @@ import { bakedRing, bakedRingLocal } from "./text.ts";
 
 type Node = Map<DataKey, Data>;
 type Placement = Pick<IconElement, "size" | "color" | "align" | "vertical_align" | "rotate">;
+
+/**
+ * The `y` an icon's glyph is drawn at, with the `vertical_align` it is drawn
+ * under. A centred icon is drawn top-justified at its centre less half its
+ * font's line height (`iconHalfLine`), a per-device `<ID>_TOP` constant: the
+ * watch's `TEXT_JUSTIFY_VCENTER` for a baked font is not relied on, since the
+ * simulator drew it about 2 px off `y - lineHeight/2`
+ * (`docs/research/probes/icon-vcenter/`). `top` and `bottom` keep `<ID>_CY`.
+ */
+function glyphY(prefix: string, p: PlacedIcon): { y: Const; valign: string; origin: [number, number] } {
+  if (p.element.vertical_align !== "center") return { y: Const(`${prefix}_CY`, p.center[1]), valign: p.element.vertical_align, origin: p.center };
+  const top = centredTop(p);
+  return { y: Const(`${prefix}_TOP`, top), valign: "top", origin: [p.center[0], top] };
+}
+
+/** A centred icon's cell top on this device. */
+function centredTop(p: PlacedIcon): number {
+  return p.center[1] - iconHalfLine(p.line_height);
+}
 
 /** `icon: {codepoint: "U+F0BC"}`: a codepoint the catalogue does not name, spelled so it survives a review. */
 function buildGlyphIcon(b: Builder, node: Node, spec: Node, common: Common, placement: Placement): Element {
@@ -147,12 +166,16 @@ class IconKind extends ElementKind<IconElement> {
     let [width, height] = font !== undefined ? font.measure(measureCodepoint) : [px, px];
     // A glyph chosen on the watch can be any the font holds: the box is as wide as the widest.
     if (font !== undefined && (element.slot !== null || element.isDynamic)) width = font.widestAdvance();
-    // The lint box only: the runtime `drawText` anchor stays put; alignment is a device-side justify.
+    // The lint box only: the runtime `drawText` anchor stays put; alignment is a device-side justify, except a centred
+    // icon's, whose cell top is a build-time number (`centredTop`), so its box sits exactly there.
     const [dx, dy] = alignmentShift(width, height, element.align, element.vertical_align);
-    const box = new Box(cx + dx - width / 2, cy + dy - height / 2, width, height);
+    const top = element.vertical_align === "center" ? round(cy) - iconHalfLine(height) : cy + dy - height / 2;
+    const box = new Box(cx + dx - width / 2, top, width, height);
     return PlacedIcon.create({
       element, box: box.rounded(), center: [round(cx), round(cy)], depth, size: px, font_key: key, codepoint: measureCodepoint,
-      anchor_point: [round(cx), round(cy)], justify: justify(element),
+      anchor_point: [round(cx), round(cy)], line_height: height,
+      // Never `TEXT_JUSTIFY_VCENTER`: a centred icon is drawn top-justified from `centredTop`.
+      justify: justify(element).filter((flag) => flag !== "TEXT_JUSTIFY_VCENTER"),
     });
   }
 
@@ -280,10 +303,10 @@ class IconKind extends ElementKind<IconElement> {
         element.absent !== null ? { glyph: substituteGlyph(element), shown: vocab.absent(element) } : null),
     ];
     const prefix = constPrefix(p.id);
-    const x = Const(`${prefix}_CX`, p.center[0]), y = Const(`${prefix}_CY`, p.center[1]);
+    const x = Const(`${prefix}_CX`, p.center[0]), { y, valign, origin } = glyphY(prefix, p);
     const glyph = Local("iconGlyph"), shownGlyph = LocalsSet(["iconGlyph", "iconFont"]);
     const draw = (font: Font, dx = 0, dy = 0): Glyph =>
-      Glyph(Shifted(x, dx), Shifted(y, dy), font, glyph, p.justify, element.vertical_align, p.innerBox, p.center);
+      Glyph(Shifted(x, dx), Shifted(y, dy), font, glyph, p.justify, valign, p.innerBox, origin);
     const font = Font("iconFont", { baked: p.font_key });
     const ringOps = (paint: Paint, width: number): Op[] => {
       const baked = bakedRing(element, face, width);
@@ -318,9 +341,9 @@ class IconKind extends ElementKind<IconElement> {
       ops.push(Comment(quoted(element.icon)));
       glyph = StrLit(element.codepoint);
     }
-    const x = Const(`${prefix}_CX`, p.center[0]), y = Const(`${prefix}_CY`, p.center[1]);
+    const x = Const(`${prefix}_CX`, p.center[0]), { y, valign, origin } = glyphY(prefix, p);
     const draw = (face: Font, dx = 0, dy = 0): Glyph =>
-      Glyph(Shifted(x, dx), Shifted(y, dy), face, glyph, p.justify, element.vertical_align, p.innerBox, p.center);
+      Glyph(Shifted(x, dx), Shifted(y, dy), face, glyph, p.justify, valign, p.innerBox, origin);
     const ringOps = (paint: Paint, width: number): Op[] => {
       const baked = bakedRing(element, ctx.resolved.face, width);
       if (baked === null) return [SetColor(paint), ...discPerimeterOffsets(width).map(([dx, dy]) => draw(font, dx, dy))];
@@ -334,8 +357,12 @@ class IconKind extends ElementKind<IconElement> {
 
   override layoutConstants(prefix: string, placed: Placed): Constants {
     const p = placed as PlacedIcon;
-    const isDefault = p.element.align === "center" && p.element.vertical_align === "center";
-    const note = isDefault ? "" : "the anchor drawText justifies the glyph from, not its centre";
+    if (p.element.vertical_align === "center") {
+      const note = p.element.align === "center" ? "" : "the anchor drawText justifies the glyph from, not its centre";
+      return [[`${prefix}_CX`, p.center[0], note],
+        [`${prefix}_TOP`, centredTop(p), `the glyph's cell top: its centre ${p.center[1]} less half its ${p.line_height} px line, rounded up`]];
+    }
+    const note = "the anchor drawText justifies the glyph from, not its centre";
     return [[`${prefix}_CX`, p.center[0], note], [`${prefix}_CY`, p.center[1], note]];
   }
 

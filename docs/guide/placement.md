@@ -231,7 +231,9 @@ A `text` element, an `icon` (fixed or `icon: {for:}`) or a pattern `type: text`
 part draws its glyphs through a runtime justify on the device rather than
 moving a build-time box (there is no bottom-justify flag on the platform, so
 a `bottom` alignment there subtracts the font's own on-device
-`getFontHeight` instead) — see [`text`](text.md#text), [`icon`](icons.md#icon) and
+`getFontHeight` instead, and a vertically centred icon is drawn from its
+glyph cell's top, half its font's line height above the anchor, worked out
+per device at build time) — see [`text`](text.md#text), [`icon`](icons.md#icon) and
 [Text parts](patterns.md#text-parts) for the mechanism; the *rule* above is the same
 regardless of which mechanism draws it. A `data` element is different
 again: its pair is measured and placed on the **device**, at runtime, so its

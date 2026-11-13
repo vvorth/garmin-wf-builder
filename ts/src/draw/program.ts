@@ -94,8 +94,12 @@ export const TextWidth = (text: Str, font: Font): TextWidth => ({ t: "TextWidth"
 export interface FontHeight { t: "FontHeight"; font: Font }
 export const FontHeight = (font: Font): FontHeight => ({ t: "FontHeight", font });
 
+/** `Layout.<name>[<index>]`: one of a per-device `Array<Number>` constant's `values`. */
+export interface Indexed { t: "Indexed"; name: string; values: number[]; index: Num }
+export const Indexed = (name: string, values: readonly number[], index: Num): Indexed => ({ t: "Indexed", name, values: [...values], index });
+
 export type Num = Const | Lit | Shifted | Grown | AodPick | FloatLit | NumLocal | Read | Bin | Paren | Call | Conv
-  | NumPick | FontDrop | HandAngle | TextWidth | FontHeight;
+  | NumPick | FontDrop | HandAngle | TextWidth | FontHeight | Indexed;
 
 // -- conditions -----------------------------------------------------------------
 

@@ -346,6 +346,20 @@ on top of each other. Icons inherit this too: an icon element is a glyph from a
 baked bitmap font (`ts/src/icons.ts`), so a two-tone icon is not possible without
 splitting it into two overlaid glyphs, the same as two-colour text.
 
+### The watch centres a baked font vertically by a rule not yet known
+
+`TEXT_JUSTIFY_VCENTER` on a baked (BMFont) font did not put the font's line
+top at `y - lineHeight/2` in the simulator: one 41 px icon font on
+`fenix8solar51mm` landed about 2 px lower, while a vector font beside it
+landed as predicted (the user's simulator, 2026-11-13; the controlled probe
+for every line height is `docs/research/probes/icon-vcenter/`, not yet
+run). So a vertically centred icon is not drawn with `VCENTER`: it is drawn
+top-justified at its anchor less half its font's line height, rounded up,
+a per-device build-time number, and the preview draws that same top. Baked
+**text** fonts still use `VCENTER`, so a centred text in a baked font may sit
+a pixel or two lower on the watch than in the preview until the probe
+settles the rule. The details are in `docs/lore/rendering.md`.
+
 ### `monospace:` and `tabular_digits:` only reach a font the compiler bakes
 
 `fonts.<name>.monospace` (`docs/guide/fonts.md`) gives every glyph in a

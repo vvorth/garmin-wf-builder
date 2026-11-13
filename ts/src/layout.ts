@@ -446,6 +446,8 @@ export class PlacedIcon extends Placed {
   codepoint = "?";
   anchor_point: [number, number] = [0, 0];
   justify: string[] = [];
+  /** The icon font's line height on this device, a turned font's grown cell included. */
+  line_height = 0;
 }
 
 export class PlacedGraph extends Placed {
@@ -657,6 +659,8 @@ export class PlacedData extends Placed {
   icon_px = 0;
   icon_position = "left";
   icon_gap_px = DATA_ICON_GAP;
+  /** The icon font's line height on this device (a turned font's grown cell included), 0 with no icon; a stepped icon's are its track's. */
+  icon_line_height = 0;
   highlight: IntBox | null = null;
   /** `curve:` resolved for this device; `style` is `null` for an upright reading. */
   curve: ResolvedCurve = new ResolvedCurve();
@@ -685,6 +689,8 @@ export interface IconTrack {
   steps_per_px: number;
   /** Each step's baked turn, degrees clockwise. */
   turns: number[];
+  /** Each step's font's line height: a turned cell grows by its own amount. */
+  line_heights: number[];
 }
 
 /** Who a `SubPixelLength` or `ResolveWarning` is recorded against. */
@@ -1162,6 +1168,18 @@ export class Resolver {
 export function justify(element: Pick<Text, "align" | "vertical_align">): string[] {
   const flag = ({ left: "TEXT_JUSTIFY_LEFT", center: "TEXT_JUSTIFY_CENTER", right: "TEXT_JUSTIFY_RIGHT" } as Record<string, string>)[element.align]!;
   return element.vertical_align === "center" ? [flag, "TEXT_JUSTIFY_VCENTER"] : [flag];
+}
+
+/**
+ * How far above a centred icon's anchor its cell's top is drawn: half the
+ * icon font's line height, rounded up. A centred baked icon is drawn
+ * top-justified at `y - iconHalfLine(lineHeight)`, a build-time number per
+ * device, not with `TEXT_JUSTIFY_VCENTER`: the simulator put a baked font's
+ * line top about 2 px lower than `y - lineHeight/2` under VCENTER, by a rule
+ * not yet known (`docs/research/probes/icon-vcenter/`).
+ */
+export function iconHalfLine(lineHeight: number): number {
+  return Math.ceil(lineHeight / 2);
 }
 
 /** `candidate` if strictly longer than `current`, else `current`. */

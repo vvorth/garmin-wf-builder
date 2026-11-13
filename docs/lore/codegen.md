@@ -633,7 +633,9 @@ These cost real time to discover; do not rediscover them.
   the base font's under `TEXT_JUSTIFY_VCENTER` -- they share
   `lineHeight`/`base`, which is all the `.fnt` gives it: VERIFIED in the
   Connect IQ simulator (the user's host, 2026-09-29, the profile face),
-  not yet on a watch.  The preview draws the same ring font (`text` and
+  not yet on a watch.  A centred icon's ring is drawn top-justified from
+  the same build-time cell top as its glyph (`docs/lore/rendering.md`,
+  "Baked fonts and `VCENTER`"), so the two still coincide.  The preview draws the same ring font (`text` and
   `icon` are lowered); for an icon that paints exactly what stamping the
   glyph would.
 

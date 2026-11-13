@@ -104,6 +104,38 @@ Unchecked: whether the vertical edge clips the same way, and whether a
 ring font's glyphs, which reach `w` px past their base's ink, are cut where
 that ink touches its cell.
 
+## Baked fonts and `VCENTER`
+
+Seen once, not yet a controlled probe: in the user's simulator (2026-11-13,
+`fenix8solar51mm`, face `fenix-sectors`, its `pocket_top` data element), a
+baked icon font with `lineHeight=41 base=32`, drawn with
+`TEXT_JUSTIFY_LEFT | TEXT_JUSTIFY_VCENTER` at `y = 46`, put every glyph's ink
+about 2 px lower than the preview, which placed the line top at
+`y - lineHeight/2`: the watch's line top was about `y - 18.75`, not
+`y - 20.5`. The reading beside it, in a `face:` vector font under the same
+flags, landed exactly where the preview put it. Which function of
+`lineHeight` and `base` the watch uses, and whether a baked text font
+behaves the same, is what `docs/research/probes/icon-vcenter/` (icons at
+nine line heights, odd and even, each drawn both ways, and one baked text
+font) is built to measure; it has not run yet.
+
+**The rule the compiler follows for icons:** a centred baked icon is drawn
+**top-justified** (no `VCENTER`) at `y - ceil(lineHeight / 2)`, with the
+line height of the font actually drawn on that device (a turned font's own,
+a stepped turn's per step): `<ID>_TOP` in `Layout.mc` for a `type: icon`,
+`<ID>_ICON_HALF` (or `<ID>_ICON_HALVES[iconStep]`) subtracted from the
+runtime `y` for a `type: data` icon. A ring font is drawn from the same top
+as its glyph. The preview pastes the cell at that same top, so preview and
+watch agree by construction whatever `VCENTER` does; for an odd line height
+the cell's middle row is `y - 1`, its middle edge-to-edge at row `y`'s top
+edge, the half pixel up that keeps a glyph from looking low beside a reading
+centred at `y - lineHeight/2` (`fenix-sectors`' pocket: a battery at
+`y - floor` sat 1.5 px below the digits, at `y - ceil` 0.5 px). A `top`/`bottom` aligned icon, and a
+data icon stacked over or under its reading, never used `VCENTER` and are
+unchanged (`bottom`, and the stacking, still read `dc.getFontHeight`, whose
+value for a baked font is assumed to be its `lineHeight`). Baked text fonts
+still use `VCENTER`.
+
 ## AMOLED
 
 `fenix847mm` draws every primitive with grey partial pixels along its

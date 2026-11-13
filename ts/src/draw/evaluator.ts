@@ -124,6 +124,10 @@ export function numValue(n: Num, aod = false, env: ReadonlyMap<string, LocalValu
     }
     case "NumPick": return value(condValue(n.cond, aod, env, values) ? n.then : n.otherwise);
     case "FontDrop": return value(n.base);
+    case "Indexed": {
+      const index = value(n.index);
+      return index === null ? null : n.values[Math.trunc(val(index))]!;
+    }
     case "HandAngle": {
       const unit = (u: string): number => Math.trunc(val(asNum(values.get(`time.${u}`) || 0)));
       const table = n.function.endsWith("Degrees") ? barrel.HAND_DEGREES : barrel.HAND_ANGLES;
