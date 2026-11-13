@@ -1,0 +1,144 @@
+## vivoactive4s BEFORE
+vivoactive4s: text font lineHeight 22, base 17; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 15         | 12   | 29     | 1.00  | 23–32          | 24–33         | 1     | 23 (model 21)                | 2     | 19 (model 18)       | 1      |
+| S15 | 24         | 19   | 56     | 1.00  | 49–64          | 50–65         | 1     | 46 (model 45)                | 1     | 47 (model 46)       | 1      |
+| S20 | 30         | 24   | 92     | 1.00  | 83–103         | 84–104        | 1     | 79 (model 78)                | 1     | 83 (model 82)       | 1      |
+| S25 | 39         | 31   | 136    | 1.00  | 122–147        | 123–148       | 1     | 118 (model 116)              | 2     | 126 (model 125)     | 1      |
+| P30 | 43         | 34   | 179    | 1.00  | 164–192        | 165–193       | 1     | 160 (model 158)              | 2     | 170 (model 169)     | 1      |
+## vivoactive4s AFTER
+vivoactive4s: text font lineHeight 22, base 17; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 15         | 12   | 29     | 1.00  | 23–32          | 23–32         | 0     | 23 (model 21)                | 2     | 18 (model 18)       | 0      |
+| S15 | 24         | 19   | 56     | 1.00  | 49–64          | 49–64         | 0     | 46 (model 45)                | 1     | 46 (model 46)       | 0      |
+| S20 | 30         | 24   | 92     | 1.00  | 83–103         | 83–103        | 0     | 79 (model 78)                | 1     | 82 (model 82)       | 0      |
+| S25 | 39         | 31   | 136    | 1.00  | 122–147        | 122–147       | 0     | 118 (model 116)              | 2     | 125 (model 125)     | 0      |
+| P30 | 43         | 34   | 179    | 1.00  | 164–192        | 164–192       | 0     | 160 (model 158)              | 2     | 169 (model 169)     | 0      |
+## fr245 BEFORE
+fr245: text font lineHeight 24, base 19; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 17         | 13   | 32     | 1.00  | 25–35          | 26–36         | 1     | 25 (model 23)                | 2     | 21 (model 20)       | 1      |
+| S15 | 25         | 20   | 62     | 1.00  | 53–69          | 54–70         | 1     | 51 (model 49)                | 2     | 51 (model 50)       | 1      |
+| S20 | 34         | 27   | 102    | 1.00  | 90–112         | 91–113        | 1     | 86 (model 85)                | 1     | 91 (model 90)       | 1      |
+| S25 | 43         | 34   | 150    | 1.00  | 134–162        | 135–163       | 1     | 130 (model 128)              | 2     | 139 (model 138)     | 1      |
+| P30 | 43         | 34   | 198    | 1.00  | 182–210        | 183–211       | 1     | 178 (model 176)              | 2     | 187 (model 186)     | 1      |
+## fr245 AFTER
+fr245: text font lineHeight 24, base 19; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 17         | 13   | 32     | 1.00  | 25–35          | 25–35         | 0     | 25 (model 23)                | 2     | 20 (model 20)       | 0      |
+| S15 | 25         | 20   | 62     | 1.00  | 53–69          | 53–69         | 0     | 51 (model 49)                | 2     | 50 (model 50)       | 0      |
+| S20 | 34         | 27   | 102    | 1.00  | 90–112         | 90–112        | 0     | 86 (model 85)                | 1     | 90 (model 90)       | 0      |
+| S25 | 43         | 34   | 150    | 1.00  | 134–162        | 134–162       | 0     | 130 (model 128)              | 2     | 138 (model 138)     | 0      |
+| P30 | 43         | 34   | 198    | 1.00  | 182–210        | 182–210       | 0     | 178 (model 176)              | 2     | 186 (model 186)     | 0      |
+## fenix8solar47mm BEFORE
+fenix8solar47mm: text font lineHeight 26, base 20; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 18         | 14   | 35     | 1.00  | 29–40          | 30–41         | 1     | 27 (model 26)                | 1     | 23 (model 22)       | 1      |
+| S15 | 28         | 22   | 67     | 1.00  | 58–76          | 59–77         | 1     | 55 (model 54)                | 1     | 56 (model 55)       | 1      |
+| S20 | 38         | 30   | 110    | 1.00  | 98–123         | 99–124        | 1     | 93 (model 92)                | 1     | 99 (model 98)       | 1      |
+| S25 | 46         | 36   | 162    | 1.00  | 147–177        | 148–178       | 1     | 141 (model 140)              | 1     | 151 (model 150)     | 1      |
+| P30 | 43         | 34   | 214    | 1.00  | 199–227        | 200–228       | 1     | 195 (model 193)              | 2     | 203 (model 202)     | 1      |
+## fenix8solar47mm AFTER
+fenix8solar47mm: text font lineHeight 26, base 20; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 18         | 14   | 35     | 1.00  | 29–40          | 29–40         | 0     | 27 (model 26)                | 1     | 22 (model 22)       | 0      |
+| S15 | 28         | 22   | 67     | 1.00  | 58–76          | 58–76         | 0     | 55 (model 54)                | 1     | 55 (model 55)       | 0      |
+| S20 | 38         | 30   | 110    | 1.00  | 98–123         | 98–123        | 0     | 93 (model 92)                | 1     | 98 (model 98)       | 0      |
+| S25 | 46         | 36   | 162    | 1.00  | 147–177        | 147–177       | 0     | 141 (model 140)              | 1     | 150 (model 150)     | 0      |
+| P30 | 43         | 34   | 214    | 1.00  | 199–227        | 199–227       | 0     | 195 (model 193)              | 2     | 202 (model 202)     | 0      |
+## fr955 BEFORE
+fr955: text font lineHeight 26, base 20; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 18         | 14   | 35     | 1.00  | 29–40          | 30–41         | 1     | 27 (model 26)                | 1     | 23 (model 22)       | 1      |
+| S15 | 28         | 22   | 67     | 1.00  | 58–76          | 59–77         | 1     | 55 (model 54)                | 1     | 56 (model 55)       | 1      |
+| S20 | 38         | 30   | 110    | 1.00  | 98–123         | 99–124        | 1     | 93 (model 92)                | 1     | 99 (model 98)       | 1      |
+| S25 | 46         | 36   | 162    | 1.00  | 147–177        | 148–178       | 1     | 141 (model 140)              | 1     | 151 (model 150)     | 1      |
+| P30 | 43         | 34   | 214    | 1.00  | 199–227        | 200–228       | 1     | 195 (model 193)              | 2     | 203 (model 202)     | 1      |
+## fr955 AFTER
+fr955: text font lineHeight 26, base 20; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 18         | 14   | 35     | 1.00  | 29–40          | 29–40         | 0     | 27 (model 26)                | 1     | 22 (model 22)       | 0      |
+| S15 | 28         | 22   | 67     | 1.00  | 58–76          | 58–76         | 0     | 55 (model 54)                | 1     | 55 (model 55)       | 0      |
+| S20 | 38         | 30   | 110    | 1.00  | 98–123         | 98–123        | 0     | 93 (model 92)                | 1     | 98 (model 98)       | 0      |
+| S25 | 46         | 36   | 162    | 1.00  | 147–177        | 147–177       | 0     | 141 (model 140)              | 1     | 150 (model 150)     | 0      |
+| P30 | 43         | 34   | 214    | 1.00  | 199–227        | 199–227       | 0     | 195 (model 193)              | 2     | 202 (model 202)     | 0      |
+## fenix8solar51mm BEFORE
+fenix8solar51mm: text font lineHeight 28, base 22; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 20         | 16   | 37     | 1.00  | 31–44          | 32–45         | 1     | 29 (model 28)                | 1     | 25 (model 24)       | 1      |
+| S15 | 29         | 23   | 72     | 1.00  | 62–81          | 63–82         | 1     | 60 (model 58)                | 2     | 60 (model 59)       | 1      |
+| S20 | 41         | 32   | 119    | 1.00  | 104–131        | 105–132       | 1     | 100 (model 98)               | 2     | 106 (model 105)     | 1      |
+| S25 | 49         | 39   | 175    | 1.00  | 157–189        | 158–190       | 1     | 152 (model 150)              | 2     | 162 (model 161)     | 1      |
+| P30 | 43         | 34   | 231    | 1.00  | 215–243        | 216–244       | 1     | 211 (model 209)              | 2     | 218 (model 217)     | 1      |
+## fenix8solar51mm AFTER
+fenix8solar51mm: text font lineHeight 28, base 22; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 20         | 16   | 37     | 1.00  | 31–44          | 31–44         | 0     | 29 (model 28)                | 1     | 24 (model 24)       | 0      |
+| S15 | 29         | 23   | 72     | 1.00  | 62–81          | 62–81         | 0     | 60 (model 58)                | 2     | 59 (model 59)       | 0      |
+| S20 | 41         | 32   | 119    | 1.00  | 104–131        | 104–131       | 0     | 100 (model 98)               | 2     | 105 (model 105)     | 0      |
+| S25 | 49         | 39   | 175    | 1.00  | 157–189        | 157–189       | 0     | 152 (model 150)              | 2     | 161 (model 161)     | 0      |
+| P30 | 43         | 34   | 231    | 1.00  | 215–243        | 215–243       | 0     | 211 (model 209)              | 2     | 217 (model 217)     | 0      |
+## venusq2 BEFORE
+venusq2: text font lineHeight 31, base 24; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 24         | 19   | 63     | 1.00  | 55–70          | 56–71         | 1     | 52 (model 51)                | 1     | 49 (model 47)       | 2      |
+| S15 | 34         | 27   | 103    | 1.00  | 91–113         | 92–114        | 1     | 87 (model 86)                | 1     | 89 (model 87)       | 2      |
+| S20 | 45         | 36   | 156    | 1.00  | 140–170        | 141–171       | 1     | 135 (model 133)              | 2     | 142 (model 140)     | 2      |
+| S25 | 58         | 46   | 220    | 1.00  | 200–239        | 201–240       | 1     | 192 (model 191)              | 1     | 206 (model 204)     | 2      |
+| P30 | 43         | 34   | 284    | 1.00  | 268–296        | 269–297       | 1     | 264 (model 262)              | 2     | 270 (model 268)     | 2      |
+## venusq2 AFTER
+venusq2: text font lineHeight 31, base 24; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 24         | 19   | 63     | 1.00  | 55–70          | 55–70         | 0     | 52 (model 51)                | 1     | 47 (model 47)       | 0      |
+| S15 | 34         | 27   | 103    | 1.00  | 91–113         | 91–113        | 0     | 87 (model 86)                | 1     | 87 (model 87)       | 0      |
+| S20 | 45         | 36   | 156    | 1.00  | 140–170        | 140–170       | 0     | 135 (model 133)              | 2     | 140 (model 140)     | 0      |
+| S25 | 58         | 46   | 220    | 1.00  | 200–239        | 200–239       | 0     | 192 (model 191)              | 1     | 204 (model 204)     | 0      |
+| P30 | 43         | 34   | 284    | 1.00  | 268–296        | 268–296       | 0     | 264 (model 262)              | 2     | 268 (model 268)     | 0      |
+## venu BEFORE
+venu: text font lineHeight 37, base 29; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 28         | 22   | 52     | 1.00  | 43–61          | 44–62         | 1     | 40 (model 39)                | 1     | 36 (model 34)       | 2      |
+| S15 | 42         | 33   | 101    | 1.00  | 86–114         | 87–115        | 1     | 81 (model 80)                | 1     | 84 (model 82)       | 2      |
+| S20 | 56         | 44   | 165    | 1.00  | 146–183        | 147–184       | 1     | 139 (model 138)              | 1     | 149 (model 147)     | 2      |
+| S25 | 69         | 55   | 243    | 1.00  | 219–265        | 220–266       | 1     | 211 (model 209)              | 2     | 227 (model 225)     | 2      |
+| P30 | 43         | 34   | 321    | 1.00  | 306–334        | 307–335       | 1     | 302 (model 300)              | 2     | 305 (model 303)     | 2      |
+## venu AFTER
+venu: text font lineHeight 37, base 29; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 28         | 22   | 52     | 1.00  | 43–61          | 43–61         | 0     | 40 (model 39)                | 1     | 34 (model 34)       | 0      |
+| S15 | 42         | 33   | 101    | 1.00  | 86–114         | 86–114        | 0     | 81 (model 80)                | 1     | 82 (model 82)       | 0      |
+| S20 | 56         | 44   | 165    | 1.00  | 146–183        | 146–183       | 0     | 139 (model 138)              | 1     | 147 (model 147)     | 0      |
+| S25 | 69         | 55   | 243    | 1.00  | 219–265        | 219–265       | 0     | 211 (model 209)              | 2     | 225 (model 225)     | 0      |
+| P30 | 43         | 34   | 321    | 1.00  | 306–334        | 306–334       | 0     | 302 (model 300)              | 2     | 303 (model 303)     | 0      |
+## epix2 BEFORE
+epix2: text font lineHeight 40, base 31; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 29         | 23   | 56     | 1.00  | 45–64          | 46–65         | 1     | 43 (model 41)                | 2     | 37 (model 36)       | 1      |
+| S15 | 44         | 35   | 108    | 1.00  | 93–122         | 94–123        | 1     | 87 (model 86)                | 1     | 89 (model 88)       | 1      |
+| S20 | 61         | 48   | 176    | 1.00  | 155–196        | 156–197       | 1     | 148 (model 146)              | 2     | 158 (model 157)     | 1      |
+| S25 | 74         | 59   | 260    | 1.00  | 234–284        | 235–285       | 1     | 224 (model 223)              | 1     | 241 (model 240)     | 1      |
+| P30 | 43         | 34   | 343    | 1.00  | 327–355        | 328–356       | 1     | 323 (model 321)              | 2     | 324 (model 323)     | 1      |
+## epix2 AFTER
+epix2: text font lineHeight 40, base 31; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 29         | 23   | 56     | 1.00  | 45–64          | 45–64         | 0     | 43 (model 41)                | 2     | 36 (model 36)       | 0      |
+| S15 | 44         | 35   | 108    | 1.00  | 93–122         | 93–122        | 0     | 87 (model 86)                | 1     | 88 (model 88)       | 0      |
+| S20 | 61         | 48   | 176    | 1.00  | 155–196        | 155–196       | 0     | 148 (model 146)              | 2     | 157 (model 157)     | 0      |
+| S25 | 74         | 59   | 260    | 1.00  | 234–284        | 234–284       | 0     | 224 (model 223)              | 1     | 240 (model 240)     | 0      |
+| P30 | 43         | 34   | 343    | 1.00  | 327–355        | 327–355       | 0     | 323 (model 321)              | 2     | 323 (model 323)     | 0      |
+## fenix847mm BEFORE
+fenix847mm: text font lineHeight 45, base 35; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 32         | 25   | 61     | 1.00  | 50–71          | 51–72         | 1     | 46 (model 45)                | 1     | 40 (model 38)       | 2      |
+| S15 | 48         | 38   | 118    | 1.00  | 101–133        | 102–134       | 1     | 95 (model 94)                | 1     | 97 (model 95)       | 2      |
+| S20 | 65         | 52   | 192    | 1.00  | 170–213        | 171–214       | 1     | 162 (model 160)              | 2     | 172 (model 170)     | 2      |
+| S25 | 82         | 65   | 283    | 1.00  | 255–310        | 256–311       | 1     | 244 (model 243)              | 1     | 263 (model 261)     | 2      |
+| P30 | 43         | 34   | 374    | 1.00  | 359–387        | 360–388       | 1     | 355 (model 353)              | 2     | 354 (model 352)     | 2      |
+## fenix847mm AFTER
+fenix847mm: text font lineHeight 45, base 35; 'new Δ' is seen − model (positive: the watch draws lower)
+| row | lineHeight | base | line y | scale | new: model ink | new: seen ink | new Δ | old (VCENTER): seen line top | old Δ | text: seen line top | text Δ |
+| S10 | 32         | 25   | 61     | 1.00  | 50–71          | 50–71         | 0     | 46 (model 45)                | 1     | 38 (model 38)       | 0      |
+| S15 | 48         | 38   | 118    | 1.00  | 101–133        | 101–133       | 0     | 95 (model 94)                | 1     | 95 (model 95)       | 0      |
+| S20 | 65         | 52   | 192    | 1.00  | 170–213        | 170–213       | 0     | 162 (model 160)              | 2     | 170 (model 170)     | 0      |
+| S25 | 82         | 65   | 283    | 1.00  | 255–310        | 255–310       | 0     | 244 (model 243)              | 1     | 261 (model 261)     | 0      |
+| P30 | 43         | 34   | 374    | 1.00  | 359–387        | 359–387       | 0     | 355 (model 353)              | 2     | 352 (model 352)     | 0      |

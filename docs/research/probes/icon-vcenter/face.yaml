@@ -1,12 +1,15 @@
-# Probe: where TEXT_JUSTIFY_VCENTER puts a baked (BMFont) font's line top.
-# Hand-written; README.md says how to build, patch and measure it.
+# Probe: where the watch draws a baked (BMFont) font's line, top-justified and
+# under TEXT_JUSTIFY_VCENTER. Hand-written; README.md says how to build, patch
+# and measure it.
 #
 # One row per icon size. On each row, left to right:
-#   new_<row>  the compiler's centred icon: drawn top-justified at y - ceil(lineHeight/2)
+#   new_<row>  the compiler's centred icon: drawn top-justified from
+#              cy - ceil(lineHeight/2) - 1 (the watch draws baked glyphs 1 px low)
 #   old_<row>  the same glyph in the same font, which build.sh patches to the
-#              old call: TEXT_JUSTIFY_CENTER | TEXT_JUSTIFY_VCENTER at y itself
-#   text_<row> "H8" in a baked text font (Open Sans), drawn with VCENTER at y
-# under a 1 px red reference line at y, the row's centre.
+#              old call: TEXT_JUSTIFY_CENTER | TEXT_JUSTIFY_VCENTER at cy itself
+#   text_<row> "H8" in a baked text font (Open Sans), the compiler's centred
+#              placement, top-justified the same way as new_
+# under a 1 px red reference line at the row's centre.
 format: 2
 
 face:

@@ -1,5 +1,13 @@
 # Handoff: where does a watch draw a baked icon font? (simulator test runs)
 
+**Status: done, 2026-11-14.** Run on nine devices on a Windows host:
+outcome 1 (a constant +1 px) and outcome 4 (baked text shares the problem)
+both held, and both fixes are built. The tables are in `README.md`; the
+rule is in `docs/lore/rendering.md`. One correction to this file:
+`measure.ts` modelled each glyph's centre as the red line's row `y`, which
+is the line's top; the glyphs centre on `y + 1/2`, rounded, and the script
+now uses each element's own centre.
+
 For a Claude Code session (or a person) **with the Connect IQ simulator**:
 the user's Mac, or Windows. The cloud container that wrote this cannot run
 the simulator: it segfaults there. Your job is to run the probe in this

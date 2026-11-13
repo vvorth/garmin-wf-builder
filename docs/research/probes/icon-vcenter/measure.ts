@@ -27,7 +27,7 @@ if (!shot || !project || !device) {
 
 /** The probe's rows, top to bottom, with the size key in their icon font's file name. */
 const ROWS: [string, string][] = [["S10", "10pctr"], ["S15", "15pctr"], ["S20", "20pctr"], ["S25", "25pctr"], ["P30", "30px"]];
-const HEART = 0xf05f6, H = 72;
+const HEART = 0xf05f6, H = 72, EIGHT = 56;
 
 const layoutText = readFileSync(join(project, `source-${device}`, "Layout.mc"), "utf8");
 const constant = (name: string): number => {
@@ -80,7 +80,7 @@ if (lines.length !== ROWS.length) {
 
 const halfUp = (n: number): number => Math.ceil(n / 2);
 const rows: string[][] = [["row", "lineHeight", "base", "line y", "scale", "new: model ink", "new: seen ink", "new Δ",
-  "old (VCENTER): seen line top", "old: y − top", "text (VCENTER): seen line top", "text: y − top"]];
+  "old (VCENTER): seen line top", "old Δ", "text: seen line top", "text Δ"]];
 
 ROWS.forEach(([row, key], i) => {
   const line = lines[i]!;
@@ -88,7 +88,9 @@ ROWS.forEach(([row, key], i) => {
   const scale = (line.right - line.left + 1) / lineW;
   const toRow = (sy: number): number => Math.floor(y + (sy - line.top) / scale + 1e-6);
   const toSx = (dx: number): number => Math.round(line.left + (dx - lineX) * scale);
-  const font = iconFont(key), heart = font.glyphs.get(HEART)!, h = textFont.glyphs.get(H)!;
+  const font = iconFont(key), heart = font.glyphs.get(HEART)!;
+  // "H8"'s ink starts at the higher of its two glyphs (on venu the 8 sits a row above the H)
+  const textYoffset = Math.min(textFont.glyphs.get(H)!.yoffset, textFont.glyphs.get(EIGHT)!.yoffset);
   const band = Math.ceil(font.lineHeight * 0.75 * scale);
   // x windows, in watch px: each glyph's own width about its centre (so a round screen's edge stays
   // out), and never past halfway to the next glyph
@@ -123,15 +125,20 @@ ROWS.forEach(([row, key], i) => {
     const distance = ([p, q]: [number, number]): number => (y < p ? p - y : y > q ? y - q : 0);
     return runs.reduce((best, run) => (distance(run) < distance(best) ? run : best));
   });
-  const top = constant(`NEW_${row}_TOP`);
+  // Every model is a centred cell: the element's own centre (the line's row y is the line's top; the
+  // glyphs centre on y + 1/2, rounded) less half its line height rounded up. NEW_<ROW>_TOP is that less
+  // the 1 px the watch draws every baked glyph low, so the new cell is NEW_<ROW>_TOP + 1. A Δ is seen − model.
+  const top = constant(`NEW_${row}_TOP`) + 1;
   const model = [top + heart.yoffset, top + heart.yoffset + heart.height - 1];
+  const oldModel = constant(`OLD_${row}_CY`) - halfUp(font.lineHeight);
+  const textModel = constant(`TEXT_${row}_Y`) - halfUp(textFont.lineHeight);
   const [seenNew, seenOld, seenText] = ink;
   const oldTop = seenOld ? seenOld[0] - heart.yoffset : null;
-  const textTop = seenText ? seenText[0] - h.yoffset : null;
+  const textTop = seenText ? seenText[0] - textYoffset : null;
   rows.push([row, String(font.lineHeight), String(font.base), String(y), scale.toFixed(2),
     `${model[0]}–${model[1]}`, seenNew ? `${seenNew[0]}–${seenNew[1]}` : "none", seenNew ? String(seenNew[0] - model[0]) : "?",
-    oldTop === null ? "none" : `${oldTop} (model ${y - halfUp(font.lineHeight)})`, oldTop === null ? "?" : String(y - oldTop),
-    textTop === null ? "none" : `${textTop} (model ${y - halfUp(textFont.lineHeight)})`, textTop === null ? "?" : String(y - textTop)]);
+    oldTop === null ? "none" : `${oldTop} (model ${oldModel})`, oldTop === null ? "?" : String(oldTop - oldModel),
+    textTop === null ? "none" : `${textTop} (model ${textModel})`, textTop === null ? "?" : String(textTop - textModel)]);
 });
 
 console.log(`${device}: text font lineHeight ${textFont.lineHeight}, base ${textFont.base}; 'new Δ' is seen − model (positive: the watch draws lower)`);
