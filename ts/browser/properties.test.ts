@@ -237,18 +237,24 @@ h.test("renaming an element changes its one key and follows it in Layers", async
   assert.deepEqual(s.errors, []);
 });
 
-h.test("an icon's own glyphs: own glyphs… writes the battery's set, + band adds one, the keys unquoted", async (s) => {
+h.test("an icon's own glyphs: use the built-in glyphs drops a set, own glyphs… writes the battery's, + band adds one, the keys unquoted", async (s) => {
   await s.openExample("features/status");
   await s.waitFace();
   await s.waitIdle();
   const base = await s.doc();
   await s.selectLayer("battery_icon");
+  // the example's battery draws a set of its own: "use the built-in glyphs" drops it
   const chip = s.topField("icon").locator("button.chip-button").first();
-  await s.expectText(chip, /Battery$/);
+  await s.expectText(chip, /Battery own$/);
   await chip.click();
   const pop = s.page.locator(".popover-body.icon-pop:popover-open");
+  await pop.locator("button.set-builtin").click();
+  const plain = await written(s, base);
+  assert.match(lines(plain, "battery_icon"), /icon: \{ ?for: system\.battery ?\}/, lines(plain, "battery_icon"));
+  await s.expectText(chip, /Battery$/);
+  if (!(await pop.isVisible())) await chip.click();
   await pop.locator(".rule-row", { hasText: "Battery" }).locator("button.rule-own").click();
-  let after = await written(s, base);
+  let after = await written(s, plain);
   assert.match(lines(after, "battery_icon"),
     /icon: \{ ?for: system\.battery, icons: \{ ?0: battery_20, 20: battery_40, 40: battery_60, 60: battery_80, 80: battery ?\} ?\}/, lines(after, "battery_icon"));
   // the popover stays open on its editor: a band from 90 splits the top one
@@ -262,6 +268,7 @@ h.test("an icon's own glyphs: own glyphs… writes the battery's set, + band add
   await editor.locator(".set-row").nth(5).waitFor();
   assert.equal(after.diagnostics.filter((d) => d.severity === "error").length, 0, JSON.stringify(after.diagnostics));
   await s.page.keyboard.press("Escape");
+  await s.undo();
   await s.undo();
   await undoTo(s, base, "own glyphs");
   assert.deepEqual(s.errors, []);
