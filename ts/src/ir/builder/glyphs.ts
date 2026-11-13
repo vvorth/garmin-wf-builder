@@ -207,6 +207,26 @@ export class GlyphHelpers extends AbsenceChecks {
     return character;
   }
 
+  /**
+   * The `variant:` written in `container` (an `icon: {for:}` or a slot choice)
+   * for an icon following `rule` (none for an icon following no reading),
+   * `what` naming the source or type: `null` when none is written, and after
+   * its error when the icon has no variants. The schema's enum is every
+   * family's variants (`data.test.ts`), so a written variant is the rule's own.
+   */
+  iconVariant(container: Node, rule: icons.IconRule | undefined, what: string): string | null {
+    const written = container.get("variant");
+    if (written === undefined || written === null) return null;
+    const variant = String(written), span = this.doc.span(container, "variant");
+    if (rule === undefined || rule.variants.length === 0) {
+      this.bag.error("icon", `variant: ${quoted(variant)} -- ${what}'s icon has no variants`, span, {
+        notes: [`only ${icons.variantFamilies().join(", ")} icons come in variants`],
+      });
+      return null;
+    }
+    return variant;
+  }
+
   /** A `config: slots:` choice's own `icon:`, if it declares one. */
   resolveChoiceIconOverride(item: Node, what: string, fallbackSpan: Span | null):
     icons.SlotIcon | null | typeof NO_ICON_OVERRIDE | typeof ICON_OVERRIDE_ERROR {

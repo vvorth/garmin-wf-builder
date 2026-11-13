@@ -65,7 +65,7 @@ test("each source follows one rule, and a temperature reads its condition beside
   assert.deepEqual(RULE_FOLLOWED.get("complication.current_temperature"), { rule: rule("weather"), source: "weather.condition" });
   assert.deepEqual(RULE_FOLLOWED.get("complication.high_low_temperature"), { rule: rule("weather"), source: "weather.condition_today" });
   assert.deepEqual([...RULES.values()].map(ruleFunction), [
-    "batteryIcon", "solarIcon", "notificationIcon", "alarmIcon", "dndIcon", "phoneIcon", "moonIcon", "weatherIcon",
+    "batteryIcon", "batteryBarsIcon", "batteryClassicIcon", "solarIcon", "notificationIcon", "alarmIcon", "dndIcon", "phoneIcon", "moonIcon", "weatherIcon",
   ]);
 });
 
@@ -224,6 +224,6 @@ test("a rule's summary names its glyphs in order and how the reading splits", ()
   assert.equal(ruleSummary({ ...rule("alarm"), thresholds: [1, 5], steps: ["a", "b", "c"] }), "alarm — a / b / c (0 / 1–4 / 5+)");
   assert.equal(ruleSummary(rule("moon")), "moon — moon_new, moon_waxing_crescent, moon_first_quarter, moon_waxing_gibbous, moon_full, "
     + "moon_waning_gibbous, moon_last_quarter, moon_waning_crescent (8 bands over 0–29.53 days, cyclic)");
-  assert.equal(ruleSummary(rule("battery")), "battery — battery_level_0, battery_level_1, battery_level_2, battery_level_3, battery_level_4 (5 bands over 0–100%)");
+  assert.equal(ruleSummary(rule("battery")), "battery — battery_20, battery_40, battery_60, battery_80, battery (5 bands over 0–100%)");
   assert.match(ruleSummary(rule("weather")), /^weather — \d+ glyphs over the 54 values it names \(weather_unknown for any other\)$/);
 });

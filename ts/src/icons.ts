@@ -262,23 +262,65 @@ export interface IconRule {
   readonly map: ReadonlyMap<number, string>;
   /** A complication source that carries none of the rule's reading itself, to the source read beside it. */
   readonly follows: ReadonlyMap<string, string>;
+  /** The rule its family is named after: its own name, or, for a variant, the default rule's. */
+  readonly family: string;
+  /** Which of the family's `variants` this rule draws; `null` for a rule with none. */
+  readonly variant: string | null;
+  /** Every variant of the family, the default first; empty for a rule with none. */
+  readonly variants: readonly string[];
 }
 
 interface RuleJson {
   kind: "steps" | "table"; label: string; plain: string; sources: string[];
   steps?: string[]; range?: [number, number]; cyclic?: boolean; thresholds?: number[];
   map?: Record<string, string>; follows?: Record<string, string>;
+  /** The default rule's own variant name, where the rule has others. */
+  variant?: string;
+  /** Other glyph sets over the same reading and bands: a variant's `steps`, and its `plain` where it differs. */
+  variants?: Record<string, { plain?: string; steps: string[] }>;
 }
 
-/** Every icon rule, in the table's order: the order `IconGlyphs` defines their choosers in. */
-export const RULES: ReadonlyMap<string, IconRule> = new Map(Object.entries(data.rules as unknown as Record<string, RuleJson>).map(([name, r]) => [name, {
-  name, kind: r.kind, label: r.label, plain: r.plain, sources: r.sources, steps: r.steps ?? [], range: r.range ?? null,
-  cyclic: r.cyclic ?? false, thresholds: r.thresholds ?? null,
-  map: new Map(Object.entries(r.map ?? {}).map(([k, v]) => [Number(k), v])), follows: new Map(Object.entries(r.follows ?? {})),
-}]));
+/** A rule as the table writes it, and then each of its variants, named `<rule>_<variant>`. */
+function expandRule(name: string, r: RuleJson): IconRule[] {
+  const variants = r.variant !== undefined ? [r.variant, ...Object.keys(r.variants ?? {})] : [];
+  const base: IconRule = {
+    name, kind: r.kind, label: r.label, plain: r.plain, sources: r.sources, steps: r.steps ?? [], range: r.range ?? null,
+    cyclic: r.cyclic ?? false, thresholds: r.thresholds ?? null,
+    map: new Map(Object.entries(r.map ?? {}).map(([k, v]) => [Number(k), v])), follows: new Map(Object.entries(r.follows ?? {})),
+    family: name, variant: r.variant ?? null, variants,
+  };
+  return [base, ...Object.entries(r.variants ?? {}).map(([variant, v]): IconRule => ({
+    ...base, name: `${name}_${variant}`, plain: v.plain ?? r.plain, steps: v.steps, variant,
+  }))];
+}
 
-/** The rule each source's reading follows. */
-export const RULE_OF_SOURCE: ReadonlyMap<string, IconRule> = new Map([...RULES.values()].flatMap((rule) => rule.sources.map((s) => [s, rule] as const)));
+/**
+ * Every icon rule, in the table's order, each variant after its family's
+ * default: the order `IconGlyphs` defines their choosers in.
+ */
+export const RULES: ReadonlyMap<string, IconRule> = new Map(Object.entries(data.rules as unknown as Record<string, RuleJson>)
+  .flatMap(([name, r]) => expandRule(name, r)).map((rule) => [rule.name, rule]));
+
+/** The rule each source's reading follows: its family's default. */
+export const RULE_OF_SOURCE: ReadonlyMap<string, IconRule> = new Map([...RULES.values()]
+  .filter((rule) => rule.family === rule.name).flatMap((rule) => rule.sources.map((s) => [s, rule] as const)));
+
+/** `rule`'s family member drawing `variant`; the default for `null`, `undefined` for a variant the family lacks. */
+export function ruleVariant(rule: IconRule, variant: string | null): IconRule | undefined {
+  const family = RULES.get(rule.family)!;
+  if (variant === null || variant === family.variant) return family;
+  return family.variants.includes(variant) ? RULES.get(`${family.name}_${variant}`) : undefined;
+}
+
+/** Every family with variants, by what its rule reads (its label, lower case). */
+export function variantFamilies(): string[] {
+  return [...RULES.values()].filter((rule) => rule.family === rule.name && rule.variants.length > 0).map((rule) => rule.label.toLowerCase());
+}
+
+/** Every variant any rule has, each once, in the table's order: what `variant:` may name. */
+export function variantNames(): string[] {
+  return [...new Set([...RULES.values()].flatMap((rule) => rule.variants))];
+}
 
 /** A source whose icon follows a rule's reading taken beside it (a temperature the weather condition): the rule and the source read. */
 export const RULE_FOLLOWED: ReadonlyMap<string, { rule: IconRule; source: string }> =
@@ -355,7 +397,7 @@ export function ruleSummary(rule: IconRule): string {
 
 /** The name of the generated `IconGlyphs` function choosing `rule`'s glyph. */
 export function ruleFunction(rule: IconRule): string {
-  return `${rule.name}Icon`;
+  return `${rule.name.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())}Icon`;
 }
 
 /** Every catalogue name `rule` can draw, its plain one first. */
@@ -391,7 +433,12 @@ export function thresholdSaid(band: { lower: number; upper: number }): string {
   return band.upper - band.lower === 1 ? `at ${band.lower}` : `below ${band.upper}`;
 }
 
-/** The rule complication type `type`'s icon follows: its `complication.<type>` source's, or that of the reading it reads beside it. */
-export function complicationRule(type: string): IconRule | undefined {
-  return RULE_OF_SOURCE.get(`complication.${type}`) ?? RULE_FOLLOWED.get(`complication.${type}`)?.rule;
+/**
+ * The rule complication type `type`'s icon follows: its `complication.<type>`
+ * source's, or that of the reading it reads beside it; with `variant`, that
+ * family's member drawing it (`undefined` where the family has no such variant).
+ */
+export function complicationRule(type: string, variant: string | null = null): IconRule | undefined {
+  const rule = RULE_OF_SOURCE.get(`complication.${type}`) ?? RULE_FOLLOWED.get(`complication.${type}`)?.rule;
+  return rule === undefined ? undefined : ruleVariant(rule, variant);
 }

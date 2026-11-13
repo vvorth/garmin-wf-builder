@@ -138,19 +138,23 @@ test("an icon written as {codepoint} keeps the icon widget with the object as it
   const follows = fieldsOf(inspect(text.replace('{ codepoint: "U+E241" }', "{for: system.battery}"), pathOf("glyph"), null))["icon"];
   assert.equal(follows.widget, "icon");
   assert.deepEqual(follows.value, { for: "system.battery" });
+  const variant = fieldsOf(inspect(text.replace('{ codepoint: "U+E241" }', "{for: system.battery, variant: bars}"), pathOf("glyph"), null))["icon"];
+  assert.equal(variant.widget, "icon", "a variant beside the source keeps the icon widget");
+  assert.deepEqual(variant.value, { for: "system.battery", variant: "bars" });
 
   const slots = text + `
 config:
   slots:
     top:
       default: steps
-      choices: [steps, { type: heart_rate, icon: { codepoint: "U+F0004" } }, { type: calories, icon: fire }]
+      choices: [steps, { type: heart_rate, icon: { codepoint: "U+F0004" } }, { type: calories, icon: fire }, { type: battery, variant: classic }]
 `;
   const top = (globalsOf(slots, db) as any).slots.find((s: any) => s.name === "top");
   assert.deepEqual(top.choices, [
-    { type: "steps", icon: null },
-    { type: "heart_rate", icon: { codepoint: "U+F0004" } },
-    { type: "calories", icon: "fire" },
+    { type: "steps", icon: null, variant: null },
+    { type: "heart_rate", icon: { codepoint: "U+F0004" }, variant: null },
+    { type: "calories", icon: "fire", variant: null },
+    { type: "battery", icon: null, variant: "classic" },
   ]);
 });
 
@@ -733,7 +737,11 @@ test("a slot is declared, drawn and its choices edited from the panel", async ()
   doc.edit({ op: "set", path: ["config", "slots", "top", "label"], value: "Top" }, doc.version);
   const top = slotsOf(doc)["top"];
   assert.equal(top.label, "Top");
-  assert.deepEqual(top.choices, [{ type: "steps", icon: null }, { type: "heart_rate", icon: "none" }]);
+  assert.deepEqual(top.choices, [{ type: "steps", icon: null, variant: null }, { type: "heart_rate", icon: "none", variant: null }]);
+  assert.notEqual(doc.analysis().face, null);
+  // a choice's variant, as the slot card writes it, is read back and admitted
+  doc.edit({ op: "set", path: ["config", "slots", "top", "choices"], value: ["steps", { type: "battery", variant: "bars" }] }, doc.version);
+  assert.deepEqual(slotsOf(doc)["top"].choices[1], { type: "battery", icon: null, variant: "bars" });
   assert.notEqual(doc.analysis().face, null);
 });
 

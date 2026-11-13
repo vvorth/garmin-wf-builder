@@ -250,7 +250,7 @@ export interface FontEntry {
  * choice), a codepoint, or, on an element's own `icon:`, `{for: <source>}`:
  * the glyph an icon rule chooses from that source's reading.
  */
-export type IconSpelling = string | { codepoint: string } | { for: string };
+export type IconSpelling = string | { codepoint: string } | { for: string; variant?: string };
 
 /** An icon a slot's choice may carry: a name or a codepoint, never `{for:}` (a choice's icon draws the type, not a reading). */
 export type FixedIconSpelling = Exclude<IconSpelling, { for: string }>;
@@ -259,6 +259,8 @@ export type FixedIconSpelling = Exclude<IconSpelling, { for: string }>;
 export interface SlotChoice {
   type: string | null;
   icon: FixedIconSpelling | null;
+  /** The choice's `variant:` of its type's icon, or `null` for the default. */
+  variant: string | null;
 }
 
 /** One `config: slots:` entry. */
@@ -684,6 +686,8 @@ export interface ComplicationType {
   sample: string | null;
   /** What a slot showing it can do beyond its reading, in this order, each with the words a hover shows. */
   capabilities: Capability[];
+  /** Its icon's variants, the default first; empty when the icon has none. */
+  variants: string[];
 }
 
 /**
@@ -736,6 +740,15 @@ export interface IconRuleWord {
   glyphs: string[];
   plain: string;
   split: string;
+  /** Each variant's own glyph set, the default (this rule's own) first; empty for a rule with none. */
+  variants: IconVariantWord[];
+}
+
+/** One variant of an icon rule: its name, the glyphs it steps through and its plain one. */
+export interface IconVariantWord {
+  variant: string;
+  glyphs: string[];
+  plain: string;
 }
 
 /** What the pickers offer, independent of any face: the format's words. */

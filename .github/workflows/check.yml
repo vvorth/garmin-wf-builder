@@ -133,6 +133,7 @@ jobs:
             # test/hold.test.ts
             # test/icon-absent.test.ts
             # test/icon-rules.test.ts
+            # test/icon-variants.test.ts
             # test/layout.test.ts
             # test/level-guards.test.ts
             # test/level-icons.test.ts

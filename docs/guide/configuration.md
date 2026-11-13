@@ -292,7 +292,11 @@ a mapping naming the same type plus a per-choice icon override: `{ type:
 <name>, icon: <catalogue name> }`, `{ type: <name>, icon: none }`
 (explicitly draw no icon for this one choice, even though the catalogue maps
 it), or `{ type: <name>, icon: { codepoint: "U+XXXX" } }` (any codepoint the
-vendored font has, for a glyph the catalogue does not name). `icon:` is validated exactly
+vendored font has, for a glyph the catalogue does not name). A battery
+choice may instead pick its icon's glyph set: `{ type: battery, variant:
+bars }` (`fill`, the default, `bars` or `classic`; see
+[The battery's variants](icons.md#the-batterys-variants-variant)), never
+beside an `icon:` of its own. `icon:` is validated exactly
 like a plain `icon` element's own `icon:` -- an unknown catalogue name is an
 error with suggestions, a codepoint outside the font's character map is an
 error, and a codepoint that duplicates a catalogue entry gets the same "say
@@ -301,6 +305,12 @@ error, and a codepoint that duplicates a catalogue entry gets the same "say
 than once across the whole `choices:` list -- in either shape -- is an IR
 error**: the schema's own `uniqueItems` only catches two identical bare
 entries, not a bare reference and a mapping-form entry naming the same type.
+Two entries of one type cannot differ by `icon:` or `variant:` either: the
+watch tells the face only which type the wearer picked
+(`ComplicationRef.complicationId`), so it could not tell them apart. To
+let the wearer choose the battery's look, give two
+[styles](styles-and-layouts.md) layouts each drawing the battery with an
+`icon: {for: system.battery}` of its own `variant:`.
 
 A gauge can draw a slot too, filled against the picked metric's own
 scale: see [Gauges on a slot](progress-and-graphs.md#gauges-on-a-slot).
@@ -430,7 +440,8 @@ Instead:
   `icon:` on that choice keeps it. `icon: {for: device.notification_count}`
   draws the same pair without a slot ([An icon that follows a reading](icons.md#an-icon-that-follows-a-reading)).
   **A `battery` or `solar_input` icon fills with the reading**: one of
-  five battery steps, empty up to full, or nine solar ones, a
+  five battery steps (in the choice's `variant:`, `fill` unless it says
+  otherwise), or nine solar ones, a
   bolt in a disc with none to eight arcs lit around it (a static star
   below 22 px), by the band of 0-100 the pulled reading falls
   in, and the plain icon when nothing could be pulled

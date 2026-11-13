@@ -359,7 +359,8 @@ test("the vocabulary offers each type with its icon, sample and capabilities", (
   assert.deepEqual(types["heart_rate"], { name: "heart_rate", label: "Heart rate", category: "health", icon: "heart", sample: "72", capabilities: [
     { kind: "graph", detail: "graph: a graph on this slot plots the last 4 hours, binned" },
     { kind: "gauge", detail: "progress: a gauge on this slot fills across the wearer's heart-rate zones" },
-  ] });
+  ], variants: [] });
+  assert.deepEqual(types["battery"].variants, ["fill", "bars", "classic"]);
   assert.deepEqual(types["notification_count"].capabilities.map((c: { kind: string }) => c.kind), ["dynamic_icon"]);
   assert.deepEqual(types["current_weather"].capabilities.map((c: { kind: string }) => c.kind), ["dynamic_icon", "long_text"]);
   assert.deepEqual(types["sunrise"].capabilities, [{ kind: "gauge", detail: "progress: a gauge on this slot fills across one day" }]);

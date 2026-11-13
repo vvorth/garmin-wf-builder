@@ -152,16 +152,21 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
   // the list a switch to "every type" leaves, so switching back restores it
   const [kept, setKept] = useState<SlotChoice[] | null>(null);
   const listed = (name: string) => any || list.some((c) => c.type === name);
-  // a choice is written bare unless it carries an icon
-  const written = (c: SlotChoice): Value => (c.icon ? { type: c.type, icon: c.icon } : c.type);
+  // a choice is written bare unless it carries an icon or a variant of its own
+  const written = (c: SlotChoice): Value =>
+    c.icon ? { type: c.type, icon: c.icon } : c.variant ? { type: c.type, variant: c.variant } : c.type;
   const setChoices = (choices: SlotChoice[]) => onEdit({ op: "set", path: [...path, "choices"], value: choices.map(written) });
   const toggle = (name: string) => setChoices(listed(name) ? list.filter((c) => c.type !== name)
-                                                           : [...list, { type: name, icon: null }]);
+                                                           : [...list, { type: name, icon: null, variant: null }]);
   const setDefault = (name: string) => {
-    if (!listed(name)) setChoices([...list, { type: name, icon: null }]);
+    if (!listed(name)) setChoices([...list, { type: name, icon: null, variant: null }]);
     onEdit({ op: "set", path: [...path, "default"], value: name });
   };
-  const setIcon = (name: string, icon: FixedIconSpelling | null) => setChoices(list.map((c) => (c.type === name ? { ...c, icon } : c)));
+  // an icon of the choice's own replaces the type's, so it takes a variant with it
+  const setIcon = (name: string, icon: FixedIconSpelling | null) =>
+    setChoices(list.map((c) => (c.type === name ? { ...c, icon, variant: icon ? null : c.variant } : c)));
+  const setVariant = (name: string, variants: string[], variant: string) =>
+    setChoices(list.map((c) => (c.type === name ? { ...c, variant: variant === variants[0] ? null : variant } : c)));
   const first = slot.default === null ? undefined : byName[slot.default];
   return html`<div class="slot-card">
     <div class="slot-head">
@@ -175,7 +180,7 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
       <span class="dim">until the wearer picks; click a ★ to change it</span></div>
     <label class="slot-line" title="the watch's own picker, with every type it has, including ones Garmin adds later">
       <input type="checkbox" checked=${any} onChange=${() => {
-        if (any) setChoices(kept && kept.length ? kept : [{ type: slot.default, icon: null }]);
+        if (any) setChoices(kept && kept.length ? kept : [{ type: slot.default, icon: null, variant: null }]);
         else { setKept(list); onEdit({ op: "set", path: [...path, "choices"], value: "any" }); }
       }} /> the wearer may pick any type, including types Garmin adds later</label>
     <div class="slot-types">${(vocab.categories || []).map((group) => html`<div class="slot-group">
@@ -189,6 +194,11 @@ export function SlotCard({ slot, vocab, onEdit, onSelect }: SlotCardProps): VNod
           <button class=${"star" + (isDefault ? " on" : "")} title="show this first" onClick=${() => setDefault(t.name)}>${isDefault ? "★" : "☆"}</button>
           ${!any && choice ? html`<${IconPop} value=${choice.icon} placeholder=${t.icon} vocab=${vocab} allowNone
               onPick=${(v: IconSpelling | null) => { if (v === null || typeof v === "string" || "codepoint" in v) setIcon(t.name, v); }} />` : html`<${Glyph} name=${t.icon} vocab=${vocab} />`}
+          ${!any && choice && !choice.icon && t.variants.length > 0 ? html`<select class="choice-variant" aria-label=${`${t.label} icon variant`}
+              title="which glyph set the icon steps through (variant:)"
+              onChange=${(e: SelectEvent) => setVariant(t.name, t.variants, e.currentTarget.value)}>
+              ${t.variants.map((v, i) => html`<option value=${v} selected=${(choice.variant ?? t.variants[0]) === v}>${v}${i === 0 ? " (default)" : ""}</option>`)}
+            </select>` : null}
           <span class="label">${t.label}</span>
           <${Capabilities} type=${t} />
           <span class="dim mono">${t.sample || ""}</span>

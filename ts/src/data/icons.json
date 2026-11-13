@@ -57,33 +57,78 @@
   },
   "battery": {
    "name": "battery",
+   "codepoint": "󰁹",
+   "description": "an upright battery, full (Material Design md-battery): the battery's plain icon, and the full step of its fill and bars variants"
+  },
+  "battery_classic": {
+   "name": "battery_classic",
    "codepoint": "",
-   "description": "a horizontal battery, three quarters full (Font Awesome nf-fa-battery_3 -- lying down, where Material Design's batteries stand upright)"
+   "description": "a horizontal battery, three quarters full (Font Awesome nf-fa-battery_3): the classic variant's plain icon"
   },
   "battery_level_0": {
    "name": "battery_level_0",
    "codepoint": "",
-   "description": "an empty battery: battery charge in band 1 of 5 (Font Awesome nf-fa-battery_empty)"
+   "description": "an empty battery: battery charge in band 1 of 5, classic variant (Font Awesome nf-fa-battery_empty)"
   },
   "battery_level_1": {
    "name": "battery_level_1",
    "codepoint": "",
-   "description": "a battery a quarter full: battery charge in band 2 of 5 (Font Awesome nf-fa-battery_quarter)"
+   "description": "a battery a quarter full: battery charge in band 2 of 5, classic variant (Font Awesome nf-fa-battery_quarter)"
   },
   "battery_level_2": {
    "name": "battery_level_2",
    "codepoint": "",
-   "description": "a battery half full: battery charge in band 3 of 5 (Font Awesome nf-fa-battery_half)"
+   "description": "a battery half full: battery charge in band 3 of 5, classic variant (Font Awesome nf-fa-battery_half)"
   },
   "battery_level_3": {
    "name": "battery_level_3",
    "codepoint": "",
-   "description": "a battery three quarters full: battery charge in band 4 of 5 (Font Awesome nf-fa-battery_three_quarters)"
+   "description": "a battery three quarters full: battery charge in band 4 of 5, classic variant (Font Awesome nf-fa-battery_three_quarters)"
   },
   "battery_level_4": {
    "name": "battery_level_4",
    "codepoint": "",
-   "description": "a full battery: battery charge in band 5 of 5 (Font Awesome nf-fa-battery_full)"
+   "description": "a full battery: battery charge in band 5 of 5, classic variant (Font Awesome nf-fa-battery_full)"
+  },
+  "battery_20": {
+   "name": "battery_20",
+   "codepoint": "󰁻",
+   "description": "an upright battery a fifth full: battery charge in band 1 of 5, fill variant (Material Design md-battery_20)"
+  },
+  "battery_40": {
+   "name": "battery_40",
+   "codepoint": "󰁽",
+   "description": "an upright battery two fifths full: battery charge in band 2 of 5, fill variant (Material Design md-battery_40)"
+  },
+  "battery_60": {
+   "name": "battery_60",
+   "codepoint": "󰁿",
+   "description": "an upright battery three fifths full: battery charge in band 3 of 5, fill variant (Material Design md-battery_60)"
+  },
+  "battery_80": {
+   "name": "battery_80",
+   "codepoint": "󰂁",
+   "description": "an upright battery four fifths full: battery charge in band 4 of 5, fill variant (Material Design md-battery_80)"
+  },
+  "battery_outline": {
+   "name": "battery_outline",
+   "codepoint": "󰂎",
+   "description": "an empty upright battery: battery charge in band 1 of 5, bars variant (Material Design md-battery_outline)"
+  },
+  "battery_low": {
+   "name": "battery_low",
+   "codepoint": "󱊡",
+   "description": "an upright battery with one bar: battery charge in band 2 of 5, bars variant (Material Design md-battery_low)"
+  },
+  "battery_medium": {
+   "name": "battery_medium",
+   "codepoint": "󱊢",
+   "description": "an upright battery with two bars: battery charge in band 3 of 5, bars variant (Material Design md-battery_medium)"
+  },
+  "battery_high": {
+   "name": "battery_high",
+   "codepoint": "󱊣",
+   "description": "an upright battery with three bars: battery charge in band 4 of 5, bars variant (Material Design md-battery_high)"
   },
   "floors": {
    "name": "floors",
@@ -440,12 +485,34 @@
     100
    ],
    "steps": [
-    "battery_level_0",
-    "battery_level_1",
-    "battery_level_2",
-    "battery_level_3",
-    "battery_level_4"
-   ]
+    "battery_20",
+    "battery_40",
+    "battery_60",
+    "battery_80",
+    "battery"
+   ],
+   "variant": "fill",
+   "variants": {
+    "bars": {
+     "steps": [
+      "battery_outline",
+      "battery_low",
+      "battery_medium",
+      "battery_high",
+      "battery"
+     ]
+    },
+    "classic": {
+     "plain": "battery_classic",
+     "steps": [
+      "battery_level_0",
+      "battery_level_1",
+      "battery_level_2",
+      "battery_level_3",
+      "battery_level_4"
+     ]
+    }
+   }
   },
   "solar": {
    "kind": "steps",

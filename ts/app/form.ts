@@ -321,6 +321,18 @@ export const followed = (value: IconSpelling | Value | null | undefined): string
   value !== null && typeof value === "object" && !Array.isArray(value) && typeof (value as Record<string, unknown>)["for"] === "string"
     ? String((value as Record<string, unknown>)["for"]) : null;
 
+/** The variant an icon following a source is written with, `{for:, variant:}`; `null` for none. */
+const followedVariant = (value: IconSpelling | null | undefined): string | null =>
+  value !== null && typeof value === "object" && "for" in value && typeof value.variant === "string" ? value.variant : null;
+
+/** `{for: source}`, with `variant:` unless it is the rule's default. */
+const followSpelling = (source: string, rule: IconRuleWord | undefined, variant: string | null): IconSpelling =>
+  variant !== null && rule !== undefined && rule.variants.length > 0 && variant !== rule.variants[0]!.variant ? { for: source, variant } : { for: source };
+
+/** The glyphs a rule steps through in `variant` (its own for `null` or a rule without one). */
+const variantGlyphs = (rule: IconRuleWord, variant: string | null): string[] =>
+  rule.variants.find((v) => v.variant === variant)?.glyphs ?? rule.glyphs;
+
 /** What a fixed icon spelling shows as: the name, or the codepoint. */
 const iconText = (value: IconSpelling | null | undefined): string | null =>
   value === null || value === undefined ? null : typeof value === "string" ? value : "codepoint" in value ? value.codepoint : null;
@@ -342,13 +354,16 @@ const tabOf = (value: IconSpelling | null | undefined, allowFor: boolean): IconT
 // An icon picker in three tabs: the catalogue (every icon as a glyph, and
 // `none` where the key takes it), a codepoint (`U+XXXX`) typed in, and,
 // where the key takes `{for:}`, the sources an icon rule follows, each
-// rule a row showing the glyphs it draws. A catalogue glyph some rule draws
+// rule a row showing the glyphs it draws (a rule with variants, the battery,
+// offers each to pick, written `variant:` unless the default). A catalogue glyph some rule draws
 // carries a corner mark leading to that rule's row. While the icon follows
 // a source that can be absent, a footer writes the element's `absent:`.
 export function IconPop({ value: spelled, vocab, allowNone = false, allowFor = false, absent, placeholder, onPick }: IconPopProps): VNode {
   const [code, setCode] = useState<string>("");
   const [tab, setTab] = useState<IconTab>(() => tabOf(spelled, allowFor));
   const [lit, setLit] = useState<string | null>(null);
+  // the variant a source picked next is written with, from the icon's own until another is clicked
+  const [chosen, setChosen] = useState<string | null>(() => followedVariant(spelled));
   const litRow = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const row = litRow.current;
@@ -360,11 +375,14 @@ export function IconPop({ value: spelled, vocab, allowNone = false, allowFor = f
   const rule = ruleOf(vocab, source);
   // a catalogue glyph some rule draws (its plain glyph or one of its steps), to the first such rule
   const drawnBy = new Map<string, IconRuleWord>();
-  for (const r of rules) for (const n of [r.plain, ...r.glyphs]) if (!drawnBy.has(n)) drawnBy.set(n, r);
+  for (const r of rules) {
+    for (const n of [r.plain, ...r.glyphs, ...r.variants.flatMap((v) => [v.plain, ...v.glyphs])]) if (!drawnBy.has(n)) drawnBy.set(n, r);
+  }
   const value = iconText(spelled);
   const strip = (glyphs: readonly string[], more = false) => html`<span class="glyph-strip">${glyphs.map((n) => html`<${Glyph} name=${n} vocab=${vocab} />`)}${more ? html`<span class="dim">…</span>` : null}</span>`;
+  const variant = followedVariant(spelled);
   const label = source !== null
-    ? html`${strip(miniStrip(rule ? rule.glyphs : []))}<span>${rule ? rule.label : source}</span>`
+    ? html`${strip(miniStrip(rule ? variantGlyphs(rule, variant) : []))}<span>${rule ? rule.label : source}${variant ? html` <span class="dim">${variant}</span>` : null}</span>`
     : html`<${Glyph} name=${value || placeholder} vocab=${vocab} />
       <span class=${value ? "" : "dim"}>${value || placeholder || "icon"}</span>`;
   const title = source !== null ? `follows ${source}` : value || placeholder || "pick an icon";
@@ -372,7 +390,7 @@ export function IconPop({ value: spelled, vocab, allowNone = false, allowFor = f
   const held = absent?.value;
   const heldIcon = held !== null && typeof held === "object" && !Array.isArray(held) ? (held as Record<string, Value>)["icon"] : undefined;
   return html`<${Popover} buttonClass="chip-button" bodyClass="pop icon-pop" title=${title} label=${label}
-    onOpen=${() => { setCode(""); setLit(null); setTab(tabOf(spelled, allowFor)); }}>${(close: () => void) => {
+    onOpen=${() => { setCode(""); setLit(null); setChosen(followedVariant(spelled)); setTab(tabOf(spelled, allowFor)); }}>${(close: () => void) => {
     const pick = (v: IconSpelling | null) => { close(); setCode(""); onPick(v); };
     const tabButton = (t: IconTab, text: string) => html`<button role="tab" class=${t === tab ? "on" : ""} aria-selected=${t === tab}
       aria-pressed=${t === tab} onClick=${() => setTab(t)}>${text}</button>`;
@@ -396,12 +414,25 @@ export function IconPop({ value: spelled, vocab, allowNone = false, allowFor = f
         ${reset}
       </div>
       <div class="note">a glyph of the icon font the catalogue does not name</div>`;
+    // a rule with variants: the one shown, the icon's own while it follows this rule, else the one clicked
+    const shownVariant = (r: IconRuleWord): string | null =>
+      r.variants.length === 0 ? null : chosen ?? (rule === r ? variant : null) ?? r.variants[0]!.variant;
+    const pickVariant = (r: IconRuleWord, v: string): void => {
+      setChosen(v);
+      if (source !== null && rule === r) pick(followSpelling(source, r, v));
+    };
     const follows = html`<div class="rule-rows">${rules.map((r) => html`
       <div class=${"rule-row" + (r.rule === lit ? " lit" : "")} ref=${r.rule === lit ? litRow : undefined}>
-        <div class="rule-head"><span class="rule-label">${r.label}</span>${strip(r.glyphs, r.kind === "table")}</div>
+        <div class="rule-head"><span class="rule-label">${r.label}</span>${strip(variantGlyphs(r, shownVariant(r)), r.kind === "table")}</div>
+        ${r.variants.length > 0 ? html`<div class="seg rule-variants" role="group" aria-label=${`${r.label} variant`}>${r.variants.map((v, i) => {
+          const on = v.variant === shownVariant(r);
+          return html`<button class=${on ? "on" : ""} aria-pressed=${on}
+            title=${`variant: ${v.variant}${i === 0 ? " (the default)" : ""}`} onClick=${() => pickVariant(r, v.variant)}>
+            ${strip(miniStrip(v.glyphs))}<span>${v.variant}</span></button>`;
+        })}</div>` : null}
         <div class="note">${r.split}</div>
         ${r.sources.map((s) => html`<button class=${"rule-source mono" + (s === source ? " on" : "")} aria-pressed=${s === source}
-          title=${`the icon follows ${s}'s reading`} onClick=${() => pick({ for: s })}>${s}</button>`)}
+          title=${`the icon follows ${s}'s reading`} onClick=${() => pick(followSpelling(s, r, shownVariant(r)))}>${s}</button>`)}
       </div>`)}</div>
       ${reset ? html`<div class="pop-custom">${reset}</div>` : null}`;
     const footer = absent && nullable ? html`<div class="pop-custom absent-row" title="what the icon draws on a frame its source has no reading (absent:)">

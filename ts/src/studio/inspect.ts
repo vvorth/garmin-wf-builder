@@ -263,9 +263,10 @@ function field(r: Reading, key: string, path: Path, node: Json, raw: unknown, re
   if (kind === "scalar") {
     if (Array.isArray(resolved["enum"])) out.enum = value(resolved["enum"]) as Value[];
     // a value whose shape is not the schema's is shown as its text; an icon's `{codepoint}` and `{for: <source>}`
-    // are two of its spellings, a rule list a conditional value's, and a font written inline a font's
-    const spelled = widget === "icon" && isMap(raw) && raw.size === 1
-      && (typeof raw.get("codepoint") === "string" || typeof raw.get("for") === "string");
+    // (with a `variant:` or not) are two of its spellings, a rule list a conditional value's, and a font written inline a font's
+    const spelled = widget === "icon" && isMap(raw) && (raw.size === 1
+      ? typeof raw.get("codepoint") === "string" || typeof raw.get("for") === "string"
+      : raw.size === 2 && typeof raw.get("for") === "string" && typeof raw.get("variant") === "string");
     const ruled = rules !== undefined && Array.isArray(raw);
     const inline = widget === "font" && isMap(raw);
     if (present && !isScalar(raw) && !spelled && !ruled && !inline) out.widget = "yaml";
@@ -530,7 +531,9 @@ function slots(index: SpanIndex): SlotEntry[] {
     const entry = isMap(g(entries, slot)) ? g(entries, slot) : new Map();
     const raw = g(entry, "choices");
     const choices = Array.isArray(raw)
-      ? raw.map((c) => (isMap(c) ? { type: name(c.get("type")), icon: iconSpelling(c.get("icon")) } : { type: name(c), icon: null }))
+      ? raw.map((c) => (isMap(c)
+        ? { type: name(c.get("type")), icon: iconSpelling(c.get("icon")), variant: name(c.get("variant")) }
+        : { type: name(c), icon: null, variant: null }))
       : name(raw);
     out.push({ name: String(slot), label: name(g(entry, "label")), default: name(g(entry, "default")), choices, drawn_by: slotDrawers(index, String(slot)) });
   }
@@ -708,6 +711,7 @@ function complicationType(name: string): ComplicationType {
     icon: icons.COMPLICATION_ICON.get(name) ?? null,
     sample: sample !== undefined && sample !== null ? complications.formatReading(name, sample) : null,
     capabilities: capabilities(name),
+    variants: [...(icons.complicationRule(name)?.variants ?? [])],
   };
 }
 
@@ -795,7 +799,11 @@ export function iconRuleWord(rule: icons.IconRule): IconRuleWord {
   const glyphs = rule.kind === "table"
     ? [...new Set([...rule.map].sort(([a], [b]) => a - b).map(([, name]) => name))].slice(0, TABLE_STRIP)
     : [...rule.steps];
-  return { rule: rule.name, label: rule.label, kind: rule.kind, sources: [...rule.sources], glyphs, plain: rule.plain, split: ruleSplit(rule) };
+  const variants = rule.variants.map((variant) => {
+    const member = icons.ruleVariant(rule, variant)!;
+    return { variant, glyphs: [...member.steps], plain: member.plain };
+  });
+  return { rule: rule.name, label: rule.label, kind: rule.kind, sources: [...rule.sources], glyphs, plain: rule.plain, split: ruleSplit(rule), variants };
 }
 
 let words: Words | null = null;
@@ -825,7 +833,8 @@ export function vocabulary(): Words {
         const source = catalog.get(path)!;
         return [path, { type: source.type, unit: source.unit, quantity: source.quantity, enum: source.enum, doc: source.doc, nullable: source.nullable }];
       })),
-      icon_rules: [...icons.RULES.values()].map(iconRuleWord),
+      // one row per family: a variant is offered on its family's row
+      icon_rules: [...icons.RULES.values()].filter((rule) => rule.family === rule.name).map(iconRuleWord),
       format_codes: {
         time: codesOf(TIME_CODES), date: codesOf(DATE_CODES), duration: codesOf(DURATION_CODES), number: NUMBER_SPECS.map(([spec, label]) => [spec, label]),
         name: [...NAME_SPECS].map(([spec, n]) => [spec, n.description]),

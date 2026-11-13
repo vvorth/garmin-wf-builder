@@ -171,6 +171,36 @@ test("a slot card ticks stars and opens to every type", async () => {
   assert.deepEqual(printed[1], [{"op": "set", "path": [...top, ...["choices"]], "value": ["steps", "intensity_minutes", "battery", "body_battery", "stress"]}, {"op": "set", "path": [...top, ...["choices"]], "value": ["steps", "floors_climbed", "intensity_minutes", "battery", "body_battery", "stress", "calories"]}, {"op": "set", "path": [...top, ...["default"]], "value": "calories"}, {"op": "set", "path": [...top, ...["choices"]], "value": "any"}]);
 });
 
+test("a slot card offers a battery choice's icon variants, written variant: unless the default", async () => {
+  const text = summary(repoText("examples/features/slot-gauge/face.yaml"));
+  const script = `
+      await openSection("Slots");
+      const card = find((e) => cls(e) === "slot-card")[0];
+      const row = (label) => card.all((e) => ["slot-type", "slot-type off"].includes(cls(e))
+                                       && e.all((s) => cls(s) === "label" && s.textContent === label).length > 0)[0];
+      const select = (label) => row(label).all((e) => e.localName === "select")[0];
+      out([select("Battery").all((o) => o.localName === "option").map((o) => o.textContent), select("Steps") === undefined]);
+      const pick = (value) => { const s = select("Battery"); s.value = value; s.dispatch("change", { target: s }); };
+      out(select("Battery").all((o) => o.localName === "option" && "selected" in o.attributes && o.attributes.selected !== false).map((o) => o.textContent));
+      pick("PICK"); await settle();
+      out(edits);
+    `;
+  const choices = ["config", "slots", "top", "choices"];
+  // the default shown on a bare choice; bars picked writes the mapping
+  let printed = await render(text, script.replace("PICK", "bars"));
+  assert.deepEqual(printed[0], [["fill (default)", "bars", "classic"], true]);
+  assert.deepEqual(printed[1], ["fill (default)"]);
+  assert.deepEqual(printed[2], [
+    { op: "set", path: choices, value: ["steps", "floors_climbed", "intensity_minutes", { type: "battery", variant: "bars" }, "body_battery", "stress"] },
+  ]);
+  // a choice written with variant: bars shows it, and the default picked writes the bare name again
+  const barred = summary(repoText("examples/features/slot-gauge/face.yaml")
+    .replace("choices: [steps, floors_climbed, intensity_minutes, battery,", "choices: [steps, floors_climbed, intensity_minutes, {type: battery, variant: bars},"));
+  printed = await render(barred, script.replace("PICK", "fill"));
+  assert.deepEqual(printed[1], ["bars"]);
+  assert.deepEqual(printed[2], [{ op: "set", path: choices, value: ["steps", "floors_climbed", "intensity_minutes", "battery", "body_battery", "stress"] }]);
+});
+
 test("a slot card marks what each type supports, dimly, explained on hover", async () => {
   const text = summary(repoText("examples/features/slot-gauge/face.yaml"));
   const printed = await render(text, "\n      await openSection(\"Slots\");\n      const card = find((e) => cls(e) === \"slot-card\")[0];\n      const row = (label) => card.all((e) => [\"slot-type\", \"slot-type off\"].includes(cls(e))\n                                       && e.all((s) => cls(s) === \"label\" && s.textContent === label).length > 0)[0];\n      const caps = (label) => row(label).all((e) => cls(e).startsWith(\"glyph cap\")).map((e) => [cls(e), e.textContent.codePointAt(0).toString(16), e.attributes.title]);\n      out([\"Steps\", \"Current weather\", \"Training status\", \"Date\"].map(caps));\n    ");
@@ -508,7 +538,7 @@ test("an icon that follows data shows its rule on the chip, and the follows data
       await click(row.all((b) => cls(b).startsWith("rule-source") && b.textContent === "device.notification_count")[0]);
       out(edits);
     `));
-  assert.deepEqual(printed[0], [true, ["battery_level_0", "battery_level_1", "battery_level_2", "battery_level_3", "battery_level_4"], "follows system.battery"]);
+  assert.deepEqual(printed[0], [true, ["battery_20", "battery_40", "battery_60", "battery_80", "battery"], "follows system.battery"]);
   assert.deepEqual(printed[1], [["catalogue", "false"], ["code", "false"], ["follows data", "true"]]);
   // one row per rule in the table, each with every glyph it draws and every source it follows
   const rules = words.icon_rules;
@@ -519,6 +549,48 @@ test("an icon that follows data shows its rule on the chip, and the follows data
   assert.deepEqual(printed[3], ["system.battery"]);
   assert.equal(printed[4], 0);
   assert.deepEqual(printed[5], [{ op: "set", element, path: ["icon"], scope: "all", device: null, value: { for: "device.notification_count" } }]);
+});
+
+test("the battery row offers its variants: a click writes variant: on the source followed, and a source picked takes the variant shown", async () => {
+  installAssets();
+  const words = vocabulary();
+  const vocab = { icon_glyphs: words.icon_glyphs, icon_paths: words.icon_paths, icon_rules: words.icon_rules, source_info: words.source_info };
+  const element = ["elements", "glyph"];
+  const script = (then: string) => `
+      const icon = field("icon");
+      const chip = () => icon.all((e) => cls(e) === "chip-button")[0];
+      const glyphs = (e) => e.all((x) => cls(x) === "glyph").map((x) => x.attributes.title);
+      out([chip().textContent.includes("bars"), glyphs(chip())]);
+      await click(chip());
+      const row = () => icon.all((e) => /^rule-row( |$)/.test(cls(e))).find((r) => r.textContent.includes("Battery"));
+      const variants = () => row().all((e) => cls(e).includes("rule-variants"))[0].all((b) => b.localName === "button");
+      out(variants().map((b) => [b.all((x) => x.localName === "span" && !cls(x).includes("glyph"))[0].textContent, b.attributes["aria-pressed"]]));
+      out(icon.all((e) => /^rule-row( |$)/.test(cls(e))).filter((r) => r.all((e) => cls(e).includes("rule-variants")).length).length);
+      ${then}
+      out(edits);
+    `;
+  // following system.battery with variant: bars -- bars is pressed; picking classic rewrites it, fill (the default) drops the key
+  let text = followingIcon("system.battery").replace("icon: {for: system.battery}", "icon: {for: system.battery, variant: bars}");
+  let printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, script(`
+      await click(variants().find((b) => b.textContent.includes("classic")));
+      await click(chip());
+      await click(variants().find((b) => b.textContent.includes("fill")));`)));
+  assert.deepEqual(printed[0], [true, ["battery_outline", "battery_low", "battery_medium", "battery_high", "battery"]]);
+  assert.deepEqual(printed[1], [["fill", "false"], ["bars", "true"], ["classic", "false"]]);
+  assert.equal(printed[2], 1, "only the battery's row has variants");
+  assert.deepEqual(printed[3], [
+    { op: "set", element, path: ["icon"], scope: "all", device: null, value: { for: "system.battery", variant: "classic" } },
+    { op: "set", element, path: ["icon"], scope: "all", device: null, value: { for: "system.battery" } },
+  ]);
+  // following another source: a variant clicked is shown, and the battery source then picked carries it
+  text = followingIcon("device.notification_count");
+  printed = printedBy(inspector(summary(text), plain(inspect(text, element, null)), { vocab }, script(`
+      await click(variants().find((b) => b.textContent.includes("bars")));
+      out(variants().map((b) => b.attributes["aria-pressed"]));
+      await click(row().all((b) => cls(b).startsWith("rule-source") && b.textContent === "complication.battery")[0]);`)));
+  assert.deepEqual(printed[1], [["fill", "true"], ["bars", "false"], ["classic", "false"]], "the default shows first");
+  assert.deepEqual(printed[3], ["false", "true", "false"]);
+  assert.deepEqual(printed[4], [{ op: "set", element, path: ["icon"], scope: "all", device: null, value: { for: "complication.battery", variant: "bars" } }]);
 });
 
 test("the absent: footer shows for a source that can be absent, writes hide, plain and a picked glyph, and a fixed icon picked takes absent: with it", async () => {

@@ -29,8 +29,9 @@ icon sets; the ones this project's catalogue draws from are:
 
 | Icon set | Used for | Upstream | License |
 |---|---|---|---|
-| Material Design Icons | every catalogue icon but the four below | github.com/Templarian/MaterialDesign (Pictogrammers) | Apache License 2.0 |
+| Material Design Icons | every catalogue icon but the ten below | github.com/Templarian/MaterialDesign (Pictogrammers) | Apache License 2.0 |
 | Weather Icons | `weather_dust`, `weather_sandstorm`, `weather_volcano`, `weather_unknown` | github.com/erikflowers/weather-icons | SIL OFL 1.1 |
+| Font Awesome | `battery_classic`, `battery_level_0`…`battery_level_4` (the battery's `classic` variant) | github.com/FortAwesome/Font-Awesome | SIL OFL 1.1 (font), CC BY 4.0 (icons) |
 
 Material Design Icons is preferred for a new catalogue entry whenever a glyph
 reads at least as well as an alternative -- it is the largest, most
@@ -40,7 +41,8 @@ supplies only the conditions MDI has no glyph for (dust, sand, volcanic ash,
 unknown).
 
 Apache 2.0 requires attribution, which this file provides: Material Design
-Icons by the Pictogrammers project; Weather Icons by Erik Flowers, SIL OFL 1.1.
+Icons by the Pictogrammers project; Weather Icons by Erik Flowers, SIL OFL 1.1;
+Font Awesome by Fonticons, Inc.
 
 ## Adding an icon to the catalogue
 

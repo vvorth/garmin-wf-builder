@@ -205,7 +205,8 @@ class IconKind extends ElementKind<IconElement> {
           });
         valueFor = null;
       }
-      const element = IconElement.create({ ...common, icon: null, codepoint: icons.FALLBACK_CODEPOINT, value_for: valueFor, ...placement });
+      const variant = valueFor !== null ? b.iconVariant(dynamic, icons.RULE_OF_SOURCE.get(valueFor.sources[0]!)!, valueFor.shown) : null;
+      const element = IconElement.create({ ...common, icon: null, codepoint: icons.FALLBACK_CODEPOINT, value_for: valueFor, variant, ...placement });
       buildAbsent(b, node, element);
       return element;
     }

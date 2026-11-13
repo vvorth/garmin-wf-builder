@@ -95,7 +95,7 @@ const globals = obj({
   layouts: list(str),
   layout_entries: list(obj({ name: str, label: nullable(str), elements: int, static: int, styles: list(str) })),
   fonts: list(obj({ name: str, source: nullable(str), face: value, size: value })),
-  slots: list(obj({ name: str, label: nullable(str), default: nullable(str), choices: oneOf(list(obj({ type: nullable(str), icon: nullable(str) })), str, nul), drawn_by: list(str) })),
+  slots: list(obj({ name: str, label: nullable(str), default: nullable(str), choices: oneOf(list(obj({ type: nullable(str), icon: nullable(str), variant: nullable(str) })), str, nul), drawn_by: list(str) })),
   roles: list(str),
   axes: obj({
     accent_color: nullable(obj({ default: nullable(str), choices: oneOf(str, list(value)), raw: value, role: str, own_role: bool })),
@@ -157,9 +157,10 @@ const vocabulary = obj({
   sources: record(list(str)), icons: list(str), complications: list(str), series: list(str), types: list(str),
   mip: list(obj({ name: str, value: str, label: str, note: nullable(str) })), hand_presets: list(str), categories: list(str),
   complication_types: list(obj({ name: str, label: str, category: str, icon: nullable(str), sample: nullable(str),
-    capabilities: list(obj({ kind: literal("graph", "dynamic_icon", "gauge", "long_text"), detail: str })) })), icon_glyphs: record(int), icon_paths: record(str),
+    capabilities: list(obj({ kind: literal("graph", "dynamic_icon", "gauge", "long_text"), detail: str })), variants: list(str) })), icon_glyphs: record(int), icon_paths: record(str),
   source_info: record(obj({ type: literal("number", "float", "boolean", "string", "time", "date", "color"), unit: nullable(str), quantity: nullable(str), enum: nullable(str), doc: str, nullable: bool })),
-  icon_rules: list(obj({ rule: str, label: str, kind: literal("steps", "table"), sources: list(str), glyphs: list(str), plain: str, split: str })),
+  icon_rules: list(obj({ rule: str, label: str, kind: literal("steps", "table"), sources: list(str), glyphs: list(str), plain: str, split: str,
+    variants: list(obj({ variant: str, glyphs: list(str), plain: str })) })),
   format_codes: obj({ time: list(tuple(str, str)), date: list(tuple(str, str)), duration: list(tuple(str, str)), number: list(tuple(str, str)), name: list(tuple(str, str)) }),
   lint_codes: list(str),
   devices: list(obj({ id: str, name: str, shape: str, size: str, width: int, height: int, ppi: nullable(num), skin: bool, display: str, fonts: list(str), faces: list(str) })),
@@ -365,7 +366,8 @@ test("the words list every icon rule from the table, its glyphs in drawing order
   const client = new Client(studio);
   const words = (await client.call("vocabulary", {})).json;
   const icons = await import("../src/icons.ts");
-  const rules = [...icons.RULES.values()];
+  // a family's variants ride its own row
+  const rules = [...icons.RULES.values()].filter((r) => r.family === r.name);
   // every rule, in the table's order, with its own label, kind, sources and plain glyph
   assert.deepEqual(words.icon_rules.map((r: any) => [r.rule, r.label, r.kind, r.sources, r.plain]),
     rules.map((r) => [r.name, r.label, r.kind, [...r.sources], r.plain]));
@@ -385,6 +387,10 @@ test("the words list every icon rule from the table, its glyphs in drawing order
   assert.equal(byName.alarm.split, "0 / 1+");
   assert.equal(words.icon_rules.length, 8);
   assert.deepEqual(byName.weather.glyphs.slice(0, 3), ["weather_sunny", "weather_partly_cloudy", "weather_cloudy"]);
+  assert.deepEqual(byName.battery.variants.map((v: any) => [v.variant, v.plain, v.glyphs.length]),
+    [["fill", "battery", 5], ["bars", "battery", 5], ["classic", "battery_classic", 5]]);
+  assert.deepEqual(byName.battery.variants[1].glyphs, ["battery_outline", "battery_low", "battery_medium", "battery_high", "battery"]);
+  assert.ok(words.icon_rules.filter((r: any) => r.rule !== "battery").every((r: any) => r.variants.length === 0));
 });
 
 test("a scheme's base, and the roles it inherits from it, are in the globals", async () => {

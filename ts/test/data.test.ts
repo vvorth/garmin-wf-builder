@@ -38,6 +38,16 @@ function ruleProblems(rules: Record<string, Record<string, unknown>>): string[] 
       if (booleans.length !== sources.length) out.push(`${name}: on/off sources share the rule with other readings`);
       if (rule["kind"] !== "steps" || JSON.stringify(rule["thresholds"]) !== "[1]") out.push(`${name}: an on/off source takes a steps rule with thresholds [1]`);
     }
+    const variants = (rule["variants"] ?? {}) as Record<string, Record<string, unknown>>;
+    if ((rule["variant"] === undefined) !== (Object.keys(variants).length === 0)) out.push(`${name}: a default variant name and other variants come together`);
+    if (Object.keys(variants).length > 0 && rule["kind"] !== "steps") out.push(`${name}: only a steps rule has variants`);
+    for (const [variant, v] of Object.entries(variants)) {
+      if (variant === rule["variant"]) out.push(`${name}: variant ${variant} is the default's own name`);
+      if (v["plain"] !== undefined) named(name, `variants.${variant}.plain`, v["plain"]);
+      const steps = v["steps"];
+      if (!Array.isArray(steps) || steps.length !== (rule["steps"] as unknown[] | undefined)?.length) out.push(`${name}: variant ${variant} has as many steps as the rule`);
+      else steps.forEach((step, i) => named(name, `variants.${variant}.steps[${i}]`, step));
+    }
     if (rule["kind"] === "steps") {
       const steps = rule["steps"];
       if (!Array.isArray(steps) || steps.length < 2) out.push(`${name}: a steps rule needs two steps or more`);
@@ -85,6 +95,11 @@ test("a malformed rule is caught", () => {
     [{ ...steps, range: undefined, thresholds: [1], cyclic: true }, /a cyclic rule wraps a range/],
     [{ ...steps, sources: ["device.do_not_disturb"] }, /an on\/off source takes a steps rule with thresholds \[1\]/],
     [{ ...steps, range: undefined, thresholds: [1], sources: ["device.do_not_disturb", "device.alarm_count"] }, /on\/off sources share the rule/],
+    [{ ...steps, variant: "fill" }, /a default variant name and other variants come together/],
+    [{ ...steps, variants: { bars: { steps: ["battery_level_0", "battery_level_1"] } } }, /a default variant name and other variants come together/],
+    [{ ...steps, variant: "fill", variants: { bars: { steps: ["battery_level_0"] } } }, /variant bars has as many steps as the rule/],
+    [{ ...steps, variant: "fill", variants: { bars: { steps: ["battery_level_0", "nope"] } } }, /variants.bars.steps\[1\] "nope"/],
+    [{ ...steps, variant: "fill", variants: { fill: { steps: ["battery_level_0", "battery_level_1"] } } }, /variant fill is the default's own name/],
   ];
   for (const [rule, problem] of cases) assert.match(ruleProblems({ bad: rule }).join("\n"), problem);
   assert.match(ruleProblems({ ok: steps, again: steps }).join("\n"), /again: system.battery already follows the ok rule/);

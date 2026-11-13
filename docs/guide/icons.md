@@ -15,6 +15,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 | `icon:` | a catalogue name (`steps`, `heart`, `weather_<condition>`, …) | — | [`icon`](#icon) |
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
 | `icon: {for:}` | a source an icon rule follows, by rule: weather (`weather.condition`/`.condition_today`/`.condition_tomorrow`, `complication.current_weather`/`.forecast_weather_1day`/`_2day`/`_3day`), battery (`system.battery`, `complication.battery`), solar (`complication.solar_input`), notification (`device.notification_count`, `complication.notification_count`), alarm (`device.alarm_count`), do-not-disturb (`device.do_not_disturb`), phone (`device.phone_connected`), moon (`astro.moon_age`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
+| `icon: {for:, variant:}` | `fill`, `bars` or `classic` (a battery source only) | `fill` | [The battery's variants](#the-batterys-variants-variant) — which glyph set the battery steps through |
 | `slot:` (instead of `icon:`) | a `config: slots:` name | — | [A slot's icon: `slot:`](#a-slots-icon-slot) — the icon of the wearer's pick |
 | `absent:` | `hide`, or `{icon: <name>}` / `{icon: {codepoint: "U+XXXX"}}` (with `icon: {for:}` or `slot:` only) | the plain glyph | [`absent:` on an icon](#absent-on-an-icon) — what draws without a reading |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
@@ -289,7 +290,7 @@ under each source that has one.
 
 | Rule | Sources (slot type) | Glyphs, in order | How the reading splits | Plain |
 |---|---|---|---|---|
-| `battery` | `system.battery`, `complication.battery` (`battery`) | `battery_level_0`…`battery_level_4`: an empty battery, then a quarter more per step (Font Awesome `battery_empty`, `_quarter`, `_half`, `_three_quarters`, `_full`) | five equal bands of 0–100: 0–19 % empty, 20–39 % a quarter, … 80–100 % full | `battery`, the three-quarter battery |
+| `battery` | `system.battery`, `complication.battery` (`battery`) | `battery_20`, `battery_40`, `battery_60`, `battery_80`, `battery`: an upright battery a fifth full, then a fifth more per step, then full (Material Design `battery_20`…`_80`, `battery`); `variant:` picks [another set](#the-batterys-variants-variant) | five equal bands of 0–100: 0–19 % a fifth, 20–39 % two fifths, … 80–100 % full | `battery`, the full upright battery |
 | `solar` | `complication.solar_input` (`solar_input`) | `solar_level_0`…`solar_level_8`: a disc with a lightning bolt cut out, and around it eight arcs, one more lit per step, clockwise from 12 o'clock | nine equal bands of 0–100, 11.1 wide: 0–11 lights no arc, 12–22 one, … 89–100 all eight | `solar`, the sun |
 | `notification` | `device.notification_count`, `complication.notification_count` (`notification_count`) | `notification_none` (an outlined speech bubble), `notification` (a filled one) | at 1: exactly 0 is the empty bubble, 1 or more the filled one | `notification` |
 | `alarm` | `device.alarm_count` | `alarm_off` (the alarm clock struck through), `alarm` | at 1: no alarm set is the struck clock | `alarm` |
@@ -301,6 +302,43 @@ under each source that has one.
 In the editor, the icon picker's **follows data** tab lists every rule
 with the glyphs it draws and writes `icon: {for:}` for the source you pick
 ([Studio](studio.md#an-icon)).
+
+#### The battery's variants: `variant:`
+
+The battery comes in three glyph sets over the same five bands. `variant:`
+beside `for:` picks one; a [slot choice](configuration.md) takes it as
+`{type: battery, variant: <name>}`.
+
+| `variant:` | Glyphs, in order | Plain |
+|---|---|---|
+| `fill` (the default) | `battery_20`, `battery_40`, `battery_60`, `battery_80`, `battery`: upright, filled from the bottom (Material Design) | `battery` |
+| `bars` | `battery_outline`, `battery_low`, `battery_medium`, `battery_high`, `battery`: upright, empty, then one to three bars, then full (Material Design) | `battery` |
+| `classic` | `battery_level_0`…`battery_level_4`: lying down, empty, then a quarter more per step (Font Awesome `battery_empty`, `_quarter`, `_half`, `_three_quarters`, `_full`) | `battery_classic`, the three-quarter battery lying down |
+
+```yaml
+battery:
+  type: icon
+  icon: {for: system.battery, variant: bars}
+  size: 16%r
+  color: color.fg
+```
+
+* **`fill` is the default** because it matches the weight of the other
+  Material Design icons and has no gaps to round: each step moves one edge,
+  so every level stays distinct at any size.
+* **`bars` draws its gaps evenly only at some sizes.** Its three bars sit
+  one design unit apart, so most pixel sizes round the gaps unevenly, and
+  below about 19 px of ink a bar merges with its neighbour. On a 260 px
+  screen (radius 130) `15%r` and `17%r`–`18%r` bake even gaps; look at the
+  preview before choosing another size.
+* **`classic` lies down**, so at a given `size:` it is wider and shorter
+  than the upright sets: an icon whose glyph the watch picks is sized by its
+  longer side ([`size:`](#icon)). It is heavier than the other icons.
+* Only the battery has variants. `variant:` on another source, on a slot
+  choice of another type, or beside a choice's own `icon:` is an error.
+* Each variant is a rule of its own on the watch (`batteryIcon`,
+  `batteryBarsIcon`, `batteryClassicIcon`), generated only when a face uses
+  it, with a font of its own at each size.
 
 ```yaml
 solar:
@@ -356,7 +394,7 @@ phone:
 * Each glyph is a catalogue name too, so `icon: solar_level_4` or
   `icon: moon_first_quarter` draws one on its own.
 * `system.battery` is always there, so its icon is always a step; the two
-  battery sources share one font at a size.
+  battery sources share one font at a size and variant.
 * **Small solar icons.** An arc one or two pixels thick does not read, so
   a solar step drawn **under 22 px across** (its `size:` on that device)
   is a static icon instead: the same bolt in an eight-pointed star,

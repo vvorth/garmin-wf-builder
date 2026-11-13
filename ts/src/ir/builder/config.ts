@@ -3,7 +3,7 @@
 import * as complications from "../../complications.ts";
 import type { Span } from "../../diagnostics.ts";
 import type { Data } from "../../edit/yaml.ts";
-import type * as icons from "../../icons.ts";
+import * as icons from "../../icons.ts";
 import { Color, ColorError, MIP64_NAMED, MIP_RECOMMENDED, mip64Label, mip64Name } from "../../palette.ts";
 import { quoted, str } from "../../py.ts";
 import { humanise } from "../../vocab.ts";
@@ -161,6 +161,7 @@ export class ConfigAxes extends TopLevelBlocks {
       }
       const choices: string[] = [];
       const iconOverrides = new Map<string, icons.SlotIcon | null>();
+      const iconVariants = new Map<string, string>();
       const seen = new Map<string, number>();
       let ok = true;
       (rawChoices as Data[]).forEach((item, index) => {
@@ -180,6 +181,20 @@ export class ConfigAxes extends TopLevelBlocks {
             return;
           }
           if (override !== NO_ICON_OVERRIDE) iconOverrides.set(resolved, override);
+          if (item.has("variant")) {
+            if (override !== NO_ICON_OVERRIDE) {
+              this.bag.error("icon", `config.slots.${name}.choices[${index}]: 'variant:' picks the type's own icon, which this choice's 'icon:' replaces`,
+                this.doc.span(item, "variant"), { notes: ["keep one of the two"] });
+              ok = false;
+              return;
+            }
+            const variant = this.iconVariant(item, icons.complicationRule(resolved), resolved);
+            if (variant === null) {
+              ok = false;
+              return;
+            }
+            iconVariants.set(resolved, variant);
+          }
         } else {
           resolved = this.complicationReference(item, `config.slots.${name}.choices[${index}]`, itemSpan);
           if (resolved === null) {
@@ -215,7 +230,7 @@ export class ConfigAxes extends TopLevelBlocks {
         continue;
       }
       this.config_data.set(name, ConfigDataSlot.create({
-        name, default: defaultType, choices, icon_overrides: iconOverrides, label, unsupported, span,
+        name, default: defaultType, choices, icon_overrides: iconOverrides, icon_variants: iconVariants, label, unsupported, span,
       }));
     }
   }

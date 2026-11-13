@@ -1242,7 +1242,7 @@
       }
     },
     "slotChoice": {
-      "description": "One 'choices:' entry in an explicit slot list: a bare complication name, or a mapping naming it plus a per-choice icon ('icon:' -- a catalogue name, {codepoint: 'U+XXXX'} for a glyph in the vendored icon font, or 'none' to draw no icon for this choice). A type listed twice, in either shape, is an error.",
+      "description": "One 'choices:' entry in an explicit slot list: a bare complication name, or a mapping naming it plus a per-choice icon ('icon:' -- a catalogue name, {codepoint: 'U+XXXX'} for a glyph in the vendored icon font, or 'none' to draw no icon for this choice) or a 'variant:' of the type's own icon. A type listed twice, in either shape, is an error: the watch reports only which type the wearer picked, so two entries of one type could not be told apart.",
       "oneOf": [
         {
           "$ref": "#/$defs/complicationName"
@@ -1277,9 +1277,21 @@
                   }
                 }
               ]
+            },
+            "variant": {
+              "$ref": "#/$defs/iconVariant"
             }
           }
         }
+      ]
+    },
+    "iconVariant": {
+      "description": "Which glyph set an icon that follows a battery reading draws: 'fill' (the default; upright batteries filled to 20, 40, 60 and 80 % and full), 'bars' (upright batteries with none to three bars, then full) or 'classic' (horizontal Font Awesome batteries, empty to full). Each has five steps over 0-100 and its own plain glyph for no reading. Only the battery's icon has variants; naming one on any other source or type is an error. Not with a choice's own 'icon:', which replaces the type's icon.",
+      "type": "string",
+      "enum": [
+        "fill",
+        "bars",
+        "classic"
       ]
     },
     "defaults": {
@@ -2773,7 +2785,10 @@
               "properties": {
                 "for": {
                   "type": "string",
-                  "description": "A bare source: weather.condition, weather.condition_today, weather.condition_tomorrow, complication.current_weather or complication.forecast_weather_1day/_2day/_3day (the condition's weather icon, weather_unknown without data); system.battery, complication.battery or complication.solar_input (a step that fills with the 0-100 reading, the plain icon without one); device.notification_count or complication.notification_count (notification_none at 0, notification otherwise and without a reading); device.alarm_count (alarm_off at 0, alarm otherwise); device.do_not_disturb (bell off, dnd on); device.phone_connected (phone_disconnected, phone_connected); or astro.moon_age (one of eight moon_* phases, each centred on its phase, wrapping round at 29.53 days). `wfb sources` prints each source's rule. Not an expression over one."
+                  "description": "A bare source: weather.condition, weather.condition_today, weather.condition_tomorrow, complication.current_weather or complication.forecast_weather_1day/_2day/_3day (the condition's weather icon, weather_unknown without data); system.battery, complication.battery or complication.solar_input (a step that fills with the 0-100 reading, the plain icon without one; 'variant:' picks the battery's glyph set); device.notification_count or complication.notification_count (notification_none at 0, notification otherwise and without a reading); device.alarm_count (alarm_off at 0, alarm otherwise); device.do_not_disturb (bell off, dnd on); device.phone_connected (phone_disconnected, phone_connected); or astro.moon_age (one of eight moon_* phases, each centred on its phase, wrapping round at 29.53 days). `wfb sources` prints each source's rule. Not an expression over one."
+                },
+                "variant": {
+                  "$ref": "#/$defs/iconVariant"
                 }
               }
             }

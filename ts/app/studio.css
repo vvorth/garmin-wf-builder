@@ -409,6 +409,8 @@ input[type="range"].wide { width: 100%; }
 .rule-row .note { margin: 0; }
 .rule-source { font-size: 11px; padding: 1px 6px; text-align: left; }
 .rule-source.on { border-color: var(--accent); }
+.rule-variants { flex-wrap: wrap; }
+.rule-variants button { display: inline-flex; gap: 4px; align-items: center; font-size: 11px; padding: 1px 6px; }
 .absent-row { flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 6px; font-size: 12px; }
 .absent-row .seg button { padding: 1px 8px; font-size: 12px; }
 .slot-card { padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
@@ -422,6 +424,7 @@ input[type="range"].wide { width: 100%; }
 .slot-type.off .label { color: var(--dim); }
 .slot-type .label { min-width: 0; }
 .slot-type .caps { flex: 1; display: flex; gap: 2px; padding-left: 2px; }
+.slot-type .choice-variant { font-size: 11px; padding: 0 2px; }
 .slot-type .cap { font-size: 13px; color: var(--dim); opacity: 0.6; cursor: help; }
 .slot-type .cap.warn { color: var(--warning); opacity: 0.5; }
 .slot-type .chip-button { padding: 0 4px; }

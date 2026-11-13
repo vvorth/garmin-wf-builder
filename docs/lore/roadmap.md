@@ -89,6 +89,13 @@ or AOD-related has been observed on a watch or in the simulator.
   `absent: hide | {icon:}` says, on a `slot:` icon too; every rule is one
   entry in `icons.json`'s `rules`, and its chooser is generated
   (`IconGlyphs.<rule>Icon` in `IconGlyphs.mc`). `docs/guide/icons.md`.
+- **Battery icon variants** — `variant: fill | bars | classic` on
+  `icon: {for:}` and on a battery slot choice: upright Material Design
+  fills (the default, and the catalogue's plain `battery`), upright bars,
+  or the horizontal Font Awesome set (`battery_classic` its plain glyph);
+  a rule's variants live in its `icons.json` entry and each becomes a
+  rule of its own (`batteryBarsIcon`); the editor offers them on the
+  Battery row and on a battery slot choice. `docs/guide/icons.md`.
 - **`system.awake`** — a boolean source, `false` while the watch sleeps
   (the view's `_sleeping`, the flag `seconds: awake` reads), so `visible:
   system.awake` hides a digital seconds readout asleep; `wfb preview

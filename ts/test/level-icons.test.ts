@@ -166,21 +166,23 @@ test("icon: {for: complication.solar_input} fills with the reading and draws the
   assert.ok(none.includes("1"), "the plain sun is drawn");
 });
 
-test("a battery's five bands are 20 wide: 0-19 empty, 80-100 full", () => {
+test("a battery's five bands are 20 wide: 0-19 a fifth full, 80-100 full", () => {
   const battery = RULES.get("battery")!;
   assert.deepEqual([0, 19, 20, 39, 40, 79, 80, 100].map((v) => ruleIconName(battery, v)),
-    ["battery_level_0", "battery_level_0", "battery_level_1", "battery_level_1", "battery_level_2", "battery_level_3", "battery_level_4", "battery_level_4"]);
-  assert.equal(ruleIconName(battery, new WholeFloat(68)), "battery_level_3", "system.battery is a Float");
+    ["battery_20", "battery_20", "battery_40", "battery_40", "battery_60", "battery_80", "battery", "battery"]);
+  assert.equal(ruleIconName(battery, new WholeFloat(68)), "battery_80", "system.battery is a Float");
   assert.equal(ruleIconName(battery, null), "battery");
-  assert.equal(glyph("battery_level_0"), "\u{F244}");
-  assert.equal(glyph("battery_level_4"), "\u{F240}");
+  assert.equal(glyph("battery_20"), "\u{F007B}");
+  assert.equal(glyph("battery"), "\u{F0079}");
+  assert.equal(glyph("battery_level_0"), "\u{F244}", "the classic variant's empty step");
+  assert.equal(glyph("battery_classic"), "\u{F241}");
 });
 
 test("a battery pick's icon fills with the charge", () => {
   const text = slotted("[steps, battery]");
   const slot = face(text).config_data.get("left")!;
-  assert.equal(slotSampleGlyph(slot, "battery", 19), glyph("battery_level_0"));
-  assert.equal(slotSampleGlyph(slot, "battery", 20), glyph("battery_level_1"));
+  assert.equal(slotSampleGlyph(slot, "battery", 19), glyph("battery_20"));
+  assert.equal(slotSampleGlyph(slot, "battery", 20), glyph("battery_40"));
   assert.equal(slotSampleGlyph(slot, "battery", null), glyph("battery"));
   assert.match(method(view(text), "iconForGlyph"),
     /COMPLICATION_TYPE_BATTERY: return \(value instanceof Lang.Number\) \? IconGlyphs.batteryIcon\(value\) : "battery";/);

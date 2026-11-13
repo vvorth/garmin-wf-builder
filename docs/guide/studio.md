@@ -548,7 +548,11 @@ the tab the written icon is in:
   twelve and its number of conditions), how it splits the reading, and
   one line per source it follows (`system.battery` and
   `complication.battery` for Battery). Clicking a source writes
-  `icon: {for: <source>}`.
+  `icon: {for: <source>}`. The Battery row also shows its three
+  [variants](icons.md#the-batterys-variants-variant), each with its own
+  strip: clicking one changes the icon's `variant:` while it follows a
+  battery source (the default, `fill`, writes no key), and otherwise sets
+  the variant the source you click next is written with.
 
 An icon that follows data shows the rule's name and a few of its glyphs on
 its chip instead of a single glyph. While it follows a source that can be
@@ -773,7 +777,10 @@ it is what the wearer's list shows, or the order the face is drawn in.
   - A ticked type's icon button picks its icon for this slot: any
     catalogue icon, `none`, or a codepoint (`U+F1340`); **×** goes back to
     the type's own. It has no **follows data** tab: a choice's icon draws
-    the type, and the slot's own icon already follows the pick. **order** lists the ticked types as the wearer's list
+    the type, and the slot's own icon already follows the pick. A battery
+    choice left on its own icon also offers a select of its
+    [variants](icons.md#the-batterys-variants-variant), written
+    `{type: battery, variant: <name>}` unless it is the default. **order** lists the ticked types as the wearer's list
     shows them, each with **↑ ↓**.
   - Click its name to rename it (every `slot:` naming it follows), **×** deletes it (refused
     while an element draws it), **menu title** is its title in the settings

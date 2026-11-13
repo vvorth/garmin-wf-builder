@@ -1382,7 +1382,10 @@ function sourcesCommand(): number {
       const ref = source.source_ref ? `  (${source.source_ref})` : "";
       out(`  ${path.padEnd(34)} ${source.type.padEnd(8)} ${source.doc}${suffix}${ref}`);
       const rule = icons.RULE_OF_SOURCE.get(path);
-      if (rule !== undefined) out(`    icon rule: ${icons.ruleSummary(rule)}`);
+      if (rule !== undefined) {
+        out(`    icon rule: ${icons.ruleSummary(rule)}`);
+        for (const variant of rule.variants.slice(1)) out(`    variant ${variant}: ${icons.ruleSummary(icons.ruleVariant(rule, variant)!)}`);
+      }
     }
   }
   out(`\n${term.style("config", ["bold"], color)}  (declared per design in 'config:' -- fēnix 8 Solar's native editor only, see docs/guide/configuration.md)`);

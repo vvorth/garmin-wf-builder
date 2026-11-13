@@ -346,6 +346,8 @@ export class ConfigDataSlot {
   choices: "any" | string[] = "any";
   /** Per-choice icon override; `null` for an explicit `icon: none`. */
   icon_overrides: Map<string, icons.SlotIcon | null> = new Map();
+  /** A choice's `variant:`, by type: which of its icon rule's variants draws; a type left out draws the default. */
+  icon_variants: Map<string, string> = new Map();
   label: string | null = null;
   /** On a device without Toybox.Complications: fail the build (`error`), or read as absent there (`hide`). */
   unsupported: "error" | "hide" = "error";
@@ -366,7 +368,7 @@ export class ConfigDataSlot {
     const out = new Map<string, icons.IconRule>();
     for (const name of this.icons.keys()) {
       if (this.icon_overrides.has(name)) continue;
-      const rule = icons.complicationRule(name);
+      const rule = icons.complicationRule(name, this.icon_variants.get(name) ?? null);
       if (rule !== undefined) out.set(name, rule);
     }
     return out;
@@ -385,7 +387,9 @@ export class ConfigDataSlot {
         if (override !== null) result.set(name, override);
         continue;
       }
-      const catalogueName = icons.COMPLICATION_ICON.get(name);
+      // A variant's own plain glyph (the classic battery's) stands for the type's catalogue icon.
+      const variant = this.icon_variants.get(name);
+      const catalogueName = variant !== undefined ? icons.complicationRule(name, variant)!.plain : icons.COMPLICATION_ICON.get(name);
       if (catalogueName !== undefined) result.set(name, new icons.SlotIcon(catalogueName, icons.CATALOG.get(catalogueName)!.codepoint));
     }
     return result;
@@ -848,6 +852,8 @@ export class IconElement extends Element {
   icon: string | null = "steps";
   codepoint = "?";
   value_for: Expression | null = null;
+  /** `icon: {for:, variant:}`: which of the rule's variants draws; `null` for its default. */
+  variant: string | null = null;
   size: Length | null = null;
   color: Expression | null = null;
   /** `rotate:`, clockwise from upright; `null` draws it upright. */
@@ -876,7 +882,8 @@ export class IconElement extends Element {
   /** The icon rule `icon: {for:}` follows (`icons.RULE_OF_SOURCE`), or `null`. */
   get rule(): icons.IconRule | null {
     const source = this.value_for?.sources[0];
-    return (source !== undefined ? icons.RULE_OF_SOURCE.get(source) : undefined) ?? null;
+    const rule = source !== undefined ? icons.RULE_OF_SOURCE.get(source) : undefined;
+    return (rule !== undefined ? icons.ruleVariant(rule, this.variant) : undefined) ?? null;
   }
 
   protected override ownRoles(): [string, Expression][] {
