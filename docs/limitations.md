@@ -671,7 +671,9 @@ still true of the shipped feature:
   {for:}` only, never a slot. Every native type has a catalogue icon
   (`COMPLICATION_ICON` in `ts/src/icons.ts` covers all 42), an
   author can override any choice's icon per-design (`choices:`'s
-  mapping form `{type:, icon:}`, with a name, `{codepoint: "U+XXXX"}` or `none`), and
+  mapping form `{type:, icon:}`, with a name, `{codepoint: "U+XXXX"}` or `none`),
+  give a type that follows a reading its own glyph per state (`icons:`) and
+  what it draws without one (`absent:`), and
   `icon: {position:, gap:, color:}` place, space and colour it --
   `docs/guide/configuration.md`'s "The Data axis" has the full account.
 * **A slot's reading is formatted per complication type**

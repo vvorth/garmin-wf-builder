@@ -296,7 +296,22 @@ vendored font has, for a glyph the catalogue does not name). A battery
 choice may instead pick its icon's glyph set: `{ type: battery, variant:
 bars }` (`fill`, the default, `bars` or `classic`; see
 [The battery's variants](icons.md#the-batterys-variants-variant)), never
-beside an `icon:` of its own. `icon:` is validated exactly
+beside an `icon:` of its own. A choice whose icon follows a reading may
+instead give its own glyph for each state: `{ type: battery, icons: { 0:
+battery_outline, 50: battery_medium, 90: battery } }`, `{ type:
+notification_count, icons: { 0: bell, 1: notification } }` or `{ type:
+current_weather, icons: { weather_rainy: weather_pouring } }`, keyed as an
+icon element's [`icons:`](icons.md#your-own-glyphs-icons) is, and never
+beside `variant:` or an `icon:` of its own. A weather set on a temperature
+choice (`current_temperature`, `high_low_temperature`) works too: that
+icon follows the condition read beside the temperature, and the set
+replaces those condition glyphs. A choice of such a type may also say what
+its icon draws without a reading, `absent: hide` or `absent: { icon: <glyph> }` (a catalogue name or `{ codepoint: "U+XXXX" }`), which only a type whose
+icon follows a reading takes and never beside the choice's own `icon:`.
+Which `absent:` draws: an `icon` element drawing the slot (`slot:`) with an
+`absent:` of its own, else the choice's, else the type's own plain icon. A
+`type: data` element's `absent:` is about its text alone, so its icon draws
+the choice's. `icon:` is validated exactly
 like a plain `icon` element's own `icon:` -- an unknown catalogue name is an
 error with suggestions, a codepoint outside the font's character map is an
 error, and a codepoint that duplicates a catalogue entry gets the same "say
@@ -305,7 +320,7 @@ error, and a codepoint that duplicates a catalogue entry gets the same "say
 than once across the whole `choices:` list -- in either shape -- is an IR
 error**: the schema's own `uniqueItems` only catches two identical bare
 entries, not a bare reference and a mapping-form entry naming the same type.
-Two entries of one type cannot differ by `icon:` or `variant:` either: the
+Two entries of one type cannot differ by `icon:`, `variant:`, `icons:` or `absent:` either: the
 watch tells the face only which type the wearer picked
 (`ComplicationRef.complicationId`), so it could not tell them apart. To
 let the wearer choose the battery's look, give two

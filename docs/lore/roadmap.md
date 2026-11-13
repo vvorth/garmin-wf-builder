@@ -99,6 +99,13 @@ or AOD-related has been observed on a watch or in the simulator.
   a rule's variants live in its `icons.json` entry and each becomes a
   rule of its own (`batteryBarsIcon`); the editor offers them on the
   Battery row and on a battery slot choice. `docs/guide/icons.md`.
+- **Your own glyphs** — `icons:` on `icon: {for:}` and on a slot choice
+  gives a dynamic icon the author's glyph per state: band starts for a
+  level or a count (the keys are the bands), `off`/`on`, or built-in glyph
+  names as an overlay on weather and the moon; `absent:` (`hide` or
+  `{icon:}`) on a slot choice too; equal sets share one generated chooser
+  (`batteryCustom1Icon`); `wfb sources` prints each built-in set's keys,
+  and the editor edits a set band by band. `docs/guide/icons.md`.
 - **`system.awake`** — a boolean source, `false` while the watch sleeps
   (the view's `_sleeping`, the flag `seconds: awake` reads), so `visible:
   system.awake` hides a digital seconds readout asleep; `wfb preview

@@ -16,6 +16,7 @@ as cheaply as a line of text, since that's exactly what it is under the hood.
 | `icon: {codepoint:}` | `"U+XXXX"` | — | [Beyond the named icons](#icon) — any glyph the catalogue doesn't name |
 | `icon: {for:}` | a source an icon rule follows, by rule: weather (`weather.condition`/`.condition_today`, `weather.daily_forecast[n].condition`, `weather.hourly_forecast[n].condition`, `complication.current_weather`/`.forecast_weather_1day`/`_2day`/`_3day`), battery (`system.battery`, `complication.battery`), solar (`complication.solar_input`), notification (`device.notification_count`, `complication.notification_count`), alarm (`device.alarm_count`), do-not-disturb (`device.do_not_disturb`), phone (`device.phone_connected`), moon (`astro.moon_age`) | — | [A dynamic icon: `icon: {for:}`](#a-dynamic-icon-icon-for) — chosen on-device |
 | `icon: {for:, variant:}` | `fill`, `bars` or `classic` (a battery source only) | `fill` | [The battery's variants](#the-batterys-variants-variant) — which glyph set the battery steps through |
+| `icon: {for:, icons:}` | a mapping of states to glyphs, each a catalogue name or `{codepoint:}`: band starts for a level or a count, `off`/`on`, or built-in glyph names | the rule's glyphs | [Your own glyphs: `icons:`](#your-own-glyphs-icons) — your glyph for each state |
 | `slot:` (instead of `icon:`) | a `config: slots:` name | — | [A slot's icon: `slot:`](#a-slots-icon-slot) — the icon of the wearer's pick |
 | `absent:` | `hide`, or `{icon: <name>}` / `{icon: {codepoint: "U+XXXX"}}` (with `icon: {for:}` or `slot:` only) | the plain glyph | [`absent:` on an icon](#absent-on-an-icon) — what draws without a reading |
 | `size:` | `Length` (`px`/`%r` only) | — | [`icon`](#icon) |
@@ -300,8 +301,9 @@ under each source that has one.
 | `weather` | `weather.condition`, `.condition_today`, `weather.daily_forecast[n].condition`, `weather.hourly_forecast[n].condition`; `complication.current_weather`, `.forecast_weather_1day`/`_2day`/`_3day` | the `weather_*` icons | each `Weather.CONDITION_*` value to its icon | `weather_unknown` |
 
 In the editor, the icon picker's **follows data** tab lists every rule
-with the glyphs it draws and writes `icon: {for:}` for the source you pick
-([Studio](studio.md#an-icon)).
+with the glyphs it draws and writes `icon: {for:}` for the source you pick.
+**own glyphs…** on a rule writes your own set, which the editor then edits
+band by band ([Studio](studio.md#an-icon)).
 
 #### The battery's variants: `variant:`
 
@@ -435,6 +437,87 @@ solar:
 
 Under 22 px both draw the same star, so the track is hidden there.
 
+#### Your own glyphs: `icons:`
+
+`icons:` beside `for:` replaces the rule's glyphs with ones you pick, one
+for each state of the reading. The rule still decides which state the
+reading is in; you decide what each state draws.
+
+```yaml
+battery:
+  type: icon
+  icon: {for: system.battery, icons: {0: battery_outline, 10: battery_low, 50: battery_medium, 90: battery}}
+  size: 16%r
+  color: color.fg
+  absent: {icon: battery_classic}
+```
+
+What the keys are depends on what the rule reads:
+
+| Rule | Keys | Meaning |
+|---|---|---|
+| `battery`, `solar` (a level, 0–100) | numbers from `0` up to `100` | the reading where each glyph starts. The keys are the bands: four keys make four bands, and they need not be even |
+| `notification`, `alarm` (a count) | whole numbers from `0` | the count where each glyph starts: `{0: bell, 1: notification}` is one glyph for none and another for one or more |
+| `dnd`, `phone` (on or off) | exactly `off` and `on` | the glyph for each state |
+| `weather`, `moon` | the rule's own glyph names (`weather_rainy`, `moon_full`, …) | an overlay: each key replaces that built-in glyph, and every glyph you leave out keeps its own |
+
+A value is a catalogue name or `{codepoint: "U+XXXX"}`, as `icon:` takes.
+
+```yaml
+notifications:
+  type: icon
+  icon: {for: device.notification_count, icons: {0: bell, 1: notification}}
+  size: 10%r
+  color: color.alert
+
+do_not_disturb:
+  type: icon
+  icon: {for: device.do_not_disturb, icons: {off: bell, on: dnd}}
+  size: 10%r
+  color: color.fg
+
+weather:
+  type: icon
+  icon: {for: weather.condition, icons: {weather_rainy: weather_pouring, weather_unknown: weather_cloudy_alert}}
+  size: 20%r
+  color: color.text
+```
+
+* **A level or count set is complete.** It is never merged with the rule's
+  own bands, so five keys on solar give solar five bands, not nine. The
+  lowest key is `0`, there are at least two keys, a level's keys go no
+  higher than `100`, and a count's keys are whole numbers. Write the keys
+  as plain numbers, not quoted.
+* **An on/off set has exactly `off` and `on`.** `0` and `1` are errors there,
+  and `off` and `on` are errors on a count.
+* **A weather or moon key must be a glyph the rule draws.** `wfb sources`
+  lists them. `weather_unknown` is the glyph for a condition the rule does
+  not name as well as the rule's plain glyph, so replacing it changes both.
+  A glyph replaced draws for every condition the rule gives it to.
+* **A reading compares directly.** A battery at 19.9 is still in the band
+  that starts at `0`, and one at 20.0 is in the band that starts at `20`.
+  Notification and alarm counts are whole numbers and compare as such.
+* **There is no key for no reading.** The glyph drawn without one is
+  [`absent:`](#absent-on-an-icon), as for every icon that follows data.
+* **`icons:` is not for `variant:`.** Giving both is an error, and a slot
+  choice may not give `icons:` beside its own `icon:`. A source with no rule
+  has nothing to replace, so `icons:` on it is an error.
+* Each value is checked as `icon:` is: a typo suggests names, and a
+  codepoint outside the icon font is refused.
+* **Equal sets share one chooser and one font.** Two icons, or an icon and a
+  slot choice, with the same rule and the same keys and glyphs generate one
+  chooser (`batteryCustom1Icon`, numbered by first use) and one font at each
+  size. A level set bakes the glyphs it names in its own font.
+* **`wfb sources` prints each built-in set in this form**, under its rule
+  (`keys: 0: battery_20, 20: battery_40, …`), so you can copy one and edit
+  it. A level's keys are the first whole reading in each band, which is why
+  solar's start `0, 12, 23, …`.
+* A [slot choice](configuration.md#the-data-axis) takes `icons:` too:
+  `{type: battery, icons: {...}}`.
+* In the editor, **own glyphs…** on the icon picker's follows data tab
+  seeds the set from the built-in one and edits it from there
+  ([Studio](studio.md#an-icon)).
+
 #### `absent:` on an icon
 
 An icon that follows data, `icon: {for:}` or `slot:`, can lose its reading:
@@ -467,6 +550,8 @@ weather_now:
   wearer's pick still chooses the icon, and the substitute (or nothing)
   draws on a frame that pick has no reading. A pick with no icon still
   draws nothing.
+* **A slot choice can say it too**, with its own `absent:`; this icon's
+  own wins over the choice's ([the Data axis](configuration.md#the-data-axis)).
 * An icon draws a glyph, so `{text:}` and `{value:}` are refused, and
   `absent:` on a fixed icon (a name or a codepoint) is an error: it has no
   reading to lose. On a source that is always there (`system.battery`,

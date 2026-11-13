@@ -4,6 +4,10 @@
 # date, a battery that empties as the charge falls, and a weather condition
 # with an `absent:` icon of its own.
 #
+# Every rule's glyphs are the built-in ones except the battery's, which draws
+# its own: `icons:` lists the glyph from each reading up, so four keys make
+# four uneven bands (docs/guide/icons.md "Your own glyphs: `icons:`").
+#
 # Every icon here is `icon: {for: <source>}`: the watch picks the glyph from
 # the reading each time it draws, so none of them needs a rule of its own in
 # the YAML. The preview draws the sample readings; change one to see the glyph
@@ -110,10 +114,11 @@ elements:
     color: color.fg
 
   # -- battery and weather ----------------------------------------------------
-  # Five steps from an empty battery to a full one, a step per fifth of the charge.
+  # Four bands of the charge, uneven on purpose: the bars glyphs, from empty up
+  # to 20 %, then low, medium from 50 % and full from 80 %.
   battery_icon:
     type: icon
-    icon: { for: system.battery }
+    icon: { for: system.battery, icons: { 0: battery_outline, 20: battery_low, 50: battery_medium, 80: battery } }
     at: { anchor: center, dx: -22%, dy: 32% }
     size: 9%r
     color: color.fg

@@ -552,7 +552,29 @@ the tab the written icon is in:
   [variants](icons.md#the-batterys-variants-variant), each with its own
   strip: clicking one changes the icon's `variant:` while it follows a
   battery source (the default, `fill`, writes no key), and otherwise sets
-  the variant the source you click next is written with.
+  the variant the source you click next is written with. Each rule's
+  **own glyphs…** writes your own set for the source you click
+  ([`icons:`](icons.md#your-own-glyphs-icons)), seeded with the rule's
+  built-in glyphs (the variant shown, for the battery).
+
+While an icon follows a source with glyphs of its own, the tab opens on
+their editor, above the rules. It has one line per state:
+
+- **A level or a count** (battery, solar, notifications, alarms): a line
+  per band, the reading it starts from (`20+`) and a glyph picker. **×**
+  removes a band, except the bottom one and never below two bands.
+  **+ band** adds one at the number typed in the box beside it, starting
+  with the glyph of the band it splits; a number that cannot be a key is
+  refused with the reason under the box (not a number, below the bottom or
+  above 100, not whole on a count, or a band already starting there).
+- **On or off** (do-not-disturb, phone): the two lines, `off` and `on`,
+  with nothing to add or remove.
+- **Weather and moon**: a line for every built-in glyph name, dim until you
+  replace it. **↺** puts the built-in glyph back, and an overlay with
+  nothing left to replace is the built-in rule again.
+
+**use the built-in glyphs** drops `icons:` and keeps the source. Every
+change writes the whole set at once.
 
 An icon that follows data shows the rule's name and a few of its glyphs on
 its chip instead of a single glyph. While it follows a source that can be
@@ -780,7 +802,14 @@ it is what the wearer's list shows, or the order the face is drawn in.
     the type, and the slot's own icon already follows the pick. A battery
     choice left on its own icon also offers a select of its
     [variants](icons.md#the-batterys-variants-variant), written
-    `{type: battery, variant: <name>}` unless it is the default. **order** lists the ticked types as the wearer's list
+    `{type: battery, variant: <name>}` unless it is the default. A choice
+    whose icon follows a reading (battery, solar input, a notification
+    count, a weather type) and has no icon of its own gets a **glyphs…**
+    button. Its popover is the same state editor, written as the choice's
+    `icons:` (**own glyphs…** seeds it, **use the built-in glyphs** drops
+    it), above a **without a reading** row: **plain**, **hide** or a glyph
+    picked, written as the choice's `absent:`. A choice with its own set
+    shows **own** on the button. **order** lists the ticked types as the wearer's list
     shows them, each with **↑ ↓**.
   - Click its name to rename it (every `slot:` naming it follows), **×** deletes it (refused
     while an element draws it), **menu title** is its title in the settings

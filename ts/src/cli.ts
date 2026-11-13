@@ -1368,6 +1368,17 @@ const CONFIG_SOURCES: [string, string, string][] = [
   ["color.data", "color", "the role the one data-colour axis binds, 'config: data_color:' (<dataColors>, Settings.complicationColor); 'role:' renames it"],
 ];
 
+/**
+ * A rule's built-in set in the form `icons:` is written: a level's or a
+ * count's band starts and an on/off pair each with their glyph, so one can be
+ * copied and edited; a weather or moon rule's glyph names alone, which are its keys.
+ */
+function keysSaid(rule: icons.IconRule): string {
+  const keys = icons.stateKeys(rule);
+  if (rule.kind === "table" || rule.cyclic) return keys.join(", ");
+  return keys.map((key, i) => `${key}: ${rule.steps[i]}`).join(", ");
+}
+
 function sourcesCommand(): number {
   const color = term.shouldColor(process.stdout);
   for (const [namespace, paths] of catalog.namespaces()) {
@@ -1384,7 +1395,12 @@ function sourcesCommand(): number {
       const rule = icons.RULE_OF_SOURCE.get(path);
       if (rule !== undefined) {
         out(`    icon rule: ${icons.ruleSummary(rule)}`);
-        for (const variant of rule.variants.slice(1)) out(`    variant ${variant}: ${icons.ruleSummary(icons.ruleVariant(rule, variant)!)}`);
+        out(`    keys: ${keysSaid(rule)}`);
+        for (const variant of rule.variants.slice(1)) {
+          const sibling = icons.ruleVariant(rule, variant)!;
+          out(`    variant ${variant}: ${icons.ruleSummary(sibling)}`);
+          out(`    keys: ${keysSaid(sibling)}`);
+        }
       }
     }
     for (const [family, def] of catalog.INDEXED) {
@@ -1396,7 +1412,10 @@ function sourcesCommand(): number {
         const suffix = `  [nullable${launches.length > 0 ? `, on_hold: auto ${launches.join(", ")}` : ""}]`;
         out(`    ${path.padEnd(44)} ${f.type.padEnd(8)} ${f.doc}${suffix}`);
         const rule = icons.RULE_OF_SOURCE.get(path);
-        if (rule !== undefined) out(`      icon rule: ${icons.ruleSummary(rule)}`);
+        if (rule !== undefined) {
+          out(`      icon rule: ${icons.ruleSummary(rule)}`);
+          out(`      keys: ${keysSaid(rule)}`);
+        }
       }
     }
   }

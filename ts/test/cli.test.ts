@@ -185,6 +185,10 @@ describe("the command line", { concurrency: true }, () => {
     assert.match(sources, /\n  astro\.moon_age [^\n]*\n    icon rule: moon — moon_new, moon_waxing_crescent, [^\n]*, moon_waning_crescent \(8 bands over 0–29\.53 days, cyclic\)\n/);
     assert.match(sources, /\n  device\.alarm_count [^\n]*\n    icon rule: alarm — alarm_off \/ alarm \(0 \/ 1\+\)\n/);
     assert.match(sources, /\n  device\.do_not_disturb [^\n]*\n    icon rule: dnd — bell \/ dnd \(off \/ on\)\n/);
+    assert.match(sources, /\n  system\.battery [^\n]*\n    icon rule: battery [^\n]*\n    keys: 0: battery_20, 20: battery_40, 40: battery_60, 60: battery_80, 80: battery\n/);
+    assert.match(sources, /\n    variant bars: [^\n]*\n    keys: 0: battery_outline, 20: battery_low, 40: battery_medium, 60: battery_high, 80: battery\n/);
+    assert.match(sources, /\n    icon rule: dnd [^\n]*\n    keys: off: bell, on: dnd\n/);
+    assert.match(sources, /\n    keys: weather_sunny, weather_partly_cloudy, /);
     assert.doesNotMatch(sources, /\n  activity\.steps [^\n]*\n    icon rule:/, "a source with no rule has no line");
     const complications = wfb(["complications"]).stdout;
     assert.ok(complications.includes("42 complication types") && complications.includes("on_hold: auto") && !complications.includes("invalid"));
