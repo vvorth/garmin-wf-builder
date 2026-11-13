@@ -55,7 +55,7 @@ export class TextRun {
   icon: IconFont | null = null;
   /** The runtime glyph chooser's table, key to glyph. */
   glyph_table: Map<string, string> | null = null;
-  /** The `icons.RULES` names whose generated chooser (`IconGlyphs.<name>Icon`) picks this run's glyph on the watch. */
+  /** The rule names (built in, or the face's own: `Face.iconRule`) whose generated chooser (`IconGlyphs.<name>Icon`) picks this run's glyph on the watch. */
   rules: readonly string[] = [];
 
   constructor(label: string, font: string, init: Partial<Omit<TextRun, "label" | "font">> = {}) {

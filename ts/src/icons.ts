@@ -416,9 +416,117 @@ export function ruleNames(rule: IconRule): string[] {
   return [...new Set([rule.plain, ...(rule.kind === "table" ? rule.map.values() : rule.steps)])];
 }
 
-/** Every glyph `rule` can draw, its plain one included: catalogue name to glyph. */
+/**
+ * A rule glyph's character: a catalogue name's, or, for a `U+XXXX` key (a
+ * face's own glyph set may name a codepoint), that character.
+ */
+export function glyphOf(key: string): string {
+  const glyph = CATALOG.get(key)?.codepoint ?? parseCodepoint(key);
+  if (glyph === null) throw new Error(`${key}: neither a catalogue name nor a codepoint`);
+  return glyph;
+}
+
+/** Every glyph `rule` can draw, its plain one included: catalogue name (or `U+XXXX` key) to glyph. */
 export function ruleGlyphTable(rule: IconRule): Map<string, string> {
-  return new Map(ruleNames(rule).map((name) => [name, CATALOG.get(name)!.codepoint]));
+  return new Map(ruleNames(rule).map((name) => [name, glyphOf(name)]));
+}
+
+/**
+ * The key each of a rule's built-in glyphs has in a face's own glyph set, in
+ * step order. A level over a range (not cyclic): the first whole reading in
+ * each band. A count at thresholds: 0, then each threshold. An on/off
+ * reading: `off`, `on`. The cyclic moon: its steps' names. A table
+ * (weather): each glyph name the map draws, in the order of the first value
+ * drawing it, then the plain glyph if no value draws it.
+ */
+export function stateKeys(rule: IconRule): (number | string)[] {
+  if (rule.kind === "table") return [...new Set([...[...rule.map].sort(([a], [b]) => a - b).map(([, name]) => name), rule.plain])];
+  if (rule.cyclic) return [...rule.steps];
+  if (readsBoolean(rule)) return ["off", "on"];
+  if (rule.range === null) return [0, ...(rule.thresholds ?? [])];
+  const [lo, hi] = rule.range;
+  const starts: number[] = [];
+  for (let v = Math.ceil(lo); v <= hi && starts.length < rule.steps.length; v++) if (levelBand(rule, v) === starts.length) starts.push(v);
+  if (starts.length !== rule.steps.length) throw new Error(`${rule.name}: a band holds no whole reading`);
+  return starts;
+}
+
+/**
+ * A face's own glyphs for a rule's states. A glyph is a catalogue name or a
+ * `U+XXXX` key. `numeric`: each band's first reading and its glyph, the
+ * lowest the bottom of the reading (a level or a count). `onoff`: an on/off
+ * reading's two glyphs. `overlay`: built-in glyph name to its replacement,
+ * over a table or a cyclic rule, whose other glyphs stay.
+ */
+export type CustomSet =
+  | { readonly kind: "numeric"; readonly entries: readonly (readonly [number, string])[] }
+  | { readonly kind: "onoff"; readonly off: string; readonly on: string }
+  | { readonly kind: "overlay"; readonly replace: ReadonlyMap<string, string> };
+
+/** A glyph as a custom rule holds it: a catalogue name as written, a codepoint in its canonical `U+XXXX` spelling. */
+function glyphKey(glyph: string): string {
+  if (CATALOG.has(glyph)) return glyph;
+  const character = parseCodepoint(glyph);
+  if (character === null) throw new Error(`${glyph}: neither a catalogue name nor a codepoint`);
+  return codepointKey(character);
+}
+
+/** `set`, keys and glyphs in one canonical order, with glyphs in their canonical spelling. */
+function canonicalSet(set: CustomSet): CustomSet {
+  switch (set.kind) {
+    case "numeric":
+      return { kind: "numeric", entries: [...set.entries].map(([k, g]) => [k, glyphKey(g)] as const).sort(([a], [b]) => a - b) };
+    case "onoff":
+      return { kind: "onoff", off: glyphKey(set.off), on: glyphKey(set.on) };
+    case "overlay":
+      return { kind: "overlay", replace: new Map([...set.replace].map(([k, g]) => [k, glyphKey(g)] as const).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) };
+  }
+}
+
+/** One string per distinct (rule, set): two equal sets over the same rule share it, whatever order they were written in. */
+export function customSetKey(family: IconRule, set: CustomSet): string {
+  const c = canonicalSet(set);
+  const body = c.kind === "numeric" ? c.entries : c.kind === "onoff" ? [c.off, c.on] : [...c.replace];
+  return JSON.stringify([family.name, c.kind, body]);
+}
+
+/**
+ * A rule drawing `set` over `family`'s reading, named `name`. A numeric set
+ * is a steps rule split at its keys after the first; an on/off set one split
+ * at 1, off then on; an overlay the family's own rule with each replaced name
+ * substituted, in its steps or its table and its plain glyph. It keeps the
+ * family's sources, label and plain glyph (unless an overlay replaces it).
+ */
+export function customRule(family: IconRule, name: string, set: CustomSet): IconRule {
+  const c = canonicalSet(set);
+  const base: IconRule = { ...family, name, family: family.family, variant: null, variants: [] };
+  switch (c.kind) {
+    case "numeric": {
+      if (family.kind !== "steps" || family.cyclic || readsBoolean(family)) throw new Error(`${family.name}: not a rule over an ordered number`);
+      if (c.entries.length < 2) throw new Error(`${name}: a numeric set needs at least two keys`);
+      return { ...base, steps: c.entries.map(([, g]) => g), range: null, cyclic: false, thresholds: c.entries.slice(1).map(([k]) => k) };
+    }
+    case "onoff":
+      if (!readsBoolean(family)) throw new Error(`${family.name}: not an on/off rule`);
+      return { ...base, steps: [c.off, c.on], range: null, cyclic: false, thresholds: [1] };
+    case "overlay": {
+      if (family.kind !== "table" && !family.cyclic) throw new Error(`${family.name}: an overlay replaces a table's or a cyclic rule's glyphs`);
+      const swap = (glyph: string): string => c.replace.get(glyph) ?? glyph;
+      return { ...base, plain: swap(family.plain), steps: family.steps.map(swap), map: new Map([...family.map].map(([v, g]) => [v, swap(g)])) };
+    }
+  }
+}
+
+/**
+ * Every source `rule` follows reads a whole number or an on/off value, so
+ * its threshold chooser may test `instanceof Lang.Number`. A Float source
+ * (`system.battery`) needs comparisons that work for a Float as well.
+ */
+export function readsWholeNumbers(rule: IconRule): boolean {
+  return rule.sources.every((source) => {
+    const type = sourceOf(source)?.type;
+    return type === "number" || type === "boolean";
+  });
 }
 
 /**
@@ -431,8 +539,9 @@ export function choosesInline(rule: IconRule): boolean {
 
 /**
  * A thresholds rule's bands below its last, in order: each from `lower` up
- * to, not including, `upper`, and the name it draws. A count, or a boolean
- * read as 0 or 1, is never below 0, so the first band starts there.
+ * to, not including, `upper`, and the name it draws. A count, a boolean
+ * read as 0 or 1, and a level a face's own set splits (whose lowest key is
+ * the reading's bottom, 0) are never below 0, so the first band starts there.
  */
 export function thresholdRanges(rule: IconRule): { lower: number; upper: number; name: string }[] {
   const thresholds = rule.thresholds ?? [];

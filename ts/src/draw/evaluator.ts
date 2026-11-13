@@ -229,7 +229,7 @@ export function strValue(s: Str, values: Values, env: ReadonlyMap<string, LocalV
     }
     case "IconChoice": {
       const reading = s.value.ast !== null ? expr.evaluate(s.value.ast, values) : null;
-      return icons.CATALOG.get(icons.ruleIconName(icons.RULES.get(s.rule)!, reading))!.codepoint;
+      return icons.glyphOf(icons.ruleIconName(s.rule, reading));
     }
     case "PerCopy": return s.texts[Math.trunc(val(env.get(s.var) as WatchNumber))]!;
     case "StrPick": return strValue(condValue(s.cond, aod, env, values) ? s.then : s.otherwise, values, env, aod);

@@ -156,7 +156,7 @@ export function slotSampleGlyph(slot: ConfigDataSlot, shown: string, sample: unk
   const followed = icons.RULE_FOLLOWED.get(`complication.${shown}`);
   const reading = followed !== undefined ? SAMPLE.get(followed.source) : sample;
   if (typeof reading !== "number" || !Number.isInteger(reading)) return icon.codepoint;
-  return icons.CATALOG.get(icons.ruleIconName(rule, reading))!.codepoint;
+  return icons.glyphOf(icons.ruleIconName(rule, reading));
 }
 
 /** The sample reading a slot showing `shown` draws on the host. */
@@ -226,7 +226,7 @@ export function slotIconRun(label: string, face: Face, slotName: string, size: L
   const table = new Map([...mapped.values()].map((si): [string, string] => [si.key, si.codepoint]));
   // A type whose icon follows a rule can draw any of the rule's glyphs, so the font needs every one.
   const used = new Set(slot.rules.values());
-  const rules = [...icons.RULES.values()].filter((rule) => used.has(rule));
+  const rules = [...icons.RULES.values(), ...face.icon_rules.values()].filter((rule) => used.has(rule));
   for (const rule of rules) {
     for (const [name, glyph] of icons.ruleGlyphTable(rule)) {
       codepoints.add(glyph);

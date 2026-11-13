@@ -53,7 +53,7 @@ function dynamicTag(rule: icons.IconRule): string {
 /** The glyph a dynamic icon's font is measured and sized by. */
 function dynamicReference(rule: icons.IconRule): string {
   if (rule.kind === "table") return icons.WEATHER_BAKE_REFERENCE_GLYPH;
-  return icons.CATALOG.get(rule.range !== null ? rule.steps[0]! : rule.plain)!.codepoint;
+  return icons.glyphOf(rule.range !== null ? rule.steps[0]! : rule.plain);
 }
 
 /** What a dynamic icon's generated comment says its rule does with the reading. */
@@ -296,7 +296,7 @@ class IconKind extends ElementKind<IconElement> {
     if (element.value_for !== null) {
       const rule = element.rule!;
       ops.push(Comment(`${quoted(element.value_for.text)} -> ${choiceSaid(rule)} (IconGlyphs)`));
-      glyph = IconChoice(element.value_for, rule.name);
+      glyph = IconChoice(element.value_for, rule);
       const substitute = substituteGlyph(element);
       if (substitute !== null) {
         ops.push(Comment(`${vocab.absent(element)} -- drawn instead while the reading is absent`));

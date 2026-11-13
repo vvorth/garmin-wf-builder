@@ -9,7 +9,7 @@ import { configField, dataHoldMethod, dataIconMethod, elementMethodName } from "
 import type { ResolvedFace } from "../../layout.ts";
 import type { Writer as WriterType } from "../writer.ts";
 import { Writer } from "../writer.ts";
-import { thresholdBands } from "./app.ts";
+import { floatThresholdChain, thresholdBands } from "./app.ts";
 import { dataElements, type EditorSlot, header, type SourceFile } from "./common.ts";
 import type { ReadPlan } from "./readplan.ts";
 import { emitTypeSwitch, type TypeCase } from "./type_guards.ts";
@@ -358,6 +358,10 @@ export function emitDataIconMethod(w: WriterType, resolved: ResolvedFace, elemen
           const reader = CONDITION_READER.get(follows.source);
           if (reader === undefined) throw new Error(`${name}: no WfbConditions reader for ${follows.source}`);
           cases.push({ members: [name], body: `return WfbConditions.iconOr(WfbConditions.${reader}(), "${icon.key}");` });
+        } else if (icons.choosesInline(rule) && !icons.readsWholeNumbers(rule)) {
+          // A reading that may be a Float: compared as a number of either kind, never tested `instanceof Lang.Number` alone.
+          const chain = floatThresholdChain(rule);
+          cases.push({ members: [name], body: `return (value instanceof Lang.Number || value instanceof Lang.Float) ? (${chain}) : "${icon.key}";` });
         } else if (icons.choosesInline(rule)) {
           const last = rule.steps[rule.steps.length - 1]!;
           const chain = thresholdBands(rule).map(({ test, name: step }) => `(value instanceof Lang.Number && ${test}) ? "${step}" : `).join("");

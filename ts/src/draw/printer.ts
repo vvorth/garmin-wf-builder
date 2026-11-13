@@ -59,7 +59,7 @@ export function strCode(s: Str, aod: AodStyle = NO_AOD): string {
     case "Concat": return s.parts.map((part) => strCode(part, aod)).join(" + ");
     case "IconChoice": {
       const local = localName(s.value.sources[0]!);
-      return `IconGlyphs.glyph(IconGlyphs.${icons.ruleFunction(icons.RULES.get(s.rule)!)}(${local}))`;
+      return `IconGlyphs.glyph(IconGlyphs.${icons.ruleFunction(s.rule)}(${local}))`;
     }
     case "PerCopy": return strCode(s.printed, aod);
     case "Local": return s.name;

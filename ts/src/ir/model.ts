@@ -348,6 +348,8 @@ export class ConfigDataSlot {
   icon_overrides: Map<string, icons.SlotIcon | null> = new Map();
   /** A choice's `variant:`, by type: which of its icon rule's variants draws; a type left out draws the default. */
   icon_variants: Map<string, string> = new Map();
+  /** A rule the face derives from a choice's own glyph set (`Face.registerIconRule`), by type: drawn instead of the type's built-in one. */
+  custom_rules: Map<string, icons.IconRule> = new Map();
   label: string | null = null;
   /** On a device without Toybox.Complications: fail the build (`error`), or read as absent there (`hide`). */
   unsupported: "error" | "hide" = "error";
@@ -368,7 +370,7 @@ export class ConfigDataSlot {
     const out = new Map<string, icons.IconRule>();
     for (const name of this.icons.keys()) {
       if (this.icon_overrides.has(name)) continue;
-      const rule = icons.complicationRule(name, this.icon_variants.get(name) ?? null);
+      const rule = this.custom_rules.get(name) ?? icons.complicationRule(name, this.icon_variants.get(name) ?? null);
       if (rule !== undefined) out.set(name, rule);
     }
     return out;
@@ -867,6 +869,8 @@ export class IconElement extends Element {
   absent: "hide" | "icon" | null = null;
   /** `absent: {icon:}`'s glyph: the catalogue name or `U+XXXX` as written, and its character. */
   absent_icon: { name: string; codepoint: string } | null = null;
+  /** A rule the face derives from its own glyph set (`Face.registerIconRule`), drawn instead of the source's built-in one. */
+  custom_rule: icons.IconRule | null = null;
 
   static create(init: Partial<IconElement>): IconElement { return make(IconElement, init); }
 
@@ -879,8 +883,9 @@ export class IconElement extends Element {
     return this.value_for !== null;
   }
 
-  /** The icon rule `icon: {for:}` follows (`icons.RULE_OF_SOURCE`), or `null`. */
+  /** The icon rule `icon: {for:}` follows: its own `custom_rule`, else the source's (`icons.RULE_OF_SOURCE`); `null` without one. */
   get rule(): icons.IconRule | null {
+    if (this.custom_rule !== null) return this.custom_rule;
     const source = this.value_for?.sources[0];
     const rule = source !== undefined ? icons.RULE_OF_SOURCE.get(source) : undefined;
     return (rule !== undefined ? icons.ruleVariant(rule, this.variant) : undefined) ?? null;
@@ -991,8 +996,34 @@ export class Face {
   aod_lint_allow: Set<string> = new Set();
   aod_lint_reason: string | null = null;
   aod_mask = true;
+  /** The icon rules this face derives from its own glyph sets, by name, in order of first use. */
+  icon_rules: Map<string, icons.IconRule> = new Map();
+  /** Each of `icon_rules`' sets (`icons.customSetKey`) to its rule's name, so equal sets share one rule. */
+  icon_rule_keys: Map<string, string> = new Map();
 
   static create(init: Partial<Face>): Face { return make(Face, init); }
+
+  /** The icon rule named `name`: one this face derives, else a built-in one. */
+  iconRule(name: string): icons.IconRule | undefined {
+    return this.icon_rules.get(name) ?? icons.RULES.get(name);
+  }
+
+  /**
+   * The rule drawing `set` over `family`'s reading: the one an equal set
+   * already registered, or a new one named `<family>_custom<n>`, `n`
+   * counting that family's distinct sets in order of first use, so every
+   * device's shared view names the same choosers.
+   */
+  registerIconRule(family: icons.IconRule, set: icons.CustomSet): icons.IconRule {
+    const key = icons.customSetKey(family, set);
+    const known = this.icon_rule_keys.get(key);
+    if (known !== undefined) return this.icon_rules.get(known)!;
+    const ordinal = [...this.icon_rules.values()].filter((rule) => rule.family === family.family).length + 1;
+    const rule = icons.customRule(family, `${family.family}_custom${ordinal}`, set);
+    this.icon_rules.set(rule.name, rule);
+    this.icon_rule_keys.set(key, rule.name);
+    return rule;
+  }
 
   /** The single on/off switch for the whole on-device config feature. */
   get hasConfig(): boolean {

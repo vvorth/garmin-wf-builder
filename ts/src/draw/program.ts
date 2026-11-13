@@ -12,6 +12,7 @@
 // since Monkey C's `/` truncates two `Number`s and not a `Float`.
 import type { FontMetric } from "../devices/device.ts";
 import type { WholeFloat } from "../edit/yaml.ts";
+import type { IconRule } from "../icons.ts";
 import type { ConfigDataSlot, Element, Expression } from "../ir/model.ts";
 import type { ResolvedFace, RotatablePart } from "../layout.ts";
 import type { IntBox } from "../units.ts";
@@ -161,8 +162,9 @@ export interface AodStr { t: "AodStr"; asleep: Str; awake: Str }
 export const AodStr = (asleep: Str, awake: Str): AodStr => ({ t: "AodStr", asleep, awake });
 
 /** A dynamic icon's glyph: a level icon's step for a 0-100 reading, a count icon's (empty at zero), or, with neither, a weather condition's. */
-export interface IconChoice { t: "IconChoice"; value: Expression; rule: string }
-export const IconChoice = (value: Expression, rule: string): IconChoice => ({ t: "IconChoice", value, rule });
+/** A dynamic icon's glyph: `rule` (built in, or one the face derives) chooses it from `value`'s reading. */
+export interface IconChoice { t: "IconChoice"; value: Expression; rule: IconRule }
+export const IconChoice = (value: Expression, rule: IconRule): IconChoice => ({ t: "IconChoice", value, rule });
 
 /** A pattern text part's string: `printed` on the watch, the copy's own on the host. */
 export interface PerCopy { t: "PerCopy"; printed: Str; texts: string[]; var: string }

@@ -152,7 +152,7 @@ export function emitIconGlyphs(face: Face, viaChar: ReadonlySet<string> = new Se
         w.line(`default: return "${icons.FALLBACK_CODEPOINT}";`);
       });
     });
-    for (const name of iconRules(face)) emitRuleFunction(w, icons.RULES.get(name)!);
+    for (const name of iconRules(face)) emitRuleFunction(w, face.iconRule(name)!);
   });
   return { path: "source/IconGlyphs.mc", text: w.render() };
 }
@@ -192,6 +192,10 @@ function emitRuleFunction(w: Writer, rule: icons.IconRule): void {
     });
     return;
   }
+  if (rule.thresholds !== null && !icons.readsWholeNumbers(rule)) {
+    emitFloatThresholdChooser(w, rule, signature);
+    return;
+  }
   if (rule.thresholds !== null) {
     const bands = thresholdBands(rule);
     const last = rule.steps[rule.steps.length - 1]!;
@@ -226,6 +230,31 @@ function emitRuleFunction(w: Writer, rule: icons.IconRule): void {
       w.line(`default: return "${rule.steps[bands - 1]}";`);
     });
   });
+}
+
+/**
+ * A thresholds rule over a reading that may be a Float (`system.battery`):
+ * plain comparisons, which a Number and a Float both answer, where a count's
+ * chooser tests `instanceof Lang.Number`. A band is always `value < upper`,
+ * never `value == lower`, since a Float can sit between whole readings.
+ */
+function emitFloatThresholdChooser(w: Writer, rule: icons.IconRule, signature: string): void {
+  const bands = icons.thresholdRanges(rule);
+  const last = rule.steps[rule.steps.length - 1]!;
+  const said = bands.map(({ upper, name }) => `'${name}' below ${upper}`).join(", ");
+  w.doc(`The '${rule.name}' icon for a reading: ${said}, '${last}'\n`
+    + `from ${rule.thresholds![rule.thresholds!.length - 1]} up, and '${rule.plain}' without a reading.`);
+  w.block(signature, () => {
+    w.block("if (value == null)", () => w.line(`return "${rule.plain}";`));
+    for (const { upper, name } of bands) w.block(`if (value < ${upper})`, () => w.line(`return "${name}";`));
+    w.line(`return "${last}";`);
+  });
+}
+
+/** A Float-capable thresholds rule's inline chain, as a slot's icon method writes it: each band's glyph, then the last. */
+export function floatThresholdChain(rule: icons.IconRule): string {
+  const last = rule.steps[rule.steps.length - 1]!;
+  return icons.thresholdRanges(rule).map(({ upper, name }) => `value < ${upper} ? "${name}" : `).join("") + `"${last}"`;
 }
 
 /**
@@ -270,11 +299,11 @@ export function thresholdBands(rule: icons.IconRule): { test: string; said: stri
   }));
 }
 
-/** Every icon rule whose chooser the watch calls in this design, in the rule table's order. */
+/** Every icon rule whose chooser the watch calls in this design: the built-in ones in the rule table's order, then the face's own. */
 export function iconRules(face: Face): string[] {
   const names = new Set<string>();
   for (const [, run] of kinds.faceTextRuns(face)) for (const name of run.rules) names.add(name);
-  return [...icons.RULES.keys()].filter((name) => names.has(name));
+  return [...icons.RULES.keys(), ...face.icon_rules.keys()].filter((name) => names.has(name));
 }
 
 /** Python's `sorted()` of strings. */
