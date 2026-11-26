@@ -569,6 +569,13 @@ export class Group extends Element {
   }
 }
 
+export class BitmapElement extends Element {
+  png = "";
+  image!: import("../png.ts").RgbaImage;
+  static create(init: Partial<BitmapElement>): BitmapElement { return make(BitmapElement, init); }
+  get resourceId(): string { return `Bitmap${this.symbol}`; }
+}
+
 export class Shape extends Element {
   shape = "rectangle";
   size: Size = new Size();

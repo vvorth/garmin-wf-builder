@@ -13,7 +13,7 @@ import { propertiesResource, settingsResource, settingsStrings, slotTypes } from
 import { escape, XMLNS, XSD } from "./xml.ts";
 import type { BakedFont } from "../fonts/bmfont.ts";
 import type { FontFile } from "../fonts/files.ts";
-import { type Face, FontSpec } from "../ir/model.ts";
+import { BitmapElement, type Face, FontSpec } from "../ir/model.ts";
 import { type PinnedTurn, SteppedTurn, stepKey } from "../icons.ts";
 import { comparePoints } from "../kinds/data.ts";
 import * as kinds from "../kinds/index.ts";
@@ -248,11 +248,16 @@ export function buildBundle(face: Face, device: Device, baked: ReadonlyMap<strin
     bundle.fonts = new Map(baked);
   }
   const icon = (device.compiler["launcherIcon"] as { width: number; height: number } | undefined) ?? { width: 40, height: 40 };
+  const bitmaps = face.walk().filter((e): e is BitmapElement => e instanceof BitmapElement);
+  for (const bitmap of bitmaps) {
+    bundle.images.set(`drawables/${bitmap.resourceId}.png`, { width: bitmap.image.width, height: bitmap.image.height, data: bitmap.image.pixels });
+  }
   bundle.images.set("drawables/launcher_icon.png", launcherIcon(face, Math.trunc(Number(icon.width)), Math.trunc(Number(icon.height))));
   bundle.files.set("drawables/drawables.xml",
     `<drawables ${XMLNS} xsi:noNamespaceSchemaLocation="${XSD}">\n`
     + `    <!-- generated at ${icon.width}x${icon.height}, the size ${device.id} asks for -->\n`
     + '    <bitmap id="LauncherIcon" filename="launcher_icon.png" />\n'
+    + bitmaps.map((bitmap) => `    <bitmap id="${bitmap.resourceId}" filename="${bitmap.resourceId}.png" />\n`).join("")
     + "</drawables>\n");
   if (face.hasConfig) {
     let supported: boolean;

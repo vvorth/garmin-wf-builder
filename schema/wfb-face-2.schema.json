@@ -3444,6 +3444,9 @@
         },
         {
           "$ref": "#/$defs/patternElement"
+        },
+        {
+          "$ref": "#/$defs/imageElement"
         }
       ]
     },
@@ -3785,6 +3788,46 @@
           "$ref": "#/$defs/visible"
         }
       ]
+    },
+    "imageElement": {
+      "description": "An embedded PNG bitmap, centred at at:, at its native pixel size. Included in device resources and painted by drawBitmap.",
+      "type": "object",
+      "required": [
+        "type",
+        "png"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "image"
+        },
+        "png": {
+          "type": "string",
+          "maxLength": 8388608,
+          "description": "Base64-encoded non-interlaced PNG bytes, maximum 1024x1024 pixels."
+        },
+        "at": {
+          "$ref": "#/$defs/position"
+        },
+        "z": {
+          "$ref": "#/$defs/zOrder"
+        },
+        "visible": {
+          "$ref": "#/$defs/visible"
+        },
+        "lint": {
+          "$ref": "#/$defs/lint"
+        },
+        "aod": {
+          "$ref": "#/$defs/aodHands"
+        },
+        "overrides": {
+          "$ref": "#/$defs/overrides"
+        },
+        "sleep_update": {
+          "$ref": "#/$defs/sleepUpdate"
+        }
+      }
     }
   }
 }

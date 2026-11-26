@@ -72,6 +72,7 @@ jobs:
         run: |
           tests=(
             test/bake.test.ts
+            test/bitmap.test.ts
             test/bundle.test.ts
             test/complication-availability.test.ts
             test/data.test.ts
