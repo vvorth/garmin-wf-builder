@@ -35,7 +35,7 @@ export function translateOps(ops: readonly JsonOp[], dx: number, dy: number): Js
     const name = op.op;
     if (name === "fillPolygon") return { ...op, points: (op["points"] as [number, number][]).map(([x, y]) => [x + dx, y + dy]) };
     if (name === "arc") return { ...op, cx: shifted(op["cx"] as JsonNum, dx), cy: shifted(op["cy"] as JsonNum, dy) };
-    if (name === "text" || name === "glyph") return { ...op, x: shifted(op["x"] as JsonNum, dx), y: shifted(op["y"] as JsonNum, dy) };
+    if (name === "text" || name === "glyph" || name === "bitmap") return { ...op, x: shifted(op["x"] as JsonNum, dx), y: shifted(op["y"] as JsonNum, dy) };
     const a = op["args"] as JsonNum[];
     if (name === "drawLine") return { ...op, args: [shifted(a[0]!, dx), shifted(a[1]!, dy), shifted(a[2]!, dx), shifted(a[3]!, dy)] };
     if (XY.has(name)) return { ...op, args: [shifted(a[0]!, dx), shifted(a[1]!, dy), ...a.slice(2)] };

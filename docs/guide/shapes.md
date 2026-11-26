@@ -1,5 +1,13 @@
 # Shapes
 
+An image can also be included with `type: image`, `png: <base64 PNG bytes>`
+and `at: {anchor: center}`. It uses its native pixel size and is included as a
+Garmin bitmap resource in the watch build. PNGs must be non-interlaced, 8/16-bit,
+at most 1024×1024 pixels and 8 MB of base64 text. Alpha is preserved. Put a
+background image first under `static:` and use `aod: {visible: false}` to leave
+it out of the always-on frame. The Preview menu's separate background option
+is an editor-only reference and is not included in the build.
+
 Six element types each draw one primitive from the `Dc` drawing API —
 `rectangle`, `circle`, `ellipse`, `arc`, `polygon` and `line` — filled or
 outlined. Each reads only the keys its own geometry needs, so a card, a

@@ -23,10 +23,11 @@ import { val } from "./barrel.ts";
 import { Evaluator, justifyAlign, partOps, pasteGlyph, seriesOps, Stop } from "./evaluator.ts";
 import { context, program } from "./index.ts";
 import type { Font, Num, Op } from "./program.ts";
+import { bitmapTile } from "../bitmaps.ts";
 
 /** Every op `toJson` emits, all of which the reference rasteriser draws. */
 export const BROWSER_OPS: ReadonlySet<string> = new Set([
-  "color", "pen", "fillPolygon", "arc", "text", "glyph",
+  "color", "pen", "fillPolygon", "arc", "text", "glyph", "bitmap",
   "fillRectangle", "drawRectangle", "fillRoundedRectangle", "drawRoundedRectangle",
   "fillCircle", "drawCircle", "fillEllipse", "drawEllipse", "drawLine",
 ]);
@@ -176,6 +177,9 @@ class JsonWriter {
   op(op: Op): void {
     const ev = this.ev;
     switch (op.t) {
+      case "BitmapDraw":
+        this.out.push({ op: "bitmap", x: this.num(op.x), y: this.num(op.y), run: [{ tile: this.tiles.add(bitmapTile(op.image, this.renderer.scale)), x: 0, y: 0 }] });
+        break;
       case "SetColor":
         ev.color = ev.paint(op.color);
         this.out.push({ op: "color", rgb: [...ev.color] });
@@ -311,7 +315,7 @@ export function rasterise(ops: readonly JsonOp[], tiles: Tiles, image: Image, sc
       const call = op["call"] as barrel.ArcCall | null;
       if (call === null || radius <= 0) continue;
       drawArc(image, value(op["cx"] as JsonNum), value(op["cy"] as JsonNum), radius, value(op["pen"] as JsonNum), call, color, s);
-    } else if (name === "glyph" || name === "text") {
+    } else if (name === "glyph" || name === "text" || name === "bitmap") {
       pasteRun(op["run"] as RunItem[], anchorOf(op, s), tiles, image, color);
     } else {
       primitive(image, name, (op["args"] as JsonNum[]).map(value), color, pen, s);

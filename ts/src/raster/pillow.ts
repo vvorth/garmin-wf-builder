@@ -486,7 +486,7 @@ export function drawOps(im: Image, ops: readonly JsonOp[], tiles: Record<string,
       const call = op["call"] as [number, number, boolean] | null;
       if (call === null || radius <= 0) continue;
       garmin.drawArc(im, num(op["cx"] as JsonNum), num(op["cy"] as JsonNum), radius, num(op["pen"] as JsonNum), call, color, s);
-    } else if (name === "glyph" || name === "text") {
+    } else if (name === "glyph" || name === "text" || name === "bitmap") {
       pasteRun(im, op, tiles, s, color);
     } else {
       primitive(im, name, (op["args"] as JsonNum[]).map(num), color, pen, s);

@@ -70,7 +70,7 @@ export class TextRun {
 }
 
 /** Kind names, in schema order. */
-export const NAMES = ["group", "shape", "text", "gauge", "icon", "graph", "data", "hands", "pattern"] as const;
+export const NAMES = ["group", "shape", "text", "gauge", "icon", "graph", "data", "hands", "pattern", "image"] as const;
 
 /** The `type:`s one kind, `shape`, draws. */
 export const PRIMITIVES: readonly string[] = ["rectangle", "circle", "line", "arc", "ellipse", "polygon"];

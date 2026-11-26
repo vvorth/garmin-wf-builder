@@ -9,6 +9,7 @@ import "./graph.ts";
 import "./data.ts";
 import "./hands.ts";
 import "./pattern.ts";
+import "./image.ts";
 
 export {
   ElementKind, faceTextRuns, forElement, forPlaced, get, placedFont, placedTextRuns, IconFont, kindOf, names, NAMES, PRIMITIVES, ringFont, ringFontName, ringFonts,

@@ -424,9 +424,13 @@ export const Comment = (text: string): Comment => ({ t: "Comment", text });
 export interface Blank { t: "Blank" }
 export const Blank = (): Blank => ({ t: "Blank" });
 
+export interface BitmapDraw { t: "BitmapDraw"; resource: string; image: import("../png.ts").RgbaImage; x: Num; y: Num }
+export const BitmapDraw = (resource: string, image: BitmapDraw["image"], x: Num, y: Num): BitmapDraw =>
+  ({ t: "BitmapDraw", resource, image, x, y });
+
 export type Op = SetColor | SetPen | Primitive | FillPolygon | ArcSpan | ArcProgress | Part | SeriesRebuild | SlotSeriesRebuild | SeriesDraw
   | LoadFont | Text | Glyph | LetText | IfNotNull | IfAod | IfAwake | Let | Assign | If | For | Continue | Return
-  | SlotPull | SlotIcon | IconStep | SlotText | LetSlotPick | LetAutoScale | VisibleGuard | NullGuard | AntiAlias | Comment | Blank;
+  | SlotPull | SlotIcon | IconStep | SlotText | LetSlotPick | LetAutoScale | VisibleGuard | NullGuard | AntiAlias | Comment | Blank | BitmapDraw;
 
 // -- what lowering is given ------------------------------------------------------
 

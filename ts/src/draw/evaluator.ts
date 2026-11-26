@@ -13,7 +13,8 @@ import type { Expression } from "../ir/model.ts";
 import { discPerimeterOffsets } from "../ir/model.ts";
 import type { Renderer, RGB } from "../preview.ts";
 import { drawArc, fillPolygon } from "../raster/garmin.ts";
-import { primitive as pillowPrimitive } from "../raster/pillow.ts";
+import { paste, primitive as pillowPrimitive } from "../raster/pillow.ts";
+import { bitmapTile } from "../bitmaps.ts";
 import { str, truthy } from "../py.ts";
 import { SAMPLE_GOALS, SAMPLE_HEART_RATE_ZONES, SAMPLE_WEARER_AGE, SAMPLE_WEARER_SEX } from "../sample.ts";
 import type { BakedFont, GlyphBox } from "../fonts/bmfont.ts";
@@ -349,6 +350,7 @@ export class Evaluator {
         this.arc(op, barrel.drawSpan(this.n(op.start), this.n(op.sweep)));
         this.pen = 1; // the barrel resets it
         break;
+      case "BitmapDraw": paste(r.image, bitmapTile(op.image, r.scale), Math.round(this.n(op.x) * r.scale), Math.round(this.n(op.y) * r.scale), null); break;
       case "ArcProgress":
         this.arc(op, barrel.drawProgress(this.n(op.start), this.n(op.sweep), this.n(op.fraction)));
         this.pen = 1;

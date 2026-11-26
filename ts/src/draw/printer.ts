@@ -89,6 +89,7 @@ const note = (text: string): string => (text ? `  // ${text}` : "");
 function printOp(w: Writer, op: Op, aod: AodStyle): void {
   const n = (value: Num): string => numCode(value, aod);
   switch (op.t) {
+    case "BitmapDraw": w.line(`dc.drawBitmap(${n(op.x)}, ${n(op.y)}, WatchUi.loadResource(Rez.Drawables.${op.resource}) as Graphics.BitmapType);`); break;
     case "SetColor": w.line(`dc.setColor(${colorCode(op.color, aod)}, Graphics.COLOR_TRANSPARENT);` + note(op.note)); break;
     case "SetPen": w.line(`dc.setPenWidth(${op.width !== null ? n(op.width) : "1"});` + note(op.note)); break;
     case "Primitive": w.call(`dc.${op.name}`, op.args.map((group) => group.map(n).join(", "))); break;
